@@ -1,0 +1,233 @@
+WITH
+
+m as (
+select
+'KFR4' as line,
+sys_line_id,
+cur_line_id,
+origin_line_id,
+lot_id,
+last_event_date
+from smicdc_nrd.mc_lot
+
+union all
+
+select
+'PFR1' as line,
+sys_line_id,
+cur_line_id,
+origin_line_id,
+lot_id,
+last_event_date
+from smicdc_p3nrd.mc_lot
+
+union all
+
+select
+'KFR7' as line,
+sys_line_id,
+cur_line_id,
+origin_line_id,
+lot_id,
+last_event_date
+from smicdc_nrdk.mc_lot
+),
+
+c as (
+select
+distinct
+lot_id,
+max(last_event_date) over (partition by lot_id) as m
+FROM m),
+
+m0 as (select 
+m.line, 
+m.lot_id,
+c.m as max_event_date
+from m, c
+where m.lot_id = c.lot_id(+)
+	and m.last_event_date = c.m),
+
+
+T1 AS	
+(SELECT LINE_ID, LOT_ID, NEW_ATTR_VALUE
+FROM 
+(SELECT line_id, LOT_ID, NEW_ATTR_VALUE, MAX(LOT_TRANSN_TIME) OVER (PARTITION BY LOT_ID,  LINE_ID) AS M, SUM(CASE WHEN WIP_ATTRIBUTE='FLOWLEVEL' THEN 1 END) OVER (PARTITION BY LOT_ID, STEP_SEQ, LINE_ID) SUM, LOT_TRANSN_TIME
+	
+FROM   MI_LOT_TRANSN_HIST_V	
+	
+WHERE LOT_TRANSN_TYPE = 'ModifyAttr' AND WIP_ATTRIBUTE IN ('GRADE')
+	AND LINE_ID IN ('PFR1', 'KFR7'))
+
+WHERE SUM IS NULL AND M=LOT_TRANSN_TIME),
+	
+g AS (SELECT DISTINCT T1.LINE_ID, T1.LOT_ID, T1.NEW_ATTR_VALUE AS GRADE
+FROM T1 
+ORDER BY LOT_ID),
+
+
+m1 as ((select
+'PFR1' as line,
+m.cur_line_id,
+m.sys_line_id,
+m.origin_line_id,
+m.lot_id,
+m.carr_id,
+m.lot_type,
+(case when nvl(g.grade,'-')<>'-' then 'G'||g.grade end) as grade,
+TO_CHAR(m.lot_level) as lot_level,
+m.cur_qty,
+m.bay_name,
+(case when m.lot_status_seg='Hold' then 'HOLD' else m.step_status_seg end) as status,
+m.proc_id,
+TO_CHAR(m.order_seq) as order_seq,
+m.step_seq,
+to_date(m.START_DATE, 'yyyymmdd hh24:mi:ss') as START_DATE,
+to_date(m.LAST_TKOUT_DATE, 'yyyymmdd hh24:mi:ss') as LAST_TKOUT_DATE,
+to_date(m.STEP_ARRIVE_DATE, 'yyyymmdd hh24:mi:ss') as STEP_ARRIVE_DATE,
+to_date(m.LAST_EVENT_DATE, 'yyyymmdd hh24:mi:ss') as LAST_EVENT_DATE
+
+from smicdc_p3nrd.mc_lot m, m0, g
+where m.last_event_date = m0.max_event_date
+	and m.lot_id = m0.lot_id
+	and lot_status_seg in ('Active', 'Hold')
+	and m.order_seq is not null
+	and m.lot_id = g.lot_id(+)
+	and 'PFR1' = g.line_id(+))
+
+union all 
+
+(select
+'KFR4' as line,
+m.cur_line_id,
+m.sys_line_id,
+m.origin_line_id,
+m.lot_id,
+m.carr_id,
+m.lot_type,
+(case when m.prirt_no is not null then 'P'||m.prirt_no end) as grade,
+NULL as lot_level,
+m.cur_qty,
+m.bay_name,
+(case when m.lot_status_seg='Hold' then 'HOLD' else m.step_status_seg end) as status,
+m.proc_id,
+to_char(tp.max_pathseq) as order_seq,
+m.step_seq,
+to_date(m.START_DATE, 'yyyymmdd hh24:mi:ss') as START_DATE,
+to_date(m.LAST_TKOUT_DATE, 'yyyymmdd hh24:mi:ss') as LAST_TKOUT_DATE,
+to_date(m.STEP_ARRIVE_DATE, 'yyyymmdd hh24:mi:ss') as STEP_ARRIVE_DATE,
+to_date(m.LAST_EVENT_DATE, 'yyyymmdd hh24:mi:ss') as LAST_EVENT_DATE
+
+from smicdc_nrd.mc_lot m, m0, 
+(SELECT ML.LOT_ID,MAX(TP.PATHSEQ) MAX_PATHSEQ 
+            FROM (select * from smicdc_nrd.mc_lot where lot_status_seg in ('Hold', 'Active')) ML,
+		SMICDC_NRD.TODOPLAN TP
+            WHERE
+                1 = 1
+                AND ML.LOT_ID = TP.LOTID
+                AND ML.STEP_SEQ = TP.STEPSEQ
+            GROUP BY ML.LOT_ID
+) tp
+where m.last_event_date = m0.max_event_date
+	and m.lot_id = m0.lot_id
+	and lot_status_seg in ('Active', 'Hold')
+	and m.lot_id=tp.lot_id(+))
+
+union all
+
+(select
+'KFR7' as line,
+m.cur_line_id,
+m.sys_line_id,
+m.origin_line_id,
+m.lot_id,
+m.carr_id,
+m.lot_type,
+(case when nvl(g.grade,'-')<>'-' then 'G'||g.grade end) as grade,
+TO_CHAR(m.lot_level) as lot_level,
+m.cur_qty,
+m.bay_name,
+(case when m.lot_status_seg='Hold' then 'HOLD' else m.step_status_seg end) as status,
+m.proc_id,
+TO_CHAR(m.order_seq) as order_seq,
+m.step_seq,
+to_date(m.START_DATE, 'yyyymmdd hh24:mi:ss') as START_DATE,
+to_date(m.LAST_TKOUT_DATE, 'yyyymmdd hh24:mi:ss') as LAST_TKOUT_DATE,
+to_date(m.STEP_ARRIVE_DATE, 'yyyymmdd hh24:mi:ss') as STEP_ARRIVE_DATE,
+to_date(m.LAST_EVENT_DATE, 'yyyymmdd hh24:mi:ss') as LAST_EVENT_DATE
+
+from smicdc_nrdk.mc_lot m, m0, g
+where m.last_event_date = m0.max_event_date
+	and m.lot_id = m0.lot_id
+	and lot_status_seg in ('Active', 'Hold')
+	and m.lot_id = g.lot_id(+)
+	and 'KFR7' = g.line_id(+))
+),
+
+co as (
+select 
+*
+from (select 
+'KFR4' as line,
+sr0.parentlotid as lot_id, 
+sc0.comments as lot_inform,
+inserttime, 
+max(inserttime) over (partition by sr0.parentlotid) as m
+from (select 
+	parentlotid, 
+	ruleseq 
+        from smicdc_nrd.steprule) sr0, 
+        (select 
+	comments, 
+	fromseq, seq, inserttime
+         from smicdc_nrd.stepcomments 
+         where commenttype='LOT') sc0
+where sr0.ruleseq = sc0.fromseq)
+where m=inserttime
+
+union all
+
+select
+*
+from (select 
+'PFR1' as line,
+lot_id, 
+step_comment as lot_inform,
+update_date,
+max(update_date) over (partition by lot_id) as m
+from SMICDC_P3NRD.MC_LOT_STEP_COMMENT 
+where parent_order_seq=0
+	and comment_type = 'LOT')
+where m=update_date
+
+union all
+
+select
+*
+from (select 
+'KFR7' as line,
+lot_id, 
+step_comment as lot_inform,
+update_date,
+max(update_date) over (partition by lot_id) as m
+from SMICDC_NRDK.MC_LOT_STEP_COMMENT 
+where parent_order_seq=0
+	and comment_type = 'LOT')
+where m=update_date)
+
+
+
+select 
+distinct 
+m1.* ,
+(case 
+when origin_line_id<>sys_line_id then 'OLD_SEND'
+when origin_line_id=sys_line_id and sys_line_id<>cur_line_id then 'NEW_SEND'
+end) as sendfab,
+co.lot_inform
+from m1, co
+where m1.line=m1.sys_line_id
+	and lot_type in ('PP', 'PB', 'PG', 'TT')
+	and cur_line_id not in ('CHTV')
+	and m1.line = co.line(+)
+	and m1.lot_id = co.lot_id(+)
