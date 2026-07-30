@@ -8,10 +8,11 @@ SMICDC_NRD.TODOPLAN	MOS_KH_SMI.SMICDC_NRD_TODOPLAN	e
 smicdc_nrd.stepcomments	MOS_KH_SMI.SMICDC_NRD_STEPCOMMENTS	f
 SMICDC_P3NRD.MC_LOT_STEP_COMMENT 	MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_COMMENT	g
 SMICDC_NRDK.MC_LOT_STEP_COMMENT 	MOS_KH_SMI.SMICDC_NRDK_MC_LOT_STEP_COMMENT	h
+smicdc_nrd.steprule	MOS_KH_SMI.SMICDC_NRD_STEPRULE	i
 
 
-<impala 테이블 컬럼>
-매칭기호	컬럼명	datatype	pk
+
+<impala 테이블 컬럼>매칭기호	컬럼명	datatype	pk
 c	object_id	STRING	Y
 c	lot_id	STRING	
 c	lot_status_seg	STRING	
@@ -375,4 +376,46 @@ h	del_yn	STRING
 h	update_date	TIMESTAMP	
 h	rule_no	STRING	
 h	step_seq	STRING	
+i	ruleseq	DOUBLE	
+i	processid	STRING	
+i	lotobject	STRING	
+i	stepseq	STRING	
+i	rulename	STRING	
+i	rulegroupno	STRING	
+i	stepid	STRING	
+i	rulepriority	DOUBLE	
+i	rulestatus	STRING	
+i	parentlotid	STRING	
+i	lotid	STRING	
+i	ruletype	STRING	
+i	rulevalue	STRING	
+i	ruleaction	STRING	
+i	ruleno	STRING	
+i	expiredate	TIMESTAMP	
+i	jumpstepseq	STRING	
+i	returnstepseq	STRING	
+i	owner	STRING	
+i	insertdate	TIMESTAMP	
+i	color	STRING	
+i	ppid	STRING	
+i	recipeid	STRING	
+i	eqpid	STRING	
+i	chamberid	STRING	
+i	eqpgroup	STRING	
+i	reticleid	STRING	
+i	expoid	STRING	
+i	dcspecid	STRING	
+i	specification	STRING	
+i	layerid	STRING	
+i	compcount	DOUBLE	
+i	descript	STRING	
+i	comment_	STRING	
+i	eqptype	STRING	
+i	delaytime	DOUBLE	
+i	dcflag	STRING	
+i	adhocplanname	STRING	
+i	metalstatus	STRING	
+i	category	STRING	
+i	delaylimit	DOUBLE	
+
 
