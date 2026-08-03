@@ -239,3 +239,18 @@ WHERE       m1.line = m1.sys_line_id
   AND       m1.lot_type IN ('PP', 'PB', 'PG', 'TT')
   AND       m1.cur_line_id NOT IN ('CHTV')
 """
+
+
+if __name__ == "__main__":
+    import datetime as dt
+    import os
+
+    from bigdataquery import getData
+
+    df = getData(param=query, convert_type=True, verbose=True)
+
+    out_path = os.path.join(
+        os.getcwd(), f"xx_impala_{dt.datetime.now():%Y%m%d_%H%M%S}.csv"
+    )
+    df.to_csv(out_path, index=False, encoding="utf-8-sig")
+    print(f"saved: {out_path} rows={len(df)}")
