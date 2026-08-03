@@ -91,10 +91,14 @@ m1 AS (
            m.proc_id,
            CAST(CAST(m.order_seq AS BIGINT) AS STRING)              AS order_seq,
            m.step_seq,
-           TO_TIMESTAMP(m.start_date,       'yyyyMMdd HH:mm:ss')    AS start_date,
-           TO_TIMESTAMP(m.last_tkout_date,  'yyyyMMdd HH:mm:ss')    AS last_tkout_date,
-           TO_TIMESTAMP(m.step_arrive_date, 'yyyyMMdd HH:mm:ss')    AS step_arrive_date,
-           TO_TIMESTAMP(m.last_event_date,  'yyyyMMdd HH:mm:ss')    AS last_event_date
+           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.start_date, '[^0-9]', ''), 1, 14), 14, '0'),
+                        'yyyyMMddHHmmss')    AS start_date,
+           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.last_tkout_date, '[^0-9]', ''), 1, 14), 14, '0'),
+                        'yyyyMMddHHmmss')    AS last_tkout_date,
+           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.step_arrive_date, '[^0-9]', ''), 1, 14), 14, '0'),
+                        'yyyyMMddHHmmss')    AS step_arrive_date,
+           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.last_event_date, '[^0-9]', ''), 1, 14), 14, '0'),
+                        'yyyyMMddHHmmss')    AS last_event_date
     FROM        MOS_KH_SMI.SMICDC_P3NRD_MC_LOT m
     JOIN        m0
       ON        m.lot_id          = m0.lot_id
@@ -125,10 +129,14 @@ m1 AS (
            m.proc_id,
            CAST(CAST(tp.max_pathseq AS BIGINT) AS STRING)           AS order_seq,
            m.step_seq,
-           TO_TIMESTAMP(m.start_date,       'yyyyMMdd HH:mm:ss')    AS start_date,
-           TO_TIMESTAMP(m.last_tkout_date,  'yyyyMMdd HH:mm:ss')    AS last_tkout_date,
-           TO_TIMESTAMP(m.step_arrive_date, 'yyyyMMdd HH:mm:ss')    AS step_arrive_date,
-           TO_TIMESTAMP(m.last_event_date,  'yyyyMMdd HH:mm:ss')    AS last_event_date
+           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.start_date, '[^0-9]', ''), 1, 14), 14, '0'),
+                        'yyyyMMddHHmmss')    AS start_date,
+           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.last_tkout_date, '[^0-9]', ''), 1, 14), 14, '0'),
+                        'yyyyMMddHHmmss')    AS last_tkout_date,
+           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.step_arrive_date, '[^0-9]', ''), 1, 14), 14, '0'),
+                        'yyyyMMddHHmmss')    AS step_arrive_date,
+           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.last_event_date, '[^0-9]', ''), 1, 14), 14, '0'),
+                        'yyyyMMddHHmmss')    AS last_event_date
     FROM        MOS_KH_SMI.SMICDC_NRD_MC_LOT m
     JOIN        m0
       ON        m.lot_id          = m0.lot_id
@@ -156,10 +164,14 @@ m1 AS (
            m.proc_id,
            CAST(CAST(m.order_seq AS BIGINT) AS STRING)              AS order_seq,
            m.step_seq,
-           TO_TIMESTAMP(m.start_date,       'yyyyMMdd HH:mm:ss')    AS start_date,
-           TO_TIMESTAMP(m.last_tkout_date,  'yyyyMMdd HH:mm:ss')    AS last_tkout_date,
-           TO_TIMESTAMP(m.step_arrive_date, 'yyyyMMdd HH:mm:ss')    AS step_arrive_date,
-           TO_TIMESTAMP(m.last_event_date,  'yyyyMMdd HH:mm:ss')    AS last_event_date
+           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.start_date, '[^0-9]', ''), 1, 14), 14, '0'),
+                        'yyyyMMddHHmmss')    AS start_date,
+           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.last_tkout_date, '[^0-9]', ''), 1, 14), 14, '0'),
+                        'yyyyMMddHHmmss')    AS last_tkout_date,
+           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.step_arrive_date, '[^0-9]', ''), 1, 14), 14, '0'),
+                        'yyyyMMddHHmmss')    AS step_arrive_date,
+           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.last_event_date, '[^0-9]', ''), 1, 14), 14, '0'),
+                        'yyyyMMddHHmmss')    AS last_event_date
     FROM        MOS_KH_SMI.SMICDC_NRDK_MC_LOT m
     JOIN        m0
       ON        m.lot_id          = m0.lot_id
