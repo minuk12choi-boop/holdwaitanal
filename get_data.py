@@ -430,10 +430,21 @@ def _excel_safe(df):
     return out
 
 
-def _save_excel(df, name, stamp):
-    path = os.path.join(os.getcwd(), f"{name}_{stamp}.xlsx")
-    _excel_safe(df).to_excel(path, index=False)
-    print(f"saved: {path} rows={len(df)}")
+# Excel 시트 최대 행수(1,048,576) - 헤더 1행
+EXCEL_MAX_ROWS = 1_048_575
+
+
+def _save_table(df, name, stamp):
+    """Excel 로 저장하되, 행수가 시트 한계를 넘으면 CSV 로 대체 저장한다."""
+    safe = _excel_safe(df)
+    if len(safe) > EXCEL_MAX_ROWS:
+        path = os.path.join(os.getcwd(), f"{name}_{stamp}.csv")
+        safe.to_csv(path, index=False, encoding="utf-8-sig")
+        print(f"saved(CSV / Excel 행 제한 {EXCEL_MAX_ROWS:,} 초과): {path} rows={len(safe):,}")
+    else:
+        path = os.path.join(os.getcwd(), f"{name}_{stamp}.xlsx")
+        safe.to_excel(path, index=False)
+        print(f"saved: {path} rows={len(safe):,}")
     return path
 
 
@@ -453,5 +464,5 @@ if __name__ == "__main__":
         ignore_index=True,
     )
 
-    _save_excel(df_lot, "lot", stamp)
-    _save_excel(tip, "tip", stamp)
+    _save_table(df_lot, "lot", stamp)
+    _save_table(tip, "tip", stamp)
