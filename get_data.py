@@ -1,10 +1,7 @@
-query = """
+lot_query = """
 WITH
 
 m AS (
-    SELECT 'KFR4' AS line, sys_line_id, cur_line_id, origin_line_id, lot_id, last_event_date
-    FROM   MOS_KH_SMI.SMICDC_NRD_MC_LOT
-    UNION ALL
     SELECT 'PFR1' AS line, sys_line_id, cur_line_id, origin_line_id, lot_id, last_event_date
     FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
     UNION ALL
@@ -59,20 +56,6 @@ g AS (
     FROM   t1
 ),
 
-tp AS (
-    SELECT ml.lot_id,
-           MAX(tp.pathseq) AS max_pathseq
-    FROM (
-        SELECT lot_id, step_seq
-        FROM   MOS_KH_SMI.SMICDC_NRD_MC_LOT
-        WHERE  lot_status_seg IN ('Hold', 'Active')
-    ) ml
-    JOIN   MOS_KH_SMI.SMICDC_NRD_TODOPLAN tp
-      ON   ml.lot_id   = tp.lotid
-     AND   ml.step_seq = tp.stepseq
-    GROUP  BY ml.lot_id
-),
-
 m1 AS (
     SELECT 'PFR1'                                                   AS line,
            m.cur_line_id,
@@ -98,7 +81,8 @@ m1 AS (
            TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.step_arrive_date, '[^0-9]', ''), 1, 14), 14, '0'),
                         'yyyyMMddHHmmss')    AS step_arrive_date,
            TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.last_event_date, '[^0-9]', ''), 1, 14), 14, '0'),
-                        'yyyyMMddHHmmss')    AS last_event_date
+                        'yyyyMMddHHmmss')    AS last_event_date,
+	NULL as fa_object4
     FROM        MOS_KH_SMI.SMICDC_P3NRD_MC_LOT m
     JOIN        m0
       ON        m.lot_id          = m0.lot_id
@@ -108,42 +92,6 @@ m1 AS (
      AND        g.line_id = 'PFR1'
     WHERE       m.lot_status_seg IN ('Active', 'Hold')
       AND       m.order_seq IS NOT NULL
-
-    UNION ALL
-
-    SELECT 'KFR4'                                                   AS line,
-           m.cur_line_id,
-           m.sys_line_id,
-           m.origin_line_id,
-           m.lot_id,
-           m.carr_id,
-           m.lot_type,
-           CASE WHEN m.prirt_no IS NOT NULL
-                THEN CONCAT('P', CAST(CAST(m.prirt_no AS BIGINT) AS STRING))
-           END                                                      AS grade,
-           CAST(NULL AS STRING)                                     AS lot_level,
-           m.cur_qty,
-           m.bay_name,
-           CASE WHEN m.lot_status_seg = 'Hold' THEN 'HOLD'
-                ELSE m.step_status_seg END                          AS status,
-           m.proc_id,
-           CAST(CAST(tp.max_pathseq AS BIGINT) AS STRING)           AS order_seq,
-           m.step_seq,
-           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.start_date, '[^0-9]', ''), 1, 14), 14, '0'),
-                        'yyyyMMddHHmmss')    AS start_date,
-           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.last_tkout_date, '[^0-9]', ''), 1, 14), 14, '0'),
-                        'yyyyMMddHHmmss')    AS last_tkout_date,
-           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.step_arrive_date, '[^0-9]', ''), 1, 14), 14, '0'),
-                        'yyyyMMddHHmmss')    AS step_arrive_date,
-           TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.last_event_date, '[^0-9]', ''), 1, 14), 14, '0'),
-                        'yyyyMMddHHmmss')    AS last_event_date
-    FROM        MOS_KH_SMI.SMICDC_NRD_MC_LOT m
-    JOIN        m0
-      ON        m.lot_id          = m0.lot_id
-     AND        m.last_event_date = m0.max_event_date
-    LEFT JOIN   tp
-      ON        m.lot_id = tp.lot_id
-    WHERE       m.lot_status_seg IN ('Active', 'Hold')
 
     UNION ALL
 
@@ -171,7 +119,8 @@ m1 AS (
            TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.step_arrive_date, '[^0-9]', ''), 1, 14), 14, '0'),
                         'yyyyMMddHHmmss')    AS step_arrive_date,
            TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.last_event_date, '[^0-9]', ''), 1, 14), 14, '0'),
-                        'yyyyMMddHHmmss')    AS last_event_date
+                        'yyyyMMddHHmmss')    AS last_event_date,
+	w.fa_object4
     FROM        MOS_KH_SMI.SMICDC_NRDK_MC_LOT m
     JOIN        m0
       ON        m.lot_id          = m0.lot_id
@@ -179,33 +128,12 @@ m1 AS (
     LEFT JOIN   g
       ON        m.lot_id  = g.lot_id
      AND        g.line_id = 'KFR7'
+     LEFT JOIN MOS_KH_SMI.SMICDC_NRDK_MATERIALWORKSTATUS w
+      ON        m.lot_id         = w.lotid
     WHERE       m.lot_status_seg IN ('Active', 'Hold')
 ),
 
 co AS (
-    SELECT line, lot_id, lot_inform
-    FROM (
-        SELECT 'KFR4'                                               AS line,
-               sr0.parentlotid                                      AS lot_id,
-               sc0.comments                                         AS lot_inform,
-               sc0.inserttime                                       AS cmt_time,
-               MAX(sc0.inserttime)
-                   OVER (PARTITION BY sr0.parentlotid)              AS max_cmt_time
-        FROM (
-            SELECT parentlotid, ruleseq
-            FROM   MOS_KH_SMI.SMICDC_NRD_STEPRULE
-        ) sr0
-        JOIN (
-            SELECT comments, fromseq, seq, inserttime
-            FROM   MOS_KH_SMI.SMICDC_NRD_STEPCOMMENTS
-            WHERE  commenttype = 'LOT'
-        ) sc0
-          ON sr0.ruleseq = sc0.fromseq
-    ) k4
-    WHERE  max_cmt_time = cmt_time
-
-    UNION ALL
-
     SELECT line, lot_id, lot_inform
     FROM (
         SELECT 'PFR1'                                               AS line,
@@ -252,6 +180,27 @@ WHERE       m1.line = m1.sys_line_id
   AND       m1.cur_line_id NOT IN ('CHTV')
 """
 
+kfr7_tip_query = """
+select 
+*
+from MOS_KH_SMI.SMICDC_NRDK_TRACKINPREVENT
+where owner in ('LEVEL1', 'PHOTO_LEVEL1')
+"""
+
+pfr1_tip_query = """
+select 
+*
+from MOS_KH_SMI.SMICDC_P3NRD_TRACKINPREVENT
+where owner in ('LEVEL1', 'PHOTO_LEVEL1')
+"""
+
+eqp_query = """
+select 
+*
+from MOS_KH_SMI.SMIMES_MI_EQUIPMENT
+where line_id in ('KFR7', 'PFR1')
+"""
+
 
 if __name__ == "__main__":
     import datetime as dt
@@ -259,7 +208,7 @@ if __name__ == "__main__":
 
     from bigdataquery import getData
 
-    df = getData(param=query, convert_type=True, verbose=True)
+    df = getData(param=lot_query, convert_type=True, verbose=True)
 
     out_path = os.path.join(
         os.getcwd(), f"xx_impala_{dt.datetime.now():%Y%m%d_%H%M%S}.csv"
