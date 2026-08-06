@@ -1,233 +1,519 @@
-WITH
+<기존 tip table_pfr1>
+with
 
-m as (
-select
-'KFR4' as line,
-sys_line_id,
-cur_line_id,
-origin_line_id,
-lot_id,
-last_event_date
-from smicdc_nrd.mc_lot
-
-union all
-
-select
+t as (select DISTINCT
 'PFR1' as line,
-sys_line_id,
-cur_line_id,
-origin_line_id,
-lot_id,
-last_event_date
-from smicdc_p3nrd.mc_lot
-
-union all
-
-select
-'KFR7' as line,
-sys_line_id,
-cur_line_id,
-origin_line_id,
-lot_id,
-last_event_date
-from smicdc_nrdk.mc_lot
-),
-
-c as (
-select
-distinct
-lot_id,
-max(last_event_date) over (partition by lot_id) as m
-FROM m),
-
-m0 as (select 
-m.line, 
-m.lot_id,
-c.m as max_event_date
-from m, c
-where m.lot_id = c.lot_id(+)
-	and m.last_event_date = c.m),
-
-
-T1 AS	
-(SELECT LINE_ID, LOT_ID, NEW_ATTR_VALUE
-FROM 
-(SELECT line_id, LOT_ID, NEW_ATTR_VALUE, MAX(LOT_TRANSN_TIME) OVER (PARTITION BY LOT_ID,  LINE_ID) AS M, SUM(CASE WHEN WIP_ATTRIBUTE='FLOWLEVEL' THEN 1 END) OVER (PARTITION BY LOT_ID, STEP_SEQ, LINE_ID) SUM, LOT_TRANSN_TIME
-	
-FROM   MI_LOT_TRANSN_HIST_V	
-	
-WHERE LOT_TRANSN_TYPE = 'ModifyAttr' AND WIP_ATTRIBUTE IN ('GRADE')
-	AND LINE_ID IN ('PFR1', 'KFR7'))
-
-WHERE SUM IS NULL AND M=LOT_TRANSN_TIME),
-	
-g AS (SELECT DISTINCT T1.LINE_ID, T1.LOT_ID, T1.NEW_ATTR_VALUE AS GRADE
-FROM T1 
-ORDER BY LOT_ID),
-
-
-m1 as ((select
-'PFR1' as line,
-m.cur_line_id,
-m.sys_line_id,
-m.origin_line_id,
-m.lot_id,
-m.carr_id,
-m.lot_type,
-(case when nvl(g.grade,'-')<>'-' then 'G'||g.grade end) as grade,
-TO_CHAR(m.lot_level) as lot_level,
-m.cur_qty,
-m.bay_name,
-(case when m.lot_status_seg='Hold' then 'HOLD' else m.step_status_seg end) as status,
-m.proc_id,
-TO_CHAR(m.order_seq) as order_seq,
-m.step_seq,
-to_date(m.START_DATE, 'yyyymmdd hh24:mi:ss') as START_DATE,
-to_date(m.LAST_TKOUT_DATE, 'yyyymmdd hh24:mi:ss') as LAST_TKOUT_DATE,
-to_date(m.STEP_ARRIVE_DATE, 'yyyymmdd hh24:mi:ss') as STEP_ARRIVE_DATE,
-to_date(m.LAST_EVENT_DATE, 'yyyymmdd hh24:mi:ss') as LAST_EVENT_DATE
-
-from smicdc_p3nrd.mc_lot m, m0, g
-where m.last_event_date = m0.max_event_date
-	and m.lot_id = m0.lot_id
-	and lot_status_seg in ('Active', 'Hold')
-	and m.order_seq is not null
-	and m.lot_id = g.lot_id(+)
-	and 'PFR1' = g.line_id(+))
-
-union all 
-
-(select
-'KFR4' as line,
-m.cur_line_id,
-m.sys_line_id,
-m.origin_line_id,
-m.lot_id,
-m.carr_id,
-m.lot_type,
-(case when m.prirt_no is not null then 'P'||m.prirt_no end) as grade,
-NULL as lot_level,
-m.cur_qty,
-m.bay_name,
-(case when m.lot_status_seg='Hold' then 'HOLD' else m.step_status_seg end) as status,
-m.proc_id,
-to_char(tp.max_pathseq) as order_seq,
-m.step_seq,
-to_date(m.START_DATE, 'yyyymmdd hh24:mi:ss') as START_DATE,
-to_date(m.LAST_TKOUT_DATE, 'yyyymmdd hh24:mi:ss') as LAST_TKOUT_DATE,
-to_date(m.STEP_ARRIVE_DATE, 'yyyymmdd hh24:mi:ss') as STEP_ARRIVE_DATE,
-to_date(m.LAST_EVENT_DATE, 'yyyymmdd hh24:mi:ss') as LAST_EVENT_DATE
-
-from smicdc_nrd.mc_lot m, m0, 
-(SELECT ML.LOT_ID,MAX(TP.PATHSEQ) MAX_PATHSEQ 
-            FROM (select * from smicdc_nrd.mc_lot where lot_status_seg in ('Hold', 'Active')) ML,
-		SMICDC_NRD.TODOPLAN TP
-            WHERE
-                1 = 1
-                AND ML.LOT_ID = TP.LOTID
-                AND ML.STEP_SEQ = TP.STEPSEQ
-            GROUP BY ML.LOT_ID
-) tp
-where m.last_event_date = m0.max_event_date
-	and m.lot_id = m0.lot_id
-	and lot_status_seg in ('Active', 'Hold')
-	and m.lot_id=tp.lot_id(+))
-
-union all
-
-(select
-'KFR7' as line,
-m.cur_line_id,
-m.sys_line_id,
-m.origin_line_id,
-m.lot_id,
-m.carr_id,
-m.lot_type,
-(case when nvl(g.grade,'-')<>'-' then 'G'||g.grade end) as grade,
-TO_CHAR(m.lot_level) as lot_level,
-m.cur_qty,
-m.bay_name,
-(case when m.lot_status_seg='Hold' then 'HOLD' else m.step_status_seg end) as status,
-m.proc_id,
-TO_CHAR(m.order_seq) as order_seq,
-m.step_seq,
-to_date(m.START_DATE, 'yyyymmdd hh24:mi:ss') as START_DATE,
-to_date(m.LAST_TKOUT_DATE, 'yyyymmdd hh24:mi:ss') as LAST_TKOUT_DATE,
-to_date(m.STEP_ARRIVE_DATE, 'yyyymmdd hh24:mi:ss') as STEP_ARRIVE_DATE,
-to_date(m.LAST_EVENT_DATE, 'yyyymmdd hh24:mi:ss') as LAST_EVENT_DATE
-
-from smicdc_nrdk.mc_lot m, m0, g
-where m.last_event_date = m0.max_event_date
-	and m.lot_id = m0.lot_id
-	and lot_status_seg in ('Active', 'Hold')
-	and m.lot_id = g.lot_id(+)
-	and 'KFR7' = g.line_id(+))
-),
-
-co as (
-select 
-*
-from (select 
-'KFR4' as line,
-sr0.parentlotid as lot_id, 
-sc0.comments as lot_inform,
-inserttime, 
-max(inserttime) over (partition by sr0.parentlotid) as m
-from (select 
-	parentlotid, 
-	ruleseq 
-        from smicdc_nrd.steprule) sr0, 
-        (select 
-	comments, 
-	fromseq, seq, inserttime
-         from smicdc_nrd.stepcomments 
-         where commenttype='LOT') sc0
-where sr0.ruleseq = sc0.fromseq)
-where m=inserttime
-
-union all
-
-select
-*
-from (select 
-'PFR1' as line,
-lot_id, 
-step_comment as lot_inform,
-update_date,
-max(update_date) over (partition by lot_id) as m
-from SMICDC_P3NRD.MC_LOT_STEP_COMMENT 
-where parent_order_seq=0
-	and comment_type = 'LOT')
-where m=update_date
-
-union all
-
-select
-*
-from (select 
-'KFR7' as line,
-lot_id, 
-step_comment as lot_inform,
-update_date,
-max(update_date) over (partition by lot_id) as m
-from SMICDC_NRDK.MC_LOT_STEP_COMMENT 
-where parent_order_seq=0
-	and comment_type = 'LOT')
-where m=update_date)
-
-
-
-select 
-distinct 
-m1.* ,
+t.process,
+t.step,
+t.ppid,
+t.eqpid,
+'-' as lot_type,
+(case when t.chamberid in ('-', 'MAIN') then 'MAIN' else t.chamberid end) as chamberid,
 (case 
-when origin_line_id<>sys_line_id then 'OLD_SEND'
-when origin_line_id=sys_line_id and sys_line_id<>cur_line_id then 'NEW_SEND'
-end) as sendfab,
-co.lot_inform
-from m1, co
-where m1.line=m1.sys_line_id
-	and lot_type in ('PP', 'PB', 'PG', 'TT')
-	and cur_line_id not in ('CHTV')
-	and m1.line = co.line(+)
-	and m1.lot_id = co.lot_id(+)
+when t.type = 'DOING' then 'DOING'
+when t.type='PREVENT' AND NVL(t.checkcount,0)=0 then 'PREVENT' 
+when t.type='PREVENT' AND NVL(t.tkin_count,0)>=NVL(checkcount,0) then 'PREVENT' 
+when t.type='PREVENT' AND NVL(t.tkin_count,0)<NVL(checkcount,0) then 'DOING' 
+end) as prevent,
+(case when t.chamberid is not null and t.chamberid not in ('MAIN', '-') then (t.eqpid||'-'||chamberid) else t.eqpid end) as ee,
+nvl(eventtime, updated) as eventtime
+from smicdc_p3nrd.trackinprevent t
+),
+
+ttt as (select * 
+from (select
+	t.*,
+	(count(case when t.prevent = 'DOING' then t.prevent end) over (partition by t.line, t.process, t.step, t.ppid, t.ee, t.lot_type)) as c,
+	(count(t.ee) over (partition by t.line, t.process, t.step, t.ppid, t.ee, t.lot_type)) as cc,
+	(max(t.eventtime) over (partition by t.line, t.process, t.step, t.ppid, t.ee, t.prevent, t.lot_type)) as m
+	from t) tt
+where tt.cc>1 and tt.c>0 and tt.prevent='DOING' and tt.m=tt.eventtime
+	or tt.cc>1 and tt.c=0 and tt.m=tt.eventtime
+	or tt.cc=1),
+
+e as (
+select DISTINCT
+line_id, 
+origin_line_id as eqpline,
+batch_kind,
+eqp_id, 
+eqp_status, 
+tool_kind,
+TO_DATE(eqp_status_change_time, 'yyyymmdd hh24:mi:ss') as eqp_status_change_time
+from smimes.mi_equipment 
+where line_id in ('PFR1') and tool_kind in ('EQP', 'CHAMBER')
+),
+
+te as (select 
+ttt.line,
+ttt.process,
+ttt.step,
+ttt.ppid,
+ttt.eqpid,
+ttt.chamberid,
+ttt.lot_type,
+ttt.prevent,
+ttt.ee,
+ttt.eventtime,
+e.batch_kind,
+e.eqpline
+from ttt, e
+where ttt.ee=e.eqp_id(+)
+	and ttt.line=e.line_id(+)
+order by process, step, ppid, ee),
+
+tee as (select
+a.line,
+a.process,
+a.step,
+a.ppid,
+a.eqpid,
+NVL(case when NVL(a.batch_kind, '-') in ('BATCH_FURNACE', 'BATCH_WET') then NULL else b.chamberid end, NULL) as chamberid,
+NVL(case when NVL(a.batch_kind, '-') in ('BATCH_FURNACE', 'BATCH_WET') then a.eqpid else b.ee end, a.eqpid) as eqpcham,
+nvl(b.lot_type, a.lot_type) as lot_type,
+a.batch_kind,
+(case when a.prevent='PREVENT' or b.prevent='PREVENT' then 'PREVENT' else 'DOING' end) as prevent,   
+a.prevent as type_body,
+b.prevent as type_cham,          
+NVL(case when NVL(a.batch_kind, '-') in ('BATCH_FURNACE', 'BATCH_WET') then a.eventtime else b.eventtime end, a.eventtime) as eventtime,
+NVL(a.eqpline, b.eqpline) as eqpline
+from (select * from te where NVL(chamberid,'-') in ('MAIN', '-')) a,
+       (select * from te where NVL(chamberid,'-') not in ('MAIN', '-')) b
+where a.line=b.line(+)
+	and a.process=b.process(+)
+	and a.step=b.step(+)
+	and a.ppid=b.ppid(+)
+	and a.eqpid=b.eqpid(+)),
+
+es as (select DISTINCT
+a.line_id,
+nvl(b.eqp_id, a.eqp_id) as eqpcham,
+a.eqp_status as body_eqp_status,
+b.eqp_status as cham_eqp_status,
+a.eqp_status_change_time as body_status_change_time,
+b.eqp_status_change_time as cham_status_change_time
+FROM (select line_id, eqp_id, eqp_status, eqp_status_change_time from e where  tool_kind = 'EQP') a,
+         (select line_id, nvl(SUBSTR(EQP_ID, 1, INSTR(EQP_ID, '-')-1),SUBSTR(EQP_ID, 1, INSTR(EQP_ID, '_')-1)) AS body, eqp_id, eqp_status, eqp_status_change_time from e where tool_kind = 'CHAMBER') b
+where a.eqp_id = b.body(+)
+	and a.line_id=b.line_id(+))
+
+select DISTINCT
+line,
+process,
+step,
+ppid,
+tee.eqpid,
+tee.eqpcham,
+chamberid,
+lot_type,
+batch_kind,
+prevent,
+type_body,
+type_cham,
+(case when prevent='PREVENT' then eventtime end) as tip_eventtime,
+(case when body_eqp_status in ('LOCAL', 'PM', 'DOWN') then body_eqp_status 
+       when cham_eqp_status in ('LOCAL' ,'PM', 'DOWN') then cham_eqp_status end) as eqpissue,
+body_eqp_status,
+cham_eqp_status,
+(case when body_eqp_status in ('LOCAL', 'PM', 'DOWN') then body_status_change_time
+       when cham_eqp_status in ('LOCAL' ,'PM', 'DOWN') then cham_status_change_time end) as eqpissuetime,
+eqpline
+ from tee, es
+where tee.eqpcham = es.eqpcham(+)
+	and tee.line = es.line_id(+)
+
+<기존 tip_table_kfr7>
+with
+
+t as (
+select DISTINCT
+'KFR7' as line,
+t.process,
+t.step,
+t.ppid,
+t.eqpid,
+'-' as lot_type,
+(case when t.chamberid in ('-', 'MAIN') then 'MAIN' else t.chamberid end) as chamberid,
+(case 
+when t.type = 'DOING' then 'DOING'
+when t.type='PREVENT' AND NVL(t.checkcount,0)=0 then 'PREVENT' 
+when t.type='PREVENT' AND NVL(t.tkin_count,0)>=NVL(checkcount,0) then 'PREVENT' 
+when t.type='PREVENT' AND NVL(t.tkin_count,0)<NVL(checkcount,0) then 'DOING' 
+end) as prevent,
+(case when t.chamberid is not null and t.chamberid not in ('MAIN', '-') then (t.eqpid||'-'||chamberid) else t.eqpid end) as ee,
+nvl(eventtime, updated) as eventtime
+from smicdc_nrdk.trackinprevent t
+),
+
+ttt as (select * 
+from (select
+	t.*,
+	(count(case when t.prevent = 'DOING' then t.prevent end) over (partition by t.line, t.process, t.step, t.ppid, t.ee, t.lot_type)) as c,
+	(count(t.ee) over (partition by t.line, t.process, t.step, t.ppid, t.ee, t.lot_type)) as cc,
+	(max(t.eventtime) over (partition by t.line, t.process, t.step, t.ppid, t.ee, t.prevent, t.lot_type)) as m
+	from t) tt
+where tt.cc>1 and tt.c>0 and tt.prevent='DOING' and tt.m=tt.eventtime
+	or tt.cc>1 and tt.c=0 and tt.m=tt.eventtime
+	or tt.cc=1),
+
+e as (
+select DISTINCT
+line_id, 
+origin_line_id as eqpline,
+batch_kind,
+eqp_id, 
+eqp_status, 
+tool_kind,
+TO_DATE(eqp_status_change_time, 'yyyymmdd hh24:mi:ss') as eqp_status_change_time
+from smimes.mi_equipment 
+where line_id in ('KFR7') and tool_kind in ('EQP', 'CHAMBER')
+),
+
+te as (select 
+ttt.line,
+ttt.process,
+ttt.step,
+ttt.ppid,
+ttt.eqpid,
+ttt.chamberid,
+ttt.lot_type,
+ttt.prevent,
+ttt.ee,
+ttt.eventtime,
+e.batch_kind,
+e.eqpline
+from ttt, e
+where ttt.ee=e.eqp_id(+)
+	and ttt.line=e.line_id(+)
+order by process, step, ppid, ee),
+
+tee as (select
+a.line,
+a.process,
+a.step,
+a.ppid,
+a.eqpid,
+NVL(case when NVL(a.batch_kind, '-') in ('BATCH_FURNACE', 'BATCH_WET') then NULL else b.chamberid end, NULL) as chamberid,
+NVL(case when NVL(a.batch_kind, '-') in ('BATCH_FURNACE', 'BATCH_WET') then a.eqpid else b.ee end, a.eqpid) as eqpcham,
+nvl(b.lot_type, a.lot_type) as lot_type,
+a.batch_kind,
+(case when a.prevent='PREVENT' or b.prevent='PREVENT' then 'PREVENT' else 'DOING' end) as prevent,   
+a.prevent as type_body,
+b.prevent as type_cham,          
+NVL(case when NVL(a.batch_kind, '-') in ('BATCH_FURNACE', 'BATCH_WET') then a.eventtime else b.eventtime end, a.eventtime) as eventtime,
+NVL(a.eqpline, b.eqpline) as eqpline
+from (select * from te where NVL(chamberid,'-') in ('MAIN', '-')) a,
+       (select * from te where NVL(chamberid,'-') not in ('MAIN', '-')) b
+where a.line=b.line(+)
+	and a.process=b.process(+)
+	and a.step=b.step(+)
+	and a.ppid=b.ppid(+)
+	and a.eqpid=b.eqpid(+)),
+
+es as (select DISTINCT
+a.line_id,
+nvl(b.eqp_id, a.eqp_id) as eqpcham,
+a.eqp_status as body_eqp_status,
+b.eqp_status as cham_eqp_status,
+a.eqp_status_change_time as body_status_change_time,
+b.eqp_status_change_time as cham_status_change_time
+FROM (select line_id, eqp_id, eqp_status, eqp_status_change_time from e where  tool_kind = 'EQP') a,
+         (select line_id, nvl(SUBSTR(EQP_ID, 1, INSTR(EQP_ID, '-')-1),SUBSTR(EQP_ID, 1, INSTR(EQP_ID, '_')-1)) AS body, eqp_id, eqp_status, eqp_status_change_time from e where tool_kind = 'CHAMBER') b
+where a.eqp_id = b.body(+)
+	and a.line_id=b.line_id(+))
+
+select DISTINCT
+line,
+process,
+step,
+ppid,
+tee.eqpid,
+tee.eqpcham,
+chamberid,
+lot_type,
+batch_kind,
+prevent,
+type_body,
+type_cham,
+(case when prevent='PREVENT' then eventtime end) as tip_eventtime,
+(case when body_eqp_status in ('LOCAL', 'PM', 'DOWN') then body_eqp_status 
+       when cham_eqp_status in ('LOCAL' ,'PM', 'DOWN') then cham_eqp_status end) as eqpissue,
+body_eqp_status,
+cham_eqp_status,
+(case when body_eqp_status in ('LOCAL', 'PM', 'DOWN') then body_status_change_time
+       when cham_eqp_status in ('LOCAL' ,'PM', 'DOWN') then cham_status_change_time end) as eqpissuetime,
+eqpline
+ from tee, es
+where tee.eqpcham = es.eqpcham(+)
+	and tee.line = es.line_id(+)
+
+
+기존은 oracle문법이었고, trakcinprevent라는 테이블에 equipment까지 결합한 테이블이었다. 이것의 문제는 trackinprevent에 아무 조건을 걸지않은 생테이블을 불러올 때는 쿼리당 2분밖에 소요되지않으나, 기존의 것처럼 결합을 하고 연산하면 15분 이상의 호출시간이 소모되며 호출제한이 걸려 로딩이 안된다는 점이다.
+이제는 impala문법으로 대체돼야하고(table도 이에 맞춰서 impala 대응되는 테이블로 변경 필요함) trackinprevent와 equipment에 대응되는 impala 생테이블을(아래 수정 요청 테이블들) 불러와서 python단에서 기존의 것처럼 데이터 전처리를 시켜 기존의 결과를 얻는 python코드를 만드는 것을 원한다.
+
+<수정 tip_kfr7 table쿼리>
+kfr7_tip_query = """
+select 
+*
+from MOS_KH_SMI.SMICDC_NRDK_TRACKINPREVENT
+where owner in ('LEVEL1', 'PHOTO_LEVEL1')
+"""
+
+<수정 tip_pfr1 table쿼리>
+pfr1_tip_query = """
+select 
+*
+from MOS_KH_SMI.SMICDC_P3NRD_TRACKINPREVENT
+where owner in ('LEVEL1', 'PHOTO_LEVEL1')
+"""
+
+<수정 equipment table쿼리> *아래는 생테이블을 가져온 것인데 이것만큼은 누적적재되는 테이블로 생테이블로 불러오면 데이터가 너무 많다. line별 eqp_id 컬럼값을 고유값으로하여 그중에 impala_inset_time이 max인 것만 가져오도록 해주면 된다. 말하자면 max(impapa_insert_time) over (eqp_id, line_id) = impala_inserrt_time인 eqp_id 행을 가져오면 된다는 것.
+eqp_query = """
+select 
+*
+from MOS_KH_SMI.SMIMES_MI_EQUIPMENT
+where line_id in ('KFR7', 'PFR1')
+"""
+
+<oracle table과 impala table간의 컬럼 매칭>
+impalatable매칭기호	column_name	data_type
+b	impala_insert_time	TIMESTAMP
+b	eqp_status_flag	STRING
+b	eqp_id	STRING
+b	sys_id	STRING
+b	eqp_status	STRING
+b	bay_name	STRING
+b	eqp_act_version	DOUBLE
+b	eqp_status_change_time	STRING
+b	area_name	STRING
+b	auto_man_flag	STRING
+b	last_update_date	TIMESTAMP
+b	operator_id	STRING
+b	eqp_category	STRING
+b	eqp_status_change_reason_code	STRING
+b	line_id	STRING
+b	origin_line_id	STRING
+b	last_transn_sys_id	STRING
+b	eqp_model	STRING
+b	expo_work_use_flag	STRING
+b	sdwt_code	STRING
+b	sdwt_desc	STRING
+b	sdwt_dept	STRING
+b	day_tkout_target_value	STRING
+b	ads_use_flag	STRING
+b	side_dummy_cycle_time	STRING
+b	ads_rule_name	STRING
+b	ads_max_batch_capblt	DOUBLE
+b	ads_batch_size	DOUBLE
+b	ads_min_batch	DOUBLE
+b	record_use_status_seg	STRING
+b	eqp_parent_sys_id	STRING
+b	eqp_online_flag	STRING
+b	batch_eqp_seg	STRING
+b	max_batch_size	STRING
+b	min_batch_size	STRING
+b	sub_eqp_type_seg	STRING
+b	tkin_mode	STRING
+b	room_name	STRING
+b	process_group_name	STRING
+b	scanner_type	STRING
+b	eqp_zone	STRING
+b	eqp_type	STRING
+b	eqp_transn_comment	STRING
+b	eqp_type_desc	STRING
+b	remain_infor	STRING
+b	tool_kind	STRING
+b	tool_status	STRING
+b	auto_dispch_flag	STRING
+b	remain_update_time	STRING
+b	eqp_parent_id	STRING
+b	real_port	STRING
+b	eqp_port_type	STRING
+b	batch_kind	STRING
+b	agv_auto_seg	STRING
+b	avlbl_port_flag	STRING
+b	avlbl_oht_flag	STRING
+b	best_work_request_time	STRING
+b	work_order_reserve_flag	DOUBLE
+b	control_mode	STRING
+b	request_wait_time	DOUBLE
+b	bcr_mode_seg	STRING
+b	tool_controller_name	STRING
+b	rmm_flag	STRING
+b	tpss_eqp_group_name	STRING
+b	layer_line_id	STRING
+b	sub_line_id	STRING
+b	eil_use_yn	STRING
+b	eil_id	STRING
+b	last_tkin_date	TIMESTAMP
+b	wafer_size	DOUBLE
+b	virtl_line_id	STRING
+b	virtl_area_name	STRING
+b	last_work_order_date	TIMESTAMP
+b	last_best_work_status	STRING
+b	best_work_count	DOUBLE
+b	online_yn	STRING
+b	online_status_change_date	TIMESTAMP
+b	last_best_work_date	TIMESTAMP
+b	avlbl_lot_count	DOUBLE
+b	roomname	STRING
+b	fullauto_err_msg	STRING
+b	rent_line_id	STRING
+b	remote_cmd_use_type	STRING
+b	module_name	STRING
+b	simax_pm_code	STRING
+b	reticle_type	STRING
+b	carr_type	STRING
+a	process	STRING
+a	step	STRING
+a	ppid	STRING
+a	productname	STRING
+a	eqpid	STRING
+a	chamberid	STRING
+a	reticle	STRING
+a	seqno	DOUBLE
+a	checkcount	DOUBLE
+a	tkin_count	DOUBLE
+a	meas_count	DOUBLE
+a	checkstep	STRING
+a	part	STRING
+a	type	STRING
+a	operatorid	STRING
+a	owner	STRING
+a	schedulepriority	STRING
+a	updated	TIMESTAMP
+a	eventtime	TIMESTAMP
+a	comment_	STRING
+a	capaname	STRING
+a	et_hold	STRING
+a	pre_checkcount	DOUBLE
+a	fa_object1	STRING
+a	fa_object2	STRING
+a	fa_object3	STRING
+a	fa_object4	STRING
+a	photo_comment	STRING
+a	exposetime	STRING
+a	focus	STRING
+a	frozenflag	STRING
+a	reticlehold	STRING
+a	cd	STRING
+a	level2_comment	STRING
+a	measuresteplist	STRING
+a	holdstep	STRING
+a	measurecount	DOUBLE
+a	upper_et	STRING
+a	lower_et	STRING
+a	upper_focus	STRING
+a	lower_focus	STRING
+a	subcheckcount	DOUBLE
+a	pre_tkincount	DOUBLE
+a	pre_type	STRING
+a	pre_meascount	DOUBLE
+a	pre_comment	STRING
+a	variablebatch	STRING
+a	photototalcount	DOUBLE
+a	phototkincount	DOUBLE
+a	min_expt	STRING
+a	max_expt	STRING
+a	cdsetcount	STRING
+a	cdtkincount	STRING
+a	samplegroup	STRING
+a	samplepriority	STRING
+a	fa_function1	STRING
+a	fa_function2	STRING
+a	fa_function3	STRING
+a	fa_function4	STRING
+a	fa_function5	STRING
+a	fa_function6	STRING
+a	fa_function7	STRING
+a	fa_function8	STRING
+a	fa_function9	STRING
+a	rsc_code	STRING
+a	rsc_check_cycle_time	STRING
+a	base_expose_time	STRING
+a	base_focus_value	STRING
+a	min_focus_value	STRING
+a	max_focus_value	STRING
+a	eil_ppid_group_name	STRING
+a	eil_eqp_group_vals	STRING
+c	process	STRING
+	step	STRING
+	ppid	STRING
+	productname	STRING
+	eqpid	STRING
+	chamberid	STRING
+	reticle	STRING
+	seqno	DOUBLE
+	checkcount	DOUBLE
+	tkin_count	DOUBLE
+	meas_count	DOUBLE
+	checkstep	STRING
+	part	STRING
+	type	STRING
+	operatorid	STRING
+	owner	STRING
+	schedulepriority	STRING
+	updated	TIMESTAMP
+	eventtime	TIMESTAMP
+	comment_	STRING
+	capaname	STRING
+	et_hold	STRING
+	pre_checkcount	DOUBLE
+	fa_object1	STRING
+	fa_object2	STRING
+	fa_object3	STRING
+	fa_object4	STRING
+	photo_comment	STRING
+	exposetime	STRING
+	focus	STRING
+	frozenflag	STRING
+	reticlehold	STRING
+	cd	STRING
+	level2_comment	STRING
+	measuresteplist	STRING
+	holdstep	STRING
+	measurecount	DOUBLE
+	upper_et	STRING
+	lower_et	STRING
+	upper_focus	STRING
+	lower_focus	STRING
+	subcheckcount	DOUBLE
+	pre_tkincount	DOUBLE
+	pre_type	STRING
+	pre_meascount	DOUBLE
+	pre_comment	STRING
+	variablebatch	STRING
+	photototalcount	DOUBLE
+	phototkincount	DOUBLE
+	min_expt	STRING
+	max_expt	STRING
+	cdsetcount	STRING
+	cdtkincount	STRING
+	samplegroup	STRING
+	samplepriority	STRING
+	fa_function1	STRING
+	fa_function2	STRING
+	fa_function3	STRING
+	fa_function4	STRING
+	fa_function5	STRING
+	fa_function6	STRING
+	fa_function7	STRING
+	fa_function8	STRING
+	fa_function9	STRING
+	rsc_code	STRING
+	rsc_check_cycle_time	STRING
+	base_expose_time	STRING
+	base_focus_value	STRING
+	min_focus_value	STRING
+	max_focus_value	STRING
+	eil_ppid_group_name	STRING
+	eil_eqp_group_vals	STRING
+
+
+oracle테이블	impala테이블	impalatable매칭기호
+smicdc_nrdk.trackinprevent 	MOS_KH_SMI.SMICDC_NRDK_TRACKINPREVENT	a
+smimes.mi_equipment 	MOS_KH_SMI.SMIMES_MI_EQUIPMENT	b
+smicdc_p3nrd.trackinprevent 	MOS_KH_SMI.SMICDC_P3NRD_TRACKINPREVENT	c
+
+
+oracle테이블과 impala테이블간 컬럼 매칭은 컬럼이름이 같거나 비슷한 것으로 매칭하면 된다.(대소문자 차이나, '_' 또는 '-'가 들어가며 컬럼이름이 차이가 나는 부분이 있을 순 있다.)
