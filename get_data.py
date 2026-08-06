@@ -240,18 +240,6 @@ SELECT lot_id, order_seq, proc_id, step_seq, step_desc, step_level,
 FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_PATH
 """
 
-# ── Step 기준 LOT (기존 m CTE) : Active/Hold 재공의 현재 order_seq ──────
-lot_base_query = """
-SELECT 'PFR1' AS line, lot_id, order_seq
-FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
-WHERE  lot_status_seg IN ('Active', 'Hold')
-UNION ALL
-SELECT 'KFR7' AS line, lot_id, order_seq
-FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT
-WHERE  lot_status_seg IN ('Active', 'Hold')
-"""
-
-
 # =====================================================================
 # Tip 전처리 (기존 Oracle tip_table_pfr1 / tip_table_kfr7 의 t~final 로직을
 # pandas 로 재현. 사내 15분 호출제한 회피를 위해 SQL 은 생테이블만 조회하고
@@ -517,11 +505,20 @@ def _int_str(series):
     return n.astype('Float64').astype('Int64').astype('string')
 
 
-def build_step(df_path, df_lot_base, df_eqp, df_eqp_group, line):
-    """생테이블(StepPath, MC_LOT, Equipment, EqpGroup) → 기존 step 결과 포맷."""
+def build_step(df_path, df_lot, df_eqp, df_eqp_group, line):
+    """StepPath + (이미 조회한) lot_query 결과 / Equipment / EqpGroup 결합.
+
+    기존 m CTE(mc_lot 의 Active/Hold 재공)는 lot_query 가 이미 mc_lot 을 읽어
+    lot_id / order_seq 를 내보내므로 df_lot 을 그대로 기준으로 쓴다.
+    (lot_query 의 order_seq 는 TO_CHAR 대응으로 STRING 이라 숫자 변환 필요)
+    """
     path = _lower_cols(df_path)
-    m = _lower_cols(df_lot_base)
-    m = m[m['line'].eq(line)][['lot_id', 'order_seq']].drop_duplicates()
+    path['order_seq'] = pd.to_numeric(path['order_seq'], errors='coerce')
+
+    m = _lower_cols(df_lot)
+    m = m[m['line'].eq(line)][['lot_id', 'order_seq']].copy()
+    m['order_seq'] = pd.to_numeric(m['order_seq'], errors='coerce')
+    m = m.dropna(subset=['order_seq']).drop_duplicates()
 
     r = _build_de_rank(path, set(m['lot_id'].dropna()))
 
@@ -592,7 +589,6 @@ if __name__ == "__main__":
     df_pfr1_tip = getData(param=pfr1_tip_query, convert_type=True, verbose=True)
     df_eqp = getData(param=eqp_query, convert_type=True, verbose=True)
     df_eqp_group = getData(param=eqp_group_query, convert_type=True, verbose=True)
-    df_lot_base = getData(param=lot_base_query, convert_type=True, verbose=True)
     df_kfr7_path = getData(param=kfr7_step_path_query, convert_type=True, verbose=True)
     df_pfr1_path = getData(param=pfr1_step_path_query, convert_type=True, verbose=True)
 
@@ -603,8 +599,8 @@ if __name__ == "__main__":
     )
 
     step = pd.concat(
-        [build_step(df_kfr7_path, df_lot_base, df_eqp, df_eqp_group, 'KFR7'),
-         build_step(df_pfr1_path, df_lot_base, df_eqp, df_eqp_group, 'PFR1')],
+        [build_step(df_kfr7_path, df_lot, df_eqp, df_eqp_group, 'KFR7'),
+         build_step(df_pfr1_path, df_lot, df_eqp, df_eqp_group, 'PFR1')],
         ignore_index=True,
     )
 
