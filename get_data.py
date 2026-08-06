@@ -180,30 +180,75 @@ WHERE       m1.line = m1.sys_line_id
   AND       m1.cur_line_id NOT IN ('CHTV')
 """
 
+# ── TrackInPrevent (Tip) : 실제 사용 컬럼만 조회 ─────────────────────────
 kfr7_tip_query = """
-select 
-*
-from MOS_KH_SMI.SMICDC_NRDK_TRACKINPREVENT
-where owner in ('LEVEL1', 'PHOTO_LEVEL1')
+SELECT process, step, ppid, eqpid, chamberid,
+       type, checkcount, tkin_count, updated, eventtime
+FROM   MOS_KH_SMI.SMICDC_NRDK_TRACKINPREVENT
+WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
 """
 
 pfr1_tip_query = """
-select 
-*
-from MOS_KH_SMI.SMICDC_P3NRD_TRACKINPREVENT
-where owner in ('LEVEL1', 'PHOTO_LEVEL1')
+SELECT process, step, ppid, eqpid, chamberid,
+       type, checkcount, tkin_count, updated, eventtime
+FROM   MOS_KH_SMI.SMICDC_P3NRD_TRACKINPREVENT
+WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
 """
 
+# ── Equipment : line_id + eqp_id 별 최신 적재분만 ────────────────────────
 eqp_query = """
-SELECT *
+SELECT line_id, origin_line_id, batch_kind, eqp_id,
+       eqp_status, tool_kind, eqp_status_change_time
 FROM (
-    SELECT e.*,
+    SELECT e.line_id, e.origin_line_id, e.batch_kind, e.eqp_id,
+           e.eqp_status, e.tool_kind, e.eqp_status_change_time,
+           e.impala_insert_time,
            MAX(e.impala_insert_time)
                OVER (PARTITION BY e.line_id, e.eqp_id) AS max_impala_insert_time
     FROM   MOS_KH_SMI.SMIMES_MI_EQUIPMENT e
     WHERE  e.line_id IN ('KFR7', 'PFR1')
 ) x
 WHERE x.impala_insert_time = x.max_impala_insert_time
+"""
+
+# ── 설비그룹 : line_id + eqp_group_name + eqp_id 별 최신 적재분만 ────────
+eqp_group_query = """
+SELECT line_id, eqp_group_name, eqp_id
+FROM (
+    SELECT g.line_id, g.eqp_group_name, g.eqp_id, g.impala_insert_time,
+           MAX(g.impala_insert_time)
+               OVER (PARTITION BY g.line_id, g.eqp_group_name, g.eqp_id)
+               AS max_impala_insert_time
+    FROM   MOS_KH_SMI.SMIMES_MI_EQP_GROUP_LIST g
+    WHERE  g.line_id IN ('KFR7', 'PFR1')
+) x
+WHERE x.impala_insert_time = x.max_impala_insert_time
+"""
+
+# ── Step Path : 실제 사용 컬럼만 조회 (조건절 없이 생테이블) ─────────────
+kfr7_step_path_query = """
+SELECT lot_id, order_seq, proc_id, step_seq, step_desc, step_level,
+       step_skip_yn, delay_step_type, delay_time_mins, layer_id,
+       eqp_type, eqp_group_id, recipe_id, ext_1st_vals, tkin_type_detail
+FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT_STEP_PATH
+"""
+
+pfr1_step_path_query = """
+SELECT lot_id, order_seq, proc_id, step_seq, step_desc, step_level,
+       step_skip_yn, delay_step_type, delay_time_mins, layer_id,
+       eqp_type, eqp_group_id, recipe_id, ext_1st_vals, tkin_type_detail
+FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_PATH
+"""
+
+# ── Step 기준 LOT (기존 m CTE) : Active/Hold 재공의 현재 order_seq ──────
+lot_base_query = """
+SELECT 'PFR1' AS line, lot_id, order_seq
+FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
+WHERE  lot_status_seg IN ('Active', 'Hold')
+UNION ALL
+SELECT 'KFR7' AS line, lot_id, order_seq
+FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT
+WHERE  lot_status_seg IN ('Active', 'Hold')
 """
 
 
@@ -448,6 +493,95 @@ def _save_table(df, name, stamp):
     return path
 
 
+
+
+# =====================================================================
+# Step 전처리 (기존 Oracle step_table_pfr1 / step_table_kfr7 의 m~final 로직)
+#   Equipment 는 Tip 에서 이미 불러온 df_eqp 를 그대로 재사용한다.
+# =====================================================================
+def _build_de_rank(path, lot_ids):
+    """r CTE: delay_step_type S/Y 행에 대해 lot 별 누적 'S' 개수."""
+    r = path[path['delay_step_type'].isin(['S', 'Y']) & path['lot_id'].isin(lot_ids)]
+    r = r[['lot_id', 'order_seq', 'delay_step_type']].copy()
+    r = r.sort_values(['lot_id', 'order_seq'], kind='mergesort')
+    r['_s'] = r['delay_step_type'].eq('S').astype(int)
+    r['de_rank'] = r.groupby('lot_id', dropna=False)['_s'].cumsum()
+    # Oracle 의 RANGE 기본동작(동일 order_seq 는 같은 값)에 맞춤
+    r['de_rank'] = r.groupby(['lot_id', 'order_seq'], dropna=False)['de_rank'].transform('max')
+    return r[['lot_id', 'order_seq', 'de_rank']].drop_duplicates()
+
+
+def _int_str(series):
+    """Oracle TO_CHAR(number) 대응. 소수점 표기('3.0') 방지."""
+    n = pd.to_numeric(series, errors='coerce')
+    return n.astype('Float64').astype('Int64').astype('string')
+
+
+def build_step(df_path, df_lot_base, df_eqp, df_eqp_group, line):
+    """생테이블(StepPath, MC_LOT, Equipment, EqpGroup) → 기존 step 결과 포맷."""
+    path = _lower_cols(df_path)
+    m = _lower_cols(df_lot_base)
+    m = m[m['line'].eq(line)][['lot_id', 'order_seq']].drop_duplicates()
+
+    r = _build_de_rank(path, set(m['lot_id'].dropna()))
+
+    # p CTE: 재공 현재 위치(order_seq) 이후의 미진행 step 만
+    p = path[path['step_skip_yn'].ne('Y')].merge(
+        m.rename(columns={'order_seq': 'cur_order_seq'}), on='lot_id', how='inner')
+    p = p[p['order_seq'] >= p['cur_order_seq']]
+    p = p.merge(r, on=['lot_id', 'order_seq'], how='left')
+
+    delay_mins = pd.to_numeric(p['delay_time_mins'], errors='coerce')
+    cont = np.select(
+        [p['delay_step_type'].eq('S'), p['delay_step_type'].eq('Y')],
+        ['연속첫', '연속(' + _int_str(np.trunc(delay_mins)).fillna('') + ')'],
+        default=None,
+    )
+
+    detail = p['tkin_type_detail'].where(p['tkin_type_detail'].ne('-'))
+
+    out = pd.DataFrame({
+        'line': line,
+        'lot_id': p['lot_id'],
+        'proc_id': p['proc_id'],
+        'order_seq': p['order_seq'],
+        'de_rank': p['de_rank'],
+        'delay_step_type': p['delay_step_type'],
+        '연속': cont,
+        'layer_id': p['layer_id'],
+        'step_level': _int_str(p['step_level']),
+        'ein': detail.fillna(p['ext_1st_vals']),
+        'step_seq': p['step_seq'],
+        'step_desc': p['step_desc'],
+        'eqp_type': p['eqp_type'],
+        'eqp_group_raw': p['eqp_group_id'],
+        'recipe_id': p['recipe_id'],
+    })
+
+    # eqp_group: 'OFF' 포함 설비 제외
+    eg = _lower_cols(df_eqp_group)
+    eg = eg[eg['line_id'].eq(line) & ~eg['eqp_id'].str.contains('OFF', na=False)]
+    eg = eg[['line_id', 'eqp_group_name', 'eqp_id']].drop_duplicates()
+    eg = _drop_null_keys(eg, ['line_id', 'eqp_group_name'])
+
+    out = out.merge(eg, left_on=['line', 'eqp_group_raw'],
+                    right_on=['line_id', 'eqp_group_name'],
+                    how='left').drop(columns=['line_id', 'eqp_group_name'])
+
+    # equipment: Tip 에서 쓰던 것과 동일한 정제본 재사용
+    e = _build_equipment(df_eqp, line)
+    e = _drop_null_keys(
+        e[['line_id', 'eqp_id', 'batch_kind', 'eqpline',
+           'eqp_status', 'eqp_status_change_time']].drop_duplicates(),
+        ['line_id', 'eqp_id'])
+
+    out = out.merge(e, on=['eqp_id'], how='left', suffixes=('', '_e'))
+    out = out.rename(columns={'eqp_status': 'body_status'}).drop(columns=['line_id'])
+
+    return out.sort_values(['lot_id', 'order_seq', 'eqp_id'],
+                           na_position='last', kind='mergesort').reset_index(drop=True)
+
+
 if __name__ == "__main__":
     from bigdataquery import getData
 
@@ -457,6 +591,10 @@ if __name__ == "__main__":
     df_kfr7_tip = getData(param=kfr7_tip_query, convert_type=True, verbose=True)
     df_pfr1_tip = getData(param=pfr1_tip_query, convert_type=True, verbose=True)
     df_eqp = getData(param=eqp_query, convert_type=True, verbose=True)
+    df_eqp_group = getData(param=eqp_group_query, convert_type=True, verbose=True)
+    df_lot_base = getData(param=lot_base_query, convert_type=True, verbose=True)
+    df_kfr7_path = getData(param=kfr7_step_path_query, convert_type=True, verbose=True)
+    df_pfr1_path = getData(param=pfr1_step_path_query, convert_type=True, verbose=True)
 
     tip = pd.concat(
         [build_tip(df_kfr7_tip, df_eqp, 'KFR7'),
@@ -464,5 +602,12 @@ if __name__ == "__main__":
         ignore_index=True,
     )
 
+    step = pd.concat(
+        [build_step(df_kfr7_path, df_lot_base, df_eqp, df_eqp_group, 'KFR7'),
+         build_step(df_pfr1_path, df_lot_base, df_eqp, df_eqp_group, 'PFR1')],
+        ignore_index=True,
+    )
+
     _save_table(df_lot, "lot", stamp)
     _save_table(tip, "tip", stamp)
+    _save_table(step, "step", stamp)
