@@ -1,34 +1,17 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python build_holdwaitanal_f1_f2_f3_v3.py --smoke-test
-
-### Help ###
-Guide : https://go/data
-Functions:
-    __version__ : display current version of bigdataquery
-    getData() : extract data based on condition you passed (dictionary or SQL)
-    getTraceData() : extract FDC Trace data based on condition you passed (dictionary only)
-    getTableList() : search the table lists based on keyword
-    getColumnInfo() : search column information based on table name
-    login() : authenticate AD user and get token on server environment (server env only)
-    getTokenTime() : check the remaining token expiration time (server env only)
-    setDebugMode() : enable|disable mode to display detailed execution time of primary internal functions (getData only)
-    setTimeZone() : set timezone information of bigdataquery during runtime (IANA format)
-    getTimeZone() : get timezone information of bigdataquery (default: system local timezone)
-    exportDataDecorator() : extend the existing bigdataquery function to export segmented data as the desired output during runtime
-
 [TIMER] 원천 조회 및 staging start
 [QUERY] lot 조회 시작
 Query Executed Successfully...
->> Execution Time: 47.686 sec
+>> Execution Time: 15.831 sec
 ==================================================
-    Rows    :  4728
+    Rows    :  4727
     Columns :  22
     Size    :  4.90+ MB
 ==================================================
-[QUERY] lot rows=4,728, cols=22
-[STAGE] lot_raw rows=4,728
+[QUERY] lot rows=4,727, cols=22
+[STAGE] lot_raw rows=4,727
 [QUERY] equipment 조회 시작
 Query Executed Successfully...
->> Execution Time: 34.367 sec
+>> Execution Time: 18.546 sec
 ==================================================
     Rows    :  37457
     Columns :  7
@@ -38,7 +21,7 @@ Query Executed Successfully...
 [STAGE] equipment_raw rows=37,457
 [QUERY] eqp_group 조회 시작
 Query Executed Successfully...
->> Execution Time: 34.167 sec
+>> Execution Time: 21.973 sec
 ==================================================
     Rows    :  17000
     Columns :  3
@@ -48,7 +31,7 @@ Query Executed Successfully...
 [STAGE] eqp_group_raw rows=17,000
 [QUERY] KFR7_tip 조회 시작
 Query Executed Successfully...
->> Execution Time: 18.149 sec
+>> Execution Time: 3.129 sec
 ==================================================
     Rows    :  5000
     Columns :  10
@@ -58,7 +41,7 @@ Query Executed Successfully...
 [STAGE] tip_kfr7_raw rows=5,000
 [QUERY] PFR1_tip 조회 시작
 Query Executed Successfully...
->> Execution Time: 5.1000 sec
+>> Execution Time: 0.779 sec
 ==================================================
     Rows    :  5000
     Columns :  10
@@ -68,53 +51,56 @@ Query Executed Successfully...
 [STAGE] tip_pfr1_raw rows=5,000
 [QUERY] KFR7_step_path 조회 시작
 Query Executed Successfully...
->> Execution Time: 1.334 sec
+>> Execution Time: 11.332 sec
 ==================================================
-    Rows    :  16435
+    Rows    :  11674
     Columns :  15
-    Size    :  11.93+ MB
+    Size    :  8.50+ MB
 ==================================================
-[QUERY] KFR7_step_path rows=16,435, cols=15
-[STAGE] step_kfr7_raw rows=16,435
+[QUERY] KFR7_step_path rows=11,674, cols=15
+[FILTER] KFR7 StepPath current LOT only: 11,674 -> 11,674 (0 removed)
+[STAGE] step_kfr7_raw rows=11,674
 [QUERY] PFR1_step_path 조회 시작
 Query Executed Successfully...
->> Execution Time: 5.363 sec
+>> Execution Time: 5.536 sec
 ==================================================
-    Rows    :  5855
+    Rows    :  5765
     Columns :  15
-    Size    :  4.24+ MB
+    Size    :  4.17+ MB
 ==================================================
-[QUERY] PFR1_step_path rows=5,855, cols=15
-[STAGE] step_pfr1_raw rows=5,855
-[TIMER] 원천 조회 및 staging elapsed=148.499s
+[QUERY] PFR1_step_path rows=5,765, cols=15
+[FILTER] PFR1 StepPath current LOT only: 5,765 -> 5,765 (0 removed)
+[STAGE] step_pfr1_raw rows=5,765
+[TIMER] 원천 조회 및 staging elapsed=78.929s
 [TIMER] 공통 dimension 생성 start
-[TIMER] 공통 dimension 생성 elapsed=0.045s
+[TIMER] 공통 dimension 생성 elapsed=0.054s
 [TIMER] Tip 전처리 start
-[TIMER] Tip 전처리 elapsed=0.511s
+[TIMER] Tip 전처리 elapsed=0.470s
 [TIMER] Step 전처리 start
-[TIMER] Step 전처리 elapsed=0.632s
+[TIMER] Step 전처리 elapsed=0.508s
 [TIMER] f1 생성 start
 [TIMER] f1-1 m_base start
 [TIMER] f1-1 m_base elapsed=0.011s
 [TIMER] f1-2 m x s join start
-[TIMER] f1-2 m x s join elapsed=0.432s
+[TIMER] f1-2 m x s join elapsed=0.387s
 [TIMER] f1-3 TIP wildcard partitioned join start
 [F1][TIP MATCH] wildcard_mask=01, rules=7,327
 [F1][TIP MATCH] wildcard_mask=05, rules=1
 [F1][TIP MATCH] wildcard_mask=07, rules=130
 [F1][TIP MATCH] wildcard_mask=13, rules=22
-[TIMER] f1-3 TIP wildcard partitioned join elapsed=0.053s
-[TIMER] f1 생성 elapsed=2.914s
+[TIMER] f1-3 TIP wildcard partitioned join elapsed=0.042s
+[TIMER] f1 생성 elapsed=2.686s
 [TIMER] f2 생성 start
-[TIMER] f2 생성 elapsed=1.044s
+[TIMER] f2 생성 elapsed=1.026s
 [TIMER] f3 생성 start
-[TIMER] f3 생성 elapsed=0.058s
+[TIMER] f3 생성 elapsed=0.055s
 [TIMER] 검증 start
-[TIMER] 검증 elapsed=0.034s
+[TIMER] 검증 elapsed=0.033s
 [SMOKE PASS] f1/f2/f3 생성 및 검증 단계까지 완료
 [TIMER] 로그 저장 start
-[TIMER] 로그 저장 elapsed=0.001s
+[TIMER] 로그 저장 elapsed=0.002s
 [DONE] 작업 DB: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\output\holdwaitanal_smoke.duckdb
+[DONE] 로그: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\output\log\build_multiwip_direct_20260807_131024.md
 
 
 # MultiWIP 직접 조회·전처리 실행 로그
@@ -123,6 +109,8 @@ Query Executed Successfully...
 - 중간 CSV 없음
 - 원천 테이블별 1회 조회
 - 대형 DataFrame 즉시 DuckDB 적재 후 해제
+- StepPath는 원천 SQL 전체 조회 유지 후 pandas 반환 직후 현재 재공 LOT만 로컬 선필터
+- 단계 종료 시 불필요한 중간 DuckDB 테이블 즉시 DROP
 - h 제외: hold/exception/ftp 컬럼은 NULL
 - AREA는 NULL
 
@@ -132,26 +120,26 @@ Query Executed Successfully...
 - equipment_raw_rows: 37,457
 - equipment_rows: 19,541
 - f1_duplicate_rows_removed: 0
-- f1_rows: 77,279
-- f1_rows_before_distinct: 77,279
-- f2_duplicate_rows_removed: 50,950
-- f2_rows: 26,329
-- f2_rows_before_distinct: 77,279
+- f1_rows: 66,713
+- f1_rows_before_distinct: 66,713
+- f2_duplicate_rows_removed: 44,574
+- f2_rows: 22,139
+- f2_rows_before_distinct: 66,713
 - f3_duplicate_rows_removed: 0
-- f3_rows: 140
-- f3_rows_before_distinct: 140
-- lot_raw_rows: 4,728
-- m_rows: 4,728
-- raw_KFR7_step_path_rows: 16,435
+- f3_rows: 90
+- f3_rows_before_distinct: 90
+- lot_raw_rows: 4,727
+- m_rows: 4,727
+- raw_KFR7_step_path_rows: 11,674
 - raw_KFR7_tip_rows: 5,000
-- raw_PFR1_step_path_rows: 5,855
+- raw_PFR1_step_path_rows: 5,765
 - raw_PFR1_tip_rows: 5,000
 - raw_eqp_group_rows: 17,000
 - raw_equipment_rows: 37,457
-- raw_lot_rows: 4,728
-- s_rows: 72,499
-- step_kfr7_raw_rows: 16,435
-- step_pfr1_raw_rows: 5,855
+- raw_lot_rows: 4,727
+- s_rows: 62,021
+- step_kfr7_raw_rows: 11,674
+- step_pfr1_raw_rows: 5,765
 - t_rows: 7,480
 - tip_kfr7_raw_rows: 5,000
 - tip_pfr1_raw_rows: 5,000
@@ -163,55 +151,61 @@ Query Executed Successfully...
 - 기존 CSV 방식과 행 수가 다르면 아래 증폭률·중복키·샘플을 함께 비교하여 정상 감소/증가인지 판정해야 합니다.
 
 ## 검증
+- KFR7_step_local_filter_after: `11674`
+- KFR7_step_local_filter_before: `11674`
+- KFR7_step_local_filter_removed: `0`
 - KFR7_step_path_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
 - KFR7_tip_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
+- PFR1_step_local_filter_after: `5765`
+- PFR1_step_local_filter_before: `5765`
+- PFR1_step_local_filter_removed: `0`
 - PFR1_step_path_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
 - PFR1_tip_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
 - eqp_group_duplicate_keys: `0`
-
+- eqp_group_large_groups: 
 - eqp_group_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
 - equipment_duplicate_line_eqp_keys: `0`
 - equipment_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
-- f1_lot_distinct: `4728`
+- f1_lot_distinct: `4727`
 - f2_blocked_columns: `[]`
 - f2_columns: `["lot_inform", "line", "현재위치", "전산라인", "투입라인", "lot_id", "carr_id", "grade", "lot_type", "lot_level", "qty", "bay", "sendfab", "투입경과_일", "마지막이벤트경과_일", "스텝도착경과_일", "lot_status", "step_status", "proc_id", "de_rank", "연속", "AREA", "layer_id", "현스텝", "order_seq", "step_seq", "step_desc", "recipe_id", "eqp_type", "batch_kind", "eqpline", "eqpgroup", "eqpgroup_cham", "tip", "down", "hold", "hold_reason", "exception", "exception_reason", "ftp", "ftp_reason"]`
-- f2_lot_distinct: `4728`
+- f2_lot_distinct: `4727`
 - f3_blocked_columns: `[]`
 - f3_columns: `["lot_inform", "line", "현재위치", "전산라인", "투입라인", "lot_id", "carr_id", "grade", "lot_type", "lot_level", "qty", "bay", "sendfab", "투입경과_일", "마지막이벤트경과_일", "스텝도착경과_일", "lot_status", "step_status", "proc_id", "de_rank", "연속", "AREA", "layer_id", "현스텝", "order_seq", "step_seq", "step_desc", "recipe_id", "eqp_type", "batch_kind", "eqpline", "eqpgroup", "eqpgroup_cham", "tip", "down", "hold", "hold_reason", "exception", "exception_reason", "ftp", "ftp_reason"]`
-- f3_lot_distinct: `37`
+- f3_lot_distinct: `32`
 - f3_outside_scope_rows: `0`
 - getData_capabilities: `{"object_type": "<class '_cython_3_0_11.cython_function_or_method'>", "module": "main", "signature": "(param, custom_columns: 'list' = [], convert_type=False, verbose=True, show_sql=False, user_name='', return_type='pandas.DataFrame', client_unnest: 'bool' = True)", "source_error": "TypeError('module, class, method, function, traceback, frame, or code object was expected, got cython_function_or_method')"}`
-- lot_distinct: `4728`
+- lot_distinct: `4727`
 - lot_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
 - run_mode: `"smoke_test"`
-
-- step_candidate_rows_before_eqp_group: `19934`
-- step_eqp_group_amplification: `3.637`
-- step_rows_after_eqp_group: `72499`
+- smoke_lot_count_by_line:
+- step_candidate_rows_before_eqp_group: `15959`
+- step_eqp_group_amplification: `3.8863`
+- step_rows_after_eqp_group: `62021`
 - tip_cham_rows: `6019`
 - tip_exact_rule_rows: `0`
 - tip_join_amplification: `1.8794`
 - tip_main_rows: `3981`
-- tip_match_candidate_amplification_vs_ms: `0.0015`
-- tip_match_candidate_rows: `115`
-- tip_match_rows_after_semantic_dedup: `115`
+- tip_match_candidate_amplification_vs_ms: `0.0`
+- tip_match_candidate_rows: `0`
+- tip_match_rows_after_semantic_dedup: `0`
 - tip_match_semantic_duplicates_removed: `0`
-
+- tip_multi_chamber_keys:
 - tip_tee_rows: `7482`
 - tip_wildcard_mask_rule_counts: `{"1": 7327, "5": 1, "7": 130, "13": 22}`
 - tip_wildcard_rule_rows: `7480`
 
 ## 실행시간
-- 원천 조회 및 staging: 148.499초
-- 공통 dimension 생성: 0.045초
-- Tip 전처리: 0.511초
-- Step 전처리: 0.632초
+- 원천 조회 및 staging: 78.929초
+- 공통 dimension 생성: 0.054초
+- Tip 전처리: 0.470초
+- Step 전처리: 0.508초
 - f1-1 m_base: 0.011초
-- f1-2 m x s join: 0.432초
-- f1-3 TIP wildcard partitioned join: 0.053초
-- f1 생성: 2.914초
-- f2 생성: 1.044초
-- f3 생성: 0.058초
-- 검증: 0.034초
+- f1-2 m x s join: 0.387초
+- f1-3 TIP wildcard partitioned join: 0.042초
+- f1 생성: 2.686초
+- f2 생성: 1.026초
+- f3 생성: 0.055초
+- 검증: 0.033초
 
 ## 출력
