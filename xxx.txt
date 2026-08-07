@@ -1,1 +1,71 @@
-python -c "import duckdb, pandas as pd; df=pd.DataFrame({'lot_id':['A','B','C'],'order_seq':[1,2,3]}); con=duckdb.connect('duck_test.duckdb'); con.register('df_tmp',df); con.execute('create or replace table lot_test as select * from df_tmp'); con.unregister('df_tmp'); print(con.execute('select * from lot_test order by order_seq').fetchall()); con.close()"
+# MultiWIP 직접 조회·전처리 실행 로그
+
+## 실행 구조
+- 중간 CSV 없음
+- 원천 테이블별 1회 조회
+- 대형 DataFrame 즉시 DuckDB 적재 후 해제
+- h 제외: hold/exception/ftp 컬럼은 NULL
+- AREA는 NULL
+
+## 주요 행 수
+- eqp_group_raw_rows: 17,000
+- eqp_group_rows: 16,702
+- equipment_raw_rows: 37,433
+- equipment_rows: 19,526
+- f1_duplicate_rows_removed: 0
+- f1_rows: 65,579
+- f1_rows_before_distinct: 65,579
+- f2_duplicate_rows_removed: 42,489
+- f2_rows: 23,090
+- f2_rows_before_distinct: 65,579
+- f3_duplicate_rows_removed: 0
+- f3_rows: 49
+- f3_rows_before_distinct: 49
+- lot_raw_rows: 4,721
+- m_rows: 4,721
+- raw_7_step_path_rows: 13,726
+- raw_7_tip_rows: 5,000
+- raw_1_step_path_rows: 5,515
+- raw_1_tip_rows: 5,000
+- raw__rows: 17,000
+- raw__rows: 37,433
+- raw__rows: 4,721
+- s_rows: 60,674
+- step_7_raw_rows: 13,726
+- step_1_raw_rows: 5,515
+- t_rows: 7,480
+- tip_7_raw_rows: 5,000
+- tip_1_raw_rows: 5,000
+
+## 행 수 차이 해석
+- step_candidate → step_with_group 증가는 하나의 설비그룹에 복수 EQP가 포함되어 path가 펼쳐지는 업무상 정상 증가일 수 있습니다.
+- tip_main → tip_tee 증가는 본체 1개에 복수 챔버가 연결되어 생기는 정상 증가일 수 있습니다.
+- f1/f2/f3 DISTINCT 감소는 최종 출력 컬럼이 완전히 동일한 행 제거입니다. 제거 건수가 크면 원천 최신시각 동률, 다대다 조인, 출력에서 빠진 이력 키를 확인해야 합니다.
+- 기존 CSV 방식과 행 수가 다르면 아래 증폭률·중복키·샘플을 함께 비교하여 정상 감소/증가인지 판정해야 합니다.
+
+## 검증
+- 7_step_path_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
+- 7_tip_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
+- 1_step_path_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
+- 1_tip_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
+- _duplicate_keys: `0`
+
+- step_candidate_rows_before_eqp_group: `17307`
+- step_eqp_group_amplification: `3.5058`
+- step_rows_after_eqp_group: `60675`
+- tip_cham_rows: `6019`
+- tip_join_amplification: `1.8794`
+- tip_main_rows: `3981`
+
+
+## 실행시간
+- 원천 조회 및 staging: 129.645초
+- 공통 dimension 생성: 0.047초
+- Tip 전처리: 0.543초
+- Step 전처리: 0.569초
+- f1 생성: 3.516초
+- f2 생성: 0.953초
+- f3 생성: 0.046초
+- 검증: 0.034초
+
+## 출력
