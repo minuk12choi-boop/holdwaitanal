@@ -1,41 +1,9 @@
-uery Executed Successfully...
->> Execution Time: 35.83 sec
-==================================================
-    Rows    :  4643
-    Columns :  22
-    Size    :  4.81+ MB
-==================================================
-Query Executed Successfully...
->> Execution Time: 4 min 48.727 sec
-==================================================
-    Rows    :  6432026
-    Columns :  72
-    Size    :  12.96+ GB
-==================================================
-Query Executed Successfully...
->> Execution Time: 1 min 44.969 sec
-==================================================
-    Rows    :  2947318
-    Columns :  72
-    Size    :  6.09+ GB
-==================================================
-Query Executed Successfully...
->> Execution Time: 4 min 14.288 sec
-==================================================
-    Rows    :  37423
-    Columns :  88
-    Size    :  115.57+ MB
-==================================================
-saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\lot_20260806_101308.xlsx rows=4643
-Traceback (most recent call last):
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\get_data.py", line 457, in <module>
-    _save_excel(tip, "tip", stamp)
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\get_data.py", line 435, in _save_excel
-    _excel_safe(df).to_excel(path, index=False)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\util\_decorators.py", line 333, in wrapper
-    return func(*args, **kwargs)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\core\generic.py", line 2417, in to_excel
-    formatter.write(
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\io\formats\excel.py", line 931, in write
-    raise ValueError(
-ValueError: This sheet is too large! Your sheet size is: 6836478, 18 Max sheet size is: 1048576, 16384
+=== 결과 ===
+성공한 반환형:
+{'': "<class 'pandas.core.frame.DataFrame'>",
+ '': "<class 'pandas.core.frame.DataFrame'>",
+ '7_step_path': "<class 'pandas.core.frame.DataFrame'>",
+ '7_tip': "<class 'pandas.core.frame.DataFrame'>",
+ '1_step_path': "<class 'pandas.core.frame.DataFrame'>",
+ '1_tip': "<class 'pandas.core.frame.DataFrame'>"}
+[PASS] 대형 조회 없이 원천 접근 및 getData 기본 반환형 점검 완료
