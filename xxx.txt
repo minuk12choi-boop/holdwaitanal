@@ -107,3 +107,8 @@ Query Executed Successfully...
 [TIMER] 검증 start
 [TIMER] 검증 elapsed=0.335s
 [TIMER] Parquet 저장 start
+[TIMER] Parquet 저장 elapsed=370.668s
+[TIMER] 로그 저장 start
+[TIMER] 로그 저장 elapsed=0.046s
+[DONE] 작업 DB: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\output\holdwaitanal_work.duckdb
+[DONE] 로그: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\output\log\build_multiwip_direct_20260807_152853.md
