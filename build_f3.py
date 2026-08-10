@@ -505,6 +505,13 @@ LINES = ("KFR7", "PFR1")
 # 재현 구현들은 NULL 을 포함해 왔다. 원본과 맞추려면 True 로 둔다.
 EXCLUDE_NULL_STEP_SKIP_YN = True
 
+# batch_kind 는 EQP 단위 값이라 한 설비그룹에 batch/비batch 설비가 섞이면
+# 같은 lot·step 이 여러 행으로 갈라진다. eqpline 과 동일하게 step 단위로 합친다.
+AGGREGATE_BATCH_KIND = True
+
+# 원본테이블 검증 시트에 기록할 최대 행수 (Excel 시트 한계/파일크기 보호)
+RAW_SHEET_MAX_ROWS = 50_000
+
 # hold 원천에서 제외할 status_seq. '2' = 조치완료 (기존 Oracle 쿼리 기준)
 HOLD_EXCLUDE_STATUS_SEQ = ("2",)
 
@@ -807,20 +814,23 @@ def build_f3(con):
         CREATE OR REPLACE TABLE f1_base AS
         SELECT
             ms.*,
-            tm.eqpcham, tm.prevent, tm.type_body, tm.type_cham, tm.tip_eventtime,
-            COALESCE(tm.eqpissue,
+            CAST(tm.eqpcham AS VARCHAR) AS eqpcham_t, CAST(tm.prevent AS VARCHAR) AS prevent, CAST(tm.type_body AS VARCHAR) AS type_body,
+            CAST(tm.type_cham AS VARCHAR) AS type_cham, CAST(tm.tip_eventtime AS TIMESTAMP) AS tip_eventtime,
+            COALESCE(CAST(tm.eqpissue AS VARCHAR),
                      CASE WHEN ms.body_status IN ('LOCAL','PM','DOWN')
-                          THEN ms.body_status END)                    AS eqpissue,
-            COALESCE(tm.body_eqp_status, ms.body_status)               AS body_eqp_status,
-            tm.cham_eqp_status,
-            COALESCE(tm.eqpissuetime, ms.s_eqp_status_change_time)     AS eqpissuetime,
-            COALESCE(ms.eqp_id, tm.eqpid)                              AS eqpid,
-            COALESCE(tm.eqpcham, ms.eqp_id)                            AS eqpcham2,
+                          THEN CAST(ms.body_status AS VARCHAR) END)    AS eqpissue,
+            COALESCE(CAST(tm.body_eqp_status AS VARCHAR),
+                     CAST(ms.body_status AS VARCHAR))                  AS body_eqp_status,
+            CAST(tm.cham_eqp_status AS VARCHAR)                        AS cham_eqp_status,
+            COALESCE(CAST(tm.eqpissuetime AS TIMESTAMP),
+                     CAST(ms.s_eqp_status_change_time AS TIMESTAMP))   AS eqpissuetime,
+            COALESCE(CAST(ms.eqp_id AS VARCHAR), CAST(tm.eqpid AS VARCHAR))   AS eqpid,
+            COALESCE(CAST(tm.eqpcham AS VARCHAR), CAST(ms.eqp_id AS VARCHAR)) AS eqpcham2,
             h1.hold_user AS hold, h1.hold_reason AS hold_reason, h1.hold_date AS hold_date,
             h2.hold_user AS exception, h2.hold_reason AS exception_reason,
             h2.hold_date AS exception_date,
             h3.hold_user AS ftp, h3.hold_reason AS ftp_reason, h3.hold_date AS ftp_date,
-            CASE WHEN tm.prevent = 'PREVENT' OR tm.eqpissue IS NOT NULL
+            CASE WHEN CAST(tm.prevent AS VARCHAR) = 'PREVENT' OR tm.eqpissue IS NOT NULL
                    OR h2.hold_user IS NOT NULL OR h3.hold_user IS NOT NULL
                    OR ms.body_status IN ('LOCAL','PM','DOWN')
                  THEN 'ISSUE' END                                      AS issue_step
@@ -846,7 +856,9 @@ def build_f3(con):
                STRING_AGG(DISTINCT eqpid, ', ' ORDER BY eqpid)
                    FILTER (WHERE eqpid IS NOT NULL) AS eqpgroup,
                STRING_AGG(DISTINCT eqpcham_final, ', ' ORDER BY eqpcham_final)
-                   FILTER (WHERE eqpcham_final IS NOT NULL) AS eqpgroup_cham_raw
+                   FILTER (WHERE eqpcham_final IS NOT NULL) AS eqpgroup_cham_raw,
+               STRING_AGG(DISTINCT CAST(batch_kind AS VARCHAR), ', ' ORDER BY CAST(batch_kind AS VARCHAR))
+                   FILTER (WHERE batch_kind IS NOT NULL) AS batch_kind_agg
         FROM f1_base GROUP BY line, lot_id, order_seq
     """)
 
@@ -909,7 +921,7 @@ def build_f3(con):
             {elapsed_days_num('fsb.last_event_date')}  AS "마지막이벤트경과_일",
             {elapsed_days_num('fsb.step_arrive_date')} AS "스텝도착경과_일",
             fc.current_de_rank, fc.current_continuous,
-            fg.eqpgroup,
+            fg.eqpgroup, fg.batch_kind_agg,
             COALESCE(NULLIF(TRIM(CAST(fg.eqpgroup_cham_raw AS VARCHAR)), ''), fg.eqpgroup)
                 AS eqpgroup_cham,
             CASE
@@ -996,7 +1008,7 @@ def build_f3(con):
             f."투입경과_일", f."마지막이벤트경과_일", f."스텝도착경과_일",
             f.lot_status, f.step_status, f.proc_id, f.de_rank, f."연속",
             f.AREA, f.layer_id, f."현스텝", f.order_seq, f.step_seq, f.step_desc,
-            f.recipe_id, f.eqp_type, f.batch_kind,
+            f.recipe_id, f.eqp_type, {'f.batch_kind_agg' if AGGREGATE_BATCH_KIND else 'CAST(f.batch_kind AS VARCHAR)'} AS batch_kind,
             es.eqpline, f.eqpgroup, f.eqpgroup_cham,
             ts.tip, ds.down,
             CASE WHEN f.hold      IS NOT NULL THEN {elapsed_days_num('f.hold_date')}      END AS hold,
@@ -1029,13 +1041,77 @@ def build_f3(con):
 
 
 # ---------------------------------------------------------------------------
+# 진단 / 저장
+# ---------------------------------------------------------------------------
+def diagnose_duplicates(df_f3):
+    """(line, lot_id, order_seq) 가 같은데 여러 행으로 나온 건을 찾고,
+    어떤 컬럼 때문에 갈라졌는지 알려준다."""
+    key = ["line", "lot_id", "order_seq"]
+    dup = df_f3[df_f3.duplicated(subset=key, keep=False)]
+    if dup.empty:
+        return dup, []
+    varying = []
+    for c in df_f3.columns:
+        if c in key:
+            continue
+        if dup.groupby(key, dropna=False)[c].nunique(dropna=False).max() > 1:
+            varying.append(c)
+    return dup.sort_values(key, kind="mergesort"), varying
+
+
+def _sheet_name(name):
+    bad = set('[]:*?/\\')
+    clean = "".join(ch for ch in str(name) if ch not in bad)
+    return clean[:31] or "sheet"
+
+
+def save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols):
+    """f3 + 로딩시각 + 원본테이블 시트를 하나의 엑셀 파일로 저장."""
+    with pd.ExcelWriter(path, engine="openpyxl") as xw:
+        _excel_safe(df_f3).to_excel(xw, sheet_name="f3", index=False)
+
+        pd.DataFrame(load_log).to_excel(xw, sheet_name="로딩시각", index=False)
+
+        if len(dup_rows):
+            note = pd.DataFrame({"중복유발_컬럼": dup_cols or ["(없음)"]})
+            note.to_excel(xw, sheet_name="중복진단", index=False)
+            _excel_safe(dup_rows).to_excel(
+                xw, sheet_name="중복진단", index=False, startrow=len(note) + 2)
+
+        for name, df in raw_samples.items():
+            _excel_safe(df).to_excel(xw, sheet_name=_sheet_name(name), index=False)
+
+
+# ---------------------------------------------------------------------------
 def main():
     from bigdataquery import getData
 
-    def fetch(name, sql):
-        with timer(f"getData: {name}"):
-            df = getData(param=sql, convert_type=True, verbose=True)
-        print(f"[ROWS] {name} = {len(df):,}", flush=True)
+    load_log = []
+    raw_samples = {}
+
+    def fetch(name, sql, keep_sample=True):
+        start = dt.datetime.now()
+        t0 = perf_counter()
+        print(f"[QUERY] {name} 조회 시작 {start:%Y-%m-%d %H:%M:%S}", flush=True)
+        df = getData(param=sql, convert_type=True, verbose=True)
+        end = dt.datetime.now()
+        secs = perf_counter() - t0
+        n = len(df)
+        sample_rows = min(n, RAW_SHEET_MAX_ROWS) if keep_sample else 0
+        load_log.append({
+            "테이블": name,
+            "로딩_시작시각": start,
+            "로딩_종료시각": end,
+            "소요_초": round(secs, 3),
+            "행수": n,
+            "컬럼수": df.shape[1],
+            "시트_기록행수": sample_rows,
+            "시트_잘림여부": "Y" if sample_rows < n else "N",
+        })
+        print(f"[QUERY] {name} rows={n:,} cols={df.shape[1]} {secs:.1f}s", flush=True)
+        if keep_sample:
+            # 원본 전체를 들고 있으면 메모리가 터지므로 시트 기록분만 복사해 둔다.
+            raw_samples[name] = df.head(RAW_SHEET_MAX_ROWS).copy()
         return df
 
     stamp = f"{dt.datetime.now():%Y%m%d_%H%M%S}"
@@ -1046,7 +1122,6 @@ def main():
         df_eqp_group = fetch("eqp_group", eqp_group_query)
         df_hold = fetch("hold", hold_query)
 
-    # StepPath 는 라인별로 받아 즉시 f3 범위로 좁히고 원본을 해제한다.
     s_parts = []
     for line, sql in (("KFR7", kfr7_step_path_query), ("PFR1", pfr1_step_path_query)):
         df_path = fetch(f"{line}_step_path", sql)
@@ -1074,8 +1149,7 @@ def main():
         print(f"[ROWS] {k} = {len(v):,}", flush=True)
 
     con = duckdb.connect()
-    m = _lower_cols(df_lot)
-    con.register("m", m)
+    con.register("m", _lower_cols(df_lot))
     con.register("s", s)
     con.register("t", t)
     for k, v in holds.items():
@@ -1083,13 +1157,19 @@ def main():
 
     with timer("f3 생성"):
         df_f3 = build_f3(con)
-    print(f"[ROWS] f3 = {len(df_f3):,}", flush=True)
+    print(f"[ROWS] f3 = {len(df_f3):,}  (lot {df_f3['lot_id'].nunique():,}개)", flush=True)
 
-    with timer("저장"):
+    dup_rows, dup_cols = diagnose_duplicates(df_f3)
+    if len(dup_rows):
+        print(f"[DUP] (line, lot_id, order_seq) 중복 {len(dup_rows):,}행 / "
+              f"유발 컬럼: {dup_cols}", flush=True)
+    else:
+        print("[DUP] lot/step 중복 없음", flush=True)
+
+    with timer("엑셀 저장"):
         path = os.path.join(os.getcwd(), f"f3_{stamp}.xlsx")
-        _excel_safe(df_f3).to_excel(path, index=False)
+        save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols)
     print(f"saved: {path} rows={len(df_f3):,}", flush=True)
-
 
 if __name__ == "__main__":
     main()
