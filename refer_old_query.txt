@@ -628,3 +628,9 @@ select
 h0.*
 from h0, (select distinct line_id, lot_id ,step_seq, max(r) over (partition by line_id, lot_id, step_seq) as m from h0 where item_type IN ('HOLD LOT', 'FUTUREHOLD')) h1
 where h0.r = h1.m
+
+
+<수정 new 쿼리>
+1. MOS_KH_SMI.SMIMES_MI_EQP_GROUP_LIST는 line_id in ('PFR1', 'KFR7')만 불러와서 사용하면되고, 이 테이블도 max(impala_insert_time) over (line_id, eqp_group_name, eqp_id) = impala_insert_time인것만 불러와서 사용해야한다.
+2. 기존의 oracle문법 및 테이블을, impala테이블로 치환하고 문법에 맞게 바꾸면 된다.
+3. 기존의 문제점을 해결해야한다. 기존의 문제점은 데이터를 줄이고 원하는 데이터만 가져오게 하는 목적으로 where절을 썼을 때 오히려 loading시간이 더 오래걸린다는 점. 사내환경에선 loading 시간이 15분 이상 소요 시 cpu호출에러로 로딩이 안된다는 점. 그래서 차라리 가능한 생table을 그대로 불러와서 데이터 전처리는 python으로 하는게 필요하다.(*기존 kfr7 step table을 불러오는데 7분이 걸린다. 하지만 저 중에 가장 큰 테이블 용량을 차지하는 것으로 추정되는 smicdc_nrdk.mc_lot_step_path만 생으로 불러오면 2분이 소요된다)(*trackinprevent에 아무 조건을 걸지않은 생테이블을 불러올 때는 쿼리당 2분밖에 소요되지않으나, 기존의 것처럼 결합을 하고 연산하면 15분 이상의 호출시간이 소모되며 호출제한이 걸려 로딩이 안된다.)
