@@ -1,144 +1,496 @@
-<build_f3.py 결과> 
-[TIMER] 소형 원천 조회 start
-[QUERY] lot 조회 시작 2026-08-10 16:21:10
-Query Executed Successfully...
->> Execution Time: 1 min 14.455 sec
-==================================================
-    Rows    :  8756
-    Columns :  22
-    Size    :  8.81+ MB
-==================================================
-[QUERY] lot rows=8,756 cols=22 74.7s
-[QUERY] equipment 조회 시작 2026-08-10 16:22:25
-Query Executed Successfully...
->> Execution Time: 13.919 sec
-==================================================
-    Rows    :  37461
-    Columns :  7
-    Size    :  16.06+ MB
-==================================================
-[QUERY] equipment rows=37,461 cols=7 13.9s
-[QUERY] eqp_group 조회 시작 2026-08-10 16:22:39
-Query Executed Successfully...
->> Execution Time: 4.535 sec
-==================================================
-    Rows    :  13117
-    Columns :  3
-    Size    :  2.43+ MB
-==================================================
-[QUERY] eqp_group rows=13,117 cols=3 4.5s
-[FILTER] eqp_group 'OFF' 설비 제외: 13,117 -> 12,882
-[HOLD] 최신 version_desc = 20260810-140000
-[QUERY] hold 조회 시작 2026-08-10 16:23:20
-Query Executed Successfully...
->> Execution Time: 3.68 sec
-==================================================
-    Rows    :  589
-    Columns :  9
-    Size    :  377.95+ KB
-==================================================
-[QUERY] hold rows=589 cols=9 3.1s
-[TIMER] 소형 원천 조회 elapsed=132.674s
-[QUERY] KFR7_step_path 조회 시작 2026-08-10 16:23:23
-Query Executed Successfully...
->> Execution Time: 42.515 sec
-==================================================
-    Rows    :  4566257
-    Columns :  15
-    Size    :  3.24+ GB
-==================================================
-[QUERY] KFR7_step_path rows=4,566,257 cols=15 47.4s
-[TIMER] KFR7 f3 범위 축약 start
-[TIMER] KFR7 f3 범위 축약 elapsed=19.234s
-[ROWS] KFR7 scope(step) = 8,299
-[TIMER] KFR7 설비그룹 전개 start
-[WARN] KFR7 설비그룹명에서 복원되지 않는 구성설비 596건 (옛 스냅샷 잔존 의심). 예: []
-[TIMER] KFR7 설비그룹 전개 elapsed=0.136s
-[QUERY] PFR1_step_path 조회 시작 2026-08-10 16:24:30
-Query Executed Successfully...
->> Execution Time: 25.406 sec
-==================================================
-    Rows    :  432123
-    Columns :  15
-    Size    :  311.36+ MB
-==================================================
-[QUERY] PFR1_step_path rows=432,123 cols=15 25.9s
-[TIMER] PFR1 f3 범위 축약 start
-[TIMER] PFR1 f3 범위 축약 elapsed=1.386s
-[ROWS] PFR1 scope(step) = 1,691
-[TIMER] PFR1 설비그룹 전개 start
-[WARN] PFR1 설비그룹명에서 복원되지 않는 구성설비 217건 (옛 스냅샷 잔존 의심). 예: []
-[TIMER] PFR1 설비그룹 전개 elapsed=0.056s
-[ROWS] s = 28,151
-[QUERY] KFR7_tip 조회 시작 2026-08-10 16:24:58
-Query Executed Successfully...
->> Execution Time: 46.21 sec
-==================================================
-    Rows    :  6470430
-    Columns :  10
-    Size    :  2.55+ GB
-==================================================
-[QUERY] KFR7_tip rows=6,470,430 cols=10 49.8s
-[TIMER] KFR7 tip 선필터 start
-[TIMER] KFR7 tip 선필터 elapsed=3.810s
-[FILTER] KFR7 tip 6,470,430 -> 27,765
-[TIMER] KFR7 tip 전처리 start
-[TIMER] KFR7 tip 전처리 elapsed=0.326s
-[QUERY] PFR1_tip 조회 시작 2026-08-10 16:25:52
-Query Executed Successfully...
->> Execution Time: 23.516 sec
-==================================================
-    Rows    :  2960096
-    Columns :  10
-    Size    :  1.15+ GB
-==================================================
-[QUERY] PFR1_tip rows=2,960,096 cols=10 25.2s
-[TIMER] PFR1 tip 선필터 start
-[TIMER] PFR1 tip 선필터 elapsed=1.845s
-[FILTER] PFR1 tip 2,960,096 -> 5,208
-[TIMER] PFR1 tip 전처리 start
-[TIMER] PFR1 tip 전처리 elapsed=0.107s
-[ROWS] t = 25,671
-[TIMER] hold 전처리 start
-[HOLD] 최신 version_desc=20260810-140000 적용: 589 -> 589행
-[TIMER] hold 전처리 elapsed=0.011s
-[ROWS] h1 = 352
-[ROWS] h2 = 134
-[ROWS] h3 = 42
-[TIMER] f3 생성 start
-[TIP] wc_mask=01 rules=24,991 wildcard=['lot_type']
-[TIP] wc_mask=05 rules=101 wildcard=['lot_type', 'step']
-[TIP] wc_mask=07 rules=364 wildcard=['lot_type', 'process', 'step']
-[TIP] wc_mask=09 rules=2 wildcard=['lot_type', 'ppid']
-[TIP] wc_mask=13 rules=213 wildcard=['lot_type', 'step', 'ppid']
-[TIP] 매칭 후보 = 19,971행
-[TIMER] f3 생성 elapsed=1.350s
-[TIP] f3 tip 값 있는 행 = 913 / 9,984
-[ROWS] f3 = 9,984  (lot 5,705개)
-[DUP] lot/step 중복 없음
-[MIX] batch/single 혼재 설비그룹 없음
-[TIMER] 결과 엑셀 저장 start
-[TIMER] 결과 엑셀 저장 elapsed=10.846s
-saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\f3_20260810_162110.xlsx rows=9,984
-[TIMER] 원본검증 엑셀 저장 start
-[TIMER] 원본검증 엑셀 저장 elapsed=37.087s
-saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\raw_20260810_162110.xlsx
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web> python manage.py runserver 8020
+Watching for file changes with StatReloader
+Performing system checks...
 
+System check identified no issues (0 silenced).
+August 10, 2026 - 19:33:52
+Django version 5.2.11, using settings 'config.settings'
+Starting development server at http://127.0.0.1:8020/
+Quit the server with CTRL-BREAK.
 
+WARNING: This is a development server. Do not use it in a production setting. Use a production WSGI or ASGI server instead.
+For more information on production servers see: https://docs.djangoproject.com/en/5.2/howto/deployment/
+[10/Aug/2026 19:33:55] "GET / HTTP/1.1" 200 7002
+Internal Server Error: /api/flowstack/
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\mysql\base.py", line 76, in execute
+    return self.cursor.execute(query, args)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
+    result.read()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.ProgrammingError: (1146, "Table 'app_db.f3_history' doesn't exist")
 
-<결과 엑셀파일>
-테이블	로딩_시작시각	로딩_종료시각	소요_초	행수	컬럼수	시트_기록행수	시트_잘림여부
-lot							
-equipment							
-eqp_group							
-hold							
-KFR7_step_path							
-PFR1_step_path							
-KFR7_tip							
-PFR1_tip	2026-08-10 16:25:53	2026-08-10 16:26:18	25.202	2960096	10	100000	Y
+The above exception was the direct cause of the following exception:
 
-빈값이 존재함.
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 124, in api_flowstack
+    return JsonResponse({"panels": _panels(basis),
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 80, in _panels
+    move, wip = _fetch()
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 50, in _fetch
+    cur.execute(f"""
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\mysql\base.py", line 76, in execute
+    return self.cursor.execute(query, args)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
+    result.read()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+django.db.utils.ProgrammingError: (1146, "Table 'app_db.f3_history' doesn't exist")
+[10/Aug/2026 19:33:55] "GET /api/flowstack/?basis=qty HTTP/1.1" 500 204967
+Internal Server Error: /api/flowstack/
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\mysql\base.py", line 76, in execute
+    return self.cursor.execute(query, args)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
+    result.read()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.ProgrammingError: (1146, "Table 'app_db.f3_history' doesn't exist")
 
-f3 sheet도 lot_inform컬럼의 일부 행을 제외하면 모두 빈값임 
+The above exception was the direct cause of the following exception:
 
-raw관련 excel파일도 각 sheet의 첫행을 제외하면 모두 빈값임 xlsxwriter에 문제가 있는것인지 확인 필요함. 
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 124, in api_flowstack
+    return JsonResponse({"panels": _panels(basis),
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 80, in _panels
+    move, wip = _fetch()
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 50, in _fetch
+    cur.execute(f"""
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\mysql\base.py", line 76, in execute
+    return self.cursor.execute(query, args)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
+    result.read()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+django.db.utils.ProgrammingError: (1146, "Table 'app_db.f3_history' doesn't exist")
+[10/Aug/2026 19:33:58] "GET /api/flowstack/?basis=lot HTTP/1.1" 500 204967
+Internal Server Error: /api/flowstack/
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\mysql\base.py", line 76, in execute
+    return self.cursor.execute(query, args)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
+    result.read()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.ProgrammingError: (1146, "Table 'app_db.f3_history' doesn't exist")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 124, in api_flowstack
+    return JsonResponse({"panels": _panels(basis),
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 80, in _panels
+    move, wip = _fetch()
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 50, in _fetch
+    cur.execute(f"""
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\mysql\base.py", line 76, in execute
+    return self.cursor.execute(query, args)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
+    result.read()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+django.db.utils.ProgrammingError: (1146, "Table 'app_db.f3_history' doesn't exist")
+[10/Aug/2026 19:33:58] "GET /api/flowstack/?basis=qty HTTP/1.1" 500 204967
+Internal Server Error: /api/flowstack/
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\mysql\base.py", line 76, in execute
+    return self.cursor.execute(query, args)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
+    result.read()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.ProgrammingError: (1146, "Table 'app_db.f3_history' doesn't exist")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 124, in api_flowstack
+    return JsonResponse({"panels": _panels(basis),
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 80, in _panels
+    move, wip = _fetch()
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 50, in _fetch
+    cur.execute(f"""
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\mysql\base.py", line 76, in execute
+    return self.cursor.execute(query, args)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
+    result.read()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+django.db.utils.ProgrammingError: (1146, "Table 'app_db.f3_history' doesn't exist")
+[10/Aug/2026 19:34:08] "GET /api/flowstack/?basis=lot HTTP/1.1" 500 204967
+Internal Server Error: /api/flowstack/
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\mysql\base.py", line 76, in execute
+    return self.cursor.execute(query, args)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
+    result.read()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.ProgrammingError: (1146, "Table 'app_db.f3_history' doesn't exist")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 124, in api_flowstack
+    return JsonResponse({"panels": _panels(basis),
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 80, in _panels
+    move, wip = _fetch()
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 50, in _fetch
+    cur.execute(f"""
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\mysql\base.py", line 76, in execute
+    return self.cursor.execute(query, args)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
+    result.read()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+django.db.utils.ProgrammingError: (1146, "Table 'app_db.f3_history' doesn't exist")
+[10/Aug/2026 19:34:09] "GET /api/flowstack/?basis=qty HTTP/1.1" 500 204967
+Internal Server Error: /api/flowstack/
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\mysql\base.py", line 76, in execute
+    return self.cursor.execute(query, args)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
+    result.read()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.ProgrammingError: (1146, "Table 'app_db.f3_history' doesn't exist")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 124, in api_flowstack
+    return JsonResponse({"panels": _panels(basis),
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 80, in _panels
+    move, wip = _fetch()
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 50, in _fetch
+    cur.execute(f"""
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\mysql\base.py", line 76, in execute
+    return self.cursor.execute(query, args)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
+    result.read()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+django.db.utils.ProgrammingError: (1146, "Table 'app_db.f3_history' doesn't exist")
+[10/Aug/2026 19:34:10] "GET /api/flowstack/?basis=lot HTTP/1.1" 500 204967
+Internal Server Error: /api/flowstack/
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\mysql\base.py", line 76, in execute
+    return self.cursor.execute(query, args)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
+    result.read()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.ProgrammingError: (1146, "Table 'app_db.f3_history' doesn't exist")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 124, in api_flowstack
+    return JsonResponse({"panels": _panels(basis),
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 80, in _panels
+    move, wip = _fetch()
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 50, in _fetch
+    cur.execute(f"""
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\db\backends\mysql\base.py", line 76, in execute
+    return self.cursor.execute(query, args)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
+    result.read()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+django.db.utils.ProgrammingError: (1146, "Table 'app_db.f3_history' doesn't exist")
+[10/Aug/2026 19:34:10] "GET /api/flowstack/?basis=qty HTTP/1.1" 500 204967
