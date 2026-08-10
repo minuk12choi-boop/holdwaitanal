@@ -59,6 +59,21 @@
   .wt tr.pick { cursor:pointer; }
   .wt tr.pick:hover td { background:#F3F4F6; }
   .wt tr.on td { background:#EEF2FF; font-weight:600; }
+  /* Drill-down */
+  #drill { border-bottom:1px solid var(--bd); background:#FAFAFA; display:none; }
+  #drill .bar { display:flex; align-items:center; justify-content:space-between;
+                padding:8px 16px; border-bottom:1px solid var(--bd); }
+  #drill .bar b { font-size:13px; }
+  #drill .bar .path { color:var(--mut); font-size:12px; margin-left:8px; }
+  #drill .bar button { border:1px solid var(--bd); background:#fff; border-radius:4px;
+                       font-size:12px; padding:4px 10px; cursor:pointer; }
+  #drill .scroll { max-height:320px; overflow:auto; }
+  #drill table { border-collapse:collapse; font-size:11px; width:100%; }
+  #drill th, #drill td { padding:4px 7px; border-bottom:1px solid var(--bd);
+                         white-space:nowrap; text-align:left; }
+  #drill thead th { position:sticky; top:0; background:#F3F4F6; color:var(--mut);
+                    font-weight:600; z-index:1; }
+  #drill td.num { text-align:right; font-variant-numeric:tabular-nums; }
   .card .dev { position:absolute; inset:38px 0 0 0; background:rgba(255,255,255,.82);
                display:flex; align-items:center; justify-content:center;
                font-size:14px; color:var(--mut); font-weight:600; letter-spacing:.02em; }
@@ -102,6 +117,8 @@
 </header>
 
 <section class="status" id="status"></section>
+
+<section id="drill"></section>
 
 <main>
   <div class="left">
@@ -430,7 +447,10 @@ function drawWt(i, line, d) {
   const rateRow = d.cols.map(c => `<td>${d.summary[c].rate}%</td>`).join("");
 
   const distRows = d.bins.map(b => {
-    const tds = d.cols.map(c => `<td>${nf(d.dist[c][b.key] || 0)}</td>`).join("");
+    const tds = d.cols.map(c =>
+      `<td class="pick" onclick="event.stopPropagation();`
+      + `openDrill('${line}','${c}','${b.key}','',${st.max})">`
+      + `${nf(d.dist[c][b.key] || 0)}</td>`).join("");
     return `<tr class="pick ${b.key === st.bin ? "on" : ""}"
               onclick="pickWtBin(${i},'${line}','${b.key}')">
               <td>${b.label}</td>${tds}</tr>`;
@@ -443,7 +463,9 @@ function drawWt(i, line, d) {
       if (n) any = true;
       const low = d.dist[c][st.bin] || 0;
       const pct = low ? (n / low * 100).toFixed(0) : 0;
-      return `<td title="${cz} · ${n} LOT · 구간 내 ${pct}%">${n ? nf(n) : "-"}</td>`;
+      return `<td class="pick" title="${cz} · ${n} LOT · 구간 내 ${pct}%"
+                 onclick="openDrill('${line}','${c}','${st.bin}','${cz}',${st.max})">`
+             + `${n ? nf(n) : "-"}</td>`;
     }).join("");
     if (cz === "기타/미분류" && !any) return "";      // 0 이면 숨김
     return `<tr><td>${cz}</td>${tds}</tr>`;
@@ -463,6 +485,46 @@ function drawWt(i, line, d) {
     <table><tbody>${distRows}</tbody></table>
     <div class="sec">원인 · ${d.bins.find(b => b.key === st.bin).label}</div>
     <table><tbody>${causeRows}</tbody></table>`;
+}
+
+// ---------------------------------------------------------------------------
+// Drill-down: 화면 아래로 구역이 펼쳐지며 lot 상세를 보여준다
+// ---------------------------------------------------------------------------
+const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝도착경과_일"]);
+
+function closeDrill() {
+  document.getElementById("drill").style.display = "none";
+}
+
+function openDrill(line, col, bin, cause, maxWt) {
+  const el = document.getElementById("drill");
+  el.style.display = "block";
+  el.innerHTML = `<div class="bar"><b>불러오는 중…</b></div>`;
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  const q = `line=${encodeURIComponent(line)}&col=${encodeURIComponent(col)}`
+          + `&bin=${encodeURIComponent(bin)}&cause=${encodeURIComponent(cause)}`
+          + `&max_wt=${maxWt}`;
+  fetch("/api/lots/?" + q).then(r => r.json()).then(d => {
+    const binLabel = { "0": "WT = 0", "0-0.5": "0 < WT ≤ 0.5",
+                       "0.5-1": "0.5 < WT ≤ 1.0" }[d.bin] || d.bin;
+    const head = d.cols.map(c => `<th>${c.t}</th>`).join("");
+    const body = d.rows.map(r => "<tr>" + d.cols.map(c =>
+      `<td class="${NUM_COLS.has(c.k) ? "num" : ""}">`
+      + (r[c.k] === null || r[c.k] === undefined ? "" : r[c.k]) + "</td>").join("")
+      + "</tr>").join("");
+    el.innerHTML = `
+      <div class="bar">
+        <div><b>${d.rows.length.toLocaleString("ko-KR")} LOT</b>
+          <span class="path">${d.line} · ${d.col} · ${binLabel}
+            · ${d.cause} · ${d.biz_date}</span></div>
+        <button onclick="closeDrill()">닫기</button>
+      </div>
+      <div class="scroll"><table><thead><tr>${head}</tr></thead>
+        <tbody>${body || `<tr><td colspan="${d.cols.length}"
+          style="color:#6B7280">해당 조건의 LOT 이 없습니다.</td></tr>`}</tbody>
+      </table></div>`;
+  });
 }
 
 fetch("/api/status/").then(r => r.json()).then(res => {
@@ -890,7 +952,10 @@ function drawWt(i, line, d) {
   const rateRow = d.cols.map(c => `<td>${d.summary[c].rate}%</td>`).join("");
 
   const distRows = d.bins.map(b => {
-    const tds = d.cols.map(c => `<td>${nf(d.dist[c][b.key] || 0)}</td>`).join("");
+    const tds = d.cols.map(c =>
+      `<td class="pick" onclick="event.stopPropagation();`
+      + `openDrill('${line}','${c}','${b.key}','',${st.max})">`
+      + `${nf(d.dist[c][b.key] || 0)}</td>`).join("");
     return `<tr class="pick ${b.key === st.bin ? "on" : ""}"
               onclick="pickWtBin(${i},'${line}','${b.key}')">
               <td>${b.label}</td>${tds}</tr>`;
@@ -903,7 +968,9 @@ function drawWt(i, line, d) {
       if (n) any = true;
       const low = d.dist[c][st.bin] || 0;
       const pct = low ? (n / low * 100).toFixed(0) : 0;
-      return `<td title="${cz} · ${n} LOT · 구간 내 ${pct}%">${n ? nf(n) : "-"}</td>`;
+      return `<td class="pick" title="${cz} · ${n} LOT · 구간 내 ${pct}%"
+                 onclick="openDrill('${line}','${c}','${st.bin}','${cz}',${st.max})">`
+             + `${n ? nf(n) : "-"}</td>`;
     }).join("");
     if (cz === "기타/미분류" && !any) return "";      // 0 이면 숨김
     return `<tr><td>${cz}</td>${tds}</tr>`;
@@ -923,6 +990,46 @@ function drawWt(i, line, d) {
     <table><tbody>${distRows}</tbody></table>
     <div class="sec">원인 · ${d.bins.find(b => b.key === st.bin).label}</div>
     <table><tbody>${causeRows}</tbody></table>`;
+}
+
+// ---------------------------------------------------------------------------
+// Drill-down: 화면 아래로 구역이 펼쳐지며 lot 상세를 보여준다
+// ---------------------------------------------------------------------------
+const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝도착경과_일"]);
+
+function closeDrill() {
+  document.getElementById("drill").style.display = "none";
+}
+
+function openDrill(line, col, bin, cause, maxWt) {
+  const el = document.getElementById("drill");
+  el.style.display = "block";
+  el.innerHTML = `<div class="bar"><b>불러오는 중…</b></div>`;
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  const q = `line=${encodeURIComponent(line)}&col=${encodeURIComponent(col)}`
+          + `&bin=${encodeURIComponent(bin)}&cause=${encodeURIComponent(cause)}`
+          + `&max_wt=${maxWt}`;
+  fetch("/api/lots/?" + q).then(r => r.json()).then(d => {
+    const binLabel = { "0": "WT = 0", "0-0.5": "0 < WT ≤ 0.5",
+                       "0.5-1": "0.5 < WT ≤ 1.0" }[d.bin] || d.bin;
+    const head = d.cols.map(c => `<th>${c.t}</th>`).join("");
+    const body = d.rows.map(r => "<tr>" + d.cols.map(c =>
+      `<td class="${NUM_COLS.has(c.k) ? "num" : ""}">`
+      + (r[c.k] === null || r[c.k] === undefined ? "" : r[c.k]) + "</td>").join("")
+      + "</tr>").join("");
+    el.innerHTML = `
+      <div class="bar">
+        <div><b>${d.rows.length.toLocaleString("ko-KR")} LOT</b>
+          <span class="path">${d.line} · ${d.col} · ${binLabel}
+            · ${d.cause} · ${d.biz_date}</span></div>
+        <button onclick="closeDrill()">닫기</button>
+      </div>
+      <div class="scroll"><table><thead><tr>${head}</tr></thead>
+        <tbody>${body || `<tr><td colspan="${d.cols.length}"
+          style="color:#6B7280">해당 조건의 LOT 이 없습니다.</td></tr>`}</tbody>
+      </table></div>`;
+  });
 }
 
 fetch("/api/status/").then(r => r.json()).then(res => {

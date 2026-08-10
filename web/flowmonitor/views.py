@@ -124,13 +124,14 @@ def _fetch():
                     -- 업무일 대표 스냅샷: GY 우선, 없으면 DAY, 그것도 없으면 SW.
                     -- 적재 초기라 GY 가 아직 없는 날에도 값이 나오게 한다.
                     SELECT biz_date,
-                           SUBSTRING_INDEX(GROUP_CONCAT(
-                               shift ORDER BY FIELD(shift,'GY','DAY','SW')), ',', 1) AS shift
+                           MIN(CASE shift WHEN 'GY' THEN '1GY' WHEN 'DAY' THEN '2DAY'
+                                          ELSE '3SW' END) AS shift
                     FROM   f3_history
                     WHERE  biz_date >= %s
                     GROUP  BY biz_date
                 ) pick
-                  ON h.biz_date = pick.biz_date AND h.shift = pick.shift
+                  ON h.biz_date = pick.biz_date
+                 AND h.shift = SUBSTR(pick.shift, 2)
                 WHERE  h.biz_date >= %s
                   AND  h.lot_type IN ({types})
                 GROUP  BY h.biz_date, h.`line`, h.lot_id
@@ -630,4 +631,93 @@ def api_lowwt(request):
         "ready": True, "biz_date": str(bd), "line": line, "max_wt": max_wt,
         "cols": cols, "bins": bins, "causes": WT_CAUSES,
         "summary": summary, "dist": dist, "cause": cause,
+    }, json_dumps_params={"ensure_ascii": False})
+
+
+# ---------------------------------------------------------------------------
+# Drill-down: Low WT lot 상세
+#   f3_history 에 실제로 있는 컬럼만 내보낸다(없는 컬럼을 만들지 않는다).
+# ---------------------------------------------------------------------------
+LOT_DETAIL_COLS = [
+    ("lot_id", "LOT"), ("lot_type", "TYPE"), ("qty", "매"),
+    ("wt", "WT"), ("lot_status", "상태"),
+    ("proc_id", "PROC"), ("step_seq", "STEP"), ("step_desc", "STEP명"),
+    ("eqpgroup", "설비그룹"), ("cause", "원인"),
+    ("hold", "HOLD"), ("hold_reason", "HOLD사유"),
+    ("exception", "EXC"), ("exception_reason", "EXC사유"),
+    ("ftp", "FTP"), ("ftp_reason", "FTP사유"),
+    ("down", "설비상태"), ("tip", "TIP"),
+    ("마지막이벤트경과_일", "마지막이벤트경과(일)"),
+    ("스텝도착경과_일", "스텝도착경과(일)"),
+]
+
+
+def api_lots(request):
+    line = request.GET.get("line", "")
+    col = request.GET.get("col", "전체")
+    bin_key = request.GET.get("bin", "0")
+    cause = request.GET.get("cause", "")
+    max_wt = float(request.GET.get("max_wt", 0) or 0)
+
+    if not (_table_exists("f3_history") and _table_exists("move_lot")):
+        return JsonResponse({"rows": [], "cols": [], "reason": "미적재"})
+
+    with connection.cursor() as cur:
+        cur.execute("SELECT MAX(biz_date) FROM f3_history")
+        bd = cur.fetchone()[0]
+    if not bd:
+        return JsonResponse({"rows": [], "cols": [], "reason": "데이터 없음"})
+
+    # 대상 shift: 전체면 업무일 대표 스냅샷
+    types = ",".join(["%s"] * len(MOVE_LOT_TYPES))
+    with connection.cursor() as cur:
+        if col == "전체":
+            cur.execute("SELECT shift FROM f3_history WHERE biz_date=%s AND `line`=%s "
+                        "GROUP BY shift ORDER BY CASE shift WHEN 'GY' THEN 1 "
+                        "WHEN 'DAY' THEN 2 ELSE 3 END LIMIT 1", [bd, line])
+            r = cur.fetchone()
+            shift = r[0] if r else "GY"
+        else:
+            shift = col
+
+        sel = ", ".join(
+            f"MIN(`{c}`) AS `{c}`" for c, _ in LOT_DETAIL_COLS
+            if c not in ("lot_id", "wt", "cause"))
+        cur.execute(f"""
+            SELECT lot_id, {sel}
+            FROM   f3_history
+            WHERE  biz_date=%s AND `line`=%s AND shift=%s AND lot_type IN ({types})
+            GROUP  BY lot_id
+        """, [bd, line, shift, *MOVE_LOT_TYPES])
+        names = [d[0] for d in cur.description]
+        recs = [dict(zip(names, r)) for r in cur.fetchall()]
+
+        if col == "전체":
+            cur.execute("SELECT lot_id, SUM(move_qty) FROM move_lot "
+                        "WHERE biz_date=%s AND sys_line_id=%s GROUP BY lot_id", [bd, line])
+        else:
+            cur.execute("SELECT lot_id, SUM(move_qty) FROM move_lot "
+                        "WHERE biz_date=%s AND sys_line_id=%s AND shift=%s "
+                        "GROUP BY lot_id", [bd, line, col])
+        mv = {r[0]: float(r[1] or 0) for r in cur.fetchall()}
+
+    out = []
+    for r in recs:
+        qty = int(r.get("qty") or 0)
+        wt = (mv.get(r["lot_id"], 0.0) / qty) if qty else 0.0
+        if _bin_of(wt, max_wt) != bin_key:
+            continue
+        cs = _cause_of(r.get("hold"), r.get("exception"), r.get("ftp"),
+                       r.get("down"), r.get("tip"))
+        if cause and cs != cause:
+            continue
+        r["wt"] = round(wt, 2)
+        r["cause"] = cs
+        out.append({c: r.get(c) for c, _ in LOT_DETAIL_COLS})
+
+    out.sort(key=lambda x: (x["wt"], str(x["lot_id"])))
+    return JsonResponse({
+        "rows": out, "cols": [{"k": c, "t": t} for c, t in LOT_DETAIL_COLS],
+        "biz_date": str(bd), "line": line, "col": col,
+        "bin": bin_key, "cause": cause or "전체",
     }, json_dumps_params={"ensure_ascii": False})
