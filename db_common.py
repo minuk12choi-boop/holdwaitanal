@@ -39,27 +39,29 @@ def shift_boundaries(around: dt.datetime, back_hours: int = 26):
 
 
 def shift_window(boundary: dt.datetime):
-    """shift 의 '실제 근무 구간' (boundary, boundary+8h].
+    """shift 의 근무 구간 (boundary, boundary+8h].
 
-    GY 는 22:00~06:00, DAY 는 06:00~14:00, SW 는 14:00~22:00 이다.
-    이렇게 두어야 한 업무일의 3개 shift 합이 정확히 그 업무일(22:00~22:00)이 된다.
+        GY  22:00 ~ 06:00
+        DAY 06:00 ~ 14:00
+        SW  14:00 ~ 22:00
 
-    W/T 의 분자는 '스냅샷 시각 직전 8시간' 이므로, 스냅샷 시각 B 와 짝이 되는
-    MOVE 는 '구간이 B 에서 끝나는 shift' 다. 아래 pair_shift_for_snapshot 참조.
+    한 업무일의 3개 shift 합이 정확히 그 업무일(22:00~22:00)이 된다.
     """
     return boundary, boundary + dt.timedelta(hours=8)
 
 
-def pair_shift_for_snapshot(boundary: dt.datetime):
-    """스냅샷 시각 B 와 W/T 로 짝지어야 할 MOVE shift (biz_date, shift).
+def snapshot_shift(boundary: dt.datetime):
+    """스냅샷 시각 -> (업무일, shift). 그 shift 가 '시작되는' 시점으로 라벨링한다.
 
-    B 직전 8시간을 근무한 shift = 구간이 B 에서 끝나는 shift.
-        B = D 06:00  ->  (D,   'GY')
-        B = D 14:00  ->  (D,   'DAY')
-        B = D 22:00  ->  (D,   'SW')
+        (D-1) 22:00 -> (D, 'GY')
+        D     06:00 -> (D, 'DAY')
+        D     14:00 -> (D, 'SW')
+
+    MOVE 도 같은 (업무일, shift) 로 저장되므로 **같은 이름끼리 그대로 짝**이 된다.
+        W/T(D, S) = MOVE(D, S) / 재공(D, S 스냅샷)
+    즉 분모는 그 조가 시작할 때의 재공, 분자는 그 조가 낸 MOVE 다.
     """
-    prev = boundary - dt.timedelta(hours=8)
-    return biz_date(prev), {22: "GY", 6: "DAY", 14: "SW"}[prev.hour]
+    return biz_date(boundary), {22: "GY", 6: "DAY", 14: "SW"}[boundary.hour]
 
 
 # ---------------------------------------------------------------------------
@@ -221,8 +223,8 @@ def promote_to_history(conn, columns, now=None):
     bounds = shift_boundaries(now)
     if not bounds:
         return None
-    boundary, shift = bounds[0]
-    bd = biz_date(boundary)
+    boundary, _ = bounds[0]
+    bd, shift = snapshot_shift(boundary)
 
     with conn.cursor() as cur:
         cur.execute("SELECT DISTINCT snapshot_at FROM f3_live")
