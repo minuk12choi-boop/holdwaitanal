@@ -1,169 +1,117 @@
 [TIMER] 소형 원천 조회 start
-[QUERY] lot 조회 시작 2026-08-10 14:01:13
+[QUERY] lot 조회 시작 2026-08-10 14:39:05
 Query Executed Successfully...
->> Execution Time: 2 min 23.804 sec
+>> Execution Time: 19.362 sec
 ==================================================
-    Rows    :  8729
+    Rows    :  8761
     Columns :  22
-    Size    :  8.78+ MB
+    Size    :  8.81+ MB
 ==================================================
-[QUERY] lot rows=8,729 cols=22 144.0s
-[QUERY] equipment 조회 시작 2026-08-10 14:03:37
+[QUERY] lot rows=8,761 cols=22 19.6s
+[QUERY] equipment 조회 시작 2026-08-10 14:39:25
 Query Executed Successfully...
->> Execution Time: 1 min 35.610 sec
+>> Execution Time: 8.377 sec
 ==================================================
     Rows    :  37461
     Columns :  7
     Size    :  16.06+ MB
 ==================================================
-[QUERY] equipment rows=37,461 cols=7 95.6s
-[QUERY] eqp_group 조회 시작 2026-08-10 14:05:13
+[QUERY] equipment rows=37,461 cols=7 8.4s
+[QUERY] eqp_group 조회 시작 2026-08-10 14:39:33
 Query Executed Successfully...
->> Execution Time: 24.470 sec
+>> Execution Time: 3.49 sec
 ==================================================
     Rows    :  17007
     Columns :  3
     Size    :  3.15+ MB
 ==================================================
-[QUERY] eqp_group rows=17,007 cols=3 24.5s
-[QUERY] hold 조회 시작 2026-08-10 14:05:37
+[QUERY] eqp_group rows=17,007 cols=3 3.1s
+[QUERY] hold 조회 시작 2026-08-10 14:39:36
 Query Executed Successfully...
->> Execution Time: 4 min 18.594 sec
+>> Execution Time: 4 min 13.92 sec
 ==================================================
-    Rows    :  1015466
+    Rows    :  249
     Columns :  8
-    Size    :  561.04+ MB
+    Size    :  142.11+ KB
 ==================================================
-[QUERY] hold rows=1,015,466 cols=8 259.3s
-[TIMER] 소형 원천 조회 elapsed=523.555s
-[QUERY] KFR7_step_path 조회 시작 2026-08-10 14:09:57
+[QUERY] hold rows=249 cols=8 253.1s
+[TIMER] 소형 원천 조회 elapsed=284.177s
+[QUERY] KFR7_step_path 조회 시작 2026-08-10 14:43:50
 Query Executed Successfully...
->> Execution Time: 1 min 3.843 sec
+>> Execution Time: 1 min 9.276 sec
 ==================================================
-    Rows    :  6813012
+    Rows    :  6834608
     Columns :  15
-    Size    :  4.84+ GB
+    Size    :  4.86+ GB
 ==================================================
-[QUERY] KFR7_step_path rows=6,813,012 cols=15 71.8s
+[QUERY] KFR7_step_path rows=6,834,608 cols=15 78.6s
 [TIMER] KFR7 f3 범위 축약 start
-[TIMER] KFR7 f3 범위 축약 elapsed=16.775s
-[ROWS] KFR7 scope(step) = 8,237
+[TIMER] KFR7 f3 범위 축약 elapsed=16.347s
+[ROWS] KFR7 scope(step) = 8,298
 [TIMER] KFR7 설비그룹 전개 start
-[TIMER] KFR7 설비그룹 전개 elapsed=0.126s
-[QUERY] PFR1_step_path 조회 시작 2026-08-10 14:11:26
+[TIMER] KFR7 설비그룹 전개 elapsed=0.135s
+[QUERY] PFR1_step_path 조회 시작 2026-08-10 14:45:26
 Query Executed Successfully...
->> Execution Time: 42.44 sec
+>> Execution Time: 44.293 sec
 ==================================================
-    Rows    :  3980093
+    Rows    :  3982574
     Columns :  15
     Size    :  2.82+ GB
 ==================================================
-[QUERY] PFR1_step_path rows=3,980,093 cols=15 47.0s
+[QUERY] PFR1_step_path rows=3,982,574 cols=15 48.8s
 [TIMER] PFR1 f3 범위 축약 start
-[TIMER] PFR1 f3 범위 축약 elapsed=3.276s
-[ROWS] PFR1 scope(step) = 1,688
+[TIMER] PFR1 f3 범위 축약 elapsed=3.249s
+[ROWS] PFR1 scope(step) = 1,702
 [TIMER] PFR1 설비그룹 전개 start
-[TIMER] PFR1 설비그룹 전개 elapsed=0.057s
-[ROWS] s = 30,279
-[QUERY] KFR7_tip 조회 시작 2026-08-10 14:12:18
+[TIMER] PFR1 설비그룹 전개 elapsed=0.054s
+[ROWS] s = 30,299
+[QUERY] KFR7_tip 조회 시작 2026-08-10 14:46:19
 Query Executed Successfully...
->> Execution Time: 56.143 sec
+>> Execution Time: 48.129 sec
 ==================================================
-    Rows    :  6469443
+    Rows    :  6470430
     Columns :  10
     Size    :  2.55+ GB
 ==================================================
-[QUERY] KFR7_tip rows=6,469,443 cols=10 60.1s
+[QUERY] KFR7_tip rows=6,470,430 cols=10 51.8s
+[TIMER] KFR7 tip 선필터 start
+[TIMER] KFR7 tip 선필터 elapsed=6.540s
+[FILTER] KFR7 tip 6,470,430 -> 28,536
 [TIMER] KFR7 tip 전처리 start
-[TIMER] KFR7 tip 전처리 elapsed=74.010s
-[QUERY] PFR1_tip 조회 시작 2026-08-10 14:14:32
+[TIMER] KFR7 tip 전처리 elapsed=0.349s
+[QUERY] PFR1_tip 조회 시작 2026-08-10 14:47:18
 Query Executed Successfully...
->> Execution Time: 48.95 sec
+>> Execution Time: 21.235 sec
 ==================================================
     Rows    :  2959545
     Columns :  10
     Size    :  1.15+ GB
 ==================================================
-[QUERY] PFR1_tip rows=2,959,545 cols=10 50.0s
+[QUERY] PFR1_tip rows=2,959,545 cols=10 22.9s
+[TIMER] PFR1 tip 선필터 start
+[TIMER] PFR1 tip 선필터 elapsed=3.061s
+[FILTER] PFR1 tip 2,959,545 -> 5,217
 [TIMER] PFR1 tip 전처리 start
-[TIMER] PFR1 tip 전처리 elapsed=36.657s
-[ROWS] t = 6,872,495
+[TIMER] PFR1 tip 전처리 elapsed=0.106s
+[ROWS] t = 26,242
 [TIMER] hold 전처리 start
-[TIMER] hold 전처리 elapsed=3.750s
-[ROWS] h1 = 301,357
-[ROWS] h2 = 125,935
-[ROWS] h3 = 14,680
+[TIMER] hold 전처리 elapsed=0.008s
+[ROWS] h1 = 151
+[ROWS] h2 = 61
+[ROWS] h3 = 21
 [TIMER] f3 생성 start
-[TIP] wc_mask=01 rules=6,853,149 wildcard=['lot_type']
-[TIP] wc_mask=03 rules=321 wildcard=['lot_type', 'process']
-[TIP] wc_mask=05 rules=3,027 wildcard=['lot_type', 'step']
-[TIP] wc_mask=07 rules=15,371 wildcard=['lot_type', 'process', 'step']
-[TIP] wc_mask=09 rules=96 wildcard=['lot_type', 'ppid']
-[TIP] wc_mask=11 rules=11 wildcard=['lot_type', 'process', 'ppid']
-[TIP] wc_mask=13 rules=519 wildcard=['lot_type', 'step', 'ppid']
-[TIP] wc_mask=15 rules=1 wildcard=['lot_type', 'process', 'step', 'ppid']
-[TIP] 매칭 후보 = 20,015행
-[TIMER] f3 생성 elapsed=5.017s
-[TIP] f3 tip 값 있는 행 = 923 / 9,919
-[ROWS] f3 = 9,919  (lot 5,705개)
+[TIP] wc_mask=01 rules=25,571 wildcard=['lot_type']
+[TIP] wc_mask=05 rules=101 wildcard=['lot_type', 'step']
+[TIP] wc_mask=07 rules=356 wildcard=['lot_type', 'process', 'step']
+[TIP] wc_mask=09 rules=2 wildcard=['lot_type', 'ppid']
+[TIP] wc_mask=13 rules=212 wildcard=['lot_type', 'step', 'ppid']
+[TIP] 매칭 후보 = 20,253행
+[TIMER] f3 생성 elapsed=1.329s
+[TIP] f3 tip 값 있는 행 = 923 / 9,994
+[ROWS] f3 = 9,994  (lot 5,744개)
 [DUP] lot/step 중복 없음
 [MIX] batch/single 혼재 설비그룹 640개 (그중 equipment 미매칭 설비 1건)
-[TIMER] 엑셀 저장 start
-Traceback (most recent call last):
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\build_f3.py", line 1185, in save_workbook
-    safe.iloc[i:i + RAW_SHEET_ROWS_PER_SHEET].to_excel(
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\util\_decorators.py", line 333, in wrapper
-    return func(*args, **kwargs)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\core\generic.py", line 2417, in to_excel
-    formatter.write(
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\io\formats\excel.py", line 952, in write
-    writer._write_cells(
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\io\excel\_openpyxl.py", line 487, in _write_cells
-    xcell = wks.cell(
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\worksheet\worksheet.py", line 244, in cell
-    cell = self._get_cell(row, column)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\worksheet\worksheet.py", line 261, in _get_cell
-    self._add_cell(cell)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\worksheet\worksheet.py", line 272, in _add_cell
-    self._cells[(row, column)] = cell
-MemoryError
-
-During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\build_f3.py", line 1293, in <module>
-    main()
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\build_f3.py", line 1287, in main
-    save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols, mixed,
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\build_f3.py", line 1160, in save_workbook
-    with pd.ExcelWriter(path, engine="openpyxl") as xw:
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\io\excel\_base.py", line 1353, in __exit__
-    self.close()
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\io\excel\_base.py", line 1357, in close
-    self._save()
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\io\excel\_openpyxl.py", line 110, in _save
-    self.book.save(self._handles.handle)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\workbook\workbook.py", line 386, in save
-    save_workbook(self, filename)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\writer\excel.py", line 294, in save_workbook
-    writer.save()
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\writer\excel.py", line 275, in save
-    self.write_data()
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\writer\excel.py", line 77, in write_data
-    self._write_worksheets()
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\writer\excel.py", line 215, in _write_worksheets
-    self.write_worksheet(ws)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\writer\excel.py", line 200, in write_worksheet
-    writer.write()
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\worksheet\_writer.py", line 359, in write
-    self.write_rows()
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\worksheet\_writer.py", line 124, in write_rows
-    for row_idx, row in self.rows():
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\worksheet\_writer.py", line 110, in rows
-    for (row, col), cell in sorted(self.ws._cells.items()):
-MemoryError
-Exception ignored in atexit callback: <function _openpyxl_shutdown at 0x000001ED625B43A0>
-Traceback (most recent call last):
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\worksheet\_writer.py", line 32, in _openpyxl_shutdown
-    os.remove(path)
-PermissionError: [WinError 32] 다른 프로세스가 파일을 사용 중이기 때문에 프로세스가 액세스 할 수 없습니다: 'C:\\Users\\MINUK1~1.CHO\\AppData\\Local\\Temp\\openpyxl.rduyz7ao'
+[TIMER] 결과 엑셀 저장 start
+[TIMER] 결과 엑셀 저장 elapsed=9.467s
+saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\f3_20260810_143905.xlsx rows=9,994
+[TIMER] 원본검증 엑셀 저장 start
