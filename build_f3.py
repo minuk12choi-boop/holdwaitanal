@@ -567,12 +567,50 @@ SUMMARY_OUTPUT_COLUMNS = [
     "ftp", "ftp_reason",
 ]
 
-hold_query = """
+# hold 는 생테이블 조회에 4분이 걸리는데, 실제로 쓰이는 건 현재 재공(mc_lot)에
+# 해당하는 lot 뿐이다. 이 테이블만은 서버(Impala)에서 미리 걸러 가져온다.
+#   - status_seq <> '2' (조치완료 제외)
+#   - line_id 별 최신 version_desc
+#   - 현재 재공(Active/Hold) 과 line_id + lot_id 로 조인되는 건만
+# 느려지거나 문제가 생기면 HOLD_SERVER_SIDE_FILTER = False 로 되돌린다.
+HOLD_SERVER_SIDE_FILTER = True
+
+hold_query_raw = """
 SELECT line_id, item_type, status_seq, lot_id, step_seq,
        hold_user_name, issue_reason_cont, issue_date
 FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
 WHERE  line_id IN ('KFR4', 'KFR7', 'PFR1')
 """
+
+hold_query_joined = """
+WITH cur AS (
+    SELECT 'PFR1' AS line_id, lot_id
+    FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
+    WHERE  lot_status_seg IN ('Active', 'Hold')
+    UNION ALL
+    SELECT 'KFR7' AS line_id, lot_id
+    FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT
+    WHERE  lot_status_seg IN ('Active', 'Hold')
+),
+h AS (
+    SELECT line_id, item_type, status_seq, lot_id, step_seq,
+           hold_user_name, issue_reason_cont, issue_date,
+           version_desc,
+           MAX(version_desc) OVER (PARTITION BY line_id) AS max_version_desc
+    FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
+    WHERE  line_id IN ('KFR4', 'KFR7', 'PFR1')
+      AND  status_seq <> '2'
+)
+SELECT h.line_id, h.item_type, h.status_seq, h.lot_id, h.step_seq,
+       h.hold_user_name, h.issue_reason_cont, h.issue_date
+FROM   h
+JOIN   (SELECT DISTINCT line_id, lot_id FROM cur) c
+  ON   h.line_id = c.line_id
+ AND   h.lot_id  = c.lot_id
+WHERE  h.version_desc = h.max_version_desc
+"""
+
+hold_query = hold_query_joined if HOLD_SERVER_SIDE_FILTER else hold_query_raw
 
 
 # ---------------------------------------------------------------------------
