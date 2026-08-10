@@ -257,13 +257,17 @@ FROM (
 WHERE x.impala_insert_time = x.max_impala_insert_time
 """
 
-# ── 설비그룹 : line_id + eqp_group_name + eqp_id 별 최신 적재분만 ────────
+# ── 설비그룹 : line_id + eqp_group_name 별 최신 스냅샷만 ─────────────────
+#   파티션 키에 eqp_id 를 넣으면 안 된다. 그렇게 하면 그룹에서 이미 빠진 설비도
+#   '자기 자신의 최신 행'으로 살아남아, 옛 구성원과 현 구성원이 섞인다.
+#   (실측 예: WSH403_WSH405_WSO411_WSO414 그룹에 6/27 자 MMC404/MMC407 이 잔존)
+#   그룹 단위로 최신 적재시각을 잡아야 그 시점의 구성원만 남는다.
 eqp_group_query = """
 SELECT line_id, eqp_group_name, eqp_id
 FROM (
     SELECT g.line_id, g.eqp_group_name, g.eqp_id, g.impala_insert_time,
            MAX(g.impala_insert_time)
-               OVER (PARTITION BY g.line_id, g.eqp_group_name, g.eqp_id)
+               OVER (PARTITION BY g.line_id, g.eqp_group_name)
                AS max_impala_insert_time
     FROM   MOS_KH_SMI.SMIMES_MI_EQP_GROUP_LIST g
     WHERE  g.line_id IN ('KFR7', 'PFR1')
@@ -796,6 +800,20 @@ def expand_with_equipment(scope, df_eqp, df_eqp_group, line):
     eg = eg[eg["line_id"].eq(line) & ~eg["eqp_id"].str.contains("OFF", na=False)]
     eg = eg[["line_id", "eqp_group_name", "eqp_id"]].drop_duplicates()
     eg = _drop_null_keys(eg, ["line_id", "eqp_group_name"])
+
+    # 그룹명이 구성설비를 '_' 로 나열한 형태일 때, 그룹명에 없는 설비가 섞여 있으면
+    # 옛 스냅샷 잔존을 의심해야 한다(파티션 키 오류의 대표 증상).
+    named = eg["eqp_group_name"].str.contains("_", na=False)
+    if named.any():
+        chk = eg[named].copy()
+        chk["_in_name"] = [
+            e in n.split("_") for e, n in zip(chk["eqp_id"], chk["eqp_group_name"])]
+        stray = chk[~chk["_in_name"]]
+        if len(stray):
+            print(f"[WARN] {line} 설비그룹명에 없는 구성설비 {len(stray):,}건 "
+                  f"(옛 스냅샷 잔존 의심). 예: "
+                  f"{stray[['eqp_group_name','eqp_id']].head(3).to_dict('records')}",
+                  flush=True)
 
     out = scope.merge(
         eg, left_on=["line", "eqp_group_raw"], right_on=["line_id", "eqp_group_name"],
