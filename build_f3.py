@@ -339,6 +339,31 @@ def _tip_lot_type(t):
     return '-'
 
 
+def prefilter_tip(df_tip, s_scope):
+    """s(f3 범위) 와 매칭될 가능성이 없는 TrackInPrevent 행을 미리 버린다.
+
+    rule 이 매칭되려면 process / step / ppid / eqpid 각각이 '-'(와일드카드)이거나
+    s 에 존재하는 값이어야 한다. 이는 필요조건이므로 여기서 버려도 매칭 손실이 없다.
+    (조합까지 보지는 않으므로 남는 행이 모두 매칭된다는 뜻은 아니다)
+
+    필터 기준 컬럼(process, step, ppid, eqpid)은 이후 _build_ttt / _build_tee 의
+    파티션·조인 키를 모두 결정하므로, 같은 파티션의 행은 통째로 남거나 통째로
+    사라진다. 즉 윈도우 연산 결과가 왜곡되지 않는다.
+    """
+    t = _lower_cols(df_tip)
+    procs = set(s_scope["proc_id"].dropna())
+    steps = set(s_scope["step_seq"].dropna())
+    ppids = set(s_scope["recipe_id"].dropna())
+    eqps = set(s_scope["eqp_id"].dropna())
+
+    def ok(col, allowed):
+        v = t[col]
+        return v.isna() | v.eq("-") | v.eq("") | v.isin(allowed)
+
+    keep = ok("process", procs) & ok("step", steps) & ok("ppid", ppids) & ok("eqpid", eqps)
+    return t[keep]
+
+
 def _build_t(df_tip, line):
     """t CTE: prevent 판정 / ee(설비-챔버) 조합 / eventtime 보정."""
     t = _lower_cols(df_tip)
@@ -532,7 +557,7 @@ AGGREGATE_BATCH_KIND = True
 
 # 원본테이블 검증 시트 설정
 #   시트 1장당 행수 상한. Excel 한계(1,048,576)보다 낮게 잡아야 안전하다.
-RAW_SHEET_ROWS_PER_SHEET = 500_000
+RAW_SHEET_ROWS_PER_SHEET = 200_000
 #   테이블별 총 기록 행수. None = 전량.
 #   step_path / tip 은 수백만 행이라 전량 기록 시 파일이 수 GB 가 되고 저장에만
 #   수십 분이 걸린다. 필요할 때만 숫자를 올릴 것.
@@ -541,10 +566,13 @@ RAW_SHEET_MAX_ROWS = {
     "equipment": None,
     "eqp_group": None,
     "hold": None,
-    "KFR7_step_path": 200_000,
-    "PFR1_step_path": 200_000,
-    "KFR7_tip": 200_000,
-    "PFR1_tip": 200_000,
+    "KFR7_step_path": 100_000,
+    "PFR1_step_path": 100_000,
+    "KFR7_tip": 100_000,
+    "PFR1_tip": 100_000,
+    "t_rules(전처리된 tip)": 200_000,
+    "tip_join_검증": 200_000,
+    "s(step_scope)": 200_000,
 }
 
 # hold 원천에서 제외할 status_seq. '2' = 조치완료 (기존 Oracle 쿼리 기준)
@@ -1203,12 +1231,28 @@ def _sheet_name(name):
     return clean[:31] or "sheet"
 
 
-def save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols, mixed_groups,
-                  extra_sheets=None):
-    """f3 + 진단 + 로딩시각 + 원본테이블 시트를 하나의 엑셀 파일로 저장.
+def _write_sheets(xw, sheets):
+    """행수가 시트 한계를 넘으면 name_1, name_2 ... 로 나눠 적재."""
+    for name, df in sheets.items():
+        if df is None or not len(df):
+            continue
+        safe = _excel_safe(df)
+        cap = RAW_SHEET_MAX_ROWS.get(name)
+        if cap is not None and len(safe) > cap:
+            safe = safe.head(cap)
+        n = len(safe)
+        if n <= RAW_SHEET_ROWS_PER_SHEET:
+            safe.to_excel(xw, sheet_name=_sheet_name(name), index=False)
+            continue
+        for i in range(0, n, RAW_SHEET_ROWS_PER_SHEET):
+            part = i // RAW_SHEET_ROWS_PER_SHEET + 1
+            safe.iloc[i:i + RAW_SHEET_ROWS_PER_SHEET].to_excel(
+                xw, sheet_name=_sheet_name(f"{name}_{part}"), index=False)
 
-    원본테이블이 시트 한계를 넘으면 name_1, name_2 ... 로 나눠 적재한다.
-    """
+
+def save_result_workbook(path, df_f3, load_log, dup_rows, dup_cols, mixed_groups,
+                         tip_match):
+    """결과·진단 시트만 담은 본 파일. 크기가 작아 실패 위험이 없다."""
     with pd.ExcelWriter(path, engine="openpyxl") as xw:
         _excel_safe(df_f3).to_excel(xw, sheet_name="f3", index=False)
         pd.DataFrame(load_log).to_excel(xw, sheet_name="로딩시각", index=False)
@@ -1223,19 +1267,14 @@ def save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols, mixed_
             _excel_safe(dup_rows).to_excel(
                 xw, sheet_name="중복진단", index=False, startrow=len(note) + 2)
 
-        for name, df in (extra_sheets or {}).items():
-            raw_samples[name] = df
+        _write_sheets(xw, {"tip_join_검증": tip_match})
 
-        for name, df in raw_samples.items():
-            safe = _excel_safe(df)
-            n = len(safe)
-            if n <= RAW_SHEET_ROWS_PER_SHEET:
-                safe.to_excel(xw, sheet_name=_sheet_name(name), index=False)
-                continue
-            for i in range(0, n, RAW_SHEET_ROWS_PER_SHEET):
-                part = i // RAW_SHEET_ROWS_PER_SHEET + 1
-                safe.iloc[i:i + RAW_SHEET_ROWS_PER_SHEET].to_excel(
-                    xw, sheet_name=_sheet_name(f"{name}_{part}"), index=False)
+
+def save_raw_workbook(path, raw_samples, extra_sheets):
+    """원본테이블 검증 파일. openpyxl 은 전 셀을 메모리에 들고 있어 대용량에서
+    MemoryError 가 난다. 본 파일과 분리해 두어 실패해도 결과가 보존되게 한다."""
+    with pd.ExcelWriter(path, engine="openpyxl") as xw:
+        _write_sheets(xw, {**(extra_sheets or {}), **raw_samples})
 
 
 # ---------------------------------------------------------------------------
@@ -1294,9 +1333,13 @@ def main():
     t_parts = []
     for line, sql in (("KFR7", kfr7_tip_query), ("PFR1", pfr1_tip_query)):
         df_tip = fetch(f"{line}_tip", sql)
-        with timer(f"{line} tip 전처리"):
-            t_parts.append(build_tip(df_tip, df_eqp, line))
+        with timer(f"{line} tip 선필터"):
+            tip_f = prefilter_tip(df_tip, s[s["line"].eq(line)])
+        print(f"[FILTER] {line} tip {len(df_tip):,} -> {len(tip_f):,}", flush=True)
         del df_tip
+        with timer(f"{line} tip 전처리"):
+            t_parts.append(build_tip(tip_f, df_eqp, line))
+        del tip_f
     t = pd.concat(t_parts, ignore_index=True)
     print(f"[ROWS] t = {len(t):,}", flush=True)
 
@@ -1334,12 +1377,21 @@ def main():
     else:
         print("[MIX] batch/single 혼재 설비그룹 없음", flush=True)
 
-    with timer("엑셀 저장"):
+    with timer("결과 엑셀 저장"):
         path = os.path.join(os.getcwd(), f"f3_{stamp}.xlsx")
-        save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols, mixed,
-                      {"t_rules(전처리된 tip)": t, "tip_join_검증": tip_match,
-                       "s(step_scope)": s})
+        save_result_workbook(path, df_f3, load_log, dup_rows, dup_cols, mixed, tip_match)
     print(f"saved: {path} rows={len(df_f3):,}", flush=True)
+
+    raw_path = os.path.join(os.getcwd(), f"raw_{stamp}.xlsx")
+    try:
+        with timer("원본검증 엑셀 저장"):
+            save_raw_workbook(raw_path, raw_samples,
+                              {"t_rules(전처리된 tip)": t, "s(step_scope)": s})
+        print(f"saved: {raw_path}", flush=True)
+    except Exception as e:
+        print(f"[WARN] 원본검증 파일 저장 실패({type(e).__name__}: {e}). "
+              f"결과 파일({path})은 정상 저장됨. "
+              f"RAW_SHEET_MAX_ROWS 를 줄여 재시도할 것.", flush=True)
 
 if __name__ == "__main__":
     main()
