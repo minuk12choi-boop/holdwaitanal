@@ -322,7 +322,7 @@ def _to_datetime(series):
     return pd.to_datetime(s, format='%Y%m%d%H%M%S', errors='coerce')
 
 
-def expand_group_name(name):
+def expand_group_name(name):  # noqa: C901
     """설비그룹명에 축약 표기된 구성설비를 복원한다.
 
     'MEB405_413'                        -> {MEB405, MEB413}
@@ -331,16 +331,20 @@ def expand_group_name(name):
         -> {MOLP704, MOLP731, MOVP321, MOVP323, MOLP722}
     숫자만 있는 토큰은 직전에 나온 알파벳 접두어를 이어받는다.
     """
-    out, prefix = set(), ""
+    out, prefix, last_num = set(), "", ""
     for tok in str(name).split("_"):
         if not tok:
             continue
         head = "".join(c for c in tok if not c.isdigit())
         if head:
             prefix = head
+            last_num = "".join(c for c in tok if c.isdigit())
             out.add(tok)
         elif prefix:
             out.add(prefix + tok)
+            # 'DTDD707_8' 처럼 뒷자리만 줄여 쓴 경우: 직전 번호의 끝자리를 치환
+            if last_num and len(tok) < len(last_num):
+                out.add(prefix + last_num[:len(last_num) - len(tok)] + tok)
         else:
             out.add(tok)
     return out
@@ -588,6 +592,11 @@ EXCLUDE_NULL_STEP_SKIP_YN = True
 # batch_kind 는 EQP 단위 값이라 한 설비그룹에 batch/비batch 설비가 섞이면
 # 같은 lot·step 이 여러 행으로 갈라진다. eqpline 과 동일하게 step 단위로 합친다.
 AGGREGATE_BATCH_KIND = True
+
+# 설비그룹명으로 구성설비를 역추정해 경고하는 진단. 그룹명 표기가 일정하지 않아
+# ('DTDD707_8' -> DTDD708, 'MCDD701_MSV_CD', 'NRDWAIT' 등) 오탐이 많다.
+# 스냅샷 처리를 다시 의심할 때만 켠다.
+WARN_STRAY_GROUP_MEMBER = False
 
 # 원본테이블 검증 시트 설정
 #   시트 1장당 행수 상한. Excel 한계(1,048,576)보다 낮게 잡아야 안전하다.
@@ -859,7 +868,7 @@ def expand_with_equipment(scope, df_eqp, df_eqp_group, line):
     # 그룹명이 구성설비를 축약 나열한 형태일 때, 복원 결과에 없는 설비가 섞여
     # 있으면 옛 스냅샷 잔존을 의심해야 한다(파티션 키 오류의 대표 증상).
     named = eg["eqp_group_name"].str.contains("_", na=False)
-    if named.any():
+    if WARN_STRAY_GROUP_MEMBER and named.any():
         chk = eg[named]
         stray = [(n, e) for n, e in zip(chk["eqp_group_name"], chk["eqp_id"])
                  if e.upper() not in {x.upper() for x in expand_group_name(n)}]
@@ -1360,8 +1369,9 @@ def _excel_writer(path):
     수십만 행에서 수 분이 걸리고 MemoryError 도 난다."""
     try:
         import xlsxwriter  # noqa: F401
-        return pd.ExcelWriter(path, engine="xlsxwriter",
-                              engine_kwargs={"options": {"constant_memory": True}})
+        # constant_memory 옵션은 쓰지 않는다. pandas 의 셀 기록 순서와 맞지 않아
+        # 헤더만 남고 데이터가 통째로 유실된다(실측 확인).
+        return pd.ExcelWriter(path, engine="xlsxwriter")
     except ImportError:
         print("[WARN] xlsxwriter 미설치 → openpyxl 사용(느림). "
               "pip install xlsxwriter 권장", flush=True)
