@@ -291,37 +291,54 @@ def build_f3(con):
         LEFT JOIN s ON m.line = s.line AND m.lot_id = s.lot_id
     """)
 
-    con.execute("""
+    # wildcard 조인은 (t.col='-' OR ms.col=t.col) 형태라 non-equi 조인이 되어
+    # nested loop 으로 떨어진다. wildcard 조합(mask)별로 나누면 각 분기는
+    # 비-wildcard 컬럼만의 순수 equi-join 이 되어 해시조인으로 처리된다.
+    WC = [("process", "proc_id"), ("step", "step_seq"),
+          ("ppid", "recipe_id"), ("eqpid", "eqp_id")]
+
+    wc_expr = " + ".join(
+        f"CASE WHEN COALESCE(NULLIF(TRIM({tc}), ''), '-') = '-' THEN {1 << i} ELSE 0 END"
+        for i, (tc, _) in enumerate(WC)
+    )
+    con.execute(f"""
         CREATE OR REPLACE TABLE t0 AS
-        SELECT * FROM t
-        WHERE COALESCE(NULLIF(TRIM(process), ''), '-') = '-'
-           OR COALESCE(NULLIF(TRIM(step), ''), '-') = '-'
-           OR COALESCE(NULLIF(TRIM(ppid), ''), '-') = '-'
-           OR COALESCE(NULLIF(TRIM(eqpid), ''), '-') = '-'
+        SELECT *, ({wc_expr}) AS wc_mask
+        FROM t
+        WHERE ({wc_expr}) > 0
     """)
 
-    con.execute("""
+    tm_cols = """ms.ms_row_id, {a}.eqpid, {a}.eqpcham, {a}.prevent, {a}.type_body,
+                 {a}.type_cham, {a}.tip_eventtime, {a}.eqpissue, {a}.body_eqp_status,
+                 {a}.cham_eqp_status, {a}.eqpissuetime"""
+
+    con.execute(f"""
         CREATE OR REPLACE TABLE t_matches_raw AS
-        SELECT ms.ms_row_id, t.eqpid, t.eqpcham, t.prevent, t.type_body, t.type_cham,
-               t.tip_eventtime, t.eqpissue, t.body_eqp_status, t.cham_eqp_status,
-               t.eqpissuetime, '정확' AS match_type
+        SELECT {tm_cols.format(a='t')}, '정확' AS match_type
         FROM ms_joined ms
         INNER JOIN t
           ON ms.line = t.line AND ms.lot_type = t.lot_type
          AND ms.proc_id = t.process AND ms.step_seq = t.step
          AND ms.recipe_id = t.ppid AND ms.eqp_id = t.eqpid
-        UNION ALL
-        SELECT ms.ms_row_id, t0.eqpid, t0.eqpcham, t0.prevent, t0.type_body, t0.type_cham,
-               t0.tip_eventtime, t0.eqpissue, t0.body_eqp_status, t0.cham_eqp_status,
-               t0.eqpissuetime, 'wildcard' AS match_type
-        FROM ms_joined ms
-        INNER JOIN t0
-          ON ms.line = t0.line AND ms.lot_type = t0.lot_type
-         AND (COALESCE(NULLIF(TRIM(t0.process), ''), '-') = '-' OR ms.proc_id = t0.process)
-         AND (COALESCE(NULLIF(TRIM(t0.step), ''), '-') = '-' OR ms.step_seq = t0.step)
-         AND (COALESCE(NULLIF(TRIM(t0.ppid), ''), '-') = '-' OR ms.recipe_id = t0.ppid)
-         AND (COALESCE(NULLIF(TRIM(t0.eqpid), ''), '-') = '-' OR ms.eqp_id = t0.eqpid)
     """)
+
+    masks = [r[0] for r in con.execute(
+        "SELECT DISTINCT wc_mask FROM t0 ORDER BY wc_mask").fetchall()]
+    for mask in masks:
+        on = ["ms.line = t0.line", "ms.lot_type = t0.lot_type"]
+        for i, (tc, mc) in enumerate(WC):
+            if not (mask >> i) & 1:
+                on.append(f"ms.{mc} = t0.{tc}")
+        n_rules = con.execute(
+            "SELECT COUNT(*) FROM t0 WHERE wc_mask = ?", [mask]).fetchone()[0]
+        print(f"[TIP] wc_mask={mask:02d} rules={n_rules:,}", flush=True)
+        con.execute(f"""
+            INSERT INTO t_matches_raw
+            SELECT {tm_cols.format(a='t0')}, 'wildcard' AS match_type
+            FROM ms_joined ms
+            INNER JOIN (SELECT * FROM t0 WHERE wc_mask = {mask}) t0
+              ON {' AND '.join(on)}
+        """)
 
     con.execute("""
         CREATE OR REPLACE TABLE t_matches AS
@@ -469,14 +486,14 @@ def build_f3(con):
                'PREVENT: ' || STRING_AGG(DISTINCT label, ', ' ORDER BY label) AS tip
         FROM (
             SELECT DISTINCT line, lot_id, order_seq,
-                   (CASE WHEN type_body = 'PREVENT' THEN eqpid
-                         WHEN type_cham = 'PREVENT' THEN eqpcham_final
-                         ELSE COALESCE(eqpid, eqpcham_final) END)
+                   (CASE WHEN type_body = 'PREVENT' THEN CAST(eqpid AS VARCHAR)
+                         WHEN type_cham = 'PREVENT' THEN CAST(eqpcham_final AS VARCHAR)
+                         ELSE CAST(COALESCE(eqpid, eqpcham_final) AS VARCHAR) END)
                    || COALESCE('(' || {elapsed_days_text('tip_eventtime')} || ')', '') AS label
             FROM f1 WHERE prevent = 'PREVENT'
-              AND COALESCE(CASE WHEN type_body='PREVENT' THEN eqpid
-                                WHEN type_cham='PREVENT' THEN eqpcham_final
-                                ELSE COALESCE(eqpid, eqpcham_final) END, '') <> ''
+              AND COALESCE(CAST(CASE WHEN type_body='PREVENT' THEN eqpid
+                                     WHEN type_cham='PREVENT' THEN eqpcham_final
+                                     ELSE COALESCE(eqpid, eqpcham_final) END AS VARCHAR), '') <> ''
         ) GROUP BY line, lot_id, order_seq
     """)
 
@@ -491,12 +508,12 @@ def build_f3(con):
                    issue_group || ': ' || STRING_AGG(DISTINCT label, ', ' ORDER BY label) AS down_part
             FROM (
                 SELECT DISTINCT line, lot_id, order_seq,
-                       (CASE WHEN body_eqp_status IN ('LOCAL','DOWN','PM') THEN body_eqp_status
-                             WHEN cham_eqp_status IN ('LOCAL','DOWN','PM') THEN cham_eqp_status
-                             ELSE eqpissue END) AS issue_group,
-                       (CASE WHEN body_eqp_status IN ('LOCAL','DOWN','PM') THEN eqpid
-                             WHEN cham_eqp_status IN ('LOCAL','DOWN','PM') THEN eqpcham_final
-                             ELSE COALESCE(eqpcham_final, eqpid) END)
+                       (CASE WHEN body_eqp_status IN ('LOCAL','DOWN','PM') THEN CAST(body_eqp_status AS VARCHAR)
+                             WHEN cham_eqp_status IN ('LOCAL','DOWN','PM') THEN CAST(cham_eqp_status AS VARCHAR)
+                             ELSE CAST(eqpissue AS VARCHAR) END) AS issue_group,
+                       (CASE WHEN body_eqp_status IN ('LOCAL','DOWN','PM') THEN CAST(eqpid AS VARCHAR)
+                             WHEN cham_eqp_status IN ('LOCAL','DOWN','PM') THEN CAST(eqpcham_final AS VARCHAR)
+                             ELSE CAST(COALESCE(eqpcham_final, eqpid) AS VARCHAR) END)
                        || COALESCE('(' || {elapsed_days_text('eqpissuetime')} || ')', '') AS label
                 FROM f1 WHERE eqpissue IS NOT NULL
             ) WHERE issue_group IS NOT NULL
