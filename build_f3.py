@@ -579,6 +579,9 @@ EXCLUDE_NULL_STEP_SKIP_YN = True
 # 같은 lot·step 이 여러 행으로 갈라진다. eqpline 과 동일하게 step 단위로 합친다.
 AGGREGATE_BATCH_KIND = True
 
+# 결과를 DB(f3_live / f3_history)에 적재할지. False 면 엑셀만 만든다.
+LOAD_TO_DB = True
+
 # 설비그룹명으로 구성설비를 역추정해 경고하는 진단. 그룹명 표기가 일정하지 않아
 # ('DTDD707_8' -> DTDD708, 'MCDD701_MSV_CD', 'NRDWAIT' 등) 오탐이 많다.
 # 스냅샷 처리를 다시 의심할 때만 켠다.
@@ -1532,6 +1535,30 @@ def main():
         save_result_workbook(path, df_f3, load_log, dup_rows, dup_cols, mixed,
                              tip_match, eqpgroup_trace)
     print(f"saved: {path} rows={len(df_f3):,}", flush=True)
+
+    # ---- DB 적재 (docs/common_conventions.md 참조) -------------------------
+    if LOAD_TO_DB:
+        try:
+            import db_common as DB
+            with timer("DB 적재"):
+                conn = DB.connect()
+                DB.ensure_f3_schema(conn, SUMMARY_OUTPUT_COLUMNS)
+                snapshot_at = dt.datetime.now().replace(microsecond=0)
+                DB.load_f3_live(conn, df_f3, SUMMARY_OUTPUT_COLUMNS, snapshot_at)
+                print(f"[DB] f3_live 갱신 snapshot_at={snapshot_at} "
+                      f"rows={len(df_f3):,}", flush=True)
+                promoted = DB.promote_to_history(conn, SUMMARY_OUTPUT_COLUMNS)
+                if promoted:
+                    bd, sh, snap, dist = promoted
+                    print(f"[DB] f3_history 적재 biz_date={bd} shift={sh} "
+                          f"snapshot={snap} (기준시각과 {dist // 60}분 차)", flush=True)
+                else:
+                    print("[DB] f3_history 갱신 없음 "
+                          "(이미 더 가까운 스냅샷이 적재돼 있음)", flush=True)
+                conn.close()
+        except Exception as e:
+            print(f"[WARN] DB 적재 실패({type(e).__name__}: {e}). "
+                  f"엑셀 결과는 정상 저장됨.", flush=True)
 
     raw_path = os.path.join(os.getcwd(), f"raw_{stamp}.xlsx")
     try:

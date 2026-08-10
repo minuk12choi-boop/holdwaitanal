@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Fab Flow Monitor</title>
+<style>
+  :root { --bd:#E5E7EB; --fg:#111827; --mut:#6B7280; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Malgun Gothic","Segoe UI",sans-serif; color:var(--fg); }
+  header { border-bottom:1px solid var(--bd); padding:0 20px; display:flex;
+           align-items:center; gap:28px; height:52px; }
+  header .brand { font-weight:700; letter-spacing:-.02em; }
+  header nav a { color:var(--mut); text-decoration:none; margin-right:20px;
+                 font-size:14px; padding:6px 0; }
+  header nav a.on { color:var(--fg); border-bottom:2px solid var(--fg); }
+  main { display:flex; gap:16px; padding:16px; align-items:flex-start; }
+  .left { flex:0 0 32%; min-width:380px; }
+  .right { flex:1; border:1px solid var(--bd); border-radius:6px; padding:16px;
+           color:var(--mut); font-size:14px; }
+  .panel { border:1px solid var(--bd); border-radius:6px; padding:12px 14px; }
+  .panel h2 { margin:0 0 2px; font-size:14px; }
+  .panel .sub { color:var(--mut); font-size:12px; margin-bottom:8px; }
+  .wrap { height:220px; }
+  .err { color:#B91C1C; font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Fab Flow Monitor</div>
+  <nav>
+    {% for name, url in menu %}
+      <a href="{{ url }}" {% if forloop.first %}class="on"{% endif %}>{{ name }}</a>
+    {% endfor %}
+  </nav>
+</header>
+
+<main>
+  <div class="left">
+    <div class="panel">
+      <h2>MOVE</h2>
+      <div class="sub">최근 3개월 · 4주 · 7일 &nbsp;|&nbsp; 월·주는 기간 평균(총 MOVE ÷ 일수)</div>
+      <div class="wrap"><canvas id="moveChart"></canvas></div>
+      <div id="moveErr" class="err"></div>
+    </div>
+  </div>
+  <div class="right">상세 영역 (f3_live 연결 예정)</div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+fetch("/api/move/").then(r => r.json()).then(d => {
+  if (!window.Chart) {
+    document.getElementById("moveErr").textContent =
+      "Chart.js 로드 실패 (사내망 CDN 차단 가능). static 으로 내려받아 교체하세요.";
+    return;
+  }
+  // 단위가 바뀌는 지점(gap)에 세로 구분선
+  const gapLine = {
+    id: "gapLine",
+    beforeDatasetsDraw(c) {
+      const x = c.scales.x, ctx = c.ctx;
+      d.kinds.forEach((k, i) => {
+        if (k !== "gap") return;
+        const px = x.getPixelForValue(i);
+        ctx.save();
+        ctx.strokeStyle = "#D1D5DB"; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(px, c.chartArea.top);
+        ctx.lineTo(px, c.chartArea.bottom); ctx.stroke(); ctx.restore();
+      });
+    }
+  };
+  new Chart(document.getElementById("moveChart"), {
+    type: "line",
+    data: { labels: d.labels, datasets: d.datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { position: "top", labels: { boxWidth: 10, font: { size: 11 } } },
+        tooltip: { callbacks: { title: (t) => {
+          const i = t[0].dataIndex;
+          const kind = { month: "월평균", week: "주평균", day: "일" }[d.kinds[i]] || "";
+          return d.labels[i] + (kind ? " (" + kind + ")" : "");
+        } } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: { beginAtZero: true, title: { display: true, text: "MOVE (매)" } }
+      }
+    },
+    plugins: [gapLine]
+  });
+});
+</script>
+</body>
+</html>
