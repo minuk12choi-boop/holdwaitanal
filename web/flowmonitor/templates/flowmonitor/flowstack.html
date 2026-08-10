@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+{% load static %}<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
@@ -36,6 +36,7 @@
   #legend span { display:inline-flex; align-items:center; gap:5px; }
   #legend i { width:14px; height:3px; border-radius:2px; display:inline-block; }
   .err { color:#B91C1C; font-size:13px; padding:8px 2px; }
+  .err code { background:#FEF2F2; padding:1px 4px; border-radius:3px; }
   .notice { background:#FFFBEB; border:1px solid #FDE68A; color:#92400E;
             border-radius:5px; padding:8px 10px; font-size:12px; margin-bottom:10px; }
 </style>
@@ -74,7 +75,14 @@
   <div class="right">상세 영역 (f3_live 연결 예정)</div>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- 사내망 CDN 차단에 걸리지 않도록 로컬 static 을 먼저 쓴다 -->
+<script src="{% static 'flowmonitor/chart.umd.js' %}"></script>
+<script>
+  if (!window.Chart) {
+    document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/'
+      + 'dist/chart.umd.min.js"><\/script>');
+  }
+</script>
 <script>
 const KIND_KO = { month: "월평균", week: "주평균", day: "일" };
 const charts = {};
@@ -111,9 +119,17 @@ const gapLine = {
 function load() {
   fetch("/api/flowstack/?basis=" + basis).then(r => r.json()).then(res => {
     if (!window.Chart) {
-      document.getElementById("err").textContent =
-        "Chart.js 로드 실패 (사내망 CDN 차단 가능). static 으로 내려받아 교체하세요.";
+      document.getElementById("err").innerHTML =
+        "Chart.js 로드 실패. <code>python manage.py collectstatic</code> 또는 "
+        + "<code>web/flowmonitor/static/flowmonitor/chart.umd.js</code> 존재 여부 확인.";
       return;
+    }
+    const pts = res.order.reduce((a, k) => a + res.panels[k].datasets
+      .reduce((b, ds) => b + ds.data.filter(v => v !== null).length, 0), 0);
+    if (pts === 0) {
+      document.getElementById("err").innerHTML =
+        "적재는 됐지만 그릴 데이터가 없습니다. 진단: "
+        + "<a href='/api/health/' target='_blank'>/api/health/</a>";
     }
     const nb = document.getElementById("notice");
     if (res.notice) { nb.textContent = res.notice; nb.style.display = "block"; }

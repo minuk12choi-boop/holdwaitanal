@@ -49,7 +49,9 @@ def _fetch():
                 cur.execute(sql, params)
                 return cur.fetchall()
         except (ProgrammingError, OperationalError) as e:
-            if "doesn't exist" in str(e) or "1146" in str(e):
+            msg = str(e).lower()
+            if ("doesn't exist" in msg or "1146" in msg
+                    or "no such table" in msg or "does not exist" in msg):
                 missing.append(table)
                 return []
             raise
@@ -153,9 +155,7 @@ def flowstack(request):
 # 다운로드 (재공Raw)
 # ---------------------------------------------------------------------------
 def _table_exists(name):
-    with connection.cursor() as cur:
-        cur.execute("SHOW TABLES LIKE %s", [name])
-        return cur.fetchone() is not None
+    return name in connection.introspection.table_names()
 
 
 def _snapshots():
@@ -244,3 +244,44 @@ def download_wip_raw(request):
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     resp["Content-Disposition"] = f'attachment; filename="wip_raw_{stamp}.xlsx"'
     return resp
+
+
+def api_health(request):
+    """적재 상태 진단. 차트가 비었을 때 원인을 바로 알기 위한 것."""
+    info = {"tables": {}, "samples": {}}
+    for t in ("move_daily", "move_shift", "f3_live", "f3_history",
+              "f3_history_meta", "f3_load_log"):
+        if not _table_exists(t):
+            info["tables"][t] = "없음"
+            continue
+        with connection.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {t}")
+            info["tables"][t] = f"{cur.fetchone()[0]:,}행"
+
+    if _table_exists("move_daily"):
+        with connection.cursor() as cur:
+            cur.execute("SELECT MIN(biz_date), MAX(biz_date), "
+                        "COUNT(DISTINCT biz_date), COUNT(DISTINCT sys_line_id) "
+                        "FROM move_daily")
+            r = cur.fetchone()
+            info["samples"]["move_daily"] = {
+                "기간": f"{r[0]} ~ {r[1]}", "일수": r[2], "라인수": r[3]}
+    if _table_exists("f3_history"):
+        with connection.cursor() as cur:
+            cur.execute("SELECT biz_date, shift, COUNT(*) FROM f3_history "
+                        "GROUP BY biz_date, shift ORDER BY biz_date DESC LIMIT 5")
+            info["samples"]["f3_history"] = [
+                {"biz_date": str(a), "shift": b, "rows": c} for a, b, c in cur.fetchall()]
+
+    move, wip, missing = _fetch()
+    info["조회결과"] = {
+        "move_daily 행": len(move), "f3_history 집계 행": len(wip),
+        "없는 테이블": missing,
+        "LOOKBACK_DAYS": LOOKBACK_DAYS,
+        "조회 시작일": str(dt.date.today() - dt.timedelta(days=LOOKBACK_DAYS)),
+    }
+    panels, _ = _panels("qty")
+    info["패널별 데이터포인트"] = {
+        k: sum(1 for ds in v["datasets"] for x in ds["data"] if x is not None)
+        for k, v in panels.items()}
+    return JsonResponse(info, json_dumps_params={"ensure_ascii": False, "indent": 2})

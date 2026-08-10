@@ -14,8 +14,19 @@ python manage.py runserver 8020     # 다른 포트로
 - `/` FlowStack 화면 (상단 메뉴바 + 좌측 지표 / 우측 상세)
 - `/api/move/` MOVE 차트 데이터(JSON)
 
-Chart.js 는 CDN 에서 받는다. 사내망이 막혀 있으면 `chart.umd.min.js` 를
-`web/flowmonitor/static/` 에 두고 템플릿의 `<script src>` 를 교체할 것.
+Chart.js 는 `web/flowmonitor/static/flowmonitor/chart.umd.js` 에 포함돼 있다.
+CDN 을 타지 않으므로 사내망에서도 동작한다(로드 실패 시에만 CDN 으로 폴백).
+
+## 진단
+
+차트가 비어 있으면 `/api/health/` 를 연다. 테이블 존재 여부, 행수, 기간,
+패널별 데이터포인트 수를 JSON 으로 보여준다.
+
+| 증상 | 원인 |
+|---|---|
+| 상단에 "아직 적재되지 않은 테이블" | 해당 테이블 미생성 → `python getdata/db_common.py --init` |
+| "적재는 됐지만 그릴 데이터가 없습니다" | 조회 구간(최근 140일) 안에 데이터 없음 |
+| "Chart.js 로드 실패" | static 파일 누락 |
 
 ## 포트
 
