@@ -34,11 +34,10 @@ import numpy as np
 import pandas as pd
 
 
-# TrackInPrevent 에서 lot_type 을 담고 있는 컬럼명.
-#   매칭표(refer_matching_table.txt)의 SMICDC_*_TRACKINPREVENT 컬럼 목록에는
-#   lot_type 이 없다. 실제 테이블에 다른 이름으로 존재한다면 여기만 바꾸면 된다.
-#   None 으로 두면 예전처럼 전 행을 '-'(와일드카드)로 취급한다.
-TIP_LOT_TYPE_COLUMN = "lot_type"
+# TrackInPrevent 는 lot_type 을 갖지 않는다. 원본 Oracle 쿼리대로 전 행을
+#   '-' (= 와일드카드, lot_type 을 따지지 않음) 로 둔다.
+#   나중에 실제 lot_type 컬럼이 확인되면 그 컬럼명을 넣으면 된다.
+TIP_LOT_TYPE_COLUMN = None
 
 
 lot_query = """
