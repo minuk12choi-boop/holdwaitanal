@@ -4,7 +4,7 @@ get_move.py — MOVE 조회 및 적재
 
 정의는 docs/common_conventions.md 참조.
   MOVE      = TrackOut wafer 매수, lot_type IN ('PP','PB','PG')
-  Line 구분 = sys_line_id
+  Line 구분 = sys_line_id (line_id 는 cur/sys 합집합이라 그대로 쓰면 안 됨)
   구간      = TrackOut 시각(lot_transn_time) 기준
   shift 구간 = GY 22~06 / DAY 06~14 / SW 14~22 (한 업무일 3개 = 22~22)
   업무일    = 22:00 시작 / shift = GY(22) DAY(06) SW(14), 각 8시간
@@ -35,6 +35,7 @@ import db_common as DB
 INIT_MONTHS = 3
 INCREMENTAL_DAYS = 2
 BOUNDARY_SHIFT = {22: "GY", 6: "DAY", 14: "SW"}
+TARGET_LINES = ("KFR7", "PFR1")
 
 
 def move_query(ts_from: dt.datetime, ts_to: dt.datetime) -> str:
@@ -68,7 +69,8 @@ SELECT
     FROM_UNIXTIME(UNIX_TIMESTAMP(lot_transn_time, 'yyyyMMdd HHmmss'))
                                                        AS tkout_date
 FROM   FAB.M_LOT_TRANSN_HIST
-WHERE  line_id IN ('KFR7', 'PFR1')
+WHERE  line_id IN ('KFR7', 'PFR1')          -- 파티션 프루닝용(PK)
+  AND  sys_line_id IN ('KFR7', 'PFR1')      -- 실제 집계 기준
   AND  lot_transn_type = 'TrackOut'
   AND  lot_type IN ('PP', 'PB', 'PG')
   AND  lot_transn_time >= '{f}'
@@ -103,6 +105,9 @@ def aggregate(df, ts_from, ts_to):
     d.columns = [str(c).lower() for c in d.columns]
     d["tkout_date"] = pd.to_datetime(d["tkout_date"], errors="coerce")
     d = d.dropna(subset=["tkout_date"])
+    # line_id 는 cur_line_id / sys_line_id 의 합집합이라 다른 라인이 섞여 온다.
+    # MOVE 의 Line 기준은 sys_line_id 이므로 여기서 한 번 더 거른다.
+    d = d[d["sys_line_id"].isin(TARGET_LINES)]
     d["move"] = pd.to_numeric(d["move"], errors="coerce").fillna(0)
 
     rows = []
