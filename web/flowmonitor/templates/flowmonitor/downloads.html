@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>다운로드 · Fab Flow Monitor</title>
+<title>다운로드 · Multi Line Fab Monitor</title>
 <style>
   :root { --bd:#E5E7EB; --fg:#111827; --mut:#6B7280; }
   * { box-sizing:border-box; }
@@ -31,7 +31,7 @@
 </head>
 <body>
 <header>
-  <div class="brand">Fab Flow Monitor</div>
+  <div class="brand">Multi Line Fab Monitor</div>
   <nav>
     {% for name, url in menu %}
       <a href="{{ url }}" {% if name == "다운로드" %}class="on"{% endif %}>{{ name }}</a>
@@ -41,7 +41,6 @@
 
 <main>
   <h1>재공Raw 다운로드</h1>
-  <div class="sub">build_f3 가 적재한 스냅샷을 그대로 내려받습니다.</div>
 
   {% if snapshots %}
   <form class="row" method="get" action="/downloads/">

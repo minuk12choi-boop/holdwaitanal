@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>Fab Flow Monitor</title>
+<title>Multi Line Fab Monitor</title>
 <style>
   :root { --bd:#E5E7EB; --fg:#111827; --mut:#6B7280; }
   * { box-sizing:border-box; }
@@ -43,7 +43,7 @@
 </head>
 <body>
 <header>
-  <div class="brand">Fab Flow Monitor</div>
+  <div class="brand">Multi Line Fab Monitor</div>
   <nav>
     {% for name, url in menu %}
       <a href="{{ url }}" {% if forloop.first %}class="on"{% endif %}>{{ name }}</a>
@@ -65,7 +65,7 @@
     <div class="panel">
       <h2>{{ p.title }}<span class="unit">{% if p.basis %}<span class="basis"
           id="basis_{{ p.key }}">매수 기준</span> · {% endif %}{{ p.unit }}</span></h2>
-      <div class="wrap" style="height:{{ p.h }}00px">
+      <div class="wrap" style="height:{{ p.px }}px">
         <canvas id="c_{{ p.key }}"></canvas>
       </div>
     </div>

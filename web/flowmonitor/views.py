@@ -19,7 +19,8 @@ LINE_COLORS = {"KFR7": "#2563EB", "PFR1": "#059669",
 MOVE_LOT_TYPES = ("PP", "PB", "PG")
 LOOKBACK_DAYS = 140
 
-# blueprint 7.3 권장 상대 높이
+# blueprint 7.3 권장 상대 높이. 템플릿에는 계산된 px 로 넘긴다.
+PANEL_BASE_PX = 150
 PANELS = [
     {"key": "move",    "title": "MOVE",              "unit": "매",   "h": 1.2},
     {"key": "wt",      "title": "W/T",               "unit": "회",   "h": 1.0},
@@ -34,7 +35,7 @@ PANELS = [
 def _fetch():
     """일별 MOVE / 재공 원자료.
 
-    재공은 업무일 시작 스냅샷(GY)을 쓴다. lot 단위로 접은 뒤 집계한다
+    재공은 업무일 대표 스냅샷(GY 우선, 없으면 DAY > SW)을 쓴다. lot 단위로 접은 뒤 집계한다
     (f3 는 lot 당 현스텝 + 연속블록 행이 있어 그대로 더하면 중복된다).
     HOLD/WAIT 는 매수(qty)와 lot 수를 모두 담아 화면에서 전환할 수 있게 한다.
     """
@@ -69,16 +70,27 @@ def _fetch():
                    SUM(CASE WHEN lot_status = 'WAIT(진행불가)' THEN qty ELSE 0 END) AS blocked_qty,
                    SUM(CASE WHEN lot_status = 'WAIT(진행불가)' THEN 1 ELSE 0 END)   AS blocked_lot
             FROM (
-                SELECT biz_date, `line`, lot_id,
-                       MIN(CAST(qty AS SIGNED)) AS qty,
-                       MIN(lot_status)          AS lot_status
-                FROM   f3_history
-                WHERE  shift = 'GY' AND biz_date >= %s
-                  AND  lot_type IN ({types})
-                GROUP  BY biz_date, `line`, lot_id
+                SELECT h.biz_date, h.`line`, h.lot_id,
+                       MIN(CAST(h.qty AS SIGNED)) AS qty,
+                       MIN(h.lot_status)          AS lot_status
+                FROM   f3_history h
+                JOIN (
+                    -- 업무일 대표 스냅샷: GY 우선, 없으면 DAY, 그것도 없으면 SW.
+                    -- 적재 초기라 GY 가 아직 없는 날에도 값이 나오게 한다.
+                    SELECT biz_date,
+                           SUBSTRING_INDEX(GROUP_CONCAT(
+                               shift ORDER BY FIELD(shift,'GY','DAY','SW')), ',', 1) AS shift
+                    FROM   f3_history
+                    WHERE  biz_date >= %s
+                    GROUP  BY biz_date
+                ) pick
+                  ON h.biz_date = pick.biz_date AND h.shift = pick.shift
+                WHERE  h.biz_date >= %s
+                  AND  h.lot_type IN ({types})
+                GROUP  BY h.biz_date, h.`line`, h.lot_id
             ) t
             GROUP BY biz_date, `line`
-        """, [since, *MOVE_LOT_TYPES], "f3_history")}
+        """, [since, since, *MOVE_LOT_TYPES], "f3_history")}
 
     return move, wip, missing
 
@@ -146,9 +158,10 @@ def api_flowstack(request):
 
 
 def flowstack(request):
+    panels = [dict(p, px=int(round(p["h"] * PANEL_BASE_PX))) for p in PANELS]
     return render(request, "flowmonitor/flowstack.html",
-                  {"menu": [("FlowStack", "/"), ("다운로드", "/downloads/")],
-                   "panels": PANELS})
+                  {"menu": [("FAB현황", "/"), ("다운로드", "/downloads/")],
+                   "panels": panels})
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +208,7 @@ def downloads(request):
     sel = request.GET.get("snapshot") or (snaps[0]["snapshot_at"].strftime(
         "%Y-%m-%d %H:%M:%S") if snaps else "")
     return render(request, "flowmonitor/downloads.html", {
-        "menu": [("FlowStack", "/"), ("다운로드", "/downloads/")],
+        "menu": [("FAB현황", "/"), ("다운로드", "/downloads/")],
         "snapshots": snaps, "selected": sel, "load_log": _load_log(sel) if sel else [],
     })
 
