@@ -273,17 +273,23 @@ WHERE x.impala_insert_time = x.max_impala_insert_time
 
 # ── Step Path : 실제 사용 컬럼만 조회 (조건절 없이 생테이블) ─────────────
 kfr7_step_path_query = """
-SELECT lot_id, order_seq, proc_id, step_seq, step_desc, step_level,
-       step_skip_yn, delay_step_type, delay_time_mins, layer_id,
-       eqp_type, eqp_group_id, recipe_id, ext_1st_vals, tkin_type_detail
-FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT_STEP_PATH
+SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level,
+       p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id,
+       p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
+FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT_STEP_PATH p
+JOIN   (SELECT DISTINCT lot_id FROM MOS_KH_SMI.SMICDC_NRDK_MC_LOT
+        WHERE lot_status_seg IN ('Active', 'Hold')) c
+  ON   p.lot_id = c.lot_id
 """
 
 pfr1_step_path_query = """
-SELECT lot_id, order_seq, proc_id, step_seq, step_desc, step_level,
-       step_skip_yn, delay_step_type, delay_time_mins, layer_id,
-       eqp_type, eqp_group_id, recipe_id, ext_1st_vals, tkin_type_detail
-FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_PATH
+SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level,
+       p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id,
+       p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
+FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_PATH p
+JOIN   (SELECT DISTINCT lot_id FROM MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
+        WHERE lot_status_seg IN ('Active', 'Hold')) c
+  ON   p.lot_id = c.lot_id
 """
 
 # =====================================================================
@@ -572,6 +578,7 @@ RAW_SHEET_MAX_ROWS = {
     "PFR1_tip": 100_000,
     "t_rules(전처리된 tip)": 200_000,
     "tip_join_검증": 200_000,
+    "eqpgroup_출처추적": 200_000,
     "s(step_scope)": 200_000,
 }
 
@@ -640,7 +647,27 @@ WHERE  h.version_desc = h.max_version_desc
   AND  h.status_seq <> '2'
 """
 
-hold_query = hold_query_joined if HOLD_SERVER_SIDE_FILTER else hold_query_raw
+# 벤치 결과(bench_loading): 조인만 서버에서 하고 나머지를 python 에서 거는 편이
+# 가장 빨랐다(h7 8.2s vs h10 13.9s). version_desc/status_seq 필터는 build_hold 가
+# 동일하게 적용하므로 결과는 같다.
+hold_query_join_only = """
+SELECT h.line_id, h.item_type, h.status_seq, h.lot_id, h.step_seq,
+       h.hold_user_name, h.issue_reason_cont, h.issue_date, h.version_desc
+FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT h
+JOIN   (SELECT DISTINCT line_id, lot_id FROM (
+            SELECT 'PFR1' AS line_id, lot_id
+            FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
+            WHERE  lot_status_seg IN ('Active', 'Hold')
+            UNION ALL
+            SELECT 'KFR7' AS line_id, lot_id
+            FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT
+            WHERE  lot_status_seg IN ('Active', 'Hold')
+        ) z) c
+  ON   h.line_id = c.line_id AND h.lot_id = c.lot_id
+WHERE  h.line_id IN ('KFR7', 'PFR1')
+"""
+
+hold_query = hold_query_join_only if HOLD_SERVER_SIDE_FILTER else hold_query_raw
 
 
 # ---------------------------------------------------------------------------
@@ -856,7 +883,7 @@ def build_f3(con):
             m.status, m.order_seq AS m_order_seq,
             s.proc_id, s.order_seq, s.de_rank, s."연속", s.AREA,
             s.layer_id, s.step_level, s.ein, s.step_seq, s.step_desc,
-            s.eqp_type, s.recipe_id, s.eqp_id, s.batch_kind, s.eqpline,
+            s.eqp_type, s.recipe_id, s.eqp_group_raw, s.eqp_id, s.batch_kind, s.eqpline,
             s.body_status, s.eqp_status_change_time AS s_eqp_status_change_time,
             CASE WHEN m.order_seq = s.order_seq THEN '현스텝' END AS "현스텝"
         FROM m
@@ -1162,20 +1189,47 @@ def build_f3(con):
                  order_seq, eqpgroup_cham
     """).df()
 
-    # tip 조인 검증표: 어떤 rule 이 어떤 lot/step 에 어떤 근거로 붙었는지
+    # tip 조인 검증표
+    #   매칭된 행만 담으면 "안 붙은 lot" 을 검색해도 안 나와 검증이 불가능하다.
+    #   f3 범위의 (lot, step, eqp) 전 행을 LEFT JOIN 으로 남기고 매칭여부를 표기한다.
     tip_match = con.execute("""
         SELECT ms.line, ms.lot_id, ms.lot_type, ms.order_seq, ms.step_seq,
-               ms.proc_id, ms.recipe_id, ms.eqp_id,
+               ms.proc_id, ms.recipe_id, ms.eqp_group_raw, ms.eqp_id,
+               CASE WHEN tm.ms_row_id IS NULL THEN '미매칭' ELSE '매칭' END AS 매칭여부,
                tm.match_type, tm.wc_mask,
                tm.rule_lot_type, tm.rule_process, tm.rule_step, tm.rule_ppid,
                tm.eqpid AS rule_eqpid,
                tm.prevent, tm.type_body, tm.type_cham, tm.tip_eventtime,
                tm.eqpissue, tm.eqpissuetime
-        FROM t_matches tm
-        JOIN ms_joined ms ON ms.ms_row_id = tm.ms_row_id
-        ORDER BY ms.line, ms.lot_id, ms.order_seq, tm.match_type
+        FROM ms_joined ms
+        LEFT JOIN t_matches tm ON ms.ms_row_id = tm.ms_row_id
+        ORDER BY ms.line, ms.lot_id, ms.order_seq, ms.eqp_id
     """).df()
-    return df_f3, tip_match
+
+    # eqpgroup 출처 추적표
+    #   eqpgroup = STRING_AGG(DISTINCT eqpid) 이고 eqpid = COALESCE(설비그룹 eqp_id,
+    #   tip rule 의 eqpid) 다. 즉 설비그룹에 매칭되는 설비가 없으면 tip rule 이
+    #   물고 온 설비가 eqpgroup 에 그대로 들어간다. 이 표로 어느 쪽에서 온 값인지
+    #   행 단위로 확인할 수 있다.
+    eqpgroup_trace = con.execute("""
+        SELECT fb.line, fb.lot_id, fb.order_seq, fb.proc_id, fb.step_seq,
+               fb.recipe_id, fb.eqp_group_raw,
+               fb.eqpid                                    AS eqpgroup_구성설비,
+               fb.eqp_id                                   AS 설비그룹에서_온값,
+               CASE WHEN fb.eqp_id IS NOT NULL THEN '설비그룹'
+                    WHEN fb.eqpid  IS NOT NULL THEN 'tip rule'
+                    ELSE '없음' END                        AS 출처,
+               fb.eqpcham_final, fb.batch_kind, fb.body_status,
+               fb.prevent, fb.eqpissue,
+               fg.eqpgroup                                 AS 최종_eqpgroup
+        FROM f1_base fb
+        LEFT JOIN f1_groups fg
+          ON fb.line = fg.line AND fb.lot_id = fg.lot_id
+         AND fb.order_seq = fg.order_seq
+        ORDER BY fb.line, fb.lot_id, fb.order_seq, fb.eqpid
+    """).df()
+
+    return df_f3, tip_match, eqpgroup_trace
 
 
 # ---------------------------------------------------------------------------
@@ -1197,7 +1251,7 @@ def diagnose_duplicates(df_f3):
     return dup.sort_values(key, kind="mergesort"), varying
 
 
-def diagnose_eqp_group_mix(df_eqp_group, df_eqp):
+def diagnose_eqp_group_mix(df_eqp_group, df_eqp, used_groups=None):
     """한 설비그룹 안에 batch 설비와 single 설비가 섞여 있는지 점검한다.
 
     실제 공정상 불가능한 조합이므로, 나온다면 원인은 둘 중 하나다.
@@ -1207,6 +1261,10 @@ def diagnose_eqp_group_mix(df_eqp_group, df_eqp):
     """
     eg = _lower_cols(df_eqp_group)
     eg = eg[~eg["eqp_id"].str.contains("OFF", na=False)]
+    if used_groups is not None:
+        # f3 결과에 실제로 등장한 설비그룹만 본다. 쓰이지도 않는 그룹까지 넣으면
+        # 검증에 노이즈가 된다.
+        eg = eg[eg["eqp_group_name"].isin(set(used_groups))]
     eg = eg[["line_id", "eqp_group_name", "eqp_id"]].drop_duplicates()
 
     eq = _lower_cols(df_eqp)
@@ -1251,7 +1309,7 @@ def _write_sheets(xw, sheets):
 
 
 def save_result_workbook(path, df_f3, load_log, dup_rows, dup_cols, mixed_groups,
-                         tip_match):
+                         tip_match, eqpgroup_trace=None):
     """결과·진단 시트만 담은 본 파일. 크기가 작아 실패 위험이 없다."""
     with pd.ExcelWriter(path, engine="openpyxl") as xw:
         _excel_safe(df_f3).to_excel(xw, sheet_name="f3", index=False)
@@ -1267,7 +1325,8 @@ def save_result_workbook(path, df_f3, load_log, dup_rows, dup_cols, mixed_groups
             _excel_safe(dup_rows).to_excel(
                 xw, sheet_name="중복진단", index=False, startrow=len(note) + 2)
 
-        _write_sheets(xw, {"tip_join_검증": tip_match})
+        _write_sheets(xw, {"tip_join_검증": tip_match,
+                           "eqpgroup_출처추적": eqpgroup_trace})
 
 
 def save_raw_workbook(path, raw_samples, extra_sheets):
@@ -1356,7 +1415,7 @@ def main():
         con.register(k, v)
 
     with timer("f3 생성"):
-        df_f3, tip_match = build_f3(con)
+        df_f3, tip_match, eqpgroup_trace = build_f3(con)
     n_tip = int(df_f3["tip"].notna().sum())
     print(f"[TIP] f3 tip 값 있는 행 = {n_tip:,} / {len(df_f3):,}", flush=True)
     print(f"[ROWS] f3 = {len(df_f3):,}  (lot {df_f3['lot_id'].nunique():,}개)", flush=True)
@@ -1368,18 +1427,21 @@ def main():
     else:
         print("[DUP] lot/step 중복 없음", flush=True)
 
-    mixed = diagnose_eqp_group_mix(df_eqp_group, df_eqp)
+    used_groups = set(s["eqp_group_raw"].dropna())
+    mixed = diagnose_eqp_group_mix(df_eqp_group, df_eqp, used_groups)
     if len(mixed):
         n_grp = mixed[["line_id", "eqp_group_name"]].drop_duplicates().shape[0]
         n_unmatched = int((mixed["구분"] == "미매칭").sum())
-        print(f"[MIX] batch/single 혼재 설비그룹 {n_grp:,}개 "
-              f"(그중 equipment 미매칭 설비 {n_unmatched:,}건)", flush=True)
+        print(f"[MIX] f3 사용 설비그룹 {len(used_groups):,}개 중 "
+              f"batch/single 혼재 {n_grp:,}개 "
+              f"(equipment 미매칭 설비 {n_unmatched:,}건)", flush=True)
     else:
         print("[MIX] batch/single 혼재 설비그룹 없음", flush=True)
 
     with timer("결과 엑셀 저장"):
         path = os.path.join(os.getcwd(), f"f3_{stamp}.xlsx")
-        save_result_workbook(path, df_f3, load_log, dup_rows, dup_cols, mixed, tip_match)
+        save_result_workbook(path, df_f3, load_log, dup_rows, dup_cols, mixed,
+                             tip_match, eqpgroup_trace)
     print(f"saved: {path} rows={len(df_f3):,}", flush=True)
 
     raw_path = os.path.join(os.getcwd(), f"raw_{stamp}.xlsx")
