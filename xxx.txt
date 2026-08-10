@@ -1,124 +1,169 @@
-# MultiWIP 직접 조회·전처리 실행 로그
+[TIMER] 소형 원천 조회 start
+[QUERY] lot 조회 시작 2026-08-10 14:01:13
+Query Executed Successfully...
+>> Execution Time: 2 min 23.804 sec
+==================================================
+    Rows    :  8729
+    Columns :  22
+    Size    :  8.78+ MB
+==================================================
+[QUERY] lot rows=8,729 cols=22 144.0s
+[QUERY] equipment 조회 시작 2026-08-10 14:03:37
+Query Executed Successfully...
+>> Execution Time: 1 min 35.610 sec
+==================================================
+    Rows    :  37461
+    Columns :  7
+    Size    :  16.06+ MB
+==================================================
+[QUERY] equipment rows=37,461 cols=7 95.6s
+[QUERY] eqp_group 조회 시작 2026-08-10 14:05:13
+Query Executed Successfully...
+>> Execution Time: 24.470 sec
+==================================================
+    Rows    :  17007
+    Columns :  3
+    Size    :  3.15+ MB
+==================================================
+[QUERY] eqp_group rows=17,007 cols=3 24.5s
+[QUERY] hold 조회 시작 2026-08-10 14:05:37
+Query Executed Successfully...
+>> Execution Time: 4 min 18.594 sec
+==================================================
+    Rows    :  1015466
+    Columns :  8
+    Size    :  561.04+ MB
+==================================================
+[QUERY] hold rows=1,015,466 cols=8 259.3s
+[TIMER] 소형 원천 조회 elapsed=523.555s
+[QUERY] KFR7_step_path 조회 시작 2026-08-10 14:09:57
+Query Executed Successfully...
+>> Execution Time: 1 min 3.843 sec
+==================================================
+    Rows    :  6813012
+    Columns :  15
+    Size    :  4.84+ GB
+==================================================
+[QUERY] KFR7_step_path rows=6,813,012 cols=15 71.8s
+[TIMER] KFR7 f3 범위 축약 start
+[TIMER] KFR7 f3 범위 축약 elapsed=16.775s
+[ROWS] KFR7 scope(step) = 8,237
+[TIMER] KFR7 설비그룹 전개 start
+[TIMER] KFR7 설비그룹 전개 elapsed=0.126s
+[QUERY] PFR1_step_path 조회 시작 2026-08-10 14:11:26
+Query Executed Successfully...
+>> Execution Time: 42.44 sec
+==================================================
+    Rows    :  3980093
+    Columns :  15
+    Size    :  2.82+ GB
+==================================================
+[QUERY] PFR1_step_path rows=3,980,093 cols=15 47.0s
+[TIMER] PFR1 f3 범위 축약 start
+[TIMER] PFR1 f3 범위 축약 elapsed=3.276s
+[ROWS] PFR1 scope(step) = 1,688
+[TIMER] PFR1 설비그룹 전개 start
+[TIMER] PFR1 설비그룹 전개 elapsed=0.057s
+[ROWS] s = 30,279
+[QUERY] KFR7_tip 조회 시작 2026-08-10 14:12:18
+Query Executed Successfully...
+>> Execution Time: 56.143 sec
+==================================================
+    Rows    :  6469443
+    Columns :  10
+    Size    :  2.55+ GB
+==================================================
+[QUERY] KFR7_tip rows=6,469,443 cols=10 60.1s
+[TIMER] KFR7 tip 전처리 start
+[TIMER] KFR7 tip 전처리 elapsed=74.010s
+[QUERY] PFR1_tip 조회 시작 2026-08-10 14:14:32
+Query Executed Successfully...
+>> Execution Time: 48.95 sec
+==================================================
+    Rows    :  2959545
+    Columns :  10
+    Size    :  1.15+ GB
+==================================================
+[QUERY] PFR1_tip rows=2,959,545 cols=10 50.0s
+[TIMER] PFR1 tip 전처리 start
+[TIMER] PFR1 tip 전처리 elapsed=36.657s
+[ROWS] t = 6,872,495
+[TIMER] hold 전처리 start
+[TIMER] hold 전처리 elapsed=3.750s
+[ROWS] h1 = 301,357
+[ROWS] h2 = 125,935
+[ROWS] h3 = 14,680
+[TIMER] f3 생성 start
+[TIP] wc_mask=01 rules=6,853,149 wildcard=['lot_type']
+[TIP] wc_mask=03 rules=321 wildcard=['lot_type', 'process']
+[TIP] wc_mask=05 rules=3,027 wildcard=['lot_type', 'step']
+[TIP] wc_mask=07 rules=15,371 wildcard=['lot_type', 'process', 'step']
+[TIP] wc_mask=09 rules=96 wildcard=['lot_type', 'ppid']
+[TIP] wc_mask=11 rules=11 wildcard=['lot_type', 'process', 'ppid']
+[TIP] wc_mask=13 rules=519 wildcard=['lot_type', 'step', 'ppid']
+[TIP] wc_mask=15 rules=1 wildcard=['lot_type', 'process', 'step', 'ppid']
+[TIP] 매칭 후보 = 20,015행
+[TIMER] f3 생성 elapsed=5.017s
+[TIP] f3 tip 값 있는 행 = 923 / 9,919
+[ROWS] f3 = 9,919  (lot 5,705개)
+[DUP] lot/step 중복 없음
+[MIX] batch/single 혼재 설비그룹 640개 (그중 equipment 미매칭 설비 1건)
+[TIMER] 엑셀 저장 start
+Traceback (most recent call last):
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\build_f3.py", line 1185, in save_workbook
+    safe.iloc[i:i + RAW_SHEET_ROWS_PER_SHEET].to_excel(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\util\_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\core\generic.py", line 2417, in to_excel
+    formatter.write(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\io\formats\excel.py", line 952, in write
+    writer._write_cells(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\io\excel\_openpyxl.py", line 487, in _write_cells
+    xcell = wks.cell(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\worksheet\worksheet.py", line 244, in cell
+    cell = self._get_cell(row, column)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\worksheet\worksheet.py", line 261, in _get_cell
+    self._add_cell(cell)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\worksheet\worksheet.py", line 272, in _add_cell
+    self._cells[(row, column)] = cell
+MemoryError
 
-## 실행 구조
-- 중간 CSV 없음
-- 원천 테이블별 1회 조회
-- 대형 DataFrame 즉시 DuckDB 적재 후 해제
-- StepPath는 원천 SQL 전체 조회 유지 후 pandas 반환 직후 현재 재공 LOT만 로컬 선필터
-- 단계 종료 시 불필요한 중간 DuckDB 테이블 즉시 DROP
-- h 제외: hold/exception/ftp 컬럼은 NULL
-- AREA는 NULL
+During handling of the above exception, another exception occurred:
 
-## 주요 행 수
-- eqp_group_raw_rows: 17,000
-- eqp_group_rows: 16,702
-- equipment_raw_rows: 37,457
-- equipment_rows: 19,541
-- f1_duplicate_rows_removed: 0
-- f1_rows: 18,024,925
-- f1_rows_before_distinct: 18,024,925
-- f2_duplicate_rows_removed: 14,275,978
-- f2_rows: 3,748,947
-- f2_rows_before_distinct: 18,024,925
-- f3_duplicate_rows_removed: 0
-- f3_rows: 8,271
-- f3_rows_before_distinct: 8,271
-- lot_raw_rows: 4,707
-- m_rows: 4,707
-- raw_KFR7_step_path_rows: 6,496,538
-- raw_KFR7_tip_rows: 6,452,747
-- raw_PFR1_step_path_rows: 3,951,204
-- raw_PFR1_tip_rows: 2,951,162
-- raw_eqp_group_rows: 17,000
-- raw_equipment_rows: 37,457
-- raw_lot_rows: 4,707
-- s_rows: 14,261,295
-- step_kfr7_raw_rows: 3,379,271
-- step_pfr1_raw_rows: 179,275
-- t_rows: 118,808
-- tip_kfr7_raw_rows: 111,508
-- tip_pfr1_raw_rows: 34,295
-
-## 행 수 차이 해석
-- step_candidate → step_with_group 증가는 하나의 설비그룹에 복수 EQP가 포함되어 path가 펼쳐지는 업무상 정상 증가일 수 있습니다.
-- tip_main → tip_tee 증가는 본체 1개에 복수 챔버가 연결되어 생기는 정상 증가일 수 있습니다.
-- f1/f2/f3 DISTINCT 감소는 최종 출력 컬럼이 완전히 동일한 행 제거입니다. 제거 건수가 크면 원천 최신시각 동률, 다대다 조인, 출력에서 빠진 이력 키를 확인해야 합니다.
-- 기존 CSV 방식과 행 수가 다르면 아래 증폭률·중복키·샘플을 함께 비교하여 정상 감소/증가인지 판정해야 합니다.
-
-## 검증
-- KFR7_step_local_filter_after: `3379271`
-- KFR7_step_local_filter_before: `6496538`
-- KFR7_step_local_filter_ratio: `0.5202`
-- KFR7_step_local_filter_removed: `3117267`
-- KFR7_step_path_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
-- KFR7_tip_local_filter_after: `111508`
-- KFR7_tip_local_filter_before: `6452747`
-- KFR7_tip_local_filter_ratio: `0.0173`
-- KFR7_tip_local_filter_removed: `6341239`
-- KFR7_tip_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
-- PFR1_step_local_filter_after: `179275`
-- PFR1_step_local_filter_before: `3951204`
-- PFR1_step_local_filter_ratio: `0.0454`
-- PFR1_step_local_filter_removed: `3771929`
-- PFR1_step_path_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
-- PFR1_tip_local_filter_after: `34295`
-- PFR1_tip_local_filter_before: `2951162`
-- PFR1_tip_local_filter_ratio: `0.0116`
-- PFR1_tip_local_filter_removed: `2916867`
-- PFR1_tip_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
-- eqp_group_duplicate_keys: `0`
-- eqp_group_max_eqp_count: `38`
-- eqp_group_multi_eqp_group_count: `4209`
-- eqp_group_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
-- equipment_duplicate_line_eqp_keys: `0`
-- equipment_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
-- f1_lot_distinct: `4707`
-- f2_blocked_columns: `[]`
-- f2_columns: `["lot_inform", "line", "현재위치", "전산라인", "투입라인", "lot_id", "carr_id", "grade", "lot_type", "lot_level", "qty", "bay", "sendfab", "투입경과_일", "마지막이벤트경과_일", "스텝도착경과_일", "lot_status", "step_status", "proc_id", "de_rank", "연속", "AREA", "layer_id", "현스텝", "order_seq", "step_seq", "step_desc", "recipe_id", "eqp_type", "batch_kind", "eqpline", "eqpgroup", "eqpgroup_cham", "tip", "down", "hold", "hold_reason", "exception", "exception_reason", "ftp", "ftp_reason"]`
-- f2_lot_distinct: `4707`
-- f3_blocked_columns: `[]`
-- f3_columns: `["lot_inform", "line", "현재위치", "전산라인", "투입라인", "lot_id", "carr_id", "grade", "lot_type", "lot_level", "qty", "bay", "sendfab", "투입경과_일", "마지막이벤트경과_일", "스텝도착경과_일", "lot_status", "step_status", "proc_id", "de_rank", "연속", "AREA", "layer_id", "현스텝", "order_seq", "step_seq", "step_desc", "recipe_id", "eqp_type", "batch_kind", "eqpline", "eqpgroup", "eqpgroup_cham", "tip", "down", "hold", "hold_reason", "exception", "exception_reason", "ftp", "ftp_reason"]`
-- f3_lot_distinct: `3591`
-- f3_outside_scope_rows: `0`
-- getData_capabilities: `{"object_type": "<class '_cython_3_0_11.cython_function_or_method'>", "module": "main", "signature": "(param, custom_columns: 'list' = [], convert_type=False, verbose=True, show_sql=False, user_name='', return_type='pandas.DataFrame', client_unnest: 'bool' = True)", "source_error": "TypeError('module, class, method, function, traceback, frame, or code object was expected, got cython_function_or_method')"}`
-- lot_distinct: `4707`
-- lot_return_type: `"<class 'pandas.core.frame.DataFrame'>"`
-- run_mode: `"full"`
-- step_candidate_rows_before_eqp_group: `3498494`
-- step_eqp_group_amplification: `4.0765`
-- step_rows_after_eqp_group: `14261440`
-- tip_cham_rows: `96073`
-- tip_exact_rule_rows: `0`
-- tip_join_amplification: `2.3931`
-- tip_main_rows: `49689`
-- tip_match_candidate_amplification_vs_ms: `0.62`
-- tip_match_candidate_rows: `8842646`
-- tip_match_rows_after_semantic_dedup: `8787405`
-- tip_match_semantic_duplicates_removed: `55241`
-- tip_match_signature_rows: `1908844`
-- tip_max_chamber_rows_per_key: `15`
-- tip_multi_chamber_key_count: `19020`
-- tip_tee_rows: `118909`
-- tip_wildcard_mask_rule_counts: `{"1": 117377, "3": 6, "5": 260, "7": 1055, "9": 35, "13": 74, "15": 1}`
-- tip_wildcard_rule_rows: `118808`
-
-## 실행시간
-- 기본 원천 조회 및 staging: 31.324초
-- 공통 dimension 생성: 0.062초
-- StepPath 조회 및 선필터: 116.092초
-- Step 전처리: 56.643초
-- TrackInPrevent 조회 및 matchable 선필터: 129.207초
-- Tip 전처리: 2.338초
-- f1-1 m_base: 0.012초
-- f1-2 m x s join: 64.620초
-- f1-3 TIP wildcard partitioned join: 38.583초
-- f1 생성: 4281.953초
-- f2 생성: 704.715초
-- f3 생성: 4.498초
-- 검증: 0.335초
-- Parquet 저장: 370.668초
-
-## 출력
-- f1_parquet: `D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\output\parquet\f1_result.parquet`
-- f2_parquet: `D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\output\parquet\f2_result.parquet`
-- f3_parquet: `D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\output\parquet\f3_result.parquet`
+Traceback (most recent call last):
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\build_f3.py", line 1293, in <module>
+    main()
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\build_f3.py", line 1287, in main
+    save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols, mixed,
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\build_f3.py", line 1160, in save_workbook
+    with pd.ExcelWriter(path, engine="openpyxl") as xw:
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\io\excel\_base.py", line 1353, in __exit__
+    self.close()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\io\excel\_base.py", line 1357, in close
+    self._save()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\io\excel\_openpyxl.py", line 110, in _save
+    self.book.save(self._handles.handle)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\workbook\workbook.py", line 386, in save
+    save_workbook(self, filename)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\writer\excel.py", line 294, in save_workbook
+    writer.save()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\writer\excel.py", line 275, in save
+    self.write_data()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\writer\excel.py", line 77, in write_data
+    self._write_worksheets()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\writer\excel.py", line 215, in _write_worksheets
+    self.write_worksheet(ws)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\writer\excel.py", line 200, in write_worksheet
+    writer.write()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\worksheet\_writer.py", line 359, in write
+    self.write_rows()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\worksheet\_writer.py", line 124, in write_rows
+    for row_idx, row in self.rows():
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\worksheet\_writer.py", line 110, in rows
+    for (row, col), cell in sorted(self.ws._cells.items()):
+MemoryError
+Exception ignored in atexit callback: <function _openpyxl_shutdown at 0x000001ED625B43A0>
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\openpyxl\worksheet\_writer.py", line 32, in _openpyxl_shutdown
+    os.remove(path)
+PermissionError: [WinError 32] 다른 프로세스가 파일을 사용 중이기 때문에 프로세스가 액세스 할 수 없습니다: 'C:\\Users\\MINUK1~1.CHO\\AppData\\Local\\Temp\\openpyxl.rduyz7ao'
