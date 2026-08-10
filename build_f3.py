@@ -68,34 +68,22 @@ m0 AS (
     WHERE  m.last_event_date = c.max_event_date
 ),
 
-t1 AS (
-    SELECT line_id,
-           lot_id,
-           new_attr_value
-    FROM (
-        SELECT line_id,
-               lot_id,
-               new_attr_value,
-               lot_transn_time,
-               MAX(lot_transn_time)
-                   OVER (PARTITION BY lot_id, line_id)             AS max_transn_time,
-               SUM(CASE WHEN wip_attribute = 'FLOWLEVEL' THEN 1 ELSE NULL END)
-                   OVER (PARTITION BY lot_id, step_seq, line_id)   AS flowlevel_cnt
-        FROM   FAB.M_LOT_TRANSN_HIST
-        WHERE  lot_transn_type = 'ModifyAttr'
-          AND  wip_attribute IN ('GRADE')
-          AND  line_id IN ('PFR1', 'KFR7')
-    ) h
-    WHERE  flowlevel_cnt IS NULL
-      AND  max_transn_time = lot_transn_time
+-- GRADE: 라인별 MC_LOT_ATTR 에서 직접 읽는다.
+--   기존에는 FAB.M_LOT_TRANSN_HIST 의 최신 ModifyAttr 이력을 썼으나,
+--   현재 값은 MC_LOT_ATTR 에 그대로 있으므로 이력 스캔이 불필요하다.
+--   조인 기준: MC_LOT.object_id = MC_LOT_ATTR.parent_object_id
+g_pfr1 AS (
+    SELECT parent_object_id,
+           attr_value AS grade
+    FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_ATTR
+    WHERE  attr_name = 'GRADE'
 ),
 
-g AS (
-    SELECT DISTINCT
-           line_id,
-           lot_id,
-           new_attr_value AS grade
-    FROM   t1
+g_kfr7 AS (
+    SELECT parent_object_id,
+           attr_value AS grade
+    FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT_ATTR
+    WHERE  attr_name = 'GRADE'
 ),
 
 m1 AS (
@@ -129,9 +117,8 @@ m1 AS (
     JOIN        m0
       ON        m.lot_id          = m0.lot_id
      AND        m.last_event_date = m0.max_event_date
-    LEFT JOIN   g
-      ON        m.lot_id  = g.lot_id
-     AND        g.line_id = 'PFR1'
+    LEFT JOIN   g_pfr1 g
+      ON        m.object_id = g.parent_object_id
     WHERE       m.lot_status_seg IN ('Active', 'Hold')
       AND       m.order_seq IS NOT NULL
 
@@ -167,9 +154,8 @@ m1 AS (
     JOIN        m0
       ON        m.lot_id          = m0.lot_id
      AND        m.last_event_date = m0.max_event_date
-    LEFT JOIN   g
-      ON        m.lot_id  = g.lot_id
-     AND        g.line_id = 'KFR7'
+    LEFT JOIN   g_kfr7 g
+      ON        m.object_id = g.parent_object_id
      LEFT JOIN MOS_KH_SMI.SMICDC_NRDK_MATERIALWORKSTATUS w
       ON        m.lot_id         = w.lotid
     WHERE       m.lot_status_seg IN ('Active', 'Hold')
