@@ -34,6 +34,13 @@ import numpy as np
 import pandas as pd
 
 
+# TrackInPrevent 에서 lot_type 을 담고 있는 컬럼명.
+#   매칭표(refer_matching_table.txt)의 SMICDC_*_TRACKINPREVENT 컬럼 목록에는
+#   lot_type 이 없다. 실제 테이블에 다른 이름으로 존재한다면 여기만 바꾸면 된다.
+#   None 으로 두면 예전처럼 전 행을 '-'(와일드카드)로 취급한다.
+TIP_LOT_TYPE_COLUMN = "lot_type"
+
+
 lot_query = """
 WITH
 
@@ -218,20 +225,24 @@ WHERE       m1.line = m1.sys_line_id
 
 # ── TrackInPrevent (Tip) : 실제 사용 컬럼만 조회 ─────────────────────────
 kfr7_tip_query = """
-SELECT process, step, ppid, eqpid, chamberid,
+SELECT process, step, ppid, eqpid, chamberid, {LOT_TYPE_COL}
        type, checkcount, tkin_count, updated, eventtime
 FROM   MOS_KH_SMI.SMICDC_NRDK_TRACKINPREVENT
 WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
 """
 
 pfr1_tip_query = """
-SELECT process, step, ppid, eqpid, chamberid,
+SELECT process, step, ppid, eqpid, chamberid, {LOT_TYPE_COL}
        type, checkcount, tkin_count, updated, eventtime
 FROM   MOS_KH_SMI.SMICDC_P3NRD_TRACKINPREVENT
 WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
 """
 
 # ── Equipment : line_id + eqp_id 별 최신 적재분만 ────────────────────────
+_LOT_TYPE_SEL = f"{TIP_LOT_TYPE_COLUMN}," if TIP_LOT_TYPE_COLUMN else ""
+kfr7_tip_query = kfr7_tip_query.replace("{LOT_TYPE_COL}", _LOT_TYPE_SEL)
+pfr1_tip_query = pfr1_tip_query.replace("{LOT_TYPE_COL}", _LOT_TYPE_SEL)
+
 eqp_query = """
 SELECT line_id, origin_line_id, batch_kind, eqp_id,
        eqp_status, tool_kind, eqp_status_change_time
@@ -318,6 +329,17 @@ def _build_equipment(df_eqp, line):
     return e.drop_duplicates()
 
 
+def _tip_lot_type(t):
+    """TrackInPrevent 의 lot_type. 컬럼이 없으면 '-'(와일드카드)로 폴백한다."""
+    col = TIP_LOT_TYPE_COLUMN
+    if col and col in t.columns:
+        return t[col].astype('string').fillna('-').replace('', '-')
+    if col:
+        print(f"[WARN] TrackInPrevent 에 '{col}' 컬럼이 없어 lot_type 을 "
+              f"'-'(와일드카드)로 처리합니다. TIP_LOT_TYPE_COLUMN 확인 필요.", flush=True)
+    return '-'
+
+
 def _build_t(df_tip, line):
     """t CTE: prevent 판정 / ee(설비-챔버) 조합 / eventtime 보정."""
     t = _lower_cols(df_tip)
@@ -347,7 +369,7 @@ def _build_t(df_tip, line):
         'step': t['step'],
         'ppid': t['ppid'],
         'eqpid': t['eqpid'],
-        'lot_type': '-',
+        'lot_type': _tip_lot_type(t),
         'chamberid': raw_cham.where(~raw_cham.isin(['-', 'MAIN']), 'MAIN'),
         'prevent': pd.Series(prevent, index=t.index, dtype='object'),
         'ee': pd.Series(ee, index=t.index, dtype='object'),
