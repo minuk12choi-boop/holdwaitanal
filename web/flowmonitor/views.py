@@ -22,13 +22,21 @@ LOOKBACK_DAYS = 140
 # blueprint 7.3 권장 상대 높이. 템플릿에는 계산된 px 로 넘긴다.
 PANEL_BASE_PX = 150
 PANELS = [
-    {"key": "move",    "title": "MOVE",              "unit": "매",   "h": 1.2},
-    {"key": "wt",      "title": "W/T",               "unit": "매/매", "h": 1.0},
-    {"key": "wip",     "title": "재공",               "unit": "매",   "h": 1.2},
-    {"key": "hold",    "title": "HOLD율",             "unit": "%",   "h": 0.8,
-     "basis": True},
-    {"key": "blocked", "title": "WAIT성 진행불가율",    "unit": "%",   "h": 0.8,
-     "basis": True},
+    # fmt: 차트에 직접 찍는 레이블 표기법
+    #   k  = 1000 단위 + 소수 1자리 (13,300매 -> 13.3k)
+    #   f1 = 소수 1자리
+    #   i  = 정수
+    # 툴팁(커서)에는 항상 원래 값이 그대로 나온다.
+    {"key": "move",    "title": "MOVE",              "unit": "매",    "h": 1.2,
+     "fmt": "k"},
+    {"key": "wt",      "title": "W/T",               "unit": "매/매", "h": 1.0,
+     "fmt": "f1"},
+    {"key": "wip",     "title": "재공",               "unit": "매",    "h": 1.2,
+     "fmt": "k"},
+    {"key": "hold",    "title": "HOLD율",             "unit": "%",    "h": 0.8,
+     "fmt": "i", "basis": True},
+    {"key": "blocked", "title": "WAIT성 진행불가율",    "unit": "%",    "h": 0.8,
+     "fmt": "i", "basis": True},
 ]
 
 
@@ -136,7 +144,8 @@ def _panels(basis="qty"):
             ds["spanGaps"] = False
             ds["tension"] = 0.25
             ds["pointRadius"] = 2
-        data.update(key=p["key"], title=p["title"], unit=p["unit"], height=p["h"])
+        data.update(key=p["key"], title=p["title"], unit=p["unit"],
+                    height=p["h"], fmt=p.get("fmt", "f1"))
         out[p["key"]] = data
     return out, missing
 

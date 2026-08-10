@@ -100,6 +100,38 @@ function setBasis(b) {
   load();
 }
 
+// 값 레이블을 점 위에 직접 그린다(별도 플러그인 의존 없이).
+function fmtLabel(v, fmt) {
+  if (v === null || v === undefined) return "";
+  if (fmt === "k") return (v / 1000).toFixed(1) + "k";
+  if (fmt === "i") return String(Math.round(v));
+  return v.toFixed(1);
+}
+
+const valueLabels = {
+  id: "valueLabels",
+  afterDatasetsDraw(c) {
+    const ctx = c.ctx;
+    ctx.save();
+    ctx.font = "10px 'Malgun Gothic', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    c.data.datasets.forEach((ds, di) => {
+      if (!c.isDatasetVisible(di)) return;
+      const meta = c.getDatasetMeta(di);
+      meta.data.forEach((el, i) => {
+        const v = ds.data[i];
+        if (v === null || v === undefined) return;
+        const txt = fmtLabel(v, c.$fmt);
+        // 선이 겹칠 때 글자끼리 붙지 않도록 데이터셋마다 살짝 어긋나게
+        ctx.fillStyle = ds.borderColor;
+        ctx.fillText(txt, el.x, el.y - 5 - (di % 2) * 11);
+      });
+    });
+    ctx.restore();
+  }
+};
+
 // 단위가 바뀌는 지점에 세로 구분선
 const gapLine = {
   id: "gapLine",
@@ -147,6 +179,7 @@ function load() {
         charts[key].data.labels = d.labels;
         charts[key].data.datasets = d.datasets;
         charts[key].$kinds = d.kinds;
+        charts[key].$fmt = d.fmt;
         charts[key].update();
         return;
       }
@@ -156,6 +189,7 @@ function load() {
         options: {
           responsive: true, maintainAspectRatio: false,
           interaction: { mode: "index", intersect: false },
+          layout: { padding: { top: 20, right: 10, left: 2 } },
           plugins: {
             legend: { display: false },
             tooltip: {
@@ -165,7 +199,10 @@ function load() {
                   const k = KIND_KO[d.kinds[i]] || "";
                   return d.labels[i] + (k ? " (" + k + ")" : "");
                 },
-                label: (t) => `${t.dataset.label}  ${t.formattedValue} ${d.unit}`
+                // 커서를 올리면 축약 없이 원래 값 그대로
+                label: (t) => `${t.dataset.label}  `
+                  + Number(t.parsed.y).toLocaleString("ko-KR",
+                      { maximumFractionDigits: 1 }) + ` ${d.unit}`
               }
             }
           },
@@ -175,9 +212,10 @@ function load() {
             y: { beginAtZero: true, ticks: { font: { size: 10 } } }
           }
         },
-        plugins: [gapLine]
+        plugins: [gapLine, valueLabels]
       });
       ch.$kinds = d.kinds;
+      ch.$fmt = d.fmt;
       charts[key] = ch;
       ch.update();
     });
