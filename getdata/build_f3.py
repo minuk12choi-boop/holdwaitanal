@@ -295,6 +295,40 @@ BATCH_KINDS = ('BATCH_FURNACE', 'BATCH_WET')
 EQP_ISSUE_STATUS = ('LOCAL', 'PM', 'DOWN')
 
 
+def _cache_path(name, biz_date):
+    d = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, f"{name}_{biz_date:%Y%m%d}.csv")
+
+
+def cached_daily(name, biz_date, producer):
+    """업무일(22시 기준) 단위 캐시.
+
+    설비그룹처럼 하루에 한 번만 바뀌면 충분한 테이블용. 같은 업무일 안에서는
+    파일에서 읽고, 날짜가 바뀌면 새로 조회한다. 오래된 캐시는 지운다.
+    """
+    path = _cache_path(name, biz_date)
+    if os.path.exists(path):
+        df = pd.read_csv(path, dtype=str, keep_default_na=False, na_values=[""])
+        print(f"[CACHE] {name} 재사용 ({os.path.basename(path)}) rows={len(df):,}",
+              flush=True)
+        return df, True
+
+    df = producer()
+    df.to_csv(path, index=False, encoding="utf-8-sig")
+    print(f"[CACHE] {name} 새로 저장 ({os.path.basename(path)}) rows={len(df):,}",
+          flush=True)
+
+    d = os.path.dirname(path)
+    for f in os.listdir(d):
+        if f.startswith(name + "_") and f != os.path.basename(path):
+            try:
+                os.remove(os.path.join(d, f))
+            except OSError:
+                pass
+    return df, False
+
+
 def _lower_cols(df):
     out = df.copy()
     out.columns = [str(c).strip().lower() for c in out.columns]
@@ -697,6 +731,17 @@ JOIN   (SELECT DISTINCT line_id, lot_id FROM (
         ) z) c
   ON   h.line_id = c.line_id AND h.lot_id = c.lot_id
 WHERE  h.line_id IN ('KFR7', 'PFR1')
+"""
+
+# version_desc 는 'YYYYMMDD-HHMMSS' 형태의 적재 ID. 최신값을 찾을 때
+# 최근 N일로 한정하면 전수 스캔을 피할 수 있다.
+HOLD_VERSION_LOOKBACK_DAYS = 7
+
+hold_max_query_bounded = """
+SELECT MAX(version_desc) AS mv
+FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
+WHERE  line_id IN ('KFR7', 'PFR1')
+  AND  version_desc >= '{LO}'
 """
 
 hold_max_query = """
@@ -1461,18 +1506,43 @@ def main():
     with timer("소형 원천 조회"):
         df_lot = fetch("lot", lot_query)
         df_eqp = fetch("equipment", eqp_query)
-        df_eqp_group = fetch("eqp_group", eqp_group_query)
-        # 'OFF' 설비는 어디서도 쓰지 않는다. 쿼리에서 거르면 스캔이 느려지므로
-        # 불러온 뒤 한 곳에서 제외해 하위 단계·검증시트에 일관 적용한다.
-        _n0 = len(df_eqp_group)
-        df_eqp_group = _lower_cols(df_eqp_group)
-        df_eqp_group = df_eqp_group[
-            ~df_eqp_group["eqp_id"].str.contains("OFF", case=False, na=False)]
-        print(f"[FILTER] eqp_group 'OFF' 설비 제외: {_n0:,} -> {len(df_eqp_group):,}",
-              flush=True)
+        # 설비그룹은 하루에 한 번만 바뀌면 충분하다. 업무일(22시 기준) 단위로
+        # 캐시해 두고, 'OFF' 제외까지 마친 상태로 저장해 재사용한다.
+        import db_common as _DB
+        bd_today = _DB.biz_date(run_at)
+
+        def _load_eqp_group():
+            raw = fetch("eqp_group", eqp_group_query)
+            n0 = len(raw)
+            out = _lower_cols(raw)
+            out = out[~out["eqp_id"].str.contains("OFF", case=False, na=False)]
+            print(f"[FILTER] eqp_group 'OFF' 설비 제외: {n0:,} -> {len(out):,}",
+                  flush=True)
+            return out
+
+        df_eqp_group, from_cache = cached_daily("eqp_group", bd_today, _load_eqp_group)
+        if from_cache:
+            load_log.append({
+                "테이블": "eqp_group", "로딩_시작시각": None, "로딩_종료시각": None,
+                "소요_초": 0, "행수": len(df_eqp_group),
+                "컬럼수": df_eqp_group.shape[1],
+                "시트_기록행수": len(df_eqp_group), "시트_잘림여부": "N",
+            })
+            raw_samples["eqp_group"] = df_eqp_group.copy()
+
         if HOLD_SERVER_SIDE_FILTER:
-            mv = getData(param=hold_max_query, convert_type=True,
-                         verbose=False).iloc[0, 0]
+            # MAX(version_desc) 는 100만행 전수 스캔이라 느릴 수 있다.
+            # version_desc 가 'YYYYMMDD-HHMMSS' 형태이므로 최근 며칠로 한정해
+            # 먼저 시도하고, 값이 안 나오면 전체 범위로 되돌린다.
+            lo = (run_at - dt.timedelta(days=HOLD_VERSION_LOOKBACK_DAYS)
+                  ).strftime("%Y%m%d-000000")
+            with timer("hold 최신 version_desc 조회"):
+                mv = getData(param=hold_max_query_bounded.replace("{LO}", lo),
+                             convert_type=True, verbose=False).iloc[0, 0]
+                if not mv:
+                    print("[HOLD] 범위 한정 조회 실패 → 전체 범위로 재시도", flush=True)
+                    mv = getData(param=hold_max_query, convert_type=True,
+                                 verbose=False).iloc[0, 0]
             print(f"[HOLD] 최신 version_desc = {mv}", flush=True)
             df_hold = fetch("hold", hold_query_two_step.replace("{MV}", str(mv)))
         else:
