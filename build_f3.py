@@ -281,9 +281,11 @@ SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level,
        p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id,
        p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
 FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT_STEP_PATH p
-JOIN   (SELECT DISTINCT lot_id FROM MOS_KH_SMI.SMICDC_NRDK_MC_LOT
+JOIN   (SELECT lot_id, order_seq FROM MOS_KH_SMI.SMICDC_NRDK_MC_LOT
         WHERE lot_status_seg IN ('Active', 'Hold')) c
   ON   p.lot_id = c.lot_id
+WHERE  p.order_seq >= c.order_seq
+    OR p.delay_step_type IN ('S', 'Y')
 """
 
 pfr1_step_path_query = """
@@ -291,9 +293,11 @@ SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level,
        p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id,
        p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
 FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_PATH p
-JOIN   (SELECT DISTINCT lot_id FROM MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
+JOIN   (SELECT lot_id, order_seq FROM MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
         WHERE lot_status_seg IN ('Active', 'Hold')) c
   ON   p.lot_id = c.lot_id
+WHERE  p.order_seq >= c.order_seq
+    OR p.delay_step_type IN ('S', 'Y')
 """
 
 # =====================================================================
@@ -316,6 +320,30 @@ def _to_datetime(series):
     s = series.astype('string').str.replace(r'[^0-9]', '', regex=True).str.slice(0, 14)
     s = s.where(s.str.len() >= 8).str.pad(14, side='right', fillchar='0')
     return pd.to_datetime(s, format='%Y%m%d%H%M%S', errors='coerce')
+
+
+def expand_group_name(name):
+    """설비그룹명에 축약 표기된 구성설비를 복원한다.
+
+    'MEB405_413'                        -> {MEB405, MEB413}
+    'MMC403_404_406_407_408'            -> {MMC403, MMC404, MMC406, MMC407, MMC408}
+    'MOLP704_731_MOVP321_MOVP323_MOLP722'
+        -> {MOLP704, MOLP731, MOVP321, MOVP323, MOLP722}
+    숫자만 있는 토큰은 직전에 나온 알파벳 접두어를 이어받는다.
+    """
+    out, prefix = set(), ""
+    for tok in str(name).split("_"):
+        if not tok:
+            continue
+        head = "".join(c for c in tok if not c.isdigit())
+        if head:
+            prefix = head
+            out.add(tok)
+        elif prefix:
+            out.add(prefix + tok)
+        else:
+            out.add(tok)
+    return out
 
 
 def _drop_null_keys(df, keys):
@@ -667,6 +695,33 @@ JOIN   (SELECT DISTINCT line_id, lot_id FROM (
 WHERE  h.line_id IN ('KFR7', 'PFR1')
 """
 
+hold_max_query = """
+SELECT MAX(version_desc) AS mv
+FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
+WHERE  line_id IN ('KFR7', 'PFR1')
+"""
+
+# 벤치(bench_loading) 최속안. version_desc 를 리터럴로 박으면 파티션 프루닝이
+# 걸려 조인/윈도우 방식보다 일관되게 빠르고 전송량도 174,632 -> 581 행으로 준다.
+hold_query_two_step = """
+SELECT h.line_id, h.item_type, h.status_seq, h.lot_id, h.step_seq,
+       h.hold_user_name, h.issue_reason_cont, h.issue_date, h.version_desc
+FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT h
+JOIN   (SELECT DISTINCT line_id, lot_id FROM (
+            SELECT 'PFR1' AS line_id, lot_id
+            FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
+            WHERE  lot_status_seg IN ('Active', 'Hold')
+            UNION ALL
+            SELECT 'KFR7' AS line_id, lot_id
+            FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT
+            WHERE  lot_status_seg IN ('Active', 'Hold')
+        ) z) c
+  ON   h.line_id = c.line_id AND h.lot_id = c.lot_id
+WHERE  h.line_id IN ('KFR7', 'PFR1')
+  AND  h.status_seq <> '2'
+  AND  h.version_desc = '{MV}'
+"""
+
 hold_query = hold_query_join_only if HOLD_SERVER_SIDE_FILTER else hold_query_raw
 
 
@@ -797,23 +852,20 @@ def narrow_step_to_scope(df_path, df_lot, line):
 def expand_with_equipment(scope, df_eqp, df_eqp_group, line):
     """축약된 scope 에만 설비그룹·설비를 전개한다(전체 경로 전개 없음)."""
     eg = _lower_cols(df_eqp_group)
-    eg = eg[eg["line_id"].eq(line) & ~eg["eqp_id"].str.contains("OFF", na=False)]
+    eg = eg[eg["line_id"].eq(line)]
     eg = eg[["line_id", "eqp_group_name", "eqp_id"]].drop_duplicates()
     eg = _drop_null_keys(eg, ["line_id", "eqp_group_name"])
 
-    # 그룹명이 구성설비를 '_' 로 나열한 형태일 때, 그룹명에 없는 설비가 섞여 있으면
-    # 옛 스냅샷 잔존을 의심해야 한다(파티션 키 오류의 대표 증상).
+    # 그룹명이 구성설비를 축약 나열한 형태일 때, 복원 결과에 없는 설비가 섞여
+    # 있으면 옛 스냅샷 잔존을 의심해야 한다(파티션 키 오류의 대표 증상).
     named = eg["eqp_group_name"].str.contains("_", na=False)
     if named.any():
-        chk = eg[named].copy()
-        chk["_in_name"] = [
-            e in n.split("_") for e, n in zip(chk["eqp_id"], chk["eqp_group_name"])]
-        stray = chk[~chk["_in_name"]]
-        if len(stray):
-            print(f"[WARN] {line} 설비그룹명에 없는 구성설비 {len(stray):,}건 "
-                  f"(옛 스냅샷 잔존 의심). 예: "
-                  f"{stray[['eqp_group_name','eqp_id']].head(3).to_dict('records')}",
-                  flush=True)
+        chk = eg[named]
+        stray = [(n, e) for n, e in zip(chk["eqp_group_name"], chk["eqp_id"])
+                 if e.upper() not in {x.upper() for x in expand_group_name(n)}]
+        if stray:
+            print(f"[WARN] {line} 설비그룹명에서 복원되지 않는 구성설비 "
+                  f"{len(stray):,}건 (옛 스냅샷 잔존 의심). 예: {stray[:3]}", flush=True)
 
     out = scope.merge(
         eg, left_on=["line", "eqp_group_raw"], right_on=["line_id", "eqp_group_name"],
@@ -1402,7 +1454,21 @@ def main():
         df_lot = fetch("lot", lot_query)
         df_eqp = fetch("equipment", eqp_query)
         df_eqp_group = fetch("eqp_group", eqp_group_query)
-        df_hold = fetch("hold", hold_query)
+        # 'OFF' 설비는 어디서도 쓰지 않는다. 쿼리에서 거르면 스캔이 느려지므로
+        # 불러온 뒤 한 곳에서 제외해 하위 단계·검증시트에 일관 적용한다.
+        _n0 = len(df_eqp_group)
+        df_eqp_group = _lower_cols(df_eqp_group)
+        df_eqp_group = df_eqp_group[
+            ~df_eqp_group["eqp_id"].str.contains("OFF", case=False, na=False)]
+        print(f"[FILTER] eqp_group 'OFF' 설비 제외: {_n0:,} -> {len(df_eqp_group):,}",
+              flush=True)
+        if HOLD_SERVER_SIDE_FILTER:
+            mv = getData(param=hold_max_query, convert_type=True,
+                         verbose=False).iloc[0, 0]
+            print(f"[HOLD] 최신 version_desc = {mv}", flush=True)
+            df_hold = fetch("hold", hold_query_two_step.replace("{MV}", str(mv)))
+        else:
+            df_hold = fetch("hold", hold_query)
 
     s_parts = []
     for line, sql in (("KFR7", kfr7_step_path_query), ("PFR1", pfr1_step_path_query)):
