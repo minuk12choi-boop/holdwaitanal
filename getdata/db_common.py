@@ -123,19 +123,45 @@ def connect():
 # ---------------------------------------------------------------------------
 # 스키마
 # ---------------------------------------------------------------------------
+# 길이가 긴 컬럼은 TEXT 로. 전 컬럼을 VARCHAR(512) 로 잡으면
+#   - 행 크기 41 x 512 x 4 = 83,968 bytes > 65,535 (InnoDB 한계)
+#   - 인덱스 (line, lot_id) 4,096 bytes > 3,072
+# 두 한계에 모두 걸린다.
+TEXT_COLUMNS = {
+    "lot_inform", "eqpgroup", "eqpgroup_cham", "tip", "down",
+    "hold_reason", "exception_reason", "ftp_reason", "step_desc", "eqpline",
+}
+SHORT_LEN = 128          # 그 외 컬럼 (128 x 4 = 512 bytes)
+IDX_PREFIX = {"line": 16, "lot_id": 64}
+
+
 def _col_ddl(columns):
-    """f3 출력 컬럼을 전부 넉넉한 문자열로. 숫자 판별은 조회 시 캐스팅."""
-    return ",\n  ".join(f"`{c}` VARCHAR(512) NULL" for c in columns)
+    out = []
+    for c in columns:
+        typ = "TEXT" if c in TEXT_COLUMNS else f"VARCHAR({SHORT_LEN})"
+        out.append(f"`{c}` {typ} NULL")
+    return ",\n  ".join(out)
+
+
+def _idx(cols):
+    """인덱스 컬럼에 접두 길이를 붙인다(키 길이 3,072 bytes 한계 회피)."""
+    parts = []
+    for c in cols:
+        n = IDX_PREFIX.get(c)
+        parts.append(f"`{c}`({n})" if n else c)
+    return ", ".join(parts)
 
 
 def ensure_f3_schema(conn, columns):
+    live_idx = _idx(["line", "lot_id"])
+    hist_idx = "biz_date, shift, " + live_idx
     live = f"""
     CREATE TABLE IF NOT EXISTS f3_live (
       id BIGINT AUTO_INCREMENT PRIMARY KEY,
       snapshot_at DATETIME NOT NULL,
       {_col_ddl(columns)},
       KEY ix_live_snap (snapshot_at),
-      KEY ix_live_lot (`line`, `lot_id`)
+      KEY ix_live_lot ({live_idx})
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """
     hist = f"""
@@ -146,7 +172,7 @@ def ensure_f3_schema(conn, columns):
       snapshot_at DATETIME NOT NULL,
       {_col_ddl(columns)},
       KEY ix_hist_key (biz_date, shift),
-      KEY ix_hist_lot (biz_date, shift, `line`, `lot_id`)
+      KEY ix_hist_lot ({hist_idx})
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """
     meta = """
@@ -235,9 +261,13 @@ def ensure_move_schema(conn):
 # 적재
 # ---------------------------------------------------------------------------
 def _rows(df, columns):
+    """VARCHAR 컬럼은 정의 길이에 맞춰 자른다(TEXT 는 자르지 않음)."""
+    limits = [None if c in TEXT_COLUMNS else SHORT_LEN for c in columns]
     out = []
     for r in df[columns].itertuples(index=False, name=None):
-        out.append(tuple(None if _isna(v) else str(v)[:512] for v in r))
+        out.append(tuple(None if _isna(v) else
+                         (str(v) if lim is None else str(v)[:lim])
+                         for v, lim in zip(r, limits)))
     return out
 
 
