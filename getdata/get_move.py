@@ -110,7 +110,7 @@ def aggregate(df, ts_from, ts_to):
     d = d[d["sys_line_id"].isin(TARGET_LINES)]
     d["move"] = pd.to_numeric(d["move"], errors="coerce").fillna(0)
 
-    rows = []
+    rows, lot_rows = [], []
     boundary = ts_to - dt.timedelta(hours=8)
     while boundary >= ts_from:
         lo, hi = DB.shift_window(boundary)
@@ -122,16 +122,24 @@ def aggregate(df, ts_from, ts_to):
                 rows.append({"biz_date": bd, "shift": shift, "sys_line_id": line,
                              "move_qty": int(g["move"].sum()),
                              "lot_cnt": int(g["lot_id"].nunique())})
+                # lot 단위 (WT 계산용)
+                for lot, gl in g.groupby("lot_id", dropna=True):
+                    lot_rows.append({"biz_date": bd, "shift": shift,
+                                     "sys_line_id": line, "lot_id": lot,
+                                     "move_qty": int(gl["move"].sum()),
+                                     "tkout_cnt": int(len(gl))})
         boundary -= dt.timedelta(hours=8)
 
     df_shift = pd.DataFrame(rows, columns=["biz_date", "shift", "sys_line_id",
                                            "move_qty", "lot_cnt"])
+    df_lot = pd.DataFrame(lot_rows, columns=["biz_date", "shift", "sys_line_id",
+                                             "lot_id", "move_qty", "tkout_cnt"])
     if len(df_shift):
         df_daily = (df_shift.groupby(["biz_date", "sys_line_id"], as_index=False)
                     .agg(move_qty=("move_qty", "sum"), lot_cnt=("lot_cnt", "sum")))
     else:
         df_daily = pd.DataFrame(columns=["biz_date", "sys_line_id", "move_qty", "lot_cnt"])
-    return df_shift, df_daily
+    return df_shift, df_daily, df_lot
 
 
 def main():
@@ -155,8 +163,9 @@ def main():
     df = getData(param=move_query(ts_from, ts_to), convert_type=True, verbose=True)
     print(f"[MOVE] 원천 {len(df):,}행 {perf_counter() - t0:.1f}s", flush=True)
 
-    df_shift, df_daily = aggregate(df, ts_from, ts_to)
-    print(f"[MOVE] shift 집계 {len(df_shift):,}행 / 일 집계 {len(df_daily):,}행", flush=True)
+    df_shift, df_daily, df_lot = aggregate(df, ts_from, ts_to)
+    print(f"[MOVE] shift 집계 {len(df_shift):,}행 / 일 집계 {len(df_daily):,}행 "
+          f"/ lot 단위 {len(df_lot):,}행", flush=True)
     if len(df_daily):
         print(df_daily.tail(6).to_string(index=False), flush=True)
 
@@ -166,7 +175,7 @@ def main():
         return
 
     biz_dates = sorted(set(df_shift["biz_date"])) if len(df_shift) else []
-    DB.replace_move(conn, df_shift, df_daily, biz_dates)
+    DB.replace_move(conn, df_shift, df_daily, biz_dates, df_lot)
     print(f"[MOVE] 적재 완료: 업무일 {len(biz_dates)}일 "
           f"({biz_dates[0] if biz_dates else '-'} ~ "
           f"{biz_dates[-1] if biz_dates else '-'})", flush=True)

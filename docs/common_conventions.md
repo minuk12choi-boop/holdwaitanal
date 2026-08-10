@@ -328,6 +328,45 @@ MOVE / W/T / 재공은 정의상 매수 기준이므로 토글의 영향을 받�
 lot_type 을 고른다. `전체` 가 기본이며 선택하면 **카드 전체**(재공 수치,
 도넛, 상위 설비)가 해당 lot_type 기준으로 다시 그려진다.
 
+### lot_type 정렬
+
+```
+PP → PB → PG → EG → (그 외 오름차순)
+```
+
+### Low WT 분석
+
+WT 는 lot 단위로 계산한다. `move_lot`(lot 단위 MOVE) ÷ 재공 매수.
+**MOVE 기록이 없으면 WT = 0** 이다. `last_tkout_date` 는 쓰지 않는다
+(WT=0 뿐 아니라 저조 WT 구간까지 봐야 하므로).
+
+- 기준은 Dropdown 으로 고른다. 기본 `WT = 0`, 그 외 `WT ≤ 0.5`, `WT ≤ 1.0`
+- 기준을 넓혀도 **구간은 합치지 않는다**: `WT=0` / `0<WT≤0.5` / `0.5<WT≤1.0`
+- 열은 `전체 | GY | DAY | SW`. **전체는 shift 합이 아니라 unique lot** 기준
+  (업무일 대표 스냅샷의 lot + 하루 전체 MOVE)
+- Lot 수와 **Low WT율**(분모 = 그 구간의 분석 대상 lot)을 함께 표시
+
+#### 원인 대분류와 우선순위
+
+겹치면 **위에서부터 하나에만** 귀속한다. 중복 카운트 없음.
+
+| 순위 | 대분류 | 판정 |
+|---|---|---|
+| 1 | Hold | `hold` 값 존재 |
+| 2 | Wait성 진행불가 | `exception` 또는 `ftp` 존재 |
+| 3 | 설비 | `down` 존재 (DOWN / PM / LOCAL) |
+| 4 | TIP | `tip` 존재 (PREVENT) |
+| 5 | 기타/미분류 | 위 어디에도 없음 |
+
+```
+Hold + DOWN        -> Hold
+Exception + PREVENT -> Wait성 진행불가
+DOWN + PREVENT      -> 설비
+```
+
+`Low WT 전체 = Hold + Wait성 진행불가 + 설비 + TIP + 기타` 가 항상 성립한다.
+기타가 0 이면 화면에서 숨긴다.
+
 ### FlowStack 패널 순서
 
 blueprint 7.1 기준, 위에서부터

@@ -45,6 +45,20 @@
   .card .movetot { text-align:right; }
   .card .movetot b { display:block; font-size:24px; line-height:1.15; }
   .card .movetot span { font-size:11px; color:var(--mut); }
+  /* Low WT 분석 */
+  .wt .cellttl { display:flex; justify-content:space-between; align-items:center; }
+  .wt select { font-size:11px; padding:2px 4px; border:1px solid var(--bd);
+               border-radius:4px; }
+  .wt table { width:100%; border-collapse:collapse; font-size:11px; }
+  .wt th, .wt td { padding:3px 4px; text-align:right; white-space:nowrap; }
+  .wt th:first-child, .wt td:first-child { text-align:left; color:var(--mut); }
+  .wt thead th { color:var(--mut); font-weight:600; border-bottom:1px solid var(--bd); }
+  .wt .big td { font-size:13px; font-weight:600; }
+  .wt .rate td { color:var(--mut); border-bottom:1px solid var(--bd); }
+  .wt .sec { color:var(--mut); padding-top:6px; font-size:10px; }
+  .wt tr.pick { cursor:pointer; }
+  .wt tr.pick:hover td { background:#F3F4F6; }
+  .wt tr.on td { background:#EEF2FF; font-weight:600; }
   .card .dev { position:absolute; inset:38px 0 0 0; background:rgba(255,255,255,.82);
                display:flex; align-items:center; justify-content:center;
                font-size:14px; color:var(--mut); font-weight:600; letter-spacing:.02em; }
@@ -199,7 +213,8 @@ function cardHtml(c, i) {
         <div class="cv"><canvas id="mv_${i}"></canvas></div>
         <div class="movetot"><b>${nf(c.move.total)}</b><span>당일 MOVE (매)</span></div>
       </div>
-    </div></div>`;
+    </div>
+    <div class="cell wt" id="wt_${i}"></div></div>`;
 }
 
 let STATUS_DATA = [];
@@ -367,8 +382,94 @@ function drawCards(res) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Low WT 분석
+// ---------------------------------------------------------------------------
+const WT_OPTS = [
+  { v: 0,   t: "WT = 0" },
+  { v: 0.5, t: "WT ≤ 0.5" },
+  { v: 1.0, t: "WT ≤ 1.0" },
+];
+const WT_STATE = {};      // 카드별 {max, bin}
+
+function loadWt(i, line) {
+  const st = WT_STATE[i] || (WT_STATE[i] = { max: 0, bin: "0" });
+  fetch(`/api/lowwt/?line=${encodeURIComponent(line)}&max_wt=${st.max}`)
+    .then(r => r.json()).then(d => drawWt(i, line, d));
+}
+
+function pickWtMax(i, line, v) {
+  WT_STATE[i].max = parseFloat(v);
+  WT_STATE[i].bin = "0";                 // 기준 변경 시 가장 심각한 구간부터
+  loadWt(i, line);
+}
+
+function pickWtBin(i, line, key) {
+  WT_STATE[i].bin = key;
+  loadWt(i, line);
+}
+
+function drawWt(i, line, d) {
+  const el = document.getElementById("wt_" + i);
+  if (!el) return;
+  if (!d.ready) {
+    el.innerHTML = `<div class="cellttl">Low WT 분석</div>
+      <div class="sec">${d.reason || "데이터 없음"}</div>`;
+    return;
+  }
+  const st = WT_STATE[i];
+  if (!d.dist["전체"][st.bin]) {
+    const keys = d.bins.map(b => b.key);
+    if (!keys.includes(st.bin)) st.bin = keys[0];
+  }
+  const opts = WT_OPTS.map(o =>
+    `<option value="${o.v}" ${o.v === st.max ? "selected" : ""}>${o.t}</option>`).join("");
+  const th = d.cols.map(c => `<th>${c}</th>`).join("");
+
+  const sumRow = d.cols.map(c => `<td>${nf(d.summary[c].low)}</td>`).join("");
+  const rateRow = d.cols.map(c => `<td>${d.summary[c].rate}%</td>`).join("");
+
+  const distRows = d.bins.map(b => {
+    const tds = d.cols.map(c => `<td>${nf(d.dist[c][b.key] || 0)}</td>`).join("");
+    return `<tr class="pick ${b.key === st.bin ? "on" : ""}"
+              onclick="pickWtBin(${i},'${line}','${b.key}')">
+              <td>${b.label}</td>${tds}</tr>`;
+  }).join("");
+
+  const causeRows = d.causes.map(cz => {
+    let any = false;
+    const tds = d.cols.map(c => {
+      const n = ((d.cause[c] || {})[st.bin] || {})[cz] || 0;
+      if (n) any = true;
+      const low = d.dist[c][st.bin] || 0;
+      const pct = low ? (n / low * 100).toFixed(0) : 0;
+      return `<td title="${cz} · ${n} LOT · 구간 내 ${pct}%">${n ? nf(n) : "-"}</td>`;
+    }).join("");
+    if (cz === "기타/미분류" && !any) return "";      // 0 이면 숨김
+    return `<tr><td>${cz}</td>${tds}</tr>`;
+  }).join("");
+
+  el.innerHTML = `
+    <div class="cellttl"><span>Low WT 분석</span>
+      <select onchange="pickWtMax(${i},'${line}',this.value)">${opts}</select></div>
+    <table>
+      <thead><tr><th></th>${th}</tr></thead>
+      <tbody>
+        <tr class="big"><td>Low WT Lot</td>${sumRow}</tr>
+        <tr class="rate"><td>Low WT율</td>${rateRow}</tr>
+      </tbody>
+    </table>
+    <div class="sec">WT 구간 분포 (행 클릭 → 아래 원인 갱신)</div>
+    <table><tbody>${distRows}</tbody></table>
+    <div class="sec">원인 · ${d.bins.find(b => b.key === st.bin).label}</div>
+    <table><tbody>${causeRows}</tbody></table>`;
+}
+
 fetch("/api/status/").then(r => r.json()).then(res => {
   if (window.Chart) drawCards(res);
+  res.cards.forEach((c, i) => {
+    if (c.ready) { WT_STATE[i] = { max: 0, bin: "0" }; loadWt(i, c.line); }
+  });
 });
 
 load();
@@ -572,7 +673,8 @@ function cardHtml(c, i) {
         <div class="cv"><canvas id="mv_${i}"></canvas></div>
         <div class="movetot"><b>${nf(c.move.total)}</b><span>당일 MOVE (매)</span></div>
       </div>
-    </div></div>`;
+    </div>
+    <div class="cell wt" id="wt_${i}"></div></div>`;
 }
 
 let STATUS_DATA = [];
@@ -740,8 +842,94 @@ function drawCards(res) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Low WT 분석
+// ---------------------------------------------------------------------------
+const WT_OPTS = [
+  { v: 0,   t: "WT = 0" },
+  { v: 0.5, t: "WT ≤ 0.5" },
+  { v: 1.0, t: "WT ≤ 1.0" },
+];
+const WT_STATE = {};      // 카드별 {max, bin}
+
+function loadWt(i, line) {
+  const st = WT_STATE[i] || (WT_STATE[i] = { max: 0, bin: "0" });
+  fetch(`/api/lowwt/?line=${encodeURIComponent(line)}&max_wt=${st.max}`)
+    .then(r => r.json()).then(d => drawWt(i, line, d));
+}
+
+function pickWtMax(i, line, v) {
+  WT_STATE[i].max = parseFloat(v);
+  WT_STATE[i].bin = "0";                 // 기준 변경 시 가장 심각한 구간부터
+  loadWt(i, line);
+}
+
+function pickWtBin(i, line, key) {
+  WT_STATE[i].bin = key;
+  loadWt(i, line);
+}
+
+function drawWt(i, line, d) {
+  const el = document.getElementById("wt_" + i);
+  if (!el) return;
+  if (!d.ready) {
+    el.innerHTML = `<div class="cellttl">Low WT 분석</div>
+      <div class="sec">${d.reason || "데이터 없음"}</div>`;
+    return;
+  }
+  const st = WT_STATE[i];
+  if (!d.dist["전체"][st.bin]) {
+    const keys = d.bins.map(b => b.key);
+    if (!keys.includes(st.bin)) st.bin = keys[0];
+  }
+  const opts = WT_OPTS.map(o =>
+    `<option value="${o.v}" ${o.v === st.max ? "selected" : ""}>${o.t}</option>`).join("");
+  const th = d.cols.map(c => `<th>${c}</th>`).join("");
+
+  const sumRow = d.cols.map(c => `<td>${nf(d.summary[c].low)}</td>`).join("");
+  const rateRow = d.cols.map(c => `<td>${d.summary[c].rate}%</td>`).join("");
+
+  const distRows = d.bins.map(b => {
+    const tds = d.cols.map(c => `<td>${nf(d.dist[c][b.key] || 0)}</td>`).join("");
+    return `<tr class="pick ${b.key === st.bin ? "on" : ""}"
+              onclick="pickWtBin(${i},'${line}','${b.key}')">
+              <td>${b.label}</td>${tds}</tr>`;
+  }).join("");
+
+  const causeRows = d.causes.map(cz => {
+    let any = false;
+    const tds = d.cols.map(c => {
+      const n = ((d.cause[c] || {})[st.bin] || {})[cz] || 0;
+      if (n) any = true;
+      const low = d.dist[c][st.bin] || 0;
+      const pct = low ? (n / low * 100).toFixed(0) : 0;
+      return `<td title="${cz} · ${n} LOT · 구간 내 ${pct}%">${n ? nf(n) : "-"}</td>`;
+    }).join("");
+    if (cz === "기타/미분류" && !any) return "";      // 0 이면 숨김
+    return `<tr><td>${cz}</td>${tds}</tr>`;
+  }).join("");
+
+  el.innerHTML = `
+    <div class="cellttl"><span>Low WT 분석</span>
+      <select onchange="pickWtMax(${i},'${line}',this.value)">${opts}</select></div>
+    <table>
+      <thead><tr><th></th>${th}</tr></thead>
+      <tbody>
+        <tr class="big"><td>Low WT Lot</td>${sumRow}</tr>
+        <tr class="rate"><td>Low WT율</td>${rateRow}</tr>
+      </tbody>
+    </table>
+    <div class="sec">WT 구간 분포 (행 클릭 → 아래 원인 갱신)</div>
+    <table><tbody>${distRows}</tbody></table>
+    <div class="sec">원인 · ${d.bins.find(b => b.key === st.bin).label}</div>
+    <table><tbody>${causeRows}</tbody></table>`;
+}
+
 fetch("/api/status/").then(r => r.json()).then(res => {
   if (window.Chart) drawCards(res);
+  res.cards.forEach((c, i) => {
+    if (c.ready) { WT_STATE[i] = { max: 0, bin: "0" }; loadWt(i, c.line); }
+  });
 });
 
 load();

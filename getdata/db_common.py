@@ -237,6 +237,11 @@ def load_f3_load_log(conn, snapshot_at, load_log, keep=2):
 
 
 def ensure_move_schema(conn):
+    """move_shift / move_daily / move_lot.
+
+    move_lot 은 lot 단위 MOVE. WT(= MOVE/재공매수) 를 lot 별로 계산하려면
+    집계본만으로는 부족해서 따로 둔다. Low WT 분석의 기반.
+    """
     shift_tbl = """
     CREATE TABLE IF NOT EXISTS move_shift (
       biz_date DATE NOT NULL,
@@ -260,9 +265,24 @@ def ensure_move_schema(conn):
       KEY ix_md_line (sys_line_id, biz_date)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """
+    lot_tbl = """
+    CREATE TABLE IF NOT EXISTS move_lot (
+      biz_date DATE NOT NULL,
+      shift VARCHAR(3) NOT NULL,
+      sys_line_id VARCHAR(32) NOT NULL,
+      lot_id VARCHAR(64) NOT NULL,
+      move_qty BIGINT NOT NULL DEFAULT 0,
+      tkout_cnt INT NOT NULL DEFAULT 0,
+      loaded_at DATETIME NOT NULL,
+      PRIMARY KEY (biz_date, shift, sys_line_id, lot_id),
+      KEY ix_ml_day (biz_date, sys_line_id),
+      KEY ix_ml_lot (lot_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
     with conn.cursor() as cur:
         cur.execute(shift_tbl)
         cur.execute(daily_tbl)
+        cur.execute(lot_tbl)
     conn.commit()
 
 
@@ -348,7 +368,7 @@ def promote_to_history(conn, columns, now=None):
     return bd, shift, snap, dist
 
 
-def replace_move(conn, df_shift, df_daily, biz_dates):
+def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None):
     """지정 업무일 구간을 통째로 교체한다(중복 비교 없이 멱등)."""
     now = dt.datetime.now()
     with conn.cursor() as cur:
@@ -356,6 +376,7 @@ def replace_move(conn, df_shift, df_daily, biz_dates):
             lo, hi = min(biz_dates), max(biz_dates)
             cur.execute("DELETE FROM move_shift WHERE biz_date BETWEEN %s AND %s", (lo, hi))
             cur.execute("DELETE FROM move_daily WHERE biz_date BETWEEN %s AND %s", (lo, hi))
+            cur.execute("DELETE FROM move_lot WHERE biz_date BETWEEN %s AND %s", (lo, hi))
         if len(df_shift):
             cur.executemany(
                 "INSERT INTO move_shift "
@@ -370,6 +391,14 @@ def replace_move(conn, df_shift, df_daily, biz_dates):
                 "VALUES (%s,%s,%s,%s,%s)",
                 [(r.biz_date, r.sys_line_id, int(r.move_qty), int(r.lot_cnt), now)
                  for r in df_daily.itertuples(index=False)])
+        if df_lot is not None and len(df_lot):
+            cur.executemany(
+                "INSERT INTO move_lot "
+                "(biz_date, shift, sys_line_id, lot_id, move_qty, tkout_cnt, loaded_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                [(r.biz_date, r.shift, r.sys_line_id, str(r.lot_id)[:64],
+                  int(r.move_qty), int(r.tkout_cnt), now)
+                 for r in df_lot.itertuples(index=False)])
     conn.commit()
 
 

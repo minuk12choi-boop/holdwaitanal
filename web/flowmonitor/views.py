@@ -37,6 +37,24 @@ STATUS_COLORS = {
 
 # Top5 설비의 '대기랏' 판정 기준. 진행 중(RUN)이 아니라 설비를 기다리는 상태.
 WAITING_STATUS = ("WAIT", "WAIT(진행불가)")
+
+# lot_type 정렬: PP > PB > PG > EG, 그 외는 뒤에 오름차순
+LOT_TYPE_ORDER = ["PP", "PB", "PG", "EG"]
+
+
+def lot_type_key(t):
+    return (LOT_TYPE_ORDER.index(t), "") if t in LOT_TYPE_ORDER else (99, t)
+
+
+# Low WT 분석
+SHIFT_COLS = ["GY", "DAY", "SW"]
+WT_BINS = [
+    {"key": "0",     "label": "WT = 0",         "lo": None, "hi": 0.0},
+    {"key": "0-0.5", "label": "0 < WT ≤ 0.5",   "lo": 0.0,  "hi": 0.5},
+    {"key": "0.5-1", "label": "0.5 < WT ≤ 1.0", "lo": 0.5,  "hi": 1.0},
+]
+# 원인 대분류. 위에서부터 우선순위. 겹치면 하나에만 귀속한다.
+WT_CAUSES = ["Hold", "Wait성 진행불가", "설비", "TIP", "기타/미분류"]
 LOOKBACK_DAYS = 140
 
 # blueprint 7.3 권장 상대 높이. 템플릿에는 계산된 px 로 넘긴다.
@@ -482,7 +500,7 @@ def api_status(request):
         if not d:
             cards.append({**c, "ready": False})
             continue
-        types = [ALL_TYPES] + sorted(t for t in types_by_line.get(c["line"], ()))
+        types = [ALL_TYPES] + sorted(types_by_line.get(c["line"], ()), key=lot_type_key)
         mv = move.get(c["line"], {})
         cards.append({
             **c, "ready": True, "types": types,
@@ -497,4 +515,119 @@ def api_status(request):
         "snapshot_at": (snap.strftime("%Y-%m-%d %H:%M")
                         if hasattr(snap, "strftime") else (str(snap) if snap else None)),
         "move_biz_date": str(move_bd) if move_bd else None,
+    }, json_dumps_params={"ensure_ascii": False})
+
+
+# ---------------------------------------------------------------------------
+# Low WT 분석
+#   WT = 그 구간의 lot MOVE / 재공 매수.  MOVE 기록이 없으면 WT = 0.
+#   원인은 Hold > Wait성 진행불가(exception/ftp) > 설비(down) > TIP(prevent)
+#   순으로 하나에만 귀속한다(중복 카운트 없음).
+# ---------------------------------------------------------------------------
+def _cause_of(hold, exception, ftp, down, tip):
+    if hold:
+        return "Hold"
+    if exception or ftp:
+        return "Wait성 진행불가"
+    if down:
+        return "설비"
+    if tip:
+        return "TIP"
+    return "기타/미분류"
+
+
+def _bin_of(wt, max_wt):
+    if wt is None or wt > max_wt:
+        return None
+    for b in WT_BINS:
+        if b["hi"] > max_wt + 1e-9:
+            break
+        if b["lo"] is None:
+            if wt <= 0:
+                return b["key"]
+        elif b["lo"] < wt <= b["hi"]:
+            return b["key"]
+    return None
+
+
+def _wt_source(biz_date, line):
+    """(구간명 -> {lot_id: (qty, cause)}), (구간명 -> {lot_id: move})"""
+    types = ",".join(["%s"] * len(MOVE_LOT_TYPES))
+    lots, moves = {}, {}
+
+    with connection.cursor() as cur:
+        cur.execute(f"""
+            SELECT shift, lot_id,
+                   MIN(CAST(qty AS SIGNED)) AS qty,
+                   MIN(hold) AS hold, MIN(exception) AS exception, MIN(ftp) AS ftp,
+                   MIN(CASE WHEN `현스텝`='현스텝' THEN down END) AS down,
+                   MIN(CASE WHEN `현스텝`='현스텝' THEN tip END)  AS tip
+            FROM   f3_history
+            WHERE  biz_date = %s AND `line` = %s AND lot_type IN ({types})
+            GROUP  BY shift, lot_id
+        """, [biz_date, line, *MOVE_LOT_TYPES])
+        for sh, lot, qty, hold, exc, ftp, down, tip in cur.fetchall():
+            lots.setdefault(sh, {})[lot] = (
+                int(qty or 0), _cause_of(hold, exc, ftp, down, tip))
+
+        cur.execute("""
+            SELECT shift, lot_id, SUM(move_qty)
+            FROM   move_lot WHERE biz_date = %s AND sys_line_id = %s
+            GROUP  BY shift, lot_id
+        """, [biz_date, line])
+        for sh, lot, mv in cur.fetchall():
+            moves.setdefault(sh, {})[lot] = float(mv or 0)
+
+    # 전체: 업무일 대표 스냅샷(GY 우선) 의 lot + 하루 전체 MOVE
+    rep = next((s for s in ("GY", "DAY", "SW") if s in lots), None)
+    if rep:
+        lots["전체"] = lots[rep]
+    day_move = {}
+    for sh in SHIFT_COLS:
+        for lot, mv in moves.get(sh, {}).items():
+            day_move[lot] = day_move.get(lot, 0) + mv
+    moves["전체"] = day_move
+    return lots, moves
+
+
+def api_lowwt(request):
+    line = request.GET.get("line", "")
+    max_wt = float(request.GET.get("max_wt", 0) or 0)
+    if not (_table_exists("f3_history") and _table_exists("move_lot")):
+        return JsonResponse({"ready": False, "reason": "f3_history / move_lot 미적재"})
+
+    with connection.cursor() as cur:
+        cur.execute("SELECT MAX(biz_date) FROM f3_history")
+        bd = cur.fetchone()[0]
+    if not bd:
+        return JsonResponse({"ready": False, "reason": "f3_history 비어 있음"})
+
+    lots, moves = _wt_source(bd, line)
+    cols = ["전체"] + SHIFT_COLS
+    bins = [b for b in WT_BINS if b["hi"] <= max_wt + 1e-9] or [WT_BINS[0]]
+
+    summary, dist, cause = {}, {}, {}
+    for col in cols:
+        lt = lots.get(col, {})
+        mv = moves.get(col, {})
+        base = len(lt)
+        low_lots, bin_cnt, cause_cnt = 0, {b["key"]: 0 for b in bins}, {}
+        for lot, (qty, cs) in lt.items():
+            wt = (mv.get(lot, 0.0) / qty) if qty else 0.0
+            key = _bin_of(wt, max_wt)
+            if key is None:
+                continue
+            low_lots += 1
+            bin_cnt[key] += 1
+            cause_cnt.setdefault(key, {}).setdefault(cs, 0)
+            cause_cnt[key][cs] += 1
+        summary[col] = {"base": base, "low": low_lots,
+                        "rate": round(low_lots / base * 100, 1) if base else 0}
+        dist[col] = bin_cnt
+        cause[col] = cause_cnt
+
+    return JsonResponse({
+        "ready": True, "biz_date": str(bd), "line": line, "max_wt": max_wt,
+        "cols": cols, "bins": bins, "causes": WT_CAUSES,
+        "summary": summary, "dist": dist, "cause": cause,
     }, json_dumps_params={"ensure_ascii": False})
