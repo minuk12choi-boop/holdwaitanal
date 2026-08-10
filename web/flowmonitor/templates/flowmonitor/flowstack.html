@@ -22,6 +22,14 @@
   .card .head { color:#fff; text-align:center; font-weight:600; padding:8px 0;
                 font-size:15px; letter-spacing:-.01em; }
   .card .cell { border-top:1px solid var(--bd); padding:10px 12px; }
+  .card .wip { display:flex; align-items:center; justify-content:space-between;
+               gap:8px; }
+  .card .wip .nums { display:flex; gap:18px; }
+  .card .wip .nums div { text-align:left; }
+  .card .wip b { display:block; font-size:19px; line-height:1.2; }
+  .card .wip span { font-size:11px; color:var(--mut); }
+  .card .wip select { font-size:11px; padding:3px 5px; border:1px solid var(--bd);
+                      border-radius:4px; background:#fff; }
   .card .donut { display:flex; align-items:center; gap:12px; }
   .card .donut .cv { width:118px; height:118px; flex:0 0 118px; }
   .card .donut .txt { font-size:12px; color:var(--mut); line-height:1.5; }
@@ -162,17 +170,24 @@ function cardHtml(c, i) {
       <div class="cell" style="height:120px"></div>
       <div class="dev">개발중</div></div>`;
   }
-  const leg = c.status.map((st, si) =>
-    `<span onclick="pickStatus(${i},${si})"><i style="background:${st.color}"></i>${st.name}</span>`
-  ).join("");
+  const opts = c.types.map(t => `<option value="${t}">${t}</option>`).join("");
   return `<div class="card">
     <div class="head" style="background:${c.head}">${c.label}</div>
+    <div class="cell">
+      <div class="wip">
+        <div class="nums">
+          <div><b id="wl_${i}">-</b><span>재공 LOT</span></div>
+          <div><b id="wq_${i}">-</b><span>재공 매</span></div>
+        </div>
+        <select onchange="pickType(${i}, this.value)">${opts}</select>
+      </div>
+    </div>
     <div class="cell">
       <div class="donut">
         <div class="cv"><canvas id="dn_${i}"></canvas></div>
         <div class="txt" id="dt_${i}"></div>
       </div>
-      <div class="legend">${leg}</div>
+      <div class="legend" id="lg_${i}"></div>
     </div>
     <div class="cell">
       <div class="cellttl">대기 LOT 상위 설비 5</div>
@@ -188,27 +203,81 @@ function cardHtml(c, i) {
 }
 
 let STATUS_DATA = [];
+const CUR_TYPE = {};      // 카드별 선택된 lot_type
+const CUR_SEL = {};       // 카드별 선택된 status index
 
-function setCenter(i, sel) {
-  const c = STATUS_DATA[i], ch = window["dn" + i];
+function curPack(i) {
+  return STATUS_DATA[i].by_type[CUR_TYPE[i]];
+}
+
+function setCenter(i) {
+  const p = curPack(i), sel = CUR_SEL[i], ch = window["dn" + i];
   const d = (sel === null || sel === undefined)
-    ? { label: c.default.label, pct: c.default.pct, lots: c.default.lots,
-        qty: c.default.qty, color: "#111827" }
-    : { label: c.status[sel].name, pct: c.status[sel].pct,
-        lots: c.status[sel].lots, qty: c.status[sel].qty,
-        color: c.status[sel].color };
+    ? { label: p.default.label, pct: p.default.pct, lots: p.default.lots,
+        qty: p.default.qty, color: "#111827" }
+    : { label: p.status[sel].name, pct: p.status[sel].pct,
+        lots: p.status[sel].lots, qty: p.status[sel].qty,
+        color: p.status[sel].color };
   ch.$center = { big: d.pct.toFixed(1) + "%", small: d.label, color: d.color };
   ch.draw();
   document.getElementById("dt_" + i).innerHTML =
-    `<b>${nf(d.lots)} LOT</b>${nf(d.qty)} 매<br>
-     <span style="color:#9CA3AF">전체 ${nf(c.total.lots)} LOT · ${nf(c.total.qty)} 매</span>`;
+    `<b>${nf(d.lots)} LOT</b>${nf(d.qty)} 매`;
+}
+
+function renderCard(i) {
+  const p = curPack(i);
+  document.getElementById("wl_" + i).textContent = nf(p.total.lots);
+  document.getElementById("wq_" + i).textContent = nf(p.total.qty);
+  document.getElementById("lg_" + i).innerHTML = p.status.map((st, si) =>
+    `<span onclick="pickStatus(${i},${si})"><i style="background:${st.color}"></i>`
+    + `${st.name} ${st.pct}%</span>`).join("");
+
+  const dn = window["dn" + i];
+  dn.data.datasets[0].data = p.status.map(s => s.lots);
+  dn.$status = p.status;
+  dn.update();
+  setCenter(i);
+
+  const eq = window["eq" + i];
+  eq.data.labels = p.top_eqp.map(e => e.name);
+  eq.data.datasets[0].data = p.top_eqp.map(e => e.lots);
+  eq.$qty = p.top_eqp.map(e => e.qty);
+  eq.update();
+}
+
+function pickType(i, t) {
+  CUR_TYPE[i] = t;
+  CUR_SEL[i] = null;
+  renderCard(i);
 }
 
 function pickStatus(i, si) {
-  const cur = window["sel" + i];
-  window["sel" + i] = (cur === si) ? null : si;   // 다시 누르면 기본값으로
-  setCenter(i, window["sel" + i]);
+  CUR_SEL[i] = (CUR_SEL[i] === si) ? null : si;   // 다시 누르면 기본값
+  setCenter(i);
 }
+
+// 조각 위에 상태 비율을 직접 표기
+const donutSliceLabels = {
+  id: "donutSliceLabels",
+  afterDatasetsDraw(c) {
+    const st = c.$status || [];
+    const ctx = c.ctx;
+    ctx.save();
+    ctx.font = "600 10px 'Malgun Gothic', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    c.getDatasetMeta(0).data.forEach((arc, k) => {
+      const v = st[k];
+      if (!v || v.pct < 6) return;            // 너무 얇으면 생략
+      const a = (arc.startAngle + arc.endAngle) / 2;
+      const r = (arc.innerRadius + arc.outerRadius) / 2;
+      ctx.fillStyle = "#fff";
+      ctx.fillText(v.pct + "%",
+                   arc.x + Math.cos(a) * r, arc.y + Math.sin(a) * r);
+    });
+    ctx.restore();
+  }
+};
 
 function drawCards(res) {
   document.getElementById("status").innerHTML =
@@ -218,11 +287,15 @@ function drawCards(res) {
   res.cards.forEach((c, i) => {
     if (!c.ready) return;
 
+    const p0 = c.by_type[c.types[0]];
+    CUR_TYPE[i] = c.types[0];
+    CUR_SEL[i] = null;
+
     window["dn" + i] = new Chart(document.getElementById("dn_" + i), {
       type: "doughnut",
-      data: { labels: c.status.map(s => s.name),
-              datasets: [{ data: c.status.map(s => s.lots),
-                           backgroundColor: c.status.map(s => s.color),
+      data: { labels: p0.status.map(s => s.name),
+              datasets: [{ data: p0.status.map(s => s.lots),
+                           backgroundColor: p0.status.map(s => s.color),
                            borderWidth: 0 }] },
       options: {
         responsive: true, maintainAspectRatio: false, cutout: "68%",
@@ -230,28 +303,26 @@ function drawCards(res) {
         plugins: {
           legend: { display: false },
           tooltip: { callbacks: { label: (t) => {
-            const st = c.status[t.dataIndex];
+            const st = (t.chart.$status || p0.status)[t.dataIndex];
             return `${st.name}  ${st.pct}% · ${nf(st.lots)} LOT · ${nf(st.qty)} 매`;
           } } }
         },
         onClick: (e, els) => { if (els.length) pickStatus(i, els[0].index); }
       },
-      plugins: [donutCenter]
+      plugins: [donutCenter, donutSliceLabels]
     });
-    window["sel" + i] = null;
-    setCenter(i, null);
 
-    new Chart(document.getElementById("eq_" + i), {
+    window["eq" + i] = new Chart(document.getElementById("eq_" + i), {
       type: "bar",
-      data: { labels: c.top_eqp.map(e => e.name),
-              datasets: [{ data: c.top_eqp.map(e => e.lots),
+      data: { labels: p0.top_eqp.map(e => e.name),
+              datasets: [{ data: p0.top_eqp.map(e => e.lots),
                            backgroundColor: c.head, borderRadius: 2 }] },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
         layout: { padding: { top: 16 } },
         plugins: { legend: { display: false },
                    tooltip: { callbacks: { label: (t) =>
-                     `${nf(t.parsed.y)} LOT · ${nf(c.top_eqp[t.dataIndex].qty)} 매` } } },
+                     `${t.parsed.y} LOT · ${nf((t.chart.$qty || [])[t.dataIndex])} 매` } } },
         scales: { x: { grid: { display: false }, ticks: { font: { size: 9 } } },
                   y: { display: false, beginAtZero: true, grace: "20%" } }
       },
@@ -260,11 +331,12 @@ function drawCards(res) {
         ctx.font = "10px 'Malgun Gothic'"; ctx.textAlign = "center";
         ch.getDatasetMeta(0).data.forEach((el, k) => {
           ctx.fillStyle = "#374151";
-          ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x, el.y - 4);
+          ctx.fillText(ch.data.datasets[0].data[k], el.x, el.y - 4);
         });
         ctx.restore();
       } }]
     });
+    window["eq" + i].$qty = p0.top_eqp.map(e => e.qty);
 
     new Chart(document.getElementById("mv_" + i), {
       type: "bar",
@@ -290,6 +362,8 @@ function drawCards(res) {
         ctx.restore();
       } }]
     });
+
+    renderCard(i);
   });
 }
 
@@ -469,17 +543,24 @@ function cardHtml(c, i) {
       <div class="cell" style="height:120px"></div>
       <div class="dev">개발중</div></div>`;
   }
-  const leg = c.status.map((st, si) =>
-    `<span onclick="pickStatus(${i},${si})"><i style="background:${st.color}"></i>${st.name}</span>`
-  ).join("");
+  const opts = c.types.map(t => `<option value="${t}">${t}</option>`).join("");
   return `<div class="card">
     <div class="head" style="background:${c.head}">${c.label}</div>
+    <div class="cell">
+      <div class="wip">
+        <div class="nums">
+          <div><b id="wl_${i}">-</b><span>재공 LOT</span></div>
+          <div><b id="wq_${i}">-</b><span>재공 매</span></div>
+        </div>
+        <select onchange="pickType(${i}, this.value)">${opts}</select>
+      </div>
+    </div>
     <div class="cell">
       <div class="donut">
         <div class="cv"><canvas id="dn_${i}"></canvas></div>
         <div class="txt" id="dt_${i}"></div>
       </div>
-      <div class="legend">${leg}</div>
+      <div class="legend" id="lg_${i}"></div>
     </div>
     <div class="cell">
       <div class="cellttl">대기 LOT 상위 설비 5</div>
@@ -495,27 +576,81 @@ function cardHtml(c, i) {
 }
 
 let STATUS_DATA = [];
+const CUR_TYPE = {};      // 카드별 선택된 lot_type
+const CUR_SEL = {};       // 카드별 선택된 status index
 
-function setCenter(i, sel) {
-  const c = STATUS_DATA[i], ch = window["dn" + i];
+function curPack(i) {
+  return STATUS_DATA[i].by_type[CUR_TYPE[i]];
+}
+
+function setCenter(i) {
+  const p = curPack(i), sel = CUR_SEL[i], ch = window["dn" + i];
   const d = (sel === null || sel === undefined)
-    ? { label: c.default.label, pct: c.default.pct, lots: c.default.lots,
-        qty: c.default.qty, color: "#111827" }
-    : { label: c.status[sel].name, pct: c.status[sel].pct,
-        lots: c.status[sel].lots, qty: c.status[sel].qty,
-        color: c.status[sel].color };
+    ? { label: p.default.label, pct: p.default.pct, lots: p.default.lots,
+        qty: p.default.qty, color: "#111827" }
+    : { label: p.status[sel].name, pct: p.status[sel].pct,
+        lots: p.status[sel].lots, qty: p.status[sel].qty,
+        color: p.status[sel].color };
   ch.$center = { big: d.pct.toFixed(1) + "%", small: d.label, color: d.color };
   ch.draw();
   document.getElementById("dt_" + i).innerHTML =
-    `<b>${nf(d.lots)} LOT</b>${nf(d.qty)} 매<br>
-     <span style="color:#9CA3AF">전체 ${nf(c.total.lots)} LOT · ${nf(c.total.qty)} 매</span>`;
+    `<b>${nf(d.lots)} LOT</b>${nf(d.qty)} 매`;
+}
+
+function renderCard(i) {
+  const p = curPack(i);
+  document.getElementById("wl_" + i).textContent = nf(p.total.lots);
+  document.getElementById("wq_" + i).textContent = nf(p.total.qty);
+  document.getElementById("lg_" + i).innerHTML = p.status.map((st, si) =>
+    `<span onclick="pickStatus(${i},${si})"><i style="background:${st.color}"></i>`
+    + `${st.name} ${st.pct}%</span>`).join("");
+
+  const dn = window["dn" + i];
+  dn.data.datasets[0].data = p.status.map(s => s.lots);
+  dn.$status = p.status;
+  dn.update();
+  setCenter(i);
+
+  const eq = window["eq" + i];
+  eq.data.labels = p.top_eqp.map(e => e.name);
+  eq.data.datasets[0].data = p.top_eqp.map(e => e.lots);
+  eq.$qty = p.top_eqp.map(e => e.qty);
+  eq.update();
+}
+
+function pickType(i, t) {
+  CUR_TYPE[i] = t;
+  CUR_SEL[i] = null;
+  renderCard(i);
 }
 
 function pickStatus(i, si) {
-  const cur = window["sel" + i];
-  window["sel" + i] = (cur === si) ? null : si;   // 다시 누르면 기본값으로
-  setCenter(i, window["sel" + i]);
+  CUR_SEL[i] = (CUR_SEL[i] === si) ? null : si;   // 다시 누르면 기본값
+  setCenter(i);
 }
+
+// 조각 위에 상태 비율을 직접 표기
+const donutSliceLabels = {
+  id: "donutSliceLabels",
+  afterDatasetsDraw(c) {
+    const st = c.$status || [];
+    const ctx = c.ctx;
+    ctx.save();
+    ctx.font = "600 10px 'Malgun Gothic', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    c.getDatasetMeta(0).data.forEach((arc, k) => {
+      const v = st[k];
+      if (!v || v.pct < 6) return;            // 너무 얇으면 생략
+      const a = (arc.startAngle + arc.endAngle) / 2;
+      const r = (arc.innerRadius + arc.outerRadius) / 2;
+      ctx.fillStyle = "#fff";
+      ctx.fillText(v.pct + "%",
+                   arc.x + Math.cos(a) * r, arc.y + Math.sin(a) * r);
+    });
+    ctx.restore();
+  }
+};
 
 function drawCards(res) {
   document.getElementById("status").innerHTML =
@@ -525,11 +660,15 @@ function drawCards(res) {
   res.cards.forEach((c, i) => {
     if (!c.ready) return;
 
+    const p0 = c.by_type[c.types[0]];
+    CUR_TYPE[i] = c.types[0];
+    CUR_SEL[i] = null;
+
     window["dn" + i] = new Chart(document.getElementById("dn_" + i), {
       type: "doughnut",
-      data: { labels: c.status.map(s => s.name),
-              datasets: [{ data: c.status.map(s => s.lots),
-                           backgroundColor: c.status.map(s => s.color),
+      data: { labels: p0.status.map(s => s.name),
+              datasets: [{ data: p0.status.map(s => s.lots),
+                           backgroundColor: p0.status.map(s => s.color),
                            borderWidth: 0 }] },
       options: {
         responsive: true, maintainAspectRatio: false, cutout: "68%",
@@ -537,28 +676,26 @@ function drawCards(res) {
         plugins: {
           legend: { display: false },
           tooltip: { callbacks: { label: (t) => {
-            const st = c.status[t.dataIndex];
+            const st = (t.chart.$status || p0.status)[t.dataIndex];
             return `${st.name}  ${st.pct}% · ${nf(st.lots)} LOT · ${nf(st.qty)} 매`;
           } } }
         },
         onClick: (e, els) => { if (els.length) pickStatus(i, els[0].index); }
       },
-      plugins: [donutCenter]
+      plugins: [donutCenter, donutSliceLabels]
     });
-    window["sel" + i] = null;
-    setCenter(i, null);
 
-    new Chart(document.getElementById("eq_" + i), {
+    window["eq" + i] = new Chart(document.getElementById("eq_" + i), {
       type: "bar",
-      data: { labels: c.top_eqp.map(e => e.name),
-              datasets: [{ data: c.top_eqp.map(e => e.lots),
+      data: { labels: p0.top_eqp.map(e => e.name),
+              datasets: [{ data: p0.top_eqp.map(e => e.lots),
                            backgroundColor: c.head, borderRadius: 2 }] },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
         layout: { padding: { top: 16 } },
         plugins: { legend: { display: false },
                    tooltip: { callbacks: { label: (t) =>
-                     `${nf(t.parsed.y)} LOT · ${nf(c.top_eqp[t.dataIndex].qty)} 매` } } },
+                     `${t.parsed.y} LOT · ${nf((t.chart.$qty || [])[t.dataIndex])} 매` } } },
         scales: { x: { grid: { display: false }, ticks: { font: { size: 9 } } },
                   y: { display: false, beginAtZero: true, grace: "20%" } }
       },
@@ -567,11 +704,12 @@ function drawCards(res) {
         ctx.font = "10px 'Malgun Gothic'"; ctx.textAlign = "center";
         ch.getDatasetMeta(0).data.forEach((el, k) => {
           ctx.fillStyle = "#374151";
-          ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x, el.y - 4);
+          ctx.fillText(ch.data.datasets[0].data[k], el.x, el.y - 4);
         });
         ctx.restore();
       } }]
     });
+    window["eq" + i].$qty = p0.top_eqp.map(e => e.qty);
 
     new Chart(document.getElementById("mv_" + i), {
       type: "bar",
@@ -597,6 +735,8 @@ function drawCards(res) {
         ctx.restore();
       } }]
     });
+
+    renderCard(i);
   });
 }
 

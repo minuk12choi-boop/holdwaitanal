@@ -374,14 +374,16 @@ def _latest_snapshot():
 
 
 def _lot_rows(snapshot_at):
-    """lot 단위로 접은 현재 단면. (line, lot_id, status, qty, eqpgroup)
+    """lot 단위로 접은 현재 단면.
 
+    (line, lot_id, lot_type, lot_status, qty, eqpgroup)
     f3 는 lot 당 현스텝 + 연속블록 행이 있어 그대로 쓰면 중복된다.
     설비는 현스텝 행의 eqpgroup 을 쓴다.
     """
     with connection.cursor() as cur:
         cur.execute("""
             SELECT `line`, lot_id,
+                   MIN(lot_type)                                     AS lot_type,
                    MIN(lot_status)                                   AS lot_status,
                    MIN(CAST(qty AS SIGNED))                          AS qty,
                    MIN(CASE WHEN `현스텝` = '현스텝' THEN eqpgroup END) AS eqpgroup
@@ -409,58 +411,82 @@ def _move_by_shift():
     return out, bd
 
 
+ALL_TYPES = "전체"
+
+
+def _blank():
+    return {"status": {}, "eqp": {}, "lots": 0, "qty": 0}
+
+
 def api_status(request):
     snap = _latest_snapshot()
     lots = _lot_rows(snap) if snap else []
     move, move_bd = _move_by_shift()
 
-    by_line = {}
-    for line, lot_id, status, qty, eqpgroup in lots:
-        d = by_line.setdefault(line, {"status": {}, "eqp": {}})
+    # line -> lot_type -> 집계. ALL_TYPES 버킷도 함께 채운다.
+    agg = {}
+    types_by_line = {}
+    for line, lot_id, lot_type, status, qty, eqpgroup in lots:
+        lt = (lot_type or "-").strip()
+        types_by_line.setdefault(line, set()).add(lt)
         st = status or "-"
-        cur = d["status"].setdefault(st, {"lots": 0, "qty": 0})
-        cur["lots"] += 1
-        cur["qty"] += int(qty or 0)
-        if st in WAITING_STATUS and eqpgroup:
-            for e in {x.strip() for x in str(eqpgroup).split(",") if x.strip()}:
-                ec = d["eqp"].setdefault(e, {"lots": 0, "qty": 0})
-                ec["lots"] += 1
-                ec["qty"] += int(qty or 0)
+        q = int(qty or 0)
 
-    cards = []
-    for c in LINE_CARDS:
-        d = by_line.get(c["line"])
-        mv = move.get(c["line"], {})
-        if not d:
-            cards.append({**c, "ready": False})
-            continue
+        # 설비그룹은 n개 설비로 엮여 있으면 각 설비에 1/n LOT, 1/n 매로 나눠 계상한다.
+        # (모든 설비에 1랏씩 계상하면 합계가 실제 대기량보다 부풀려진다)
+        eqps = [x.strip() for x in str(eqpgroup or "").split(",") if x.strip()]
+        w = 1.0 / len(eqps) if eqps else 0.0
 
-        tot_lots = sum(v["lots"] for v in d["status"].values())
-        tot_qty = sum(v["qty"] for v in d["status"].values())
+        for bucket in (ALL_TYPES, lt):
+            d = agg.setdefault(line, {}).setdefault(bucket, _blank())
+            d["lots"] += 1
+            d["qty"] += q
+            c = d["status"].setdefault(st, {"lots": 0, "qty": 0})
+            c["lots"] += 1
+            c["qty"] += q
+            if st in WAITING_STATUS and eqps:
+                for e in eqps:
+                    ec = d["eqp"].setdefault(e, {"lots": 0.0, "qty": 0.0})
+                    ec["lots"] += w
+                    ec["qty"] += q * w
+
+    def pack(d):
+        tot_l, tot_q = d["lots"], d["qty"]
         status = []
         for st in STATUS_ORDER:
             v = d["status"].get(st, {"lots": 0, "qty": 0})
             status.append({
                 "name": st, "color": STATUS_COLORS[st],
                 "lots": v["lots"], "qty": v["qty"],
-                "pct": round(v["lots"] / tot_lots * 100, 1) if tot_lots else 0,
-                "qty_pct": round(v["qty"] / tot_qty * 100, 1) if tot_qty else 0,
+                "pct": round(v["lots"] / tot_l * 100, 1) if tot_l else 0,
             })
         blocked = [x for x in status if x["name"] in ("HOLD", "WAIT(진행불가)")]
-
         top = sorted(d["eqp"].items(), key=lambda kv: (-kv[1]["lots"], kv[0]))[:5]
-        cards.append({
-            **c, "ready": True,
-            "total": {"lots": tot_lots, "qty": tot_qty},
+        return {
+            "total": {"lots": tot_l, "qty": tot_q},
             "status": status,
             "default": {
                 "label": "HOLD+진행불가",
-                "pct": round(sum(x["lots"] for x in blocked) / tot_lots * 100, 1)
-                       if tot_lots else 0,
+                "pct": round(sum(x["lots"] for x in blocked) / tot_l * 100, 1)
+                       if tot_l else 0,
                 "lots": sum(x["lots"] for x in blocked),
                 "qty": sum(x["qty"] for x in blocked),
             },
-            "top_eqp": [{"name": k, "lots": v["lots"], "qty": v["qty"]} for k, v in top],
+            "top_eqp": [{"name": k, "lots": round(v["lots"], 1),
+                         "qty": int(round(v["qty"]))} for k, v in top],
+        }
+
+    cards = []
+    for c in LINE_CARDS:
+        d = agg.get(c["line"])
+        if not d:
+            cards.append({**c, "ready": False})
+            continue
+        types = [ALL_TYPES] + sorted(t for t in types_by_line.get(c["line"], ()))
+        mv = move.get(c["line"], {})
+        cards.append({
+            **c, "ready": True, "types": types,
+            "by_type": {t: pack(d[t]) for t in types if t in d},
             "move": {"GY": mv.get("GY", 0), "DAY": mv.get("DAY", 0),
                      "SW": mv.get("SW", 0),
                      "total": sum(mv.get(k, 0) for k in ("GY", "DAY", "SW"))},
