@@ -14,6 +14,33 @@
   header nav a { color:var(--mut); text-decoration:none; margin-right:20px;
                  font-size:14px; padding:6px 0; }
   header nav a.on { color:var(--fg); border-bottom:2px solid var(--fg); }
+  /* 상단 현황 구역 */
+  .status { display:grid; grid-template-columns:repeat(4,1fr); gap:0;
+            border-bottom:1px solid var(--bd); }
+  .card { border-right:1px solid var(--bd); position:relative; }
+  .card:last-child { border-right:0; }
+  .card .head { color:#fff; text-align:center; font-weight:600; padding:8px 0;
+                font-size:15px; letter-spacing:-.01em; }
+  .card .cell { border-top:1px solid var(--bd); padding:10px 12px; }
+  .card .donut { display:flex; align-items:center; gap:12px; }
+  .card .donut .cv { width:118px; height:118px; flex:0 0 118px; }
+  .card .donut .txt { font-size:12px; color:var(--mut); line-height:1.5; }
+  .card .donut .txt b { display:block; font-size:22px; color:var(--fg);
+                        line-height:1.2; }
+  .card .legend { display:flex; flex-wrap:wrap; gap:6px 10px; margin-top:6px; }
+  .card .legend span { font-size:11px; color:var(--mut); cursor:pointer;
+                       display:inline-flex; align-items:center; gap:4px; }
+  .card .legend i { width:9px; height:9px; border-radius:2px; }
+  .card .cellttl { font-size:11px; color:var(--mut); margin-bottom:6px; }
+  .card .movebox { display:flex; align-items:center; gap:12px; }
+  .card .movebox .cv { flex:1; height:96px; }
+  .card .movetot { text-align:right; }
+  .card .movetot b { display:block; font-size:24px; line-height:1.15; }
+  .card .movetot span { font-size:11px; color:var(--mut); }
+  .card .dev { position:absolute; inset:38px 0 0 0; background:rgba(255,255,255,.82);
+               display:flex; align-items:center; justify-content:center;
+               font-size:14px; color:var(--mut); font-weight:600; letter-spacing:.02em; }
+
   main { display:flex; gap:16px; padding:16px; align-items:flex-start; }
   .left { flex:0 0 32%; min-width:400px; }
   .right { flex:1; border:1px solid var(--bd); border-radius:6px; padding:16px;
@@ -51,6 +78,8 @@
     {% endfor %}
   </nav>
 </header>
+
+<section class="status" id="status"></section>
 
 <main>
   <div class="left">
@@ -98,7 +127,177 @@ function setBasis(b) {
     const el = document.getElementById("basis_" + k);
     if (el) el.textContent = (b === "qty") ? "매수 기준" : "Lot수 기준";
   });
-  load();
+  // ---------------------------------------------------------------------------
+// 상단 현황 카드
+// ---------------------------------------------------------------------------
+const nf = (n) => Number(n || 0).toLocaleString("ko-KR");
+
+// 도넛 가운데 텍스트
+const donutCenter = {
+  id: "donutCenter",
+  afterDraw(c) {
+    const t = c.$center;
+    if (!t) return;
+    const { top, bottom, left, right } = c.chartArea;
+    const x = (left + right) / 2, y = (top + bottom) / 2;
+    const ctx = c.ctx;
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.fillStyle = t.color || "#111827";
+    ctx.font = "600 19px 'Malgun Gothic', sans-serif";
+    ctx.fillText(t.big, x, y + 2);
+    ctx.fillStyle = "#6B7280";
+    ctx.font = "10px 'Malgun Gothic', sans-serif";
+    ctx.fillText(t.small, x, y + 17);
+    ctx.restore();
+  }
+};
+
+function cardHtml(c, i) {
+  if (!c.ready) {
+    return `<div class="card">
+      <div class="head" style="background:${c.head}">${c.label}</div>
+      <div class="cell" style="height:150px"></div>
+      <div class="cell" style="height:120px"></div>
+      <div class="cell" style="height:120px"></div>
+      <div class="dev">개발중</div></div>`;
+  }
+  const leg = c.status.map((st, si) =>
+    `<span onclick="pickStatus(${i},${si})"><i style="background:${st.color}"></i>${st.name}</span>`
+  ).join("");
+  return `<div class="card">
+    <div class="head" style="background:${c.head}">${c.label}</div>
+    <div class="cell">
+      <div class="donut">
+        <div class="cv"><canvas id="dn_${i}"></canvas></div>
+        <div class="txt" id="dt_${i}"></div>
+      </div>
+      <div class="legend">${leg}</div>
+    </div>
+    <div class="cell">
+      <div class="cellttl">대기 LOT 상위 설비 5</div>
+      <div style="height:118px"><canvas id="eq_${i}"></canvas></div>
+    </div>
+    <div class="cell">
+      <div class="cellttl">Shift 별 MOVE</div>
+      <div class="movebox">
+        <div class="cv"><canvas id="mv_${i}"></canvas></div>
+        <div class="movetot"><b>${nf(c.move.total)}</b><span>당일 MOVE (매)</span></div>
+      </div>
+    </div></div>`;
+}
+
+let STATUS_DATA = [];
+
+function setCenter(i, sel) {
+  const c = STATUS_DATA[i], ch = window["dn" + i];
+  const d = (sel === null || sel === undefined)
+    ? { label: c.default.label, pct: c.default.pct, lots: c.default.lots,
+        qty: c.default.qty, color: "#111827" }
+    : { label: c.status[sel].name, pct: c.status[sel].pct,
+        lots: c.status[sel].lots, qty: c.status[sel].qty,
+        color: c.status[sel].color };
+  ch.$center = { big: d.pct.toFixed(1) + "%", small: d.label, color: d.color };
+  ch.draw();
+  document.getElementById("dt_" + i).innerHTML =
+    `<b>${nf(d.lots)} LOT</b>${nf(d.qty)} 매<br>
+     <span style="color:#9CA3AF">전체 ${nf(c.total.lots)} LOT · ${nf(c.total.qty)} 매</span>`;
+}
+
+function pickStatus(i, si) {
+  const cur = window["sel" + i];
+  window["sel" + i] = (cur === si) ? null : si;   // 다시 누르면 기본값으로
+  setCenter(i, window["sel" + i]);
+}
+
+function drawCards(res) {
+  document.getElementById("status").innerHTML =
+    res.cards.map((c, i) => cardHtml(c, i)).join("");
+  STATUS_DATA = res.cards;
+
+  res.cards.forEach((c, i) => {
+    if (!c.ready) return;
+
+    window["dn" + i] = new Chart(document.getElementById("dn_" + i), {
+      type: "doughnut",
+      data: { labels: c.status.map(s => s.name),
+              datasets: [{ data: c.status.map(s => s.lots),
+                           backgroundColor: c.status.map(s => s.color),
+                           borderWidth: 0 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: "68%",
+        animation: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (t) => {
+            const st = c.status[t.dataIndex];
+            return `${st.name}  ${st.pct}% · ${nf(st.lots)} LOT · ${nf(st.qty)} 매`;
+          } } }
+        },
+        onClick: (e, els) => { if (els.length) pickStatus(i, els[0].index); }
+      },
+      plugins: [donutCenter]
+    });
+    window["sel" + i] = null;
+    setCenter(i, null);
+
+    new Chart(document.getElementById("eq_" + i), {
+      type: "bar",
+      data: { labels: c.top_eqp.map(e => e.name),
+              datasets: [{ data: c.top_eqp.map(e => e.lots),
+                           backgroundColor: c.head, borderRadius: 2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        layout: { padding: { top: 16 } },
+        plugins: { legend: { display: false },
+                   tooltip: { callbacks: { label: (t) =>
+                     `${nf(t.parsed.y)} LOT · ${nf(c.top_eqp[t.dataIndex].qty)} 매` } } },
+        scales: { x: { grid: { display: false }, ticks: { font: { size: 9 } } },
+                  y: { display: false, beginAtZero: true, grace: "20%" } }
+      },
+      plugins: [{ id: "barLbl", afterDatasetsDraw(ch) {
+        const ctx = ch.ctx; ctx.save();
+        ctx.font = "10px 'Malgun Gothic'"; ctx.textAlign = "center";
+        ch.getDatasetMeta(0).data.forEach((el, k) => {
+          ctx.fillStyle = "#374151";
+          ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x, el.y - 4);
+        });
+        ctx.restore();
+      } }]
+    });
+
+    new Chart(document.getElementById("mv_" + i), {
+      type: "bar",
+      data: { labels: ["GY", "DAY", "SW"],
+              datasets: [{ data: [c.move.GY, c.move.DAY, c.move.SW],
+                           backgroundColor: c.head, borderRadius: 2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        layout: { padding: { top: 16 } },
+        plugins: { legend: { display: false },
+                   tooltip: { callbacks: { label: (t) => nf(t.parsed.y) + " 매" } } },
+        scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                  y: { display: false, beginAtZero: true, grace: "20%" } }
+      },
+      plugins: [{ id: "mvLbl", afterDatasetsDraw(ch) {
+        const ctx = ch.ctx; ctx.save();
+        ctx.font = "10px 'Malgun Gothic'"; ctx.textAlign = "center";
+        ch.getDatasetMeta(0).data.forEach((el, k) => {
+          const v = ch.data.datasets[0].data[k];
+          ctx.fillStyle = "#374151";
+          ctx.fillText((v / 1000).toFixed(1) + "k", el.x, el.y - 4);
+        });
+        ctx.restore();
+      } }]
+    });
+  });
+}
+
+fetch("/api/status/").then(r => r.json()).then(res => {
+  if (window.Chart) drawCards(res);
+});
+
+load();
 }
 
 // 값 레이블을 점 위에 직접 그린다(별도 플러그인 의존 없이).
@@ -234,6 +433,176 @@ function load() {
     });
   });
 }
+
+// ---------------------------------------------------------------------------
+// 상단 현황 카드
+// ---------------------------------------------------------------------------
+const nf = (n) => Number(n || 0).toLocaleString("ko-KR");
+
+// 도넛 가운데 텍스트
+const donutCenter = {
+  id: "donutCenter",
+  afterDraw(c) {
+    const t = c.$center;
+    if (!t) return;
+    const { top, bottom, left, right } = c.chartArea;
+    const x = (left + right) / 2, y = (top + bottom) / 2;
+    const ctx = c.ctx;
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.fillStyle = t.color || "#111827";
+    ctx.font = "600 19px 'Malgun Gothic', sans-serif";
+    ctx.fillText(t.big, x, y + 2);
+    ctx.fillStyle = "#6B7280";
+    ctx.font = "10px 'Malgun Gothic', sans-serif";
+    ctx.fillText(t.small, x, y + 17);
+    ctx.restore();
+  }
+};
+
+function cardHtml(c, i) {
+  if (!c.ready) {
+    return `<div class="card">
+      <div class="head" style="background:${c.head}">${c.label}</div>
+      <div class="cell" style="height:150px"></div>
+      <div class="cell" style="height:120px"></div>
+      <div class="cell" style="height:120px"></div>
+      <div class="dev">개발중</div></div>`;
+  }
+  const leg = c.status.map((st, si) =>
+    `<span onclick="pickStatus(${i},${si})"><i style="background:${st.color}"></i>${st.name}</span>`
+  ).join("");
+  return `<div class="card">
+    <div class="head" style="background:${c.head}">${c.label}</div>
+    <div class="cell">
+      <div class="donut">
+        <div class="cv"><canvas id="dn_${i}"></canvas></div>
+        <div class="txt" id="dt_${i}"></div>
+      </div>
+      <div class="legend">${leg}</div>
+    </div>
+    <div class="cell">
+      <div class="cellttl">대기 LOT 상위 설비 5</div>
+      <div style="height:118px"><canvas id="eq_${i}"></canvas></div>
+    </div>
+    <div class="cell">
+      <div class="cellttl">Shift 별 MOVE</div>
+      <div class="movebox">
+        <div class="cv"><canvas id="mv_${i}"></canvas></div>
+        <div class="movetot"><b>${nf(c.move.total)}</b><span>당일 MOVE (매)</span></div>
+      </div>
+    </div></div>`;
+}
+
+let STATUS_DATA = [];
+
+function setCenter(i, sel) {
+  const c = STATUS_DATA[i], ch = window["dn" + i];
+  const d = (sel === null || sel === undefined)
+    ? { label: c.default.label, pct: c.default.pct, lots: c.default.lots,
+        qty: c.default.qty, color: "#111827" }
+    : { label: c.status[sel].name, pct: c.status[sel].pct,
+        lots: c.status[sel].lots, qty: c.status[sel].qty,
+        color: c.status[sel].color };
+  ch.$center = { big: d.pct.toFixed(1) + "%", small: d.label, color: d.color };
+  ch.draw();
+  document.getElementById("dt_" + i).innerHTML =
+    `<b>${nf(d.lots)} LOT</b>${nf(d.qty)} 매<br>
+     <span style="color:#9CA3AF">전체 ${nf(c.total.lots)} LOT · ${nf(c.total.qty)} 매</span>`;
+}
+
+function pickStatus(i, si) {
+  const cur = window["sel" + i];
+  window["sel" + i] = (cur === si) ? null : si;   // 다시 누르면 기본값으로
+  setCenter(i, window["sel" + i]);
+}
+
+function drawCards(res) {
+  document.getElementById("status").innerHTML =
+    res.cards.map((c, i) => cardHtml(c, i)).join("");
+  STATUS_DATA = res.cards;
+
+  res.cards.forEach((c, i) => {
+    if (!c.ready) return;
+
+    window["dn" + i] = new Chart(document.getElementById("dn_" + i), {
+      type: "doughnut",
+      data: { labels: c.status.map(s => s.name),
+              datasets: [{ data: c.status.map(s => s.lots),
+                           backgroundColor: c.status.map(s => s.color),
+                           borderWidth: 0 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: "68%",
+        animation: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (t) => {
+            const st = c.status[t.dataIndex];
+            return `${st.name}  ${st.pct}% · ${nf(st.lots)} LOT · ${nf(st.qty)} 매`;
+          } } }
+        },
+        onClick: (e, els) => { if (els.length) pickStatus(i, els[0].index); }
+      },
+      plugins: [donutCenter]
+    });
+    window["sel" + i] = null;
+    setCenter(i, null);
+
+    new Chart(document.getElementById("eq_" + i), {
+      type: "bar",
+      data: { labels: c.top_eqp.map(e => e.name),
+              datasets: [{ data: c.top_eqp.map(e => e.lots),
+                           backgroundColor: c.head, borderRadius: 2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        layout: { padding: { top: 16 } },
+        plugins: { legend: { display: false },
+                   tooltip: { callbacks: { label: (t) =>
+                     `${nf(t.parsed.y)} LOT · ${nf(c.top_eqp[t.dataIndex].qty)} 매` } } },
+        scales: { x: { grid: { display: false }, ticks: { font: { size: 9 } } },
+                  y: { display: false, beginAtZero: true, grace: "20%" } }
+      },
+      plugins: [{ id: "barLbl", afterDatasetsDraw(ch) {
+        const ctx = ch.ctx; ctx.save();
+        ctx.font = "10px 'Malgun Gothic'"; ctx.textAlign = "center";
+        ch.getDatasetMeta(0).data.forEach((el, k) => {
+          ctx.fillStyle = "#374151";
+          ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x, el.y - 4);
+        });
+        ctx.restore();
+      } }]
+    });
+
+    new Chart(document.getElementById("mv_" + i), {
+      type: "bar",
+      data: { labels: ["GY", "DAY", "SW"],
+              datasets: [{ data: [c.move.GY, c.move.DAY, c.move.SW],
+                           backgroundColor: c.head, borderRadius: 2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        layout: { padding: { top: 16 } },
+        plugins: { legend: { display: false },
+                   tooltip: { callbacks: { label: (t) => nf(t.parsed.y) + " 매" } } },
+        scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                  y: { display: false, beginAtZero: true, grace: "20%" } }
+      },
+      plugins: [{ id: "mvLbl", afterDatasetsDraw(ch) {
+        const ctx = ch.ctx; ctx.save();
+        ctx.font = "10px 'Malgun Gothic'"; ctx.textAlign = "center";
+        ch.getDatasetMeta(0).data.forEach((el, k) => {
+          const v = ch.data.datasets[0].data[k];
+          ctx.fillStyle = "#374151";
+          ctx.fillText((v / 1000).toFixed(1) + "k", el.x, el.y - 4);
+        });
+        ctx.restore();
+      } }]
+    });
+  });
+}
+
+fetch("/api/status/").then(r => r.json()).then(res => {
+  if (window.Chart) drawCards(res);
+});
 
 load();
 </script>

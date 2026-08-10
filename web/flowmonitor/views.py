@@ -17,6 +17,26 @@ LINE_COLORS = {"KFR7": "#2563EB", "PFR1": "#059669",
                "KFR4": "#EA580C", "P3R3": "#D19A00"}
 
 MOVE_LOT_TYPES = ("PP", "PB", "PG")
+
+# 상단 현황 카드. 좌측부터 고정 순서.
+#   label = 화면 표기, line = f3/move 의 실제 라인 코드
+LINE_CARDS = [
+    {"label": "NRD",   "line": "KFR4", "head": "#2F4B7C"},
+    {"label": "NRD-P", "line": "PFR1", "head": "#2FA8D8"},
+    {"label": "NRD-K", "line": "KFR7", "head": "#8CC63F"},
+    {"label": "NRD-V", "line": "KFR6", "head": "#F97C4F"},
+]
+
+STATUS_ORDER = ["RUN", "WAIT", "HOLD", "WAIT(진행불가)"]
+STATUS_COLORS = {
+    "RUN": "#2563EB",            # 파랑
+    "WAIT": "#16A34A",           # 초록
+    "HOLD": "#DC2626",           # 빨강
+    "WAIT(진행불가)": "#EAB308",   # 노랑
+}
+
+# Top5 설비의 '대기랏' 판정 기준. 진행 중(RUN)이 아니라 설비를 기다리는 상태.
+WAITING_STATUS = ("WAIT", "WAIT(진행불가)")
 LOOKBACK_DAYS = 140
 
 # blueprint 7.3 권장 상대 높이. 템플릿에는 계산된 px 로 넘긴다.
@@ -340,3 +360,115 @@ def api_health(request):
         k: sum(1 for ds in v["datasets"] for x in ds["data"] if x is not None)
         for k, v in panels.items()}
     return JsonResponse(info, json_dumps_params={"ensure_ascii": False, "indent": 2})
+
+
+# ---------------------------------------------------------------------------
+# 상단 현황 카드 (라인별 현재 단면)
+# ---------------------------------------------------------------------------
+def _latest_snapshot():
+    if not _table_exists("f3_live"):
+        return None
+    with connection.cursor() as cur:
+        cur.execute("SELECT MAX(snapshot_at) FROM f3_live")
+        return cur.fetchone()[0]
+
+
+def _lot_rows(snapshot_at):
+    """lot 단위로 접은 현재 단면. (line, lot_id, status, qty, eqpgroup)
+
+    f3 는 lot 당 현스텝 + 연속블록 행이 있어 그대로 쓰면 중복된다.
+    설비는 현스텝 행의 eqpgroup 을 쓴다.
+    """
+    with connection.cursor() as cur:
+        cur.execute("""
+            SELECT `line`, lot_id,
+                   MIN(lot_status)                                   AS lot_status,
+                   MIN(CAST(qty AS SIGNED))                          AS qty,
+                   MIN(CASE WHEN `현스텝` = '현스텝' THEN eqpgroup END) AS eqpgroup
+            FROM   f3_live
+            WHERE  snapshot_at = %s
+            GROUP  BY `line`, lot_id
+        """, [snapshot_at])
+        return cur.fetchall()
+
+
+def _move_by_shift():
+    """가장 최근 업무일의 라인별 shift MOVE."""
+    if not _table_exists("move_shift"):
+        return {}, None
+    with connection.cursor() as cur:
+        cur.execute("SELECT MAX(biz_date) FROM move_shift")
+        bd = cur.fetchone()[0]
+        if not bd:
+            return {}, None
+        cur.execute("SELECT sys_line_id, shift, move_qty FROM move_shift "
+                    "WHERE biz_date = %s", [bd])
+        out = {}
+        for line, sh, qty in cur.fetchall():
+            out.setdefault(line, {})[sh] = int(qty or 0)
+    return out, bd
+
+
+def api_status(request):
+    snap = _latest_snapshot()
+    lots = _lot_rows(snap) if snap else []
+    move, move_bd = _move_by_shift()
+
+    by_line = {}
+    for line, lot_id, status, qty, eqpgroup in lots:
+        d = by_line.setdefault(line, {"status": {}, "eqp": {}})
+        st = status or "-"
+        cur = d["status"].setdefault(st, {"lots": 0, "qty": 0})
+        cur["lots"] += 1
+        cur["qty"] += int(qty or 0)
+        if st in WAITING_STATUS and eqpgroup:
+            for e in {x.strip() for x in str(eqpgroup).split(",") if x.strip()}:
+                ec = d["eqp"].setdefault(e, {"lots": 0, "qty": 0})
+                ec["lots"] += 1
+                ec["qty"] += int(qty or 0)
+
+    cards = []
+    for c in LINE_CARDS:
+        d = by_line.get(c["line"])
+        mv = move.get(c["line"], {})
+        if not d:
+            cards.append({**c, "ready": False})
+            continue
+
+        tot_lots = sum(v["lots"] for v in d["status"].values())
+        tot_qty = sum(v["qty"] for v in d["status"].values())
+        status = []
+        for st in STATUS_ORDER:
+            v = d["status"].get(st, {"lots": 0, "qty": 0})
+            status.append({
+                "name": st, "color": STATUS_COLORS[st],
+                "lots": v["lots"], "qty": v["qty"],
+                "pct": round(v["lots"] / tot_lots * 100, 1) if tot_lots else 0,
+                "qty_pct": round(v["qty"] / tot_qty * 100, 1) if tot_qty else 0,
+            })
+        blocked = [x for x in status if x["name"] in ("HOLD", "WAIT(진행불가)")]
+
+        top = sorted(d["eqp"].items(), key=lambda kv: (-kv[1]["lots"], kv[0]))[:5]
+        cards.append({
+            **c, "ready": True,
+            "total": {"lots": tot_lots, "qty": tot_qty},
+            "status": status,
+            "default": {
+                "label": "HOLD+진행불가",
+                "pct": round(sum(x["lots"] for x in blocked) / tot_lots * 100, 1)
+                       if tot_lots else 0,
+                "lots": sum(x["lots"] for x in blocked),
+                "qty": sum(x["qty"] for x in blocked),
+            },
+            "top_eqp": [{"name": k, "lots": v["lots"], "qty": v["qty"]} for k, v in top],
+            "move": {"GY": mv.get("GY", 0), "DAY": mv.get("DAY", 0),
+                     "SW": mv.get("SW", 0),
+                     "total": sum(mv.get(k, 0) for k in ("GY", "DAY", "SW"))},
+        })
+
+    return JsonResponse({
+        "cards": cards,
+        "snapshot_at": (snap.strftime("%Y-%m-%d %H:%M")
+                        if hasattr(snap, "strftime") else (str(snap) if snap else None)),
+        "move_biz_date": str(move_bd) if move_bd else None,
+    }, json_dumps_params={"ensure_ascii": False})
