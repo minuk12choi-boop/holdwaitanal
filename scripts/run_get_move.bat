@@ -1,10 +1,13 @@
 @echo off
 REM ---------------------------------------------------------------------------
-REM get_move.py 단독 실행 래퍼
+REM get_move.py 수동 실행 래퍼
 REM
-REM 평상시에는 run_build_f3.bat 이 22시대에 알아서 이어 돌리므로 별도 스케줄
-REM 등록이 필요 없다. 수동 재적재나 --full 백필용으로 쓴다.
-REM   예)  scripts\run_get_move.bat --full
+REM 자동 실행은 run_build_f3.bat 이 shift 시점(06/14/22시)에 이어서 처리한다.
+REM 이 파일은 스케줄러에 등록하지 않는다. 백필이나 재적재가 필요할 때만 쓴다.
+REM
+REM   scripts\run_get_move.bat              최근 2일치 재적재
+REM   scripts\run_get_move.bat --full       3개월치 백필
+REM   scripts\run_get_move.bat --days 7     최근 7일
 REM ---------------------------------------------------------------------------
 cd /d "%~dp0.."
 if not exist logs mkdir logs
