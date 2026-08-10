@@ -165,7 +165,7 @@ t.process,
 t.step,
 t.ppid,
 t.eqpid,
-'-' as lot_type,
+lot_type,
 (case when t.chamberid in ('-', 'MAIN') then 'MAIN' else t.chamberid end) as chamberid,
 (case 
 when t.type = 'DOING' then 'DOING'
@@ -289,7 +289,7 @@ t.process,
 t.step,
 t.ppid,
 t.eqpid,
-'-' as lot_type,
+lot_type,
 (case when t.chamberid in ('-', 'MAIN') then 'MAIN' else t.chamberid end) as chamberid,
 (case 
 when t.type = 'DOING' then 'DOING'
