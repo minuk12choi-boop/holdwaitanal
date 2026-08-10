@@ -6,7 +6,8 @@
 <style>
   :root { --bd:#E5E7EB; --fg:#111827; --mut:#6B7280; }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:"Malgun Gothic","Segoe UI",sans-serif; color:var(--fg); }
+  body { margin:0; font-family:"Malgun Gothic","Segoe UI",sans-serif; color:var(--fg);
+         font-size:14px; }
   header { border-bottom:1px solid var(--bd); padding:0 20px; display:flex;
            align-items:center; gap:28px; height:52px; }
   header .brand { font-weight:700; letter-spacing:-.02em; }
@@ -14,14 +15,19 @@
                  font-size:14px; padding:6px 0; }
   header nav a.on { color:var(--fg); border-bottom:2px solid var(--fg); }
   main { display:flex; gap:16px; padding:16px; align-items:flex-start; }
-  .left { flex:0 0 32%; min-width:380px; }
+  .left { flex:0 0 32%; min-width:400px; }
   .right { flex:1; border:1px solid var(--bd); border-radius:6px; padding:16px;
-           color:var(--mut); font-size:14px; }
-  .panel { border:1px solid var(--bd); border-radius:6px; padding:12px 14px; }
-  .panel h2 { margin:0 0 2px; font-size:14px; }
-  .panel .sub { color:var(--mut); font-size:12px; margin-bottom:8px; }
-  .wrap { height:220px; }
-  .err { color:#B91C1C; font-size:13px; }
+           color:var(--mut); position:sticky; top:16px; }
+  .panel { border:1px solid var(--bd); border-radius:6px; padding:10px 12px 6px;
+           margin-bottom:10px; }
+  .panel h2 { margin:0; font-size:13px; display:flex; justify-content:space-between;
+              align-items:baseline; }
+  .panel h2 .unit { color:var(--mut); font-size:11px; font-weight:400; }
+  .wrap { position:relative; }
+  #legend { display:flex; gap:14px; margin:0 0 8px 2px; font-size:12px; }
+  #legend span { display:inline-flex; align-items:center; gap:5px; }
+  #legend i { width:14px; height:3px; border-radius:2px; display:inline-block; }
+  .err { color:#B91C1C; font-size:13px; padding:8px 2px; }
 </style>
 </head>
 <body>
@@ -36,30 +42,42 @@
 
 <main>
   <div class="left">
+    <div id="legend"></div>
+    {% for p in panels %}
     <div class="panel">
-      <h2>MOVE</h2>
-      <div class="sub">최근 3개월 · 4주 · 7일 &nbsp;|&nbsp; 월·주는 기간 평균(총 MOVE ÷ 일수)</div>
-      <div class="wrap"><canvas id="moveChart"></canvas></div>
-      <div id="moveErr" class="err"></div>
+      <h2>{{ p.title }}<span class="unit">{{ p.unit }}</span></h2>
+      <div class="wrap" style="height:{{ p.h }}00px">
+        <canvas id="c_{{ p.key }}"></canvas>
+      </div>
     </div>
+    {% endfor %}
+    <div id="err" class="err"></div>
   </div>
   <div class="right">상세 영역 (f3_live 연결 예정)</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-fetch("/api/move/").then(r => r.json()).then(d => {
+const KIND_KO = { month: "월평균", week: "주평균", day: "일" };
+
+fetch("/api/flowstack/").then(r => r.json()).then(res => {
   if (!window.Chart) {
-    document.getElementById("moveErr").textContent =
+    document.getElementById("err").textContent =
       "Chart.js 로드 실패 (사내망 CDN 차단 가능). static 으로 내려받아 교체하세요.";
     return;
   }
-  // 단위가 바뀌는 지점(gap)에 세로 구분선
+  const first = res.panels[res.order[0]];
+
+  // Line 범례는 패널마다 반복하지 않고 상단에 한 번만
+  document.getElementById("legend").innerHTML = first.datasets.map(
+    d => `<span><i style="background:${d.borderColor}"></i>${d.label}</span>`).join("");
+
+  // 단위가 바뀌는 지점에 세로 구분선
   const gapLine = {
     id: "gapLine",
     beforeDatasetsDraw(c) {
       const x = c.scales.x, ctx = c.ctx;
-      d.kinds.forEach((k, i) => {
+      (c.$kinds || []).forEach((k, i) => {
         if (k !== "gap") return;
         const px = x.getPixelForValue(i);
         ctx.save();
@@ -69,26 +87,39 @@ fetch("/api/move/").then(r => r.json()).then(d => {
       });
     }
   };
-  new Chart(document.getElementById("moveChart"), {
-    type: "line",
-    data: { labels: d.labels, datasets: d.datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      plugins: {
-        legend: { position: "top", labels: { boxWidth: 10, font: { size: 11 } } },
-        tooltip: { callbacks: { title: (t) => {
-          const i = t[0].dataIndex;
-          const kind = { month: "월평균", week: "주평균", day: "일" }[d.kinds[i]] || "";
-          return d.labels[i] + (kind ? " (" + kind + ")" : "");
-        } } }
+
+  res.order.forEach((key, idx) => {
+    const d = res.panels[key];
+    const last = idx === res.order.length - 1;   // x축 라벨은 마지막 패널에만
+    const ch = new Chart(document.getElementById("c_" + key), {
+      type: "line",
+      data: { labels: d.labels, datasets: d.datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: (t) => {
+                const i = t[0].dataIndex;
+                const k = KIND_KO[d.kinds[i]] || "";
+                return d.labels[i] + (k ? " (" + k + ")" : "");
+              },
+              label: (t) => `${t.dataset.label}  ${t.formattedValue} ${d.unit}`
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false },
+               ticks: { display: last, font: { size: 10 }, autoSkip: false } },
+          y: { beginAtZero: true, ticks: { font: { size: 10 } } }
+        }
       },
-      scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
-        y: { beginAtZero: true, title: { display: true, text: "MOVE (매)" } }
-      }
-    },
-    plugins: [gapLine]
+      plugins: [gapLine]
+    });
+    ch.$kinds = d.kinds;
+    ch.update();
   });
 });
 </script>
