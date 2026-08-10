@@ -357,17 +357,13 @@ def prefilter_tip(df_tip, s_scope):
     사라진다. 즉 윈도우 연산 결과가 왜곡되지 않는다.
     """
     t = _lower_cols(df_tip)
-    procs = set(s_scope["proc_id"].dropna())
-    steps = set(s_scope["step_seq"].dropna())
-    ppids = set(s_scope["recipe_id"].dropna())
-    eqps = set(s_scope["eqp_id"].dropna())
-
-    def ok(col, allowed):
+    mask = np.ones(len(t), dtype=bool)
+    for col, scol in (("process", "proc_id"), ("step", "step_seq"),
+                      ("ppid", "recipe_id"), ("eqpid", "eqp_id")):
+        allowed = pd.Index(pd.unique(s_scope[scol].dropna()))
         v = t[col]
-        return v.isna() | v.eq("-") | v.eq("") | v.isin(allowed)
-
-    keep = ok("process", procs) & ok("step", steps) & ok("ppid", ppids) & ok("eqpid", eqps)
-    return t[keep]
+        mask &= (v.isna() | v.isin(["-", ""]) | v.isin(allowed)).to_numpy()
+    return t[mask]
 
 
 def _build_t(df_tip, line):
@@ -1289,6 +1285,19 @@ def _sheet_name(name):
     return clean[:31] or "sheet"
 
 
+def _excel_writer(path):
+    """xlsxwriter 가 있으면 그것을 쓴다. openpyxl 은 전 셀을 객체로 들고 있어
+    수십만 행에서 수 분이 걸리고 MemoryError 도 난다."""
+    try:
+        import xlsxwriter  # noqa: F401
+        return pd.ExcelWriter(path, engine="xlsxwriter",
+                              engine_kwargs={"options": {"constant_memory": True}})
+    except ImportError:
+        print("[WARN] xlsxwriter 미설치 → openpyxl 사용(느림). "
+              "pip install xlsxwriter 권장", flush=True)
+        return pd.ExcelWriter(path, engine="openpyxl")
+
+
 def _write_sheets(xw, sheets):
     """행수가 시트 한계를 넘으면 name_1, name_2 ... 로 나눠 적재."""
     for name, df in sheets.items():
@@ -1311,7 +1320,7 @@ def _write_sheets(xw, sheets):
 def save_result_workbook(path, df_f3, load_log, dup_rows, dup_cols, mixed_groups,
                          tip_match, eqpgroup_trace=None):
     """결과·진단 시트만 담은 본 파일. 크기가 작아 실패 위험이 없다."""
-    with pd.ExcelWriter(path, engine="openpyxl") as xw:
+    with _excel_writer(path) as xw:
         _excel_safe(df_f3).to_excel(xw, sheet_name="f3", index=False)
         pd.DataFrame(load_log).to_excel(xw, sheet_name="로딩시각", index=False)
 
@@ -1332,7 +1341,7 @@ def save_result_workbook(path, df_f3, load_log, dup_rows, dup_cols, mixed_groups
 def save_raw_workbook(path, raw_samples, extra_sheets):
     """원본테이블 검증 파일. openpyxl 은 전 셀을 메모리에 들고 있어 대용량에서
     MemoryError 가 난다. 본 파일과 분리해 두어 실패해도 결과가 보존되게 한다."""
-    with pd.ExcelWriter(path, engine="openpyxl") as xw:
+    with _excel_writer(path) as xw:
         _write_sheets(xw, {**(extra_sheets or {}), **raw_samples})
 
 

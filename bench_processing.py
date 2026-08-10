@@ -45,11 +45,40 @@ def timed(fn, repeat):
 
 
 def frame_key(df, cols):
-    """비교용 정규화: 지정 컬럼만 문자열화해 정렬."""
+    """비교용 정규화.
+
+    숫자 컬럼은 dtype 차이(int64 vs float64)로 '2' vs '2.0' 이 되어 실제로는
+    같은 값이 다르게 보인다. 숫자로 해석되면 float 로 통일한 뒤 문자열화한다.
+    """
     d = df[cols].copy()
     for c in cols:
-        d[c] = d[c].astype("string").fillna("\u2205")
+        num = pd.to_numeric(d[c], errors="coerce")
+        if num.notna().sum() and num.notna().sum() >= d[c].notna().sum():
+            d[c] = num.astype("Float64").round(6).astype("string")
+        else:
+            d[c] = d[c].astype("string")
+        d[c] = d[c].fillna("\u2205")
     return d.sort_values(cols, kind="mergesort").reset_index(drop=True)
+
+
+def compare_frames(base, other, cols, label):
+    """동일 여부 + 다르면 어느 컬럼이 몇 건 다른지 출력."""
+    a, b = frame_key(base, cols), frame_key(other, cols)
+    if a.equals(b):
+        return True, ""
+    if len(a) != len(b):
+        msg = f"행수 {len(a):,} vs {len(b):,}"
+        print(f"    [DIFF] {label}: {msg}", flush=True)
+        return False, msg
+    diffs = {c: int((a[c] != b[c]).sum()) for c in cols}
+    diffs = {c: n for c, n in diffs.items() if n}
+    msg = ", ".join(f"{c}:{n}건" for c, n in diffs.items())
+    print(f"    [DIFF] {label}: {msg}", flush=True)
+    for c in diffs:
+        m = a[c] != b[c]
+        print(f"      {c} 예시 현행={a.loc[m, c].head(3).tolist()} "
+              f"대안={b.loc[m, c].head(3).tolist()}", flush=True)
+    return False, msg
 
 
 # ---------------------------------------------------------------------------
@@ -183,11 +212,13 @@ def main():
             try:
                 d_t, d_avg, d_out = timed(
                     lambda: narrow_duckdb(df_path, df_lot, line), args.repeat)
-                cols = ["lot_id", "order_seq", "de_rank", "step_seq", "eqp_group_raw"]
-                same = frame_key(base, cols).equals(frame_key(d_out, cols))
+                cols = ["lot_id", "order_seq", "de_rank", "step_seq",
+                        "eqp_group_raw", "연속", "step_level", "ein"]
+                same, why = compare_frames(base, d_out, cols, f"narrow_{line} duckdb")
                 results.append({"단계": f"narrow_{line}", "방식": "duckdb",
                                 "최소_초": round(d_t, 2), "평균_초": round(d_avg, 2),
-                                "행수": len(d_out), "결과동일": "Y" if same else "N"})
+                                "행수": len(d_out), "결과동일": "Y" if same else "N",
+                                "차이": why})
                 print(f"  narrow_{line:5s} duckdb {d_t:6.2f}s rows={len(d_out):,} "
                       f"동일={same}", flush=True)
             except Exception as e:
@@ -217,10 +248,12 @@ def main():
                     try:
                         a_t, a_avg, a_out = timed(lambda: fn(df_tip, scope), args.repeat)
                         cols = ["process", "step", "ppid", "eqpid", "chamberid"]
-                        same = frame_key(p_base, cols).equals(frame_key(a_out, cols))
+                        same, why = compare_frames(p_base, a_out, cols,
+                                                   f"prefilter_{line} {name}")
                         results.append({"단계": f"prefilter_{line}", "방식": name,
                                         "최소_초": round(a_t, 2), "평균_초": round(a_avg, 2),
-                                        "행수": len(a_out), "결과동일": "Y" if same else "N"})
+                                        "행수": len(a_out), "결과동일": "Y" if same else "N",
+                                        "차이": why})
                         print(f"  prefilter_{line:5s} {name:10s} {a_t:6.2f}s "
                               f"rows={len(a_out):,} 동일={same}", flush=True)
                     except Exception as e:
