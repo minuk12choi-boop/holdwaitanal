@@ -737,6 +737,10 @@ WHERE  h.line_id IN ('KFR7', 'PFR1')
 # 최근 N일로 한정하면 전수 스캔을 피할 수 있다.
 HOLD_VERSION_LOOKBACK_DAYS = 7
 
+# hold 조회에서 mc_lot 조인을 생략할지. 생략해도 결과는 같다(재공 밖 lot 은
+# 어차피 f1 조인에서 버려진다). 조인이 mc_lot 두 테이블 전수 스캔을 유발한다.
+HOLD_SKIP_MCLOT_JOIN = True
+
 hold_max_query_bounded = """
 SELECT MAX(version_desc) AS mv
 FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
@@ -752,6 +756,18 @@ WHERE  line_id IN ('KFR7', 'PFR1')
 
 # 벤치(bench_loading) 최속안. version_desc 를 리터럴로 박으면 파티션 프루닝이
 # 걸려 조인/윈도우 방식보다 일관되게 빠르고 전송량도 174,632 -> 581 행으로 준다.
+# mc_lot 조인은 두 라인 테이블을 통째로 스캔하면서 1,743행 -> 589행 정도만 줄인다.
+# version_desc 리터럴이 이미 대부분을 걷어내므로 조인은 비용 대비 이득이 없다.
+# lot 범위 제한은 python 에서 df_lot 으로 처리한다(무료).
+hold_query_no_join = """
+SELECT line_id, item_type, status_seq, lot_id, step_seq,
+       hold_user_name, issue_reason_cont, issue_date, version_desc
+FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
+WHERE  line_id IN ('KFR7', 'PFR1')
+  AND  version_desc = '{MV}'
+  AND  status_seq <> '2'
+"""
+
 hold_query_two_step = """
 SELECT h.line_id, h.item_type, h.status_seq, h.lot_id, h.step_seq,
        h.hold_user_name, h.issue_reason_cont, h.issue_date, h.version_desc
@@ -936,7 +952,7 @@ def expand_with_equipment(scope, df_eqp, df_eqp_group, line):
 # ---------------------------------------------------------------------------
 # 2. hold
 # ---------------------------------------------------------------------------
-def build_hold(df_hold):
+def build_hold(df_hold, lot_ids=None):
     """FAB_ISSUE_LOT → h1/h2/h3.
 
     기존 Oracle: status_seq <> '2' 필터 후
@@ -957,6 +973,11 @@ def build_hold(df_hold):
               flush=True)
 
     h = h[~h["status_seq"].isin(HOLD_EXCLUDE_STATUS_SEQ)]
+    if lot_ids is not None:
+        # 서버에서 mc_lot 조인을 생략했으므로 여기서 재공 lot 으로 좁힌다.
+        before = len(h)
+        h = h[h["lot_id"].isin(lot_ids)]
+        print(f"[HOLD] 재공 lot 한정: {before:,} -> {len(h):,}행", flush=True)
     h = h.rename(columns={
         "hold_user_name": "hold_user",
         "issue_reason_cont": "hold_reason",
@@ -1544,7 +1565,9 @@ def main():
                     mv = getData(param=hold_max_query, convert_type=True,
                                  verbose=False).iloc[0, 0]
             print(f"[HOLD] 최신 version_desc = {mv}", flush=True)
-            df_hold = fetch("hold", hold_query_two_step.replace("{MV}", str(mv)))
+            sql = (hold_query_no_join if HOLD_SKIP_MCLOT_JOIN
+                   else hold_query_two_step).replace("{MV}", str(mv))
+            df_hold = fetch("hold", sql)
         else:
             df_hold = fetch("hold", hold_query)
 
@@ -1574,7 +1597,7 @@ def main():
     print(f"[ROWS] t = {len(t):,}", flush=True)
 
     with timer("hold 전처리"):
-        holds = build_hold(df_hold)
+        holds = build_hold(df_hold, set(_lower_cols(df_lot)["lot_id"].dropna()))
     for k, v in holds.items():
         print(f"[ROWS] {k} = {len(v):,}", flush=True)
 

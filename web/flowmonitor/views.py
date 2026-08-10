@@ -23,7 +23,7 @@ LOOKBACK_DAYS = 140
 PANEL_BASE_PX = 150
 PANELS = [
     {"key": "move",    "title": "MOVE",              "unit": "매",   "h": 1.2},
-    {"key": "wt",      "title": "W/T",               "unit": "회",   "h": 1.0},
+    {"key": "wt",      "title": "W/T",               "unit": "매/매", "h": 1.0},
     {"key": "wip",     "title": "재공",               "unit": "매",   "h": 1.2},
     {"key": "hold",    "title": "HOLD율",             "unit": "%",   "h": 0.8,
      "basis": True},
@@ -193,23 +193,42 @@ def _snapshots():
 
 
 def _load_log(snapshot_at):
+    """(행 목록, 합계행). 합계행은 소요초 합 + 전체 시작/종료 + 실제 경과."""
     if not _table_exists("f3_load_log"):
-        return []
+        return [], None
     with connection.cursor() as cur:
         cur.execute(
             "SELECT table_name, load_start, load_end, elapsed_sec, row_count, col_count "
             "FROM f3_load_log WHERE snapshot_at = %s ORDER BY id", [snapshot_at])
-        return [{"table": r[0], "start": r[1], "end": r[2], "sec": r[3],
+        rows = [{"table": r[0], "start": r[1], "end": r[2], "sec": r[3],
                  "rows": r[4], "cols": r[5]} for r in cur.fetchall()]
+
+    if not rows:
+        return rows, None
+
+    starts = [r["start"] for r in rows if r["start"]]
+    ends = [r["end"] for r in rows if r["end"]]
+    total = {
+        "table": "계",
+        "start": min(starts) if starts else None,
+        "end": max(ends) if ends else None,
+        "sec": round(sum(r["sec"] or 0 for r in rows), 3),
+        "rows": sum(r["rows"] or 0 for r in rows),
+        "cols": None,
+    }
+    if total["start"] and total["end"]:
+        total["wall"] = round((total["end"] - total["start"]).total_seconds(), 1)
+    return rows, total
 
 
 def downloads(request):
     snaps = _snapshots()
     sel = request.GET.get("snapshot") or (snaps[0]["snapshot_at"].strftime(
         "%Y-%m-%d %H:%M:%S") if snaps else "")
+    log, total = _load_log(sel) if sel else ([], None)
     return render(request, "flowmonitor/downloads.html", {
         "menu": [("FAB현황", "/"), ("다운로드", "/downloads/")],
-        "snapshots": snaps, "selected": sel, "load_log": _load_log(sel) if sel else [],
+        "snapshots": snaps, "selected": sel, "load_log": log, "load_total": total,
     })
 
 
@@ -234,7 +253,11 @@ def download_wip_raw(request):
     meta = df[drop].head(1) if drop else pd.DataFrame()
     df = df.drop(columns=drop)
 
-    log = pd.DataFrame(_load_log(snap))
+    log_rows, log_total = _load_log(snap)
+    if log_total:
+        log_rows = log_rows + [{k: log_total.get(k) for k in
+                                ("table", "start", "end", "sec", "rows", "cols")}]
+    log = pd.DataFrame(log_rows)
     if len(log):
         log.columns = ["테이블", "로딩_시작시각", "로딩_종료시각", "소요_초", "행수", "컬럼수"]
 

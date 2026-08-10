@@ -80,6 +80,20 @@
       </tr>
       {% endfor %}
     </tbody>
+    {% if load_total %}
+    <tfoot>
+      <tr style="font-weight:600; background:#F9FAFB">
+        <td>{{ load_total.table }}</td>
+        <td>{{ load_total.start|date:'Y-m-d H:i:s' }}</td>
+        <td>{{ load_total.end|date:'Y-m-d H:i:s' }}</td>
+        <td class="num">{{ load_total.sec }}{% if load_total.wall %}
+          <span style="color:var(--mut); font-weight:400">
+            (경과 {{ load_total.wall }})</span>{% endif %}</td>
+        <td class="num">{{ load_total.rows }}</td>
+        <td></td>
+      </tr>
+    </tfoot>
+    {% endif %}
   </table>
   {% else %}
   <div class="empty">이 스냅샷의 적재 시각 기록이 없습니다.
