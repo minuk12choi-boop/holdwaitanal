@@ -1,200 +1,125 @@
-<build_f3.py 결과> *xlsxwriter는 이 동작 이후에 설치 완료함. 
+<build_f3.py 결과> 
 [TIMER] 소형 원천 조회 start
-[QUERY] lot 조회 시작 2026-08-10 15:55:47
+[QUERY] lot 조회 시작 2026-08-10 16:21:10
 Query Executed Successfully...
->> Execution Time: 16.485 sec
+>> Execution Time: 1 min 14.455 sec
 ==================================================
-    Rows    :  8773
+    Rows    :  8756
     Columns :  22
-    Size    :  8.82+ MB
+    Size    :  8.81+ MB
 ==================================================
-[QUERY] lot rows=8,773 cols=22 16.7s
-[QUERY] equipment 조회 시작 2026-08-10 15:56:03
+[QUERY] lot rows=8,756 cols=22 74.7s
+[QUERY] equipment 조회 시작 2026-08-10 16:22:25
 Query Executed Successfully...
->> Execution Time: 25.558 sec
+>> Execution Time: 13.919 sec
 ==================================================
     Rows    :  37461
     Columns :  7
     Size    :  16.06+ MB
 ==================================================
-[QUERY] equipment rows=37,461 cols=7 25.6s
-[QUERY] eqp_group 조회 시작 2026-08-10 15:56:29
+[QUERY] equipment rows=37,461 cols=7 13.9s
+[QUERY] eqp_group 조회 시작 2026-08-10 16:22:39
 Query Executed Successfully...
->> Execution Time: 3.12 sec
+>> Execution Time: 4.535 sec
 ==================================================
     Rows    :  13117
     Columns :  3
     Size    :  2.43+ MB
 ==================================================
-[QUERY] eqp_group rows=13,117 cols=3 3.0s
-[QUERY] hold 조회 시작 2026-08-10 15:56:32
+[QUERY] eqp_group rows=13,117 cols=3 4.5s
+[FILTER] eqp_group 'OFF' 설비 제외: 13,117 -> 12,882
+[HOLD] 최신 version_desc = 20260810-140000
+[QUERY] hold 조회 시작 2026-08-10 16:23:20
 Query Executed Successfully...
->> Execution Time: 27.380 sec
+>> Execution Time: 3.68 sec
 ==================================================
-    Rows    :  174632
+    Rows    :  589
     Columns :  9
-    Size    :  106.49+ MB
+    Size    :  377.95+ KB
 ==================================================
-[QUERY] hold rows=174,632 cols=9 27.5s
-[TIMER] 소형 원천 조회 elapsed=72.847s
-[QUERY] KFR7_step_path 조회 시작 2026-08-10 15:57:00
+[QUERY] hold rows=589 cols=9 3.1s
+[TIMER] 소형 원천 조회 elapsed=132.674s
+[QUERY] KFR7_step_path 조회 시작 2026-08-10 16:23:23
 Query Executed Successfully...
->> Execution Time: 49.758 sec
+>> Execution Time: 42.515 sec
 ==================================================
-    Rows    :  4954499
+    Rows    :  4566257
     Columns :  15
-    Size    :  3.52+ GB
+    Size    :  3.24+ GB
 ==================================================
-[QUERY] KFR7_step_path rows=4,954,499 cols=15 55.2s
+[QUERY] KFR7_step_path rows=4,566,257 cols=15 47.4s
 [TIMER] KFR7 f3 범위 축약 start
-[TIMER] KFR7 f3 범위 축약 elapsed=18.458s
-[ROWS] KFR7 scope(step) = 8,301
+[TIMER] KFR7 f3 범위 축약 elapsed=19.234s
+[ROWS] KFR7 scope(step) = 8,299
 [TIMER] KFR7 설비그룹 전개 start
-[WARN] KFR7 설비그룹명에 없는 구성설비 1,083건 (옛 스냅샷 잔존 의심). 예: []
-[TIMER] KFR7 설비그룹 전개 elapsed=0.130s
-[QUERY] PFR1_step_path 조회 시작 2026-08-10 15:58:14
+[WARN] KFR7 설비그룹명에서 복원되지 않는 구성설비 596건 (옛 스냅샷 잔존 의심). 예: []
+[TIMER] KFR7 설비그룹 전개 elapsed=0.136s
+[QUERY] PFR1_step_path 조회 시작 2026-08-10 16:24:30
 Query Executed Successfully...
->> Execution Time: 6.191 sec
+>> Execution Time: 25.406 sec
 ==================================================
-    Rows    :  489541
+    Rows    :  432123
     Columns :  15
-    Size    :  353.85+ MB
+    Size    :  311.36+ MB
 ==================================================
-[QUERY] PFR1_step_path rows=489,541 cols=15 6.8s
+[QUERY] PFR1_step_path rows=432,123 cols=15 25.9s
 [TIMER] PFR1 f3 범위 축약 start
-[TIMER] PFR1 f3 범위 축약 elapsed=1.513s
+[TIMER] PFR1 f3 범위 축약 elapsed=1.386s
 [ROWS] PFR1 scope(step) = 1,691
 [TIMER] PFR1 설비그룹 전개 start
-[WARN] PFR1 설비그룹명에 없는 구성설비 459건 (옛 스냅샷 잔존 의심). 예: []]
-[TIMER] PFR1 설비그룹 전개 elapsed=0.061s
-[ROWS] s = 28,062
-[QUERY] KFR7_tip 조회 시작 2026-08-10 15:58:22
+[WARN] PFR1 설비그룹명에서 복원되지 않는 구성설비 217건 (옛 스냅샷 잔존 의심). 예: []
+[TIMER] PFR1 설비그룹 전개 elapsed=0.056s
+[ROWS] s = 28,151
+[QUERY] KFR7_tip 조회 시작 2026-08-10 16:24:58
 Query Executed Successfully...
->> Execution Time: 41.849 sec
+>> Execution Time: 46.21 sec
 ==================================================
     Rows    :  6470430
     Columns :  10
     Size    :  2.55+ GB
 ==================================================
-[QUERY] KFR7_tip rows=6,470,430 cols=10 45.6s
+[QUERY] KFR7_tip rows=6,470,430 cols=10 49.8s
 [TIMER] KFR7 tip 선필터 start
-[TIMER] KFR7 tip 선필터 elapsed=3.856s
-[FILTER] KFR7 tip 6,470,430 -> 27,773
+[TIMER] KFR7 tip 선필터 elapsed=3.810s
+[FILTER] KFR7 tip 6,470,430 -> 27,765
 [TIMER] KFR7 tip 전처리 start
-[TIMER] KFR7 tip 전처리 elapsed=0.335s
-[QUERY] PFR1_tip 조회 시작 2026-08-10 15:59:13
+[TIMER] KFR7 tip 전처리 elapsed=0.326s
+[QUERY] PFR1_tip 조회 시작 2026-08-10 16:25:52
 Query Executed Successfully...
->> Execution Time: 19.438 sec
+>> Execution Time: 23.516 sec
 ==================================================
-    Rows    :  2959545
+    Rows    :  2960096
     Columns :  10
     Size    :  1.15+ GB
 ==================================================
-[QUERY] PFR1_tip rows=2,959,545 cols=10 21.2s
+[QUERY] PFR1_tip rows=2,960,096 cols=10 25.2s
 [TIMER] PFR1 tip 선필터 start
-[TIMER] PFR1 tip 선필터 elapsed=1.730s
-[FILTER] PFR1 tip 2,959,545 -> 5,213
+[TIMER] PFR1 tip 선필터 elapsed=1.845s
+[FILTER] PFR1 tip 2,960,096 -> 5,208
 [TIMER] PFR1 tip 전처리 start
-[TIMER] PFR1 tip 전처리 elapsed=0.106s
+[TIMER] PFR1 tip 전처리 elapsed=0.107s
 [ROWS] t = 25,671
 [TIMER] hold 전처리 start
-[HOLD] 최신 version_desc=20260810-140000 적용: 174,632 -> 704행
-[TIMER] hold 전처리 elapsed=0.077s
-[ROWS] h1 = 344
+[HOLD] 최신 version_desc=20260810-140000 적용: 589 -> 589행
+[TIMER] hold 전처리 elapsed=0.011s
+[ROWS] h1 = 352
 [ROWS] h2 = 134
 [ROWS] h3 = 42
 [TIMER] f3 생성 start
-[TIP] wc_mask=01 rules=24,993 wildcard=['lot_type']
-[TIP] wc_mask=05 rules=100 wildcard=['lot_type', 'step']
-[TIP] wc_mask=07 rules=363 wildcard=['lot_type', 'process', 'step']
+[TIP] wc_mask=01 rules=24,991 wildcard=['lot_type']
+[TIP] wc_mask=05 rules=101 wildcard=['lot_type', 'step']
+[TIP] wc_mask=07 rules=364 wildcard=['lot_type', 'process', 'step']
 [TIP] wc_mask=09 rules=2 wildcard=['lot_type', 'ppid']
 [TIP] wc_mask=13 rules=213 wildcard=['lot_type', 'step', 'ppid']
-[TIP] 매칭 후보 = 19,876행
-[TIMER] f3 생성 elapsed=1.340s
-[TIP] f3 tip 값 있는 행 = 918 / 9,986
-[ROWS] f3 = 9,986  (lot 5,727개)
+[TIP] 매칭 후보 = 19,971행
+[TIMER] f3 생성 elapsed=1.350s
+[TIP] f3 tip 값 있는 행 = 913 / 9,984
+[ROWS] f3 = 9,984  (lot 5,705개)
 [DUP] lot/step 중복 없음
 [MIX] batch/single 혼재 설비그룹 없음
 [TIMER] 결과 엑셀 저장 start
-[WARN] xlsxwriter 미설치 → openpyxl 사용(느림). pip install xlsxwriter 권장
-[TIMER] 결과 엑셀 저장 elapsed=24.276s
-saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\f3_20260810_155547.xlsx rows=9,986
+[TIMER] 결과 엑셀 저장 elapsed=10.846s
+saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\f3_20260810_162110.xlsx rows=9,984
 [TIMER] 원본검증 엑셀 저장 start
-[WARN] xlsxwriter 미설치 → openpyxl 사용(느림). pip install xlsxwriter 권장
-[TIMER] 원본검증 엑셀 저장 elapsed=100.743s
-saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\raw_20260810_155547.xlsx
-
-<bench_loading.py 동작 로그> *동작이 저 단계에서 
-[BENCH] 33개 시나리오, 각 1회
-
-  h1            11.5s  rows= 1,016,506  생테이블 (KFR4 포함, 필터 없음)
-  h2            10.6s  rows=   980,759  생테이블 (KFR4 제외)
-  h3            14.2s  rows=   760,172  status_seq<>'2' 만 서버 필터
-  h4            15.3s  rows=       741  MAX(version_desc) OVER () 윈도우
-  h5            13.3s  rows=       741  스칼라 서브쿼리로 max version_desc
-  h6            21.6s  rows=       612  스칼라 서브쿼리(라인한정) + status
-  h7            26.3s  rows=   174,632  mc_lot 조인만 (version/status 없음)
-  h8             5.1s  rows=   132,610  mc_lot 조인 + status
-  h9            17.9s  rows=       581  mc_lot 조인 + 스칼라 max version + status
-  h10           10.8s  rows=       581  mc_lot 조인 + 윈도우 max version + status (현재 방식)
-  h11            2.8s  rows=       581  2단계: max 조회 후 리터럴 주입 (mv=20260810-140000)
-  s1_KFR7       77.1s  rows= 6,843,811  KFR7 생테이블 (현재 방식)
-  s2_KFR7       53.2s  rows= 4,954,499  KFR7 lot_id IN 서브쿼리
-  s3_KFR7       54.9s  rows= 4,954,499  KFR7 lot_id 조인
-  s4_KFR7       80.4s  rows= 4,886,815  KFR7 lot 조인 + skip 제외
-  s5_KFR7       50.0s  rows= 4,566,257  KFR7 lot 조인 + 현재위치 이후 or S/Y
-  s6_KFR7       48.5s  rows= 4,498,765  KFR7 lot 조인 + 현재위치 이후 + skip 제외
-  s1_PFR1       45.8s  rows= 3,988,746  PFR1 생테이블 (현재 방식)
-  s2_PFR1        7.7s  rows=   489,541  PFR1 lot_id IN 서브쿼리
-  s3_PFR1       14.9s  rows=   489,541  PFR1 lot_id 조인
-  s4_PFR1        6.8s  rows=   481,632  PFR1 lot 조인 + skip 제외
-  s5_PFR1        5.1s  rows=   433,012  PFR1 lot 조인 + 현재위치 이후 or S/Y
-  s6_PFR1        5.9s  rows=   425,116  PFR1 lot 조인 + 현재위치 이후 + skip 제외
-  t1_KFR7       43.5s  rows= 6,470,430  KFR7 tip 현행 (owner 만)
-  t2_KFR7       37.7s  rows= 5,506,564  KFR7 tip + proc_id(mc_lot) 또는 '-'
-  t3_KFR7       77.8s  rows= 5,610,349  KFR7 tip + proc_id(step_path) 또는 '-' [로컬필터와 동일기준]
-  t4_KFR7       48.4s  rows= 5,506,564  KFR7 tip + proc_id(mc_lot) LEFT SEMI JOIN 형태
-  t5_KFR7        0.9s  rows=         3  KFR7 proc_id 집합 비교용 (mc_lot vs step_path 건수)
-  t1_PFR1       31.9s  rows= 2,959,545  PFR1 tip 현행 (owner 만)
-  t2_PFR1       47.6s  rows= 2,692,051  PFR1 tip + proc_id(mc_lot) 또는 '-'
-  t3_PFR1       78.0s  rows= 2,688,129  PFR1 tip + proc_id(step_path) 또는 '-' [로컬필터와 동일기준]
-  t4_PFR1       22.5s  rows= 2,692,051  PFR1 tip + proc_id(mc_lot) LEFT SEMI JOIN 형태
-  t5_PFR1        4.2s  rows=         3  PFR1 proc_id 집합 비교용 (mc_lot vs step_path 건수)
-
-   시나리오                                                        설명  최소_초  평균_초      행수  컬럼수  실행횟수 오류
-t5_KFR7              KFR7 proc_id 집합 비교용 (mc_lot vs step_path 건수)  0.93  0.93       3    2     1   
-t5_PFR1              PFR1 proc_id 집합 비교용 (mc_lot vs step_path 건수)  4.19  4.19       3    2     1   
-     h8                                        mc_lot 조인 + status  5.07  5.07  132610    9     1   
-s5_PFR1                              PFR1 lot 조인 + 현재위치 이후 or S/Y  5.10  5.10  433012   15     1   
-s6_PFR1                           PFR1 lot 조인 + 현재위치 이후 + skip 제외  5.87  5.87  425116   15     1   
-    h11 2단계: max 조회 후 리터럴 주입 (mv=20260810-140000) / max조회 3.4s 포함  6.18  2.79     581    9     1   
-s4_PFR1                                     PFR1 lot 조인 + skip 제외  6.84  6.84  481632   15     1   
-s2_PFR1                                       PFR1 lot_id IN 서브쿼리  7.68  7.68  489541   15     1   
-     h2                                            생테이블 (KFR4 제외) 10.64 10.64  980759    9     1   
-    h10              mc_lot 조인 + 윈도우 max version + status (현재 방식) 10.75 10.75     581    9     1   
-     h1                                     생테이블 (KFR4 포함, 필터 없음) 11.45 11.45 1016506    9     1   
-     h5                                스칼라 서브쿼리로 max version_desc 13.31 13.31     741    9     1   
-     h3                                   status_seq<>'2' 만 서버 필터 14.18 14.18  760172    9     1   
-s3_PFR1                                            PFR1 lot_id 조인 14.85 14.85  489541   15     1   
-     h4                             MAX(version_desc) OVER () 윈도우 15.35 15.35     741    9     1   
-     h9                      mc_lot 조인 + 스칼라 max version + status 17.91 17.91     581    9     1   
-     h6                                   스칼라 서브쿼리(라인한정) + status 21.56 21.56     612    9     1   
-t4_PFR1              PFR1 tip + proc_id(mc_lot) LEFT SEMI JOIN 형태 22.46 22.46 2692051   10     1   
-     h7                            mc_lot 조인만 (version/status 없음) 26.31 26.31  174632    9     1   
-t1_PFR1                                     PFR1 tip 현행 (owner 만) 31.87 31.87 2959545   10     1   
-t2_KFR7                         KFR7 tip + proc_id(mc_lot) 또는 '-' 37.66 37.66 5506564   10     1   
-t1_KFR7                                     KFR7 tip 현행 (owner 만) 43.47 43.47 6470430   10     1   
-s1_PFR1                                         PFR1 생테이블 (현재 방식) 45.75 45.75 3988746   15     1   
-t2_PFR1                         PFR1 tip + proc_id(mc_lot) 또는 '-' 47.56 47.56 2692051   10     1   
-t4_KFR7              KFR7 tip + proc_id(mc_lot) LEFT SEMI JOIN 형태 48.39 48.39 5506564   10     1   
-s6_KFR7                           KFR7 lot 조인 + 현재위치 이후 + skip 제외 48.55 48.55 4498765   15     1   
-s5_KFR7                              KFR7 lot 조인 + 현재위치 이후 or S/Y 50.03 50.03 4566257   15     1   
-s2_KFR7                                       KFR7 lot_id IN 서브쿼리 53.16 53.16 4954499   15     1   
-s3_KFR7                                            KFR7 lot_id 조인 54.88 54.88 4954499   15     1   
-s1_KFR7                                         KFR7 생테이블 (현재 방식) 77.05 77.05 6843811   15     1   
-t3_KFR7         KFR7 tip + proc_id(step_path) 또는 '-' [로컬필터와 동일기준] 77.83 77.83 5610349   10     1   
-t3_PFR1         PFR1 tip + proc_id(step_path) 또는 '-' [로컬필터와 동일기준] 78.03 78.03 2688129   10     1   
-s4_KFR7                                     KFR7 lot 조인 + skip 제외 80.37 80.37 4886815   15     1   
-
-saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\bench_loading_20260810_161352.xlsx
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> 
+[TIMER] 원본검증 엑셀 저장 elapsed=37.087s
+saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\raw_20260810_162110.xlsx
