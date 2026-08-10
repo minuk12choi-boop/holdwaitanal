@@ -48,6 +48,66 @@ STEP_COLS = ("lot_id, order_seq, proc_id, step_seq, step_desc, step_level, "
              "step_skip_yn, delay_step_type, delay_time_mins, layer_id, "
              "eqp_type, eqp_group_id, recipe_id, ext_1st_vals, tkin_type_detail")
 
+TIP_COLS = ("process, step, ppid, eqpid, chamberid, "
+            "type, checkcount, tkin_count, updated, eventtime")
+
+TIP_TABLES = {
+    "KFR7": ("MOS_KH_SMI.SMICDC_NRDK_TRACKINPREVENT",
+             "MOS_KH_SMI.SMICDC_NRDK_MC_LOT",
+             "MOS_KH_SMI.SMICDC_NRDK_MC_LOT_STEP_PATH"),
+    "PFR1": ("MOS_KH_SMI.SMICDC_P3NRD_TRACKINPREVENT",
+             "MOS_KH_SMI.SMICDC_P3NRD_MC_LOT",
+             "MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_PATH"),
+}
+
+OWNER = "owner IN ('LEVEL1', 'PHOTO_LEVEL1')"
+
+
+def tip_scenarios(line):
+    tip_tbl, lot_tbl, path_tbl = TIP_TABLES[line]
+    lot_proc = (f"SELECT DISTINCT proc_id FROM {lot_tbl} "
+                f"WHERE lot_status_seg IN ('Active','Hold') AND proc_id IS NOT NULL")
+    # 로컬 선필터가 실제로 쓰는 기준: 재공 lot 의 step_path 상 proc_id
+    path_proc = (f"SELECT DISTINCT p.proc_id FROM {path_tbl} p "
+                 f"JOIN (SELECT DISTINCT lot_id FROM {lot_tbl} "
+                 f"      WHERE lot_status_seg IN ('Active','Hold')) c "
+                 f"  ON p.lot_id = c.lot_id WHERE p.proc_id IS NOT NULL")
+    wild = "t.process IS NULL OR t.process IN ('-','')"
+    return {
+        f"t1_{line}": (f"{line} tip 현행 (owner 만)", f"""
+SELECT {TIP_COLS}
+FROM   {tip_tbl}
+WHERE  {OWNER}
+"""),
+        f"t2_{line}": (f"{line} tip + proc_id(mc_lot) 또는 '-'", f"""
+SELECT {', '.join('t.' + c.strip() for c in TIP_COLS.split(','))}
+FROM   {tip_tbl} t
+WHERE  t.{OWNER}
+  AND  ({wild} OR t.process IN ({lot_proc}))
+"""),
+        f"t3_{line}": (f"{line} tip + proc_id(step_path) 또는 '-' [로컬필터와 동일기준]", f"""
+SELECT {', '.join('t.' + c.strip() for c in TIP_COLS.split(','))}
+FROM   {tip_tbl} t
+WHERE  t.{OWNER}
+  AND  ({wild} OR t.process IN ({path_proc}))
+"""),
+        f"t4_{line}": (f"{line} tip + proc_id(mc_lot) LEFT SEMI JOIN 형태", f"""
+SELECT {', '.join('t.' + c.strip() for c in TIP_COLS.split(','))}
+FROM   {tip_tbl} t
+LEFT JOIN ({lot_proc}) c ON t.process = c.proc_id
+WHERE  t.{OWNER}
+  AND  (c.proc_id IS NOT NULL OR {wild})
+"""),
+        f"t5_{line}": (f"{line} proc_id 집합 비교용 (mc_lot vs step_path 건수)", f"""
+SELECT 'mc_lot' AS src, COUNT(*) AS n FROM ({lot_proc}) a
+UNION ALL
+SELECT 'step_path' AS src, COUNT(*) AS n FROM ({path_proc}) b
+UNION ALL
+SELECT 'step_path_only' AS src, COUNT(*) AS n
+FROM ({path_proc}) b WHERE b.proc_id NOT IN ({lot_proc})
+"""),
+    }
+
 
 # ---------------------------------------------------------------------------
 # hold 시나리오
@@ -255,7 +315,8 @@ def run_one(getData, key, label, sql, repeat):
 
 def main():
     ap = argparse.ArgumentParser(description="원천 로딩 방식 벤치마크")
-    ap.add_argument("--target", default="all", choices=["all", "hold", "step"])
+    ap.add_argument("--target", default="all",
+                    choices=["all", "hold", "step", "tip"])
     ap.add_argument("--repeat", type=int, default=1)
     ap.add_argument("--only", default="", help="쉼표구분 시나리오 키 (예: h5,h9)")
     ap.add_argument("--list", action="store_true", help="시나리오 목록만 출력")
@@ -267,6 +328,9 @@ def main():
     if args.target in ("all", "step"):
         for line in STEP_TABLES:
             scenarios.update(step_scenarios(line))
+    if args.target in ("all", "tip"):
+        for line in TIP_TABLES:
+            scenarios.update(tip_scenarios(line))
 
     if args.only:
         want = {k.strip() for k in args.only.split(",") if k.strip()}
