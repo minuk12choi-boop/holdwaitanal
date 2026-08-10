@@ -1,184 +1,125 @@
-<bench_processing.py 결과>
-[LOAD] lot 8,759행 70.4s
-[LOAD] equipment 37,461행 46.3s
-[LOAD] eqp_group 17,007행 15.1s
-[LOAD] KFR7_step_path 6,843,811행 83.7s
-  narrow_KFR7  pandas  16.00s rows=8,288
-  narrow_KFR7  duckdb   4.33s rows=8,288 동일=False
-[LOAD] KFR7_tip 6,470,430행 47.1s
-  prefilter_KFR7  isin     6.13s rows=28,440
-  prefilter_KFR7  numpy mask   3.54s rows=28,440 동일=True
-  prefilter_KFR7  duckdb       5.30s rows=28,440 동일=True
-  build_tip_KFR7  pandas   0.42s rows=21,767
-[LOAD] PFR1_step_path 3,985,958행 37.1s
-  narrow_PFR1  pandas   3.15s rows=1,693
-  narrow_PFR1  duckdb   2.26s rows=1,693 동일=False
-[LOAD] PFR1_tip 2,959,545행 22.6s
-  prefilter_PFR1  isin     3.15s rows=5,328
-  prefilter_PFR1  numpy mask   1.74s rows=5,328 동일=True
-  prefilter_PFR1  duckdb       2.57s rows=5,328 동일=True
-  build_tip_PFR1  pandas   0.12s rows=4,480
-
-            단계         방식  최소_초  평균_초    행수 결과동일
-   narrow_KFR7 현행(pandas) 16.00 16.73  8288   기준
-   narrow_KFR7     duckdb  4.33  4.45  8288    N
-prefilter_KFR7   현행(isin)  6.13  6.32 28440   기준
-prefilter_KFR7 numpy mask  3.54  3.57 28440    Y
-prefilter_KFR7     duckdb  5.30  5.41 28440    Y
-build_tip_KFR7 현행(pandas)  0.42  0.42 21767   기준
-   narrow_PFR1 현행(pandas)  3.15  3.17  1693   기준
-   narrow_PFR1     duckdb  2.26  2.27  1693    N
-prefilter_PFR1   현행(isin)  3.15  3.22  5328   기준
-prefilter_PFR1 numpy mask  1.74  1.77  5328    Y
-prefilter_PFR1     duckdb  2.57  2.63  5328    Y
-build_tip_PFR1 현행(pandas)  0.12  0.12  4480   기준
-
-saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\bench_processing_20260810_153752.xlsx
-
-단계	방식	최소_초	평균_초	행수	결과동일
-narrow_KFR7	현행(pandas)	16	16.73	8288	기준
-narrow_KFR7	duckdb	4.33	4.45	8288	N
-prefilter_KFR7	현행(isin)	6.13	6.32	28440	기준
-prefilter_KFR7	numpy mask	3.54	3.57	28440	Y
-prefilter_KFR7	duckdb	5.3	5.41	28440	Y
-build_tip_KFR7	현행(pandas)	0.42	0.42	21767	기준
-narrow_PFR1	현행(pandas)	3.15	3.17	1693	기준
-narrow_PFR1	duckdb	2.26	2.27	1693	N
-prefilter_PFR1	현행(isin)	3.15	3.22	5328	기준
-prefilter_PFR1	numpy mask	1.74	1.77	5328	Y
-prefilter_PFR1	duckdb	2.57	2.63	5328	Y
-build_tip_PFR1	현행(pandas)	0.12	0.12	4480	기준
-
-<build_f3.py 결과>
+<build_f3.py 결과> *xlsxwriter는 이 동작 이후에 설치 완료함. 
 [TIMER] 소형 원천 조회 start
-[QUERY] lot 조회 시작 2026-08-10 15:32:05
+[QUERY] lot 조회 시작 2026-08-10 15:55:47
 Query Executed Successfully...
->> Execution Time: 5.429 sec
+>> Execution Time: 16.485 sec
 ==================================================
-    Rows    :  8759
+    Rows    :  8773
     Columns :  22
-    Size    :  8.81+ MB
+    Size    :  8.82+ MB
 ==================================================
-[QUERY] lot rows=8,759 cols=22 5.6s
-[QUERY] equipment 조회 시작 2026-08-10 15:32:10
+[QUERY] lot rows=8,773 cols=22 16.7s
+[QUERY] equipment 조회 시작 2026-08-10 15:56:03
 Query Executed Successfully...
->> Execution Time: 2.306 sec
+>> Execution Time: 25.558 sec
 ==================================================
     Rows    :  37461
     Columns :  7
     Size    :  16.06+ MB
 ==================================================
-[QUERY] equipment rows=37,461 cols=7 2.3s
-[QUERY] eqp_group 조회 시작 2026-08-10 15:32:13
+[QUERY] equipment rows=37,461 cols=7 25.6s
+[QUERY] eqp_group 조회 시작 2026-08-10 15:56:29
 Query Executed Successfully...
->> Execution Time: 14.718 sec
+>> Execution Time: 3.12 sec
 ==================================================
-    Rows    :  17014
+    Rows    :  13117
     Columns :  3
-    Size    :  3.15+ MB
+    Size    :  2.43+ MB
 ==================================================
-[QUERY] eqp_group rows=17,014 cols=3 14.7s
-[QUERY] hold 조회 시작 2026-08-10 15:32:27
+[QUERY] eqp_group rows=13,117 cols=3 3.0s
+[QUERY] hold 조회 시작 2026-08-10 15:56:32
 Query Executed Successfully...
->> Execution Time: 38.905 sec
+>> Execution Time: 27.380 sec
 ==================================================
-    Rows    :  174516
+    Rows    :  174632
     Columns :  9
-    Size    :  106.41+ MB
+    Size    :  106.49+ MB
 ==================================================
-[QUERY] hold rows=174,516 cols=9 39.0s
-[TIMER] 소형 원천 조회 elapsed=61.750s
-[QUERY] KFR7_step_path 조회 시작 2026-08-10 15:33:06
+[QUERY] hold rows=174,632 cols=9 27.5s
+[TIMER] 소형 원천 조회 elapsed=72.847s
+[QUERY] KFR7_step_path 조회 시작 2026-08-10 15:57:00
 Query Executed Successfully...
->> Execution Time: 51.863 sec
+>> Execution Time: 49.758 sec
 ==================================================
     Rows    :  4954499
     Columns :  15
     Size    :  3.52+ GB
 ==================================================
-[QUERY] KFR7_step_path rows=4,954,499 cols=15 57.7s
+[QUERY] KFR7_step_path rows=4,954,499 cols=15 55.2s
 [TIMER] KFR7 f3 범위 축약 start
-[TIMER] KFR7 f3 범위 축약 elapsed=20.912s
-[ROWS] KFR7 scope(step) = 8,257
+[TIMER] KFR7 f3 범위 축약 elapsed=18.458s
+[ROWS] KFR7 scope(step) = 8,301
 [TIMER] KFR7 설비그룹 전개 start
-[TIMER] KFR7 설비그룹 전개 elapsed=0.149s
-[QUERY] PFR1_step_path 조회 시작 2026-08-10 15:34:26
+[WARN] KFR7 설비그룹명에 없는 구성설비 1,083건 (옛 스냅샷 잔존 의심). 예: []
+[TIMER] KFR7 설비그룹 전개 elapsed=0.130s
+[QUERY] PFR1_step_path 조회 시작 2026-08-10 15:58:14
 Query Executed Successfully...
->> Execution Time: 8.413 sec
+>> Execution Time: 6.191 sec
 ==================================================
-    Rows    :  486758
+    Rows    :  489541
     Columns :  15
-    Size    :  351.86+ MB
+    Size    :  353.85+ MB
 ==================================================
-[QUERY] PFR1_step_path rows=486,758 cols=15 9.1s
+[QUERY] PFR1_step_path rows=489,541 cols=15 6.8s
 [TIMER] PFR1 f3 범위 축약 start
-[TIMER] PFR1 f3 범위 축약 elapsed=2.005s
-[ROWS] PFR1 scope(step) = 1,693
+[TIMER] PFR1 f3 범위 축약 elapsed=1.513s
+[ROWS] PFR1 scope(step) = 1,691
 [TIMER] PFR1 설비그룹 전개 start
-[TIMER] PFR1 설비그룹 전개 elapsed=0.065s
-[ROWS] s = 30,087
-[QUERY] KFR7_tip 조회 시작 2026-08-10 15:34:37
+[WARN] PFR1 설비그룹명에 없는 구성설비 459건 (옛 스냅샷 잔존 의심). 예: []]
+[TIMER] PFR1 설비그룹 전개 elapsed=0.061s
+[ROWS] s = 28,062
+[QUERY] KFR7_tip 조회 시작 2026-08-10 15:58:22
 Query Executed Successfully...
->> Execution Time: 57.402 sec
+>> Execution Time: 41.849 sec
 ==================================================
     Rows    :  6470430
     Columns :  10
     Size    :  2.55+ GB
 ==================================================
-[QUERY] KFR7_tip rows=6,470,430 cols=10 61.6s
+[QUERY] KFR7_tip rows=6,470,430 cols=10 45.6s
 [TIMER] KFR7 tip 선필터 start
-[TIMER] KFR7 tip 선필터 elapsed=7.022s
-[FILTER] KFR7 tip 6,470,430 -> 28,292
+[TIMER] KFR7 tip 선필터 elapsed=3.856s
+[FILTER] KFR7 tip 6,470,430 -> 27,773
 [TIMER] KFR7 tip 전처리 start
-[TIMER] KFR7 tip 전처리 elapsed=0.372s
-[QUERY] PFR1_tip 조회 시작 2026-08-10 15:35:47
+[TIMER] KFR7 tip 전처리 elapsed=0.335s
+[QUERY] PFR1_tip 조회 시작 2026-08-10 15:59:13
 Query Executed Successfully...
->> Execution Time: 32.87 sec
+>> Execution Time: 19.438 sec
 ==================================================
     Rows    :  2959545
     Columns :  10
     Size    :  1.15+ GB
 ==================================================
-[QUERY] PFR1_tip rows=2,959,545 cols=10 33.8s
+[QUERY] PFR1_tip rows=2,959,545 cols=10 21.2s
 [TIMER] PFR1 tip 선필터 start
-[TIMER] PFR1 tip 선필터 elapsed=3.329s
-[FILTER] PFR1 tip 2,959,545 -> 5,329
+[TIMER] PFR1 tip 선필터 elapsed=1.730s
+[FILTER] PFR1 tip 2,959,545 -> 5,213
 [TIMER] PFR1 tip 전처리 start
-[TIMER] PFR1 tip 전처리 elapsed=0.123s
-[ROWS] t = 26,133
+[TIMER] PFR1 tip 전처리 elapsed=0.106s
+[ROWS] t = 25,671
 [TIMER] hold 전처리 start
-[HOLD] 최신 version_desc=20260810-140000 적용: 174,516 -> 459행
-[TIMER] hold 전처리 elapsed=0.087s
-[ROWS] h1 = 228
-[ROWS] h2 = 81
-[ROWS] h3 = 28
+[HOLD] 최신 version_desc=20260810-140000 적용: 174,632 -> 704행
+[TIMER] hold 전처리 elapsed=0.077s
+[ROWS] h1 = 344
+[ROWS] h2 = 134
+[ROWS] h3 = 42
 [TIMER] f3 생성 start
-[TIP] wc_mask=01 rules=25,460 wildcard=['lot_type']
-[TIP] wc_mask=05 rules=102 wildcard=['lot_type', 'step']
-[TIP] wc_mask=07 rules=355 wildcard=['lot_type', 'process', 'step']
+[TIP] wc_mask=01 rules=24,993 wildcard=['lot_type']
+[TIP] wc_mask=05 rules=100 wildcard=['lot_type', 'step']
+[TIP] wc_mask=07 rules=363 wildcard=['lot_type', 'process', 'step']
 [TIP] wc_mask=09 rules=2 wildcard=['lot_type', 'ppid']
-[TIP] wc_mask=13 rules=214 wildcard=['lot_type', 'step', 'ppid']
-[TIP] 매칭 후보 = 20,098행
-[TIMER] f3 생성 elapsed=1.429s
-[TIP] f3 tip 값 있는 행 = 911 / 9,944
-[ROWS] f3 = 9,944  (lot 5,728개)
+[TIP] wc_mask=13 rules=213 wildcard=['lot_type', 'step', 'ppid']
+[TIP] 매칭 후보 = 19,876행
+[TIMER] f3 생성 elapsed=1.340s
+[TIP] f3 tip 값 있는 행 = 918 / 9,986
+[ROWS] f3 = 9,986  (lot 5,727개)
 [DUP] lot/step 중복 없음
-[MIX] f3 사용 설비그룹 963개 중 batch/single 혼재 73개 (equipment 미매칭 설비 0건)
+[MIX] batch/single 혼재 설비그룹 없음
 [TIMER] 결과 엑셀 저장 start
-[TIMER] 결과 엑셀 저장 elapsed=24.295s
-saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\f3_20260810_153205.xlsx rows=9,944
+[WARN] xlsxwriter 미설치 → openpyxl 사용(느림). pip install xlsxwriter 권장
+[TIMER] 결과 엑셀 저장 elapsed=24.276s
+saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\f3_20260810_155547.xlsx rows=9,986
 [TIMER] 원본검증 엑셀 저장 start
-[TIMER] 원본검증 엑셀 저장 elapsed=102.912s
-saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\raw_20260810_153205.xlsx
-
-테이블	로딩_시작시각	로딩_종료시각	소요_초	행수	컬럼수	시트_기록행수	시트_잘림여부
-lot	2026-08-10 15:32:05	2026-08-10 15:32:11	5.614	8759	22	8759	N
-equipment	2026-08-10 15:32:11	2026-08-10 15:32:13	2.331	37461	7	37461	N
-eqp_group	2026-08-10 15:32:13	2026-08-10 15:32:28	14.724	17014	3	17014	N
-hold	2026-08-10 15:32:28	2026-08-10 15:33:07	39.037	174516	9	174516	N
-KFR7_step_path	2026-08-10 15:33:07	2026-08-10 15:34:04	57.662	4954499	15	100000	Y
-PFR1_step_path	2026-08-10 15:34:27	2026-08-10 15:34:36	9.109	486758	15	100000	Y
-KFR7_tip	2026-08-10 15:34:38	2026-08-10 15:35:39	61.552	6470430	10	100000	Y
-PFR1_tip	2026-08-10 15:35:47	2026-08-10 15:36:21	33.825	2959545	10	100000	Y
-
-
+[WARN] xlsxwriter 미설치 → openpyxl 사용(느림). pip install xlsxwriter 권장
+[TIMER] 원본검증 엑셀 저장 elapsed=100.743s
+saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\raw_20260810_155547.xlsx
