@@ -1,281 +1,184 @@
-[BENCH] 23개 시나리오, 각 1회
+<bench_processing.py 결과>
+[LOAD] lot 8,759행 70.4s
+[LOAD] equipment 37,461행 46.3s
+[LOAD] eqp_group 17,007행 15.1s
+[LOAD] KFR7_step_path 6,843,811행 83.7s
+  narrow_KFR7  pandas  16.00s rows=8,288
+  narrow_KFR7  duckdb   4.33s rows=8,288 동일=False
+[LOAD] KFR7_tip 6,470,430행 47.1s
+  prefilter_KFR7  isin     6.13s rows=28,440
+  prefilter_KFR7  numpy mask   3.54s rows=28,440 동일=True
+  prefilter_KFR7  duckdb       5.30s rows=28,440 동일=True
+  build_tip_KFR7  pandas   0.42s rows=21,767
+[LOAD] PFR1_step_path 3,985,958행 37.1s
+  narrow_PFR1  pandas   3.15s rows=1,693
+  narrow_PFR1  duckdb   2.26s rows=1,693 동일=False
+[LOAD] PFR1_tip 2,959,545행 22.6s
+  prefilter_PFR1  isin     3.15s rows=5,328
+  prefilter_PFR1  numpy mask   1.74s rows=5,328 동일=True
+  prefilter_PFR1  duckdb       2.57s rows=5,328 동일=True
+  build_tip_PFR1  pandas   0.12s rows=4,480
 
-  h1            30.4s  rows= 1,016,068  생테이블 (KFR4 포함, 필터 없음)
-  h2            11.5s  rows=   980,321  생테이블 (KFR4 제외)
-  h3            12.1s  rows=   759,788  status_seq<>'2' 만 서버 필터
-  h4            16.2s  rows=       303  MAX(version_desc) OVER () 윈도우
-  h5            20.7s  rows=       303  스칼라 서브쿼리로 max version_desc
-  h6            19.1s  rows=       262  스칼라 서브쿼리(라인한정) + status
-  h7             8.2s  rows=   174,783  mc_lot 조인만 (version/status 없음)
-  h8            10.6s  rows=   132,703  mc_lot 조인 + status
-  h9            13.4s  rows=       249  mc_lot 조인 + 스칼라 max version + status
-  h10           13.9s  rows=       249  mc_lot 조인 + 윈도우 max version + status (현재 방식)
-  h11           31.8s  rows=       249  2단계: max 조회 후 리터럴 주입 (mv=20260810-140000)
-  s1_KFR7       59.7s  rows= 6,834,608  KFR7 생테이블 (현재 방식)
-  s2_KFR7       50.5s  rows= 4,952,298  KFR7 lot_id IN 서브쿼리
-  s3_KFR7       51.9s  rows= 4,952,298  KFR7 lot_id 조인
-  s4_KFR7       48.8s  rows= 4,885,544  KFR7 lot 조인 + skip 제외
-  s5_KFR7       62.0s  rows= 4,564,439  KFR7 lot 조인 + 현재위치 이후 or S/Y
-  s6_KFR7       60.7s  rows= 4,497,810  KFR7 lot 조인 + 현재위치 이후 + skip 제외
-  s1_PFR1       36.6s  rows= 3,982,574  PFR1 생테이블 (현재 방식)
-  s2_PFR1       11.2s  rows=   483,417  PFR1 lot_id IN 서브쿼리
-  s3_PFR1        5.0s  rows=   483,417  PFR1 lot_id 조인
-  s4_PFR1       16.9s  rows=   475,579  PFR1 lot 조인 + skip 제외
-  s5_PFR1       14.3s  rows=   430,611  PFR1 lot 조인 + 현재위치 이후 or S/Y
-  s6_PFR1        8.0s  rows=   422,777  PFR1 lot 조인 + 현재위치 이후 + skip 제외
+            단계         방식  최소_초  평균_초    행수 결과동일
+   narrow_KFR7 현행(pandas) 16.00 16.73  8288   기준
+   narrow_KFR7     duckdb  4.33  4.45  8288    N
+prefilter_KFR7   현행(isin)  6.13  6.32 28440   기준
+prefilter_KFR7 numpy mask  3.54  3.57 28440    Y
+prefilter_KFR7     duckdb  5.30  5.41 28440    Y
+build_tip_KFR7 현행(pandas)  0.42  0.42 21767   기준
+   narrow_PFR1 현행(pandas)  3.15  3.17  1693   기준
+   narrow_PFR1     duckdb  2.26  2.27  1693    N
+prefilter_PFR1   현행(isin)  3.15  3.22  5328   기준
+prefilter_PFR1 numpy mask  1.74  1.77  5328    Y
+prefilter_PFR1     duckdb  2.57  2.63  5328    Y
+build_tip_PFR1 현행(pandas)  0.12  0.12  4480   기준
 
-   시나리오                                                         설명  최소_초  평균_초      행수  컬럼수  실행횟수 오류
-s3_PFR1                                             PFR1 lot_id 조인  4.98  4.98  483417   15     1   
-s6_PFR1                            PFR1 lot 조인 + 현재위치 이후 + skip 제외  8.04  8.04  422777   15     1   
-     h7                             mc_lot 조인만 (version/status 없음)  8.24  8.24  174783    9     1   
-     h8                                         mc_lot 조인 + status 10.56 10.56  132703    9     1   
-s2_PFR1                                        PFR1 lot_id IN 서브쿼리 11.16 11.16  483417   15     1   
-     h2                                             생테이블 (KFR4 제외) 11.49 11.49  980321    9     1   
-     h3                                    status_seq<>'2' 만 서버 필터 12.12 12.12  759788    9     1   
-     h9                       mc_lot 조인 + 스칼라 max version + status 13.36 13.36     249    9     1   
-    h10               mc_lot 조인 + 윈도우 max version + status (현재 방식) 13.88 13.88     249    9     1   
-s5_PFR1                               PFR1 lot 조인 + 현재위치 이후 or S/Y 14.34 14.34  430611   15     1   
-     h4                              MAX(version_desc) OVER () 윈도우 16.22 16.22     303    9     1   
-s4_PFR1                                      PFR1 lot 조인 + skip 제외 16.89 16.89  475579   15     1   
-     h6                                    스칼라 서브쿼리(라인한정) + status 19.07 19.07     262    9     1   
-     h5                                 스칼라 서브쿼리로 max version_desc 20.68 20.68     303    9     1   
-     h1                                      생테이블 (KFR4 포함, 필터 없음) 30.38 30.38 1016068    9     1   
-s1_PFR1                                          PFR1 생테이블 (현재 방식) 36.55 36.55 3982574   15     1   
-s4_KFR7                                      KFR7 lot 조인 + skip 제외 48.76 48.76 4885544   15     1   
-    h11 2단계: max 조회 후 리터럴 주입 (mv=20260810-140000) / max조회 17.4s 포함 49.18 31.80     249    9     1   
-s2_KFR7                                        KFR7 lot_id IN 서브쿼리 50.49 50.49 4952298   15     1   
-s3_KFR7                                             KFR7 lot_id 조인 51.92 51.92 4952298   15     1   
-s1_KFR7                                          KFR7 생테이블 (현재 방식) 59.74 59.74 6834608   15     1   
-s6_KFR7                            KFR7 lot 조인 + 현재위치 이후 + skip 제외 60.72 60.72 4497810   15     1   
-s5_KFR7                               KFR7 lot 조인 + 현재위치 이후 or S/Y 62.03 62.03 4564439   15     1   
+saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\bench_processing_20260810_153752.xlsx
 
-saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\bench_loading_20260810_150912.xlsx
+단계	방식	최소_초	평균_초	행수	결과동일
+narrow_KFR7	현행(pandas)	16	16.73	8288	기준
+narrow_KFR7	duckdb	4.33	4.45	8288	N
+prefilter_KFR7	현행(isin)	6.13	6.32	28440	기준
+prefilter_KFR7	numpy mask	3.54	3.57	28440	Y
+prefilter_KFR7	duckdb	5.3	5.41	28440	Y
+build_tip_KFR7	현행(pandas)	0.42	0.42	21767	기준
+narrow_PFR1	현행(pandas)	3.15	3.17	1693	기준
+narrow_PFR1	duckdb	2.26	2.27	1693	N
+prefilter_PFR1	현행(isin)	3.15	3.22	5328	기준
+prefilter_PFR1	numpy mask	1.74	1.77	5328	Y
+prefilter_PFR1	duckdb	2.57	2.63	5328	Y
+build_tip_PFR1	현행(pandas)	0.12	0.12	4480	기준
+
+<build_f3.py 결과>
+[TIMER] 소형 원천 조회 start
+[QUERY] lot 조회 시작 2026-08-10 15:32:05
+Query Executed Successfully...
+>> Execution Time: 5.429 sec
+==================================================
+    Rows    :  8759
+    Columns :  22
+    Size    :  8.81+ MB
+==================================================
+[QUERY] lot rows=8,759 cols=22 5.6s
+[QUERY] equipment 조회 시작 2026-08-10 15:32:10
+Query Executed Successfully...
+>> Execution Time: 2.306 sec
+==================================================
+    Rows    :  37461
+    Columns :  7
+    Size    :  16.06+ MB
+==================================================
+[QUERY] equipment rows=37,461 cols=7 2.3s
+[QUERY] eqp_group 조회 시작 2026-08-10 15:32:13
+Query Executed Successfully...
+>> Execution Time: 14.718 sec
+==================================================
+    Rows    :  17014
+    Columns :  3
+    Size    :  3.15+ MB
+==================================================
+[QUERY] eqp_group rows=17,014 cols=3 14.7s
+[QUERY] hold 조회 시작 2026-08-10 15:32:27
+Query Executed Successfully...
+>> Execution Time: 38.905 sec
+==================================================
+    Rows    :  174516
+    Columns :  9
+    Size    :  106.41+ MB
+==================================================
+[QUERY] hold rows=174,516 cols=9 39.0s
+[TIMER] 소형 원천 조회 elapsed=61.750s
+[QUERY] KFR7_step_path 조회 시작 2026-08-10 15:33:06
+Query Executed Successfully...
+>> Execution Time: 51.863 sec
+==================================================
+    Rows    :  4954499
+    Columns :  15
+    Size    :  3.52+ GB
+==================================================
+[QUERY] KFR7_step_path rows=4,954,499 cols=15 57.7s
+[TIMER] KFR7 f3 범위 축약 start
+[TIMER] KFR7 f3 범위 축약 elapsed=20.912s
+[ROWS] KFR7 scope(step) = 8,257
+[TIMER] KFR7 설비그룹 전개 start
+[TIMER] KFR7 설비그룹 전개 elapsed=0.149s
+[QUERY] PFR1_step_path 조회 시작 2026-08-10 15:34:26
+Query Executed Successfully...
+>> Execution Time: 8.413 sec
+==================================================
+    Rows    :  486758
+    Columns :  15
+    Size    :  351.86+ MB
+==================================================
+[QUERY] PFR1_step_path rows=486,758 cols=15 9.1s
+[TIMER] PFR1 f3 범위 축약 start
+[TIMER] PFR1 f3 범위 축약 elapsed=2.005s
+[ROWS] PFR1 scope(step) = 1,693
+[TIMER] PFR1 설비그룹 전개 start
+[TIMER] PFR1 설비그룹 전개 elapsed=0.065s
+[ROWS] s = 30,087
+[QUERY] KFR7_tip 조회 시작 2026-08-10 15:34:37
+Query Executed Successfully...
+>> Execution Time: 57.402 sec
+==================================================
+    Rows    :  6470430
+    Columns :  10
+    Size    :  2.55+ GB
+==================================================
+[QUERY] KFR7_tip rows=6,470,430 cols=10 61.6s
+[TIMER] KFR7 tip 선필터 start
+[TIMER] KFR7 tip 선필터 elapsed=7.022s
+[FILTER] KFR7 tip 6,470,430 -> 28,292
+[TIMER] KFR7 tip 전처리 start
+[TIMER] KFR7 tip 전처리 elapsed=0.372s
+[QUERY] PFR1_tip 조회 시작 2026-08-10 15:35:47
+Query Executed Successfully...
+>> Execution Time: 32.87 sec
+==================================================
+    Rows    :  2959545
+    Columns :  10
+    Size    :  1.15+ GB
+==================================================
+[QUERY] PFR1_tip rows=2,959,545 cols=10 33.8s
+[TIMER] PFR1 tip 선필터 start
+[TIMER] PFR1 tip 선필터 elapsed=3.329s
+[FILTER] PFR1 tip 2,959,545 -> 5,329
+[TIMER] PFR1 tip 전처리 start
+[TIMER] PFR1 tip 전처리 elapsed=0.123s
+[ROWS] t = 26,133
+[TIMER] hold 전처리 start
+[HOLD] 최신 version_desc=20260810-140000 적용: 174,516 -> 459행
+[TIMER] hold 전처리 elapsed=0.087s
+[ROWS] h1 = 228
+[ROWS] h2 = 81
+[ROWS] h3 = 28
+[TIMER] f3 생성 start
+[TIP] wc_mask=01 rules=25,460 wildcard=['lot_type']
+[TIP] wc_mask=05 rules=102 wildcard=['lot_type', 'step']
+[TIP] wc_mask=07 rules=355 wildcard=['lot_type', 'process', 'step']
+[TIP] wc_mask=09 rules=2 wildcard=['lot_type', 'ppid']
+[TIP] wc_mask=13 rules=214 wildcard=['lot_type', 'step', 'ppid']
+[TIP] 매칭 후보 = 20,098행
+[TIMER] f3 생성 elapsed=1.429s
+[TIP] f3 tip 값 있는 행 = 911 / 9,944
+[ROWS] f3 = 9,944  (lot 5,728개)
+[DUP] lot/step 중복 없음
+[MIX] f3 사용 설비그룹 963개 중 batch/single 혼재 73개 (equipment 미매칭 설비 0건)
+[TIMER] 결과 엑셀 저장 start
+[TIMER] 결과 엑셀 저장 elapsed=24.295s
+saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\f3_20260810_153205.xlsx rows=9,944
+[TIMER] 원본검증 엑셀 저장 start
+[TIMER] 원본검증 엑셀 저장 elapsed=102.912s
+saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\raw_20260810_153205.xlsx
+
+테이블	로딩_시작시각	로딩_종료시각	소요_초	행수	컬럼수	시트_기록행수	시트_잘림여부
+lot	2026-08-10 15:32:05	2026-08-10 15:32:11	5.614	8759	22	8759	N
+equipment	2026-08-10 15:32:11	2026-08-10 15:32:13	2.331	37461	7	37461	N
+eqp_group	2026-08-10 15:32:13	2026-08-10 15:32:28	14.724	17014	3	17014	N
+hold	2026-08-10 15:32:28	2026-08-10 15:33:07	39.037	174516	9	174516	N
+KFR7_step_path	2026-08-10 15:33:07	2026-08-10 15:34:04	57.662	4954499	15	100000	Y
+PFR1_step_path	2026-08-10 15:34:27	2026-08-10 15:34:36	9.109	486758	15	100000	Y
+KFR7_tip	2026-08-10 15:34:38	2026-08-10 15:35:39	61.552	6470430	10	100000	Y
+PFR1_tip	2026-08-10 15:35:47	2026-08-10 15:36:21	33.825	2959545	10	100000	Y
 
 
-시나리오	설명	최소_초	평균_초	행수	컬럼수	실행횟수	오류
-s3_PFR1	PFR1 lot_id 조인	4.98	4.98	483417	15	1	
-s6_PFR1	PFR1 lot 조인 + 현재위치 이후 + skip 제외	8.04	8.04	422777	15	1	
-h7	mc_lot 조인만 (version/status 없음)	8.24	8.24	174783	9	1	
-h8	mc_lot 조인 + status	10.56	10.56	132703	9	1	
-s2_PFR1	PFR1 lot_id IN 서브쿼리	11.16	11.16	483417	15	1	
-h2	생테이블 (KFR4 제외)	11.49	11.49	980321	9	1	
-h3	status_seq<>'2' 만 서버 필터	12.12	12.12	759788	9	1	
-h9	mc_lot 조인 + 스칼라 max version + status	13.36	13.36	249	9	1	
-h10	mc_lot 조인 + 윈도우 max version + status (현재 방식)	13.88	13.88	249	9	1	
-s5_PFR1	PFR1 lot 조인 + 현재위치 이후 or S/Y	14.34	14.34	430611	15	1	
-h4	MAX(version_desc) OVER () 윈도우	16.22	16.22	303	9	1	
-s4_PFR1	PFR1 lot 조인 + skip 제외	16.89	16.89	475579	15	1	
-h6	스칼라 서브쿼리(라인한정) + status	19.07	19.07	262	9	1	
-h5	스칼라 서브쿼리로 max version_desc	20.68	20.68	303	9	1	
-h1	생테이블 (KFR4 포함, 필터 없음)	30.38	30.38	1016068	9	1	
-s1_PFR1	PFR1 생테이블 (현재 방식)	36.55	36.55	3982574	15	1	
-s4_KFR7	KFR7 lot 조인 + skip 제외	48.76	48.76	4885544	15	1	
-h11	2단계: max 조회 후 리터럴 주입 (mv=20260810-140000) / max조회 17.4s 포함	49.18	31.8	249	9	1	
-s2_KFR7	KFR7 lot_id IN 서브쿼리	50.49	50.49	4952298	15	1	
-s3_KFR7	KFR7 lot_id 조인	51.92	51.92	4952298	15	1	
-s1_KFR7	KFR7 생테이블 (현재 방식)	59.74	59.74	6834608	15	1	
-s6_KFR7	KFR7 lot 조인 + 현재위치 이후 + skip 제외	60.72	60.72	4497810	15	1	
-s5_KFR7	KFR7 lot 조인 + 현재위치 이후 or S/Y	62.03	62.03	4564439	15	1	
-
-
-시나리오	SQL
-h1	"
-SELECT line_id, item_type, status_seq, lot_id, step_seq, hold_user_name, issue_reason_cont, issue_date, version_desc
-FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
-WHERE  line_id IN ('KFR4', 'KFR7', 'PFR1')
-"
-h2	"
-SELECT line_id, item_type, status_seq, lot_id, step_seq, hold_user_name, issue_reason_cont, issue_date, version_desc
-FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
-WHERE  line_id IN ('KFR7', 'PFR1')
-"
-h3	"
-SELECT line_id, item_type, status_seq, lot_id, step_seq, hold_user_name, issue_reason_cont, issue_date, version_desc
-FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
-WHERE  line_id IN ('KFR7', 'PFR1')
-  AND  status_seq <> '2'
-"
-h4	"
-SELECT line_id, item_type, status_seq, lot_id, step_seq, hold_user_name, issue_reason_cont, issue_date, version_desc
-FROM (
-    SELECT line_id, item_type, status_seq, lot_id, step_seq, hold_user_name, issue_reason_cont, issue_date, version_desc,
-           MAX(version_desc) OVER () AS mv
-    FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
-    WHERE  line_id IN ('KFR7', 'PFR1')
-) x
-WHERE version_desc = mv
-"
-h5	"
-SELECT line_id, item_type, status_seq, lot_id, step_seq, hold_user_name, issue_reason_cont, issue_date, version_desc
-FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
-WHERE  line_id IN ('KFR7', 'PFR1')
-  AND  version_desc = (SELECT MAX(version_desc)
-                       FROM MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT)
-"
-h6	"
-SELECT line_id, item_type, status_seq, lot_id, step_seq, hold_user_name, issue_reason_cont, issue_date, version_desc
-FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
-WHERE  line_id IN ('KFR7', 'PFR1')
-  AND  status_seq <> '2'
-  AND  version_desc = (SELECT MAX(version_desc)
-                       FROM MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
-                       WHERE line_id IN ('KFR7', 'PFR1'))
-"
-h7	"
-SELECT h.line_id, h.item_type, h.status_seq, h.lot_id, h.step_seq,
-       h.hold_user_name, h.issue_reason_cont, h.issue_date, h.version_desc
-FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT h
-JOIN   (SELECT DISTINCT line_id, lot_id FROM (
-    SELECT 'PFR1' AS line_id, lot_id, order_seq
-    FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
-    WHERE  lot_status_seg IN ('Active', 'Hold')
-    UNION ALL
-    SELECT 'KFR7' AS line_id, lot_id, order_seq
-    FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT
-    WHERE  lot_status_seg IN ('Active', 'Hold')
-) z) c
-  ON   h.line_id = c.line_id AND h.lot_id = c.lot_id
-WHERE  h.line_id IN ('KFR7', 'PFR1')
-"
-h8	"
-SELECT h.line_id, h.item_type, h.status_seq, h.lot_id, h.step_seq,
-       h.hold_user_name, h.issue_reason_cont, h.issue_date, h.version_desc
-FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT h
-JOIN   (SELECT DISTINCT line_id, lot_id FROM (
-    SELECT 'PFR1' AS line_id, lot_id, order_seq
-    FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
-    WHERE  lot_status_seg IN ('Active', 'Hold')
-    UNION ALL
-    SELECT 'KFR7' AS line_id, lot_id, order_seq
-    FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT
-    WHERE  lot_status_seg IN ('Active', 'Hold')
-) z) c
-  ON   h.line_id = c.line_id AND h.lot_id = c.lot_id
-WHERE  h.line_id IN ('KFR7', 'PFR1')
-  AND  h.status_seq <> '2'
-"
-h9	"
-SELECT h.line_id, h.item_type, h.status_seq, h.lot_id, h.step_seq,
-       h.hold_user_name, h.issue_reason_cont, h.issue_date, h.version_desc
-FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT h
-JOIN   (SELECT DISTINCT line_id, lot_id FROM (
-    SELECT 'PFR1' AS line_id, lot_id, order_seq
-    FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
-    WHERE  lot_status_seg IN ('Active', 'Hold')
-    UNION ALL
-    SELECT 'KFR7' AS line_id, lot_id, order_seq
-    FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT
-    WHERE  lot_status_seg IN ('Active', 'Hold')
-) z) c
-  ON   h.line_id = c.line_id AND h.lot_id = c.lot_id
-WHERE  h.line_id IN ('KFR7', 'PFR1')
-  AND  h.status_seq <> '2'
-  AND  h.version_desc = (SELECT MAX(version_desc)
-                         FROM MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
-                         WHERE line_id IN ('KFR7', 'PFR1'))
-"
-h10	"
-SELECT x.line_id, x.item_type, x.status_seq, x.lot_id, x.step_seq,
-       x.hold_user_name, x.issue_reason_cont, x.issue_date, x.version_desc
-FROM (
-    SELECT h.line_id, h.item_type, h.status_seq, h.lot_id, h.step_seq,
-           h.hold_user_name, h.issue_reason_cont, h.issue_date, h.version_desc,
-           MAX(h.version_desc) OVER () AS mv
-    FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT h
-    JOIN   (SELECT DISTINCT line_id, lot_id FROM (
-    SELECT 'PFR1' AS line_id, lot_id, order_seq
-    FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
-    WHERE  lot_status_seg IN ('Active', 'Hold')
-    UNION ALL
-    SELECT 'KFR7' AS line_id, lot_id, order_seq
-    FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT
-    WHERE  lot_status_seg IN ('Active', 'Hold')
-) z) c
-      ON   h.line_id = c.line_id AND h.lot_id = c.lot_id
-    WHERE  h.line_id IN ('KFR7', 'PFR1')
-) x
-WHERE x.version_desc = x.mv AND x.status_seq <> '2'
-"
-h11	__TWO_STEP__
-s1_KFR7	"
-SELECT lot_id, order_seq, proc_id, step_seq, step_desc, step_level, step_skip_yn, delay_step_type, delay_time_mins, layer_id, eqp_type, eqp_group_id, recipe_id, ext_1st_vals, tkin_type_detail
-FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT_STEP_PATH
-"
-s2_KFR7	"
-SELECT lot_id, order_seq, proc_id, step_seq, step_desc, step_level, step_skip_yn, delay_step_type, delay_time_mins, layer_id, eqp_type, eqp_group_id, recipe_id, ext_1st_vals, tkin_type_detail
-FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT_STEP_PATH
-WHERE  lot_id IN (SELECT lot_id FROM MOS_KH_SMI.SMICDC_NRDK_MC_LOT
-                  WHERE lot_status_seg IN ('Active','Hold'))
-"
-s3_KFR7	"
-SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level, p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id, p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
-FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT_STEP_PATH p
-JOIN   (SELECT DISTINCT lot_id FROM MOS_KH_SMI.SMICDC_NRDK_MC_LOT
-        WHERE lot_status_seg IN ('Active','Hold')) c
-  ON   p.lot_id = c.lot_id
-"
-s4_KFR7	"
-SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level, p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id, p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
-FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT_STEP_PATH p
-JOIN   (SELECT DISTINCT lot_id FROM MOS_KH_SMI.SMICDC_NRDK_MC_LOT
-        WHERE lot_status_seg IN ('Active','Hold')) c
-  ON   p.lot_id = c.lot_id
-WHERE  p.step_skip_yn IS NOT NULL AND p.step_skip_yn <> 'Y'
-"
-s5_KFR7	"
-SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level, p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id, p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
-FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT_STEP_PATH p
-JOIN   (SELECT lot_id, order_seq FROM MOS_KH_SMI.SMICDC_NRDK_MC_LOT WHERE lot_status_seg IN ('Active', 'Hold')) c
-  ON   p.lot_id = c.lot_id
-WHERE  p.order_seq >= c.order_seq
-    OR p.delay_step_type IN ('S','Y')
-"
-s6_KFR7	"
-SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level, p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id, p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
-FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT_STEP_PATH p
-JOIN   (SELECT lot_id, order_seq FROM MOS_KH_SMI.SMICDC_NRDK_MC_LOT WHERE lot_status_seg IN ('Active', 'Hold')) c
-  ON   p.lot_id = c.lot_id
-WHERE  (p.order_seq >= c.order_seq OR p.delay_step_type IN ('S','Y'))
-  AND  p.step_skip_yn IS NOT NULL AND p.step_skip_yn <> 'Y'
-"
-s1_PFR1	"
-SELECT lot_id, order_seq, proc_id, step_seq, step_desc, step_level, step_skip_yn, delay_step_type, delay_time_mins, layer_id, eqp_type, eqp_group_id, recipe_id, ext_1st_vals, tkin_type_detail
-FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_PATH
-"
-s2_PFR1	"
-SELECT lot_id, order_seq, proc_id, step_seq, step_desc, step_level, step_skip_yn, delay_step_type, delay_time_mins, layer_id, eqp_type, eqp_group_id, recipe_id, ext_1st_vals, tkin_type_detail
-FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_PATH
-WHERE  lot_id IN (SELECT lot_id FROM MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
-                  WHERE lot_status_seg IN ('Active','Hold'))
-"
-s3_PFR1	"
-SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level, p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id, p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
-FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_PATH p
-JOIN   (SELECT DISTINCT lot_id FROM MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
-        WHERE lot_status_seg IN ('Active','Hold')) c
-  ON   p.lot_id = c.lot_id
-"
-s4_PFR1	"
-SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level, p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id, p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
-FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_PATH p
-JOIN   (SELECT DISTINCT lot_id FROM MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
-        WHERE lot_status_seg IN ('Active','Hold')) c
-  ON   p.lot_id = c.lot_id
-WHERE  p.step_skip_yn IS NOT NULL AND p.step_skip_yn <> 'Y'
-"
-s5_PFR1	"
-SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level, p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id, p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
-FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_PATH p
-JOIN   (SELECT lot_id, order_seq FROM MOS_KH_SMI.SMICDC_P3NRD_MC_LOT WHERE lot_status_seg IN ('Active', 'Hold')) c
-  ON   p.lot_id = c.lot_id
-WHERE  p.order_seq >= c.order_seq
-    OR p.delay_step_type IN ('S','Y')
-"
-s6_PFR1	"
-SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level, p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id, p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
-FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_PATH p
-JOIN   (SELECT lot_id, order_seq FROM MOS_KH_SMI.SMICDC_P3NRD_MC_LOT WHERE lot_status_seg IN ('Active', 'Hold')) c
-  ON   p.lot_id = c.lot_id
-WHERE  (p.order_seq >= c.order_seq OR p.delay_step_type IN ('S','Y'))
-  AND  p.step_skip_yn IS NOT NULL AND p.step_skip_yn <> 'Y'
-"
