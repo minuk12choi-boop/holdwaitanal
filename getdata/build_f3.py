@@ -579,8 +579,14 @@ EXCLUDE_NULL_STEP_SKIP_YN = True
 # 같은 lot·step 이 여러 행으로 갈라진다. eqpline 과 동일하게 step 단위로 합친다.
 AGGREGATE_BATCH_KIND = True
 
-# 결과를 DB(f3_live / f3_history)에 적재할지. False 면 엑셀만 만든다.
+# 결과를 DB(f3_live / f3_history)에 적재할지.
 LOAD_TO_DB = True
+
+# 엑셀 파일 저장 여부. 2시간마다 적재하므로 평상시엔 끈다.
+#   웹의 [다운로드] 메뉴에서 '재공Raw' 를 받으면 되고,
+#   손으로 확인하고 싶을 때만 True 로 바꿔 실행한다.
+SAVE_EXCEL = False           # 결과 파일 f3_<시각>.xlsx
+SAVE_RAW_EXCEL = False       # 원본검증 파일 raw_<시각>.xlsx
 
 # 설비그룹명으로 구성설비를 역추정해 경고하는 진단. 그룹명 표기가 일정하지 않아
 # ('DTDD707_8' -> DTDD708, 'MCDD701_MSV_CD', 'NRDWAIT' 등) 오탐이 많다.
@@ -1533,12 +1539,6 @@ def main():
     else:
         print("[MIX] batch/single 혼재 설비그룹 없음", flush=True)
 
-    with timer("결과 엑셀 저장"):
-        path = os.path.join(os.getcwd(), f"f3_{stamp}.xlsx")
-        save_result_workbook(path, df_f3, load_log, dup_rows, dup_cols, mixed,
-                             tip_match, eqpgroup_trace)
-    print(f"saved: {path} rows={len(df_f3):,}", flush=True)
-
     # ---- DB 적재 (docs/common_conventions.md 참조) -------------------------
     if LOAD_TO_DB:
         try:
@@ -1546,8 +1546,10 @@ def main():
             with timer("DB 적재"):
                 conn = DB.connect()
                 DB.ensure_f3_schema(conn, SUMMARY_OUTPUT_COLUMNS)
+                DB.ensure_load_log_schema(conn)
                 snapshot_at = run_at
                 DB.load_f3_live(conn, df_f3, SUMMARY_OUTPUT_COLUMNS, snapshot_at)
+                DB.load_f3_load_log(conn, snapshot_at, load_log)
                 print(f"[DB] f3_live 갱신 snapshot_at={snapshot_at} "
                       f"rows={len(df_f3):,}", flush=True)
                 promoted = DB.promote_to_history(conn, SUMMARY_OUTPUT_COLUMNS)
@@ -1559,20 +1561,34 @@ def main():
                     print("[DB] f3_history 갱신 없음 "
                           "(이미 더 가까운 스냅샷이 적재돼 있음)", flush=True)
                 conn.close()
-        except Exception as e:
-            print(f"[WARN] DB 적재 실패({type(e).__name__}: {e}). "
-                  f"엑셀 결과는 정상 저장됨.", flush=True)
+        except Exception:
+            # 조용히 넘어가면 '적재했는데 웹에 안 뜬다' 로 이어진다. 크게 알린다.
+            import traceback
+            print("=" * 70, flush=True)
+            print("[ERROR] DB 적재 실패 — 웹에 데이터가 반영되지 않습니다.", flush=True)
+            traceback.print_exc()
+            print("확인: .env 의 HOLDWAITANAL_DB_* / pymysql 설치 여부", flush=True)
+            print("=" * 70, flush=True)
 
-    raw_path = os.path.join(os.getcwd(), f"raw_{stamp}.xlsx")
-    try:
-        with timer("원본검증 엑셀 저장"):
-            save_raw_workbook(raw_path, raw_samples,
-                              {"t_rules(전처리된 tip)": t, "s(step_scope)": s})
-        print(f"saved: {raw_path}", flush=True)
-    except Exception as e:
-        print(f"[WARN] 원본검증 파일 저장 실패({type(e).__name__}: {e}). "
-              f"결과 파일({path})은 정상 저장됨. "
-              f"RAW_SHEET_MAX_ROWS 를 줄여 재시도할 것.", flush=True)
+    # ---- 엑셀 저장 (기본 비활성. 필요할 때만 SAVE_EXCEL=True) ---------------
+    if SAVE_EXCEL:
+        with timer("결과 엑셀 저장"):
+            path = os.path.join(os.getcwd(), f"f3_{stamp}.xlsx")
+            save_result_workbook(path, df_f3, load_log, dup_rows, dup_cols, mixed,
+                                 tip_match, eqpgroup_trace)
+        print(f"saved: {path} rows={len(df_f3):,}", flush=True)
+
+    if SAVE_RAW_EXCEL:
+        raw_path = os.path.join(os.getcwd(), f"raw_{stamp}.xlsx")
+        try:
+            with timer("원본검증 엑셀 저장"):
+                save_raw_workbook(raw_path, raw_samples,
+                                  {"t_rules(전처리된 tip)": t, "s(step_scope)": s})
+            print(f"saved: {raw_path}", flush=True)
+        except Exception as e:
+            print(f"[WARN] 원본검증 파일 저장 실패({type(e).__name__}: {e}). "
+                  f"RAW_SHEET_MAX_ROWS 를 줄여 재시도할 것.", flush=True)
+
 
 if __name__ == "__main__":
     main()

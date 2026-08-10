@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>다운로드 · Fab Flow Monitor</title>
+<style>
+  :root { --bd:#E5E7EB; --fg:#111827; --mut:#6B7280; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Malgun Gothic","Segoe UI",sans-serif; color:var(--fg);
+         font-size:14px; }
+  header { border-bottom:1px solid var(--bd); padding:0 20px; display:flex;
+           align-items:center; gap:28px; height:52px; }
+  header .brand { font-weight:700; letter-spacing:-.02em; }
+  header nav a { color:var(--mut); text-decoration:none; margin-right:20px;
+                 font-size:14px; padding:6px 0; }
+  header nav a.on { color:var(--fg); border-bottom:2px solid var(--fg); }
+  main { padding:20px; max-width:980px; }
+  h1 { font-size:17px; margin:0 0 4px; }
+  .sub { color:var(--mut); font-size:12px; margin-bottom:16px; }
+  .row { display:flex; gap:10px; align-items:center; margin-bottom:18px; }
+  select { padding:6px 8px; border:1px solid var(--bd); border-radius:5px;
+           font-size:13px; min-width:340px; }
+  .btn { background:var(--fg); color:#fff; border:0; border-radius:5px;
+         padding:7px 14px; font-size:13px; cursor:pointer; text-decoration:none; }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th, td { border-bottom:1px solid var(--bd); padding:7px 8px; text-align:left; }
+  th { color:var(--mut); font-weight:600; font-size:12px; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .empty { color:var(--mut); padding:20px 0; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Fab Flow Monitor</div>
+  <nav>
+    {% for name, url in menu %}
+      <a href="{{ url }}" {% if name == "다운로드" %}class="on"{% endif %}>{{ name }}</a>
+    {% endfor %}
+  </nav>
+</header>
+
+<main>
+  <h1>재공Raw 다운로드</h1>
+  <div class="sub">build_f3 가 적재한 스냅샷을 그대로 내려받습니다.</div>
+
+  {% if snapshots %}
+  <form class="row" method="get" action="/downloads/">
+    <select name="snapshot" onchange="this.form.submit()">
+      {% for s in snapshots %}
+        <option value="{{ s.snapshot_at|date:'Y-m-d H:i:s' }}"
+          {% if s.snapshot_at|date:'Y-m-d H:i:s' == selected %}selected{% endif %}>
+          {{ s.snapshot_at|date:'Y-m-d H:i' }}
+          · {% if s.biz_date %}{{ s.biz_date }} {{ s.shift }}{% else %}{{ s.shift }}{% endif %}
+          · {{ s.rows }}행
+        </option>
+      {% endfor %}
+    </select>
+    <a class="btn" href="/downloads/wip-raw/?snapshot={{ selected|urlencode }}">
+      재공Raw 받기
+    </a>
+  </form>
+
+  <h1 style="font-size:15px">적재 시각</h1>
+  <div class="sub">이 스냅샷을 만들 때 원천 테이블을 불러온 기록입니다.</div>
+  {% if load_log %}
+  <table>
+    <thead><tr>
+      <th>테이블</th><th>로딩 시작</th><th>로딩 종료</th>
+      <th style="text-align:right">소요(초)</th>
+      <th style="text-align:right">행수</th><th style="text-align:right">컬럼수</th>
+    </tr></thead>
+    <tbody>
+      {% for r in load_log %}
+      <tr>
+        <td>{{ r.table }}</td>
+        <td>{{ r.start|date:'Y-m-d H:i:s' }}</td>
+        <td>{{ r.end|date:'Y-m-d H:i:s' }}</td>
+        <td class="num">{{ r.sec }}</td>
+        <td class="num">{{ r.rows }}</td>
+        <td class="num">{{ r.cols }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">이 스냅샷의 적재 시각 기록이 없습니다.
+    (f3_load_log 추가 이전에 적재된 스냅샷)</div>
+  {% endif %}
+
+  {% else %}
+  <div class="empty">
+    적재된 스냅샷이 없습니다.<br><br>
+    <code>python getdata/db_common.py --init</code> 로 테이블을 만들고,<br>
+    <code>python getdata/build_f3.py</code> 를 실행하세요.
+  </div>
+  {% endif %}
+</main>
+</body>
+</html>

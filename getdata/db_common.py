@@ -166,6 +166,41 @@ def ensure_f3_schema(conn, columns):
     conn.commit()
 
 
+def ensure_load_log_schema(conn):
+    """원천 테이블별 로딩 시작/종료 시각. 웹 다운로드 화면에서 보여준다."""
+    with conn.cursor() as cur:
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS f3_load_log (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          snapshot_at DATETIME NOT NULL,
+          table_name VARCHAR(64) NOT NULL,
+          load_start DATETIME NULL,
+          load_end DATETIME NULL,
+          elapsed_sec DOUBLE NULL,
+          row_count BIGINT NULL,
+          col_count INT NULL,
+          KEY ix_ll_snap (snapshot_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+    conn.commit()
+
+
+def load_f3_load_log(conn, snapshot_at, load_log, keep=2):
+    """스냅샷별 로딩시각 기록. f3_live 와 같은 벌수만 유지한다."""
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM f3_load_log WHERE snapshot_at = %s", (snapshot_at,))
+        cur.executemany(
+            "INSERT INTO f3_load_log (snapshot_at, table_name, load_start, load_end,"
+            " elapsed_sec, row_count, col_count) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            [(snapshot_at, r.get("테이블"), r.get("로딩_시작시각"), r.get("로딩_종료시각"),
+              r.get("소요_초"), r.get("행수"), r.get("컬럼수")) for r in load_log])
+        cur.execute(
+            "DELETE FROM f3_load_log WHERE snapshot_at NOT IN "
+            "(SELECT * FROM (SELECT DISTINCT snapshot_at FROM f3_load_log "
+            " ORDER BY snapshot_at DESC LIMIT %s) t)", (keep,))
+    conn.commit()
+
+
 def ensure_move_schema(conn):
     shift_tbl = """
     CREATE TABLE IF NOT EXISTS move_shift (
@@ -303,3 +338,32 @@ def move_last_biz_date(conn):
     with conn.cursor() as cur:
         cur.execute("SELECT MAX(biz_date) FROM move_daily")
         return cur.fetchone()[0]
+
+
+# ---------------------------------------------------------------------------
+# 스키마 초기화 (실행 진입점은 이것 하나뿐. 평상시엔 라이브러리로만 쓴다)
+#     python getdata/db_common.py --init
+# ---------------------------------------------------------------------------
+def _init_schema():
+    from build_f3 import SUMMARY_OUTPUT_COLUMNS
+
+    conn = connect()
+    ensure_f3_schema(conn, SUMMARY_OUTPUT_COLUMNS)
+    ensure_load_log_schema(conn)
+    ensure_move_schema(conn)
+    with conn.cursor() as cur:
+        cur.execute("SHOW TABLES")
+        names = sorted(r[0] for r in cur.fetchall())
+    conn.close()
+    print("생성/확인 완료. 현재 테이블:")
+    for n in names:
+        print(f"  - {n}")
+
+
+if __name__ == "__main__":
+    import sys
+    if "--init" in sys.argv:
+        _init_schema()
+    else:
+        print("db_common 은 공용 라이브러리입니다. 스케줄러에 등록하지 마세요.\n"
+              "테이블만 미리 만들려면:  python getdata/db_common.py --init")

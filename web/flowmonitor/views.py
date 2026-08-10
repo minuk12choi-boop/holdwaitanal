@@ -135,7 +135,9 @@ def api_flowstack(request):
     notice = ""
     if missing:
         notice = (f"아직 적재되지 않은 테이블: {', '.join(sorted(set(missing)))}. "
-                  f"getdata/build_f3.py · getdata/get_move.py 를 실행하세요.")
+                  f"python getdata/db_common.py --init 로 테이블을 만든 뒤 "
+                  f"getdata/build_f3.py 를 실행하세요. "
+                  f"이미 실행했다면 로그에 [ERROR] DB 적재 실패 가 있는지 확인하세요.")
     return JsonResponse({"panels": panels,
                          "order": [p["key"] for p in PANELS],
                          "basis": basis, "notice": notice})
@@ -143,5 +145,102 @@ def api_flowstack(request):
 
 def flowstack(request):
     return render(request, "flowmonitor/flowstack.html",
-                  {"menu": [("FlowStack", "/"), ("상세", "#"), ("Lot Balance", "#")],
+                  {"menu": [("FlowStack", "/"), ("다운로드", "/downloads/")],
                    "panels": PANELS})
+
+
+# ---------------------------------------------------------------------------
+# 다운로드 (재공Raw)
+# ---------------------------------------------------------------------------
+def _table_exists(name):
+    with connection.cursor() as cur:
+        cur.execute("SHOW TABLES LIKE %s", [name])
+        return cur.fetchone() is not None
+
+
+def _snapshots():
+    """f3_live(실시간 2벌) + f3_history(누적) 목록."""
+    out = []
+    if _table_exists("f3_live"):
+        with connection.cursor() as cur:
+            cur.execute("SELECT snapshot_at, COUNT(*) FROM f3_live "
+                        "GROUP BY snapshot_at ORDER BY snapshot_at DESC")
+            for snap, n in cur.fetchall():
+                out.append({"kind": "live", "snapshot_at": snap, "rows": n,
+                            "biz_date": "", "shift": "실시간"})
+    if _table_exists("f3_history_meta"):
+        with connection.cursor() as cur:
+            cur.execute("SELECT biz_date, shift, snapshot_at, row_count "
+                        "FROM f3_history_meta ORDER BY biz_date DESC, "
+                        "FIELD(shift,'SW','DAY','GY') LIMIT 60")
+            for bd, sh, snap, n in cur.fetchall():
+                out.append({"kind": "history", "snapshot_at": snap, "rows": n,
+                            "biz_date": bd, "shift": sh})
+    return out
+
+
+def _load_log(snapshot_at):
+    if not _table_exists("f3_load_log"):
+        return []
+    with connection.cursor() as cur:
+        cur.execute(
+            "SELECT table_name, load_start, load_end, elapsed_sec, row_count, col_count "
+            "FROM f3_load_log WHERE snapshot_at = %s ORDER BY id", [snapshot_at])
+        return [{"table": r[0], "start": r[1], "end": r[2], "sec": r[3],
+                 "rows": r[4], "cols": r[5]} for r in cur.fetchall()]
+
+
+def downloads(request):
+    snaps = _snapshots()
+    sel = request.GET.get("snapshot") or (snaps[0]["snapshot_at"].strftime(
+        "%Y-%m-%d %H:%M:%S") if snaps else "")
+    return render(request, "flowmonitor/downloads.html", {
+        "menu": [("FlowStack", "/"), ("다운로드", "/downloads/")],
+        "snapshots": snaps, "selected": sel, "load_log": _load_log(sel) if sel else [],
+    })
+
+
+def download_wip_raw(request):
+    """재공Raw 엑셀. f3_live 또는 f3_history 의 한 스냅샷을 그대로 내려준다."""
+    import io
+
+    import pandas as pd
+    from django.http import HttpResponse
+
+    snap = request.GET.get("snapshot")
+    kind = request.GET.get("kind", "live")
+    if not snap:
+        return HttpResponse("snapshot 파라미터가 필요합니다.", status=400)
+
+    table = "f3_history" if kind == "history" else "f3_live"
+    with connection.cursor() as cur:
+        cur.execute(f"SELECT * FROM {table} WHERE snapshot_at = %s", [snap])
+        cols = [c[0] for c in cur.description]
+        df = pd.DataFrame(cur.fetchall(), columns=cols)
+    drop = [c for c in ("id", "snapshot_at", "biz_date", "shift") if c in df.columns]
+    meta = df[drop].head(1) if drop else pd.DataFrame()
+    df = df.drop(columns=drop)
+
+    log = pd.DataFrame(_load_log(snap))
+    if len(log):
+        log.columns = ["테이블", "로딩_시작시각", "로딩_종료시각", "소요_초", "행수", "컬럼수"]
+
+    buf = io.BytesIO()
+    try:
+        import xlsxwriter  # noqa: F401
+        engine = "xlsxwriter"
+    except ImportError:
+        engine = "openpyxl"
+    with pd.ExcelWriter(buf, engine=engine) as xw:
+        df.to_excel(xw, sheet_name="재공Raw", index=False)
+        if len(log):
+            log.to_excel(xw, sheet_name="로딩시각", index=False)
+        if len(meta):
+            meta.to_excel(xw, sheet_name="스냅샷정보", index=False)
+
+    stamp = str(snap).replace("-", "").replace(":", "").replace(" ", "_")
+    resp = HttpResponse(
+        buf.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resp["Content-Disposition"] = f'attachment; filename="wip_raw_{stamp}.xlsx"'
+    return resp
