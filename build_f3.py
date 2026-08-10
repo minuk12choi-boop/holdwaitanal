@@ -212,7 +212,7 @@ LEFT JOIN   co
   ON        m1.line   = co.line
  AND        m1.lot_id = co.lot_id
 WHERE       m1.line = m1.sys_line_id
-  AND       m1.lot_type IN ('PP', 'PB', 'PG', 'TT')
+  AND       m1.lot_type IN ('PP', 'PG', 'EG')
   AND       m1.cur_line_id NOT IN ('CHTV')
 """
 
@@ -762,54 +762,62 @@ def build_f3(con):
         LEFT JOIN s ON m.line = s.line AND m.lot_id = s.lot_id
     """)
 
-    # wildcard 조인은 (t.col='-' OR ms.col=t.col) 형태라 non-equi 조인이 되어
-    # nested loop 으로 떨어진다. wildcard 조합(mask)별로 나누면 각 분기는
-    # 비-wildcard 컬럼만의 순수 equi-join 이 되어 해시조인으로 처리된다.
-    WC = [("process", "proc_id"), ("step", "step_seq"),
+    # Tip rule 의 '-' 는 와일드카드(해당 키를 따지지 않음) 표기다.
+    # lot_type 도 예외가 아니다. 원본 Oracle tip 쿼리는 lot_type 을 항상 '-' 로
+    # 내보내는데, 조인을 ms.lot_type = t.lot_type 등호로 걸면 lot 의 실제
+    # lot_type('PP','PG'...)과 절대 일치하지 않아 tip 이 전부 비게 된다.
+    # 또한 (t.col='-' OR ms.col=t.col) 형태는 non-equi 조인이라 nested loop 으로
+    # 떨어지므로, 와일드카드 조합(mask)별로 나눠 순수 equi-join 으로 처리한다.
+    WC = [("lot_type", "lot_type"), ("process", "proc_id"), ("step", "step_seq"),
           ("ppid", "recipe_id"), ("eqpid", "eqp_id")]
 
     wc_expr = " + ".join(
-        f"CASE WHEN COALESCE(NULLIF(TRIM({tc}), ''), '-') = '-' THEN {1 << i} ELSE 0 END"
+        f"CASE WHEN COALESCE(NULLIF(TRIM(CAST({tc} AS VARCHAR)), ''), '-') = '-' "
+        f"THEN {1 << i} ELSE 0 END"
         for i, (tc, _) in enumerate(WC)
     )
     con.execute(f"""
         CREATE OR REPLACE TABLE t0 AS
-        SELECT *, ({wc_expr}) AS wc_mask
-        FROM t
-        WHERE ({wc_expr}) > 0
+        SELECT *, ({wc_expr}) AS wc_mask FROM t
     """)
 
-    tm_cols = """ms.ms_row_id, {a}.eqpid, {a}.eqpcham, {a}.prevent, {a}.type_body,
-                 {a}.type_cham, {a}.tip_eventtime, {a}.eqpissue, {a}.body_eqp_status,
-                 {a}.cham_eqp_status, {a}.eqpissuetime"""
+    tm_cols = """ms.ms_row_id, t0.wc_mask,
+                 t0.lot_type AS rule_lot_type, t0.process AS rule_process,
+                 t0.step AS rule_step, t0.ppid AS rule_ppid,
+                 CAST(t0.eqpid AS VARCHAR) AS eqpid, CAST(t0.eqpcham AS VARCHAR) AS eqpcham,
+                 CAST(t0.prevent AS VARCHAR) AS prevent,
+                 CAST(t0.type_body AS VARCHAR) AS type_body,
+                 CAST(t0.type_cham AS VARCHAR) AS type_cham,
+                 CAST(t0.tip_eventtime AS TIMESTAMP) AS tip_eventtime,
+                 CAST(t0.eqpissue AS VARCHAR) AS eqpissue,
+                 CAST(t0.body_eqp_status AS VARCHAR) AS body_eqp_status,
+                 CAST(t0.cham_eqp_status AS VARCHAR) AS cham_eqp_status,
+                 CAST(t0.eqpissuetime AS TIMESTAMP) AS eqpissuetime,
+                 CASE WHEN t0.wc_mask = 0 THEN '정확' ELSE 'wildcard' END AS match_type"""
 
-    con.execute(f"""
-        CREATE OR REPLACE TABLE t_matches_raw AS
-        SELECT {tm_cols.format(a='t')}, '정확' AS match_type
-        FROM ms_joined ms
-        INNER JOIN t
-          ON ms.line = t.line AND ms.lot_type = t.lot_type
-         AND ms.proc_id = t.process AND ms.step_seq = t.step
-         AND ms.recipe_id = t.ppid AND ms.eqp_id = t.eqpid
-    """)
+    con.execute(f"CREATE OR REPLACE TABLE t_matches_raw AS {' '.join(['SELECT', tm_cols, 'FROM ms_joined ms JOIN t0 ON FALSE'])}")
 
     masks = [r[0] for r in con.execute(
         "SELECT DISTINCT wc_mask FROM t0 ORDER BY wc_mask").fetchall()]
     for mask in masks:
-        on = ["ms.line = t0.line", "ms.lot_type = t0.lot_type"]
+        on = ["ms.line = t0.line"]
         for i, (tc, mc) in enumerate(WC):
             if not (mask >> i) & 1:
                 on.append(f"ms.{mc} = t0.{tc}")
         n_rules = con.execute(
             "SELECT COUNT(*) FROM t0 WHERE wc_mask = ?", [mask]).fetchone()[0]
-        print(f"[TIP] wc_mask={mask:02d} rules={n_rules:,}", flush=True)
+        wild = [tc for i, (tc, _) in enumerate(WC) if (mask >> i) & 1]
+        print(f"[TIP] wc_mask={mask:02d} rules={n_rules:,} wildcard={wild or '없음(정확매칭)'}",
+              flush=True)
         con.execute(f"""
             INSERT INTO t_matches_raw
-            SELECT {tm_cols.format(a='t0')}, 'wildcard' AS match_type
+            SELECT {tm_cols}
             FROM ms_joined ms
-            INNER JOIN (SELECT * FROM t0 WHERE wc_mask = {mask}) t0
+            JOIN (SELECT * FROM t0 WHERE wc_mask = {mask}) t0
               ON {' AND '.join(on)}
         """)
+    print(f"[TIP] 매칭 후보 = "
+          f"{con.execute('SELECT COUNT(*) FROM t_matches_raw').fetchone()[0]:,}행", flush=True)
 
     con.execute("""
         CREATE OR REPLACE TABLE t_matches AS
@@ -828,7 +836,7 @@ def build_f3(con):
         CREATE OR REPLACE TABLE f1_base AS
         SELECT
             ms.*,
-            CAST(tm.eqpcham AS VARCHAR) AS eqpcham_t, CAST(tm.prevent AS VARCHAR) AS prevent, CAST(tm.type_body AS VARCHAR) AS type_body,
+            CAST(tm.prevent AS VARCHAR) AS prevent, CAST(tm.type_body AS VARCHAR) AS type_body,
             CAST(tm.type_cham AS VARCHAR) AS type_cham, CAST(tm.tip_eventtime AS TIMESTAMP) AS tip_eventtime,
             COALESCE(CAST(tm.eqpissue AS VARCHAR),
                      CASE WHEN ms.body_status IN ('LOCAL','PM','DOWN')
@@ -1045,13 +1053,28 @@ def build_f3(con):
 {col_list('f3_calc')}
         FROM f3_calc
     """)
-    return con.execute(f"""
+    df_f3 = con.execute(f"""
         SELECT
 {col_list()}
         FROM f3
         ORDER BY line, lot_id, TRY_CAST(order_seq AS BIGINT) NULLS LAST,
                  order_seq, eqpgroup_cham
     """).df()
+
+    # tip 조인 검증표: 어떤 rule 이 어떤 lot/step 에 어떤 근거로 붙었는지
+    tip_match = con.execute("""
+        SELECT ms.line, ms.lot_id, ms.lot_type, ms.order_seq, ms.step_seq,
+               ms.proc_id, ms.recipe_id, ms.eqp_id,
+               tm.match_type, tm.wc_mask,
+               tm.rule_lot_type, tm.rule_process, tm.rule_step, tm.rule_ppid,
+               tm.eqpid AS rule_eqpid,
+               tm.prevent, tm.type_body, tm.type_cham, tm.tip_eventtime,
+               tm.eqpissue, tm.eqpissuetime
+        FROM t_matches tm
+        JOIN ms_joined ms ON ms.ms_row_id = tm.ms_row_id
+        ORDER BY ms.line, ms.lot_id, ms.order_seq, tm.match_type
+    """).df()
+    return df_f3, tip_match
 
 
 # ---------------------------------------------------------------------------
@@ -1107,7 +1130,8 @@ def _sheet_name(name):
     return clean[:31] or "sheet"
 
 
-def save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols, mixed_groups):
+def save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols, mixed_groups,
+                  extra_sheets=None):
     """f3 + 진단 + 로딩시각 + 원본테이블 시트를 하나의 엑셀 파일로 저장.
 
     원본테이블이 시트 한계를 넘으면 name_1, name_2 ... 로 나눠 적재한다.
@@ -1125,6 +1149,9 @@ def save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols, mixed_
             note.to_excel(xw, sheet_name="중복진단", index=False)
             _excel_safe(dup_rows).to_excel(
                 xw, sheet_name="중복진단", index=False, startrow=len(note) + 2)
+
+        for name, df in (extra_sheets or {}).items():
+            raw_samples[name] = df
 
         for name, df in raw_samples.items():
             safe = _excel_safe(df)
@@ -1213,7 +1240,9 @@ def main():
         con.register(k, v)
 
     with timer("f3 생성"):
-        df_f3 = build_f3(con)
+        df_f3, tip_match = build_f3(con)
+    n_tip = int(df_f3["tip"].notna().sum())
+    print(f"[TIP] f3 tip 값 있는 행 = {n_tip:,} / {len(df_f3):,}", flush=True)
     print(f"[ROWS] f3 = {len(df_f3):,}  (lot {df_f3['lot_id'].nunique():,}개)", flush=True)
 
     dup_rows, dup_cols = diagnose_duplicates(df_f3)
@@ -1234,7 +1263,9 @@ def main():
 
     with timer("엑셀 저장"):
         path = os.path.join(os.getcwd(), f"f3_{stamp}.xlsx")
-        save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols, mixed)
+        save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols, mixed,
+                      {"t_rules(전처리된 tip)": t, "tip_join_검증": tip_match,
+                       "s(step_scope)": s})
     print(f"saved: {path} rows={len(df_f3):,}", flush=True)
 
 if __name__ == "__main__":
