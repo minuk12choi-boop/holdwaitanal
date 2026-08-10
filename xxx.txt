@@ -123,3 +123,78 @@ saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\f3_20260810_155547.xlsx rows=9
 [WARN] xlsxwriter 미설치 → openpyxl 사용(느림). pip install xlsxwriter 권장
 [TIMER] 원본검증 엑셀 저장 elapsed=100.743s
 saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\raw_20260810_155547.xlsx
+
+<bench_loading.py 동작 로그> *동작이 저 단계에서 
+[BENCH] 33개 시나리오, 각 1회
+
+  h1            11.5s  rows= 1,016,506  생테이블 (KFR4 포함, 필터 없음)
+  h2            10.6s  rows=   980,759  생테이블 (KFR4 제외)
+  h3            14.2s  rows=   760,172  status_seq<>'2' 만 서버 필터
+  h4            15.3s  rows=       741  MAX(version_desc) OVER () 윈도우
+  h5            13.3s  rows=       741  스칼라 서브쿼리로 max version_desc
+  h6            21.6s  rows=       612  스칼라 서브쿼리(라인한정) + status
+  h7            26.3s  rows=   174,632  mc_lot 조인만 (version/status 없음)
+  h8             5.1s  rows=   132,610  mc_lot 조인 + status
+  h9            17.9s  rows=       581  mc_lot 조인 + 스칼라 max version + status
+  h10           10.8s  rows=       581  mc_lot 조인 + 윈도우 max version + status (현재 방식)
+  h11            2.8s  rows=       581  2단계: max 조회 후 리터럴 주입 (mv=20260810-140000)
+  s1_KFR7       77.1s  rows= 6,843,811  KFR7 생테이블 (현재 방식)
+  s2_KFR7       53.2s  rows= 4,954,499  KFR7 lot_id IN 서브쿼리
+  s3_KFR7       54.9s  rows= 4,954,499  KFR7 lot_id 조인
+  s4_KFR7       80.4s  rows= 4,886,815  KFR7 lot 조인 + skip 제외
+  s5_KFR7       50.0s  rows= 4,566,257  KFR7 lot 조인 + 현재위치 이후 or S/Y
+  s6_KFR7       48.5s  rows= 4,498,765  KFR7 lot 조인 + 현재위치 이후 + skip 제외
+  s1_PFR1       45.8s  rows= 3,988,746  PFR1 생테이블 (현재 방식)
+  s2_PFR1        7.7s  rows=   489,541  PFR1 lot_id IN 서브쿼리
+  s3_PFR1       14.9s  rows=   489,541  PFR1 lot_id 조인
+  s4_PFR1        6.8s  rows=   481,632  PFR1 lot 조인 + skip 제외
+  s5_PFR1        5.1s  rows=   433,012  PFR1 lot 조인 + 현재위치 이후 or S/Y
+  s6_PFR1        5.9s  rows=   425,116  PFR1 lot 조인 + 현재위치 이후 + skip 제외
+  t1_KFR7       43.5s  rows= 6,470,430  KFR7 tip 현행 (owner 만)
+  t2_KFR7       37.7s  rows= 5,506,564  KFR7 tip + proc_id(mc_lot) 또는 '-'
+  t3_KFR7       77.8s  rows= 5,610,349  KFR7 tip + proc_id(step_path) 또는 '-' [로컬필터와 동일기준]
+  t4_KFR7       48.4s  rows= 5,506,564  KFR7 tip + proc_id(mc_lot) LEFT SEMI JOIN 형태
+  t5_KFR7        0.9s  rows=         3  KFR7 proc_id 집합 비교용 (mc_lot vs step_path 건수)
+  t1_PFR1       31.9s  rows= 2,959,545  PFR1 tip 현행 (owner 만)
+  t2_PFR1       47.6s  rows= 2,692,051  PFR1 tip + proc_id(mc_lot) 또는 '-'
+  t3_PFR1       78.0s  rows= 2,688,129  PFR1 tip + proc_id(step_path) 또는 '-' [로컬필터와 동일기준]
+  t4_PFR1       22.5s  rows= 2,692,051  PFR1 tip + proc_id(mc_lot) LEFT SEMI JOIN 형태
+  t5_PFR1        4.2s  rows=         3  PFR1 proc_id 집합 비교용 (mc_lot vs step_path 건수)
+
+   시나리오                                                        설명  최소_초  평균_초      행수  컬럼수  실행횟수 오류
+t5_KFR7              KFR7 proc_id 집합 비교용 (mc_lot vs step_path 건수)  0.93  0.93       3    2     1   
+t5_PFR1              PFR1 proc_id 집합 비교용 (mc_lot vs step_path 건수)  4.19  4.19       3    2     1   
+     h8                                        mc_lot 조인 + status  5.07  5.07  132610    9     1   
+s5_PFR1                              PFR1 lot 조인 + 현재위치 이후 or S/Y  5.10  5.10  433012   15     1   
+s6_PFR1                           PFR1 lot 조인 + 현재위치 이후 + skip 제외  5.87  5.87  425116   15     1   
+    h11 2단계: max 조회 후 리터럴 주입 (mv=20260810-140000) / max조회 3.4s 포함  6.18  2.79     581    9     1   
+s4_PFR1                                     PFR1 lot 조인 + skip 제외  6.84  6.84  481632   15     1   
+s2_PFR1                                       PFR1 lot_id IN 서브쿼리  7.68  7.68  489541   15     1   
+     h2                                            생테이블 (KFR4 제외) 10.64 10.64  980759    9     1   
+    h10              mc_lot 조인 + 윈도우 max version + status (현재 방식) 10.75 10.75     581    9     1   
+     h1                                     생테이블 (KFR4 포함, 필터 없음) 11.45 11.45 1016506    9     1   
+     h5                                스칼라 서브쿼리로 max version_desc 13.31 13.31     741    9     1   
+     h3                                   status_seq<>'2' 만 서버 필터 14.18 14.18  760172    9     1   
+s3_PFR1                                            PFR1 lot_id 조인 14.85 14.85  489541   15     1   
+     h4                             MAX(version_desc) OVER () 윈도우 15.35 15.35     741    9     1   
+     h9                      mc_lot 조인 + 스칼라 max version + status 17.91 17.91     581    9     1   
+     h6                                   스칼라 서브쿼리(라인한정) + status 21.56 21.56     612    9     1   
+t4_PFR1              PFR1 tip + proc_id(mc_lot) LEFT SEMI JOIN 형태 22.46 22.46 2692051   10     1   
+     h7                            mc_lot 조인만 (version/status 없음) 26.31 26.31  174632    9     1   
+t1_PFR1                                     PFR1 tip 현행 (owner 만) 31.87 31.87 2959545   10     1   
+t2_KFR7                         KFR7 tip + proc_id(mc_lot) 또는 '-' 37.66 37.66 5506564   10     1   
+t1_KFR7                                     KFR7 tip 현행 (owner 만) 43.47 43.47 6470430   10     1   
+s1_PFR1                                         PFR1 생테이블 (현재 방식) 45.75 45.75 3988746   15     1   
+t2_PFR1                         PFR1 tip + proc_id(mc_lot) 또는 '-' 47.56 47.56 2692051   10     1   
+t4_KFR7              KFR7 tip + proc_id(mc_lot) LEFT SEMI JOIN 형태 48.39 48.39 5506564   10     1   
+s6_KFR7                           KFR7 lot 조인 + 현재위치 이후 + skip 제외 48.55 48.55 4498765   15     1   
+s5_KFR7                              KFR7 lot 조인 + 현재위치 이후 or S/Y 50.03 50.03 4566257   15     1   
+s2_KFR7                                       KFR7 lot_id IN 서브쿼리 53.16 53.16 4954499   15     1   
+s3_KFR7                                            KFR7 lot_id 조인 54.88 54.88 4954499   15     1   
+s1_KFR7                                         KFR7 생테이블 (현재 방식) 77.05 77.05 6843811   15     1   
+t3_KFR7         KFR7 tip + proc_id(step_path) 또는 '-' [로컬필터와 동일기준] 77.83 77.83 5610349   10     1   
+t3_PFR1         PFR1 tip + proc_id(step_path) 또는 '-' [로컬필터와 동일기준] 78.03 78.03 2688129   10     1   
+s4_KFR7                                     KFR7 lot 조인 + skip 제외 80.37 80.37 4886815   15     1   
+
+saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\bench_loading_20260810_161352.xlsx
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> 
