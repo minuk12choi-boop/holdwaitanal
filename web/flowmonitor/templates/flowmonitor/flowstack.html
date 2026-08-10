@@ -23,7 +23,8 @@
   .panel h2 { margin:0; font-size:13px; display:flex; justify-content:space-between;
               align-items:baseline; }
   .panel h2 .unit { color:var(--mut); font-size:11px; font-weight:400; }
-  .wrap { position:relative; }
+  .wrap { position:relative; opacity:0; transition:opacity .28s ease-out; }
+  .wrap.ready { opacity:1; }
   .topbar { display:flex; justify-content:space-between; align-items:center;
             margin:0 0 8px 2px; }
   #legend { display:flex; gap:14px; font-size:12px; }
@@ -188,6 +189,11 @@ function load() {
         data: { labels: d.labels, datasets: d.datasets },
         options: {
           responsive: true, maintainAspectRatio: false,
+          // 선이 아래에서 솟아오르는 기본 애니메이션은 끄고,
+          // 컨테이너를 통째로 페이드인 시킨다(제자리에서 부드럽게).
+          animation: false,
+          animations: { colors: false, x: false, y: false },
+          transitions: { active: { animation: { duration: 0 } } },
           interaction: { mode: "index", intersect: false },
           layout: { padding: { top: 20, right: 10, left: 2 } },
           plugins: {
@@ -218,6 +224,9 @@ function load() {
       ch.$fmt = d.fmt;
       charts[key] = ch;
       ch.update();
+      // 패널마다 아주 짧게 시차를 둬 위에서 아래로 자연스럽게 나타나게
+      const wrap = document.getElementById("c_" + key).parentElement;
+      setTimeout(() => wrap.classList.add("ready"), 30 + idx * 45);
     });
   });
 }
