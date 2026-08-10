@@ -123,3 +123,22 @@ saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\f3_20260810_162110.xlsx rows=9
 [TIMER] 원본검증 엑셀 저장 start
 [TIMER] 원본검증 엑셀 저장 elapsed=37.087s
 saved: D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\raw_20260810_162110.xlsx
+
+
+
+<결과 엑셀파일>
+테이블	로딩_시작시각	로딩_종료시각	소요_초	행수	컬럼수	시트_기록행수	시트_잘림여부
+lot							
+equipment							
+eqp_group							
+hold							
+KFR7_step_path							
+PFR1_step_path							
+KFR7_tip							
+PFR1_tip	2026-08-10 16:25:53	2026-08-10 16:26:18	25.202	2960096	10	100000	Y
+
+빈값이 존재함.
+
+f3 sheet도 lot_inform컬럼의 일부 행을 제외하면 모두 빈값임 
+
+raw관련 excel파일도 각 sheet의 첫행을 제외하면 모두 빈값임 xlsxwriter에 문제가 있는것인지 확인 필요함. 
