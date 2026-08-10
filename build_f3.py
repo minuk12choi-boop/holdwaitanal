@@ -579,7 +579,7 @@ HOLD_SERVER_SIDE_FILTER = True
 
 hold_query_raw = """
 SELECT line_id, item_type, status_seq, lot_id, step_seq,
-       hold_user_name, issue_reason_cont, issue_date
+       hold_user_name, issue_reason_cont, issue_date, version_desc
 FROM   MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
 WHERE  line_id IN ('KFR4', 'KFR7', 'PFR1')
 """
@@ -774,6 +774,18 @@ def build_hold(df_hold):
       item_type 그룹별로 (line_id, lot_id, step_seq) 당 1건만 남김.
     """
     h = _lower_cols(df_hold)
+
+    # version_desc 는 적재 ID(스냅샷). 최신 스냅샷으로 먼저 좁힌 뒤 status_seq 를 건다.
+    # 최신 스냅샷에 없는 lot 의 issue 는 이미 조치완료되어 사라진 것이므로
+    # 옛 스냅샷에서 되살리지 않는다.
+    # (서버측 필터를 쓰면 이미 적용돼 있고, 생테이블 폴백이면 여기서 적용된다)
+    if "version_desc" in h.columns:
+        latest = h["version_desc"].max()
+        before = len(h)
+        h = h[h["version_desc"].eq(latest)]
+        print(f"[HOLD] 최신 version_desc={latest} 적용: {before:,} -> {len(h):,}행",
+              flush=True)
+
     h = h[~h["status_seq"].isin(HOLD_EXCLUDE_STATUS_SEQ)]
     h = h.rename(columns={
         "hold_user_name": "hold_user",
