@@ -94,5 +94,8 @@ def build_panel(daily, anchor=None, decimals=0, months=3, weeks=4, days=7):
 
     return {"labels": [l for l, _, _ in axis],
             "kinds": [k for _, k, _ in axis],
+            # 일 버킷만 드릴다운 대상. 월/주는 집계라 특정 스냅샷이 없다.
+            "dates": [(max(d).isoformat() if k == "day" and d else None)
+                      for _, k, d in axis],
             "datasets": datasets,
             "anchor": anchor.isoformat()}

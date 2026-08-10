@@ -72,9 +72,9 @@ PANELS = [
     {"key": "wip",     "title": "재공",               "unit": "매",    "h": 1.2,
      "fmt": "k"},
     {"key": "hold",    "title": "HOLD율",             "unit": "%",    "h": 0.8,
-     "fmt": "i", "basis": True},
+     "fmt": "i", "basis": True, "status": "HOLD"},
     {"key": "blocked", "title": "WAIT성 진행불가율",    "unit": "%",    "h": 0.8,
-     "fmt": "i", "basis": True},
+     "fmt": "i", "basis": True, "status": "WAIT(진행불가)"},
 ]
 
 
@@ -184,7 +184,8 @@ def _panels(basis="qty"):
             ds["tension"] = 0.25
             ds["pointRadius"] = 2
         data.update(key=p["key"], title=p["title"], unit=p["unit"],
-                    height=p["h"], fmt=p.get("fmt", "f1"))
+                    height=p["h"], fmt=p.get("fmt", "f1"),
+                    status=p.get("status", ""))
         out[p["key"]] = data
     return out, missing
 
@@ -653,18 +654,31 @@ LOT_DETAIL_COLS = [
 
 
 def api_lots(request):
+    """LOT 상세. 현황(Low WT)과 추이(FlowStack) 양쪽에서 같은 형식으로 쓴다.
+
+    line     라인 코드
+    col      전체 | GY | DAY | SW
+    biz_date 미지정이면 최신 업무일
+    bin/cause/max_wt  Low WT 에서 넘어올 때만
+    status   lot_status 필터 (FlowStack HOLD/WAIT 패널에서)
+    """
     line = request.GET.get("line", "")
     col = request.GET.get("col", "전체")
-    bin_key = request.GET.get("bin", "0")
+    bin_key = request.GET.get("bin", "")
     cause = request.GET.get("cause", "")
+    status = request.GET.get("status", "")
+    req_date = request.GET.get("biz_date", "")
     max_wt = float(request.GET.get("max_wt", 0) or 0)
 
     if not (_table_exists("f3_history") and _table_exists("move_lot")):
         return JsonResponse({"rows": [], "cols": [], "reason": "미적재"})
 
-    with connection.cursor() as cur:
-        cur.execute("SELECT MAX(biz_date) FROM f3_history")
-        bd = cur.fetchone()[0]
+    if req_date:
+        bd = req_date
+    else:
+        with connection.cursor() as cur:
+            cur.execute("SELECT MAX(biz_date) FROM f3_history")
+            bd = cur.fetchone()[0]
     if not bd:
         return JsonResponse({"rows": [], "cols": [], "reason": "데이터 없음"})
 
@@ -705,7 +719,9 @@ def api_lots(request):
     for r in recs:
         qty = int(r.get("qty") or 0)
         wt = (mv.get(r["lot_id"], 0.0) / qty) if qty else 0.0
-        if _bin_of(wt, max_wt) != bin_key:
+        if bin_key and _bin_of(wt, max_wt) != bin_key:
+            continue
+        if status and (r.get("lot_status") or "") != status:
             continue
         cs = _cause_of(r.get("hold"), r.get("exception"), r.get("ftp"),
                        r.get("down"), r.get("tip"))
@@ -719,5 +735,5 @@ def api_lots(request):
     return JsonResponse({
         "rows": out, "cols": [{"k": c, "t": t} for c, t in LOT_DETAIL_COLS],
         "biz_date": str(bd), "line": line, "col": col,
-        "bin": bin_key, "cause": cause or "전체",
+        "bin": bin_key, "cause": cause or "전체", "status": status,
     }, json_dumps_params={"ensure_ascii": False})
