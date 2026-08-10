@@ -24,16 +24,19 @@ PANELS = [
     {"key": "move",    "title": "MOVE",              "unit": "매",   "h": 1.2},
     {"key": "wt",      "title": "W/T",               "unit": "회",   "h": 1.0},
     {"key": "wip",     "title": "재공",               "unit": "매",   "h": 1.2},
-    {"key": "hold",    "title": "HOLD율",             "unit": "%",   "h": 0.8},
-    {"key": "blocked", "title": "WAIT성 진행불가율",    "unit": "%",   "h": 0.8},
+    {"key": "hold",    "title": "HOLD율",             "unit": "%",   "h": 0.8,
+     "basis": True},
+    {"key": "blocked", "title": "WAIT성 진행불가율",    "unit": "%",   "h": 0.8,
+     "basis": True},
 ]
 
 
 def _fetch():
-    """일별 MOVE / 재공 / HOLD / 진행불가 원자료.
+    """일별 MOVE / 재공 원자료.
 
-    재공은 업무일 시작 스냅샷(GY)을 쓴다. lot 단위로 접은 뒤 매수를 합산한다
+    재공은 업무일 시작 스냅샷(GY)을 쓴다. lot 단위로 접은 뒤 집계한다
     (f3 는 lot 당 현스텝 + 연속블록 행이 있어 그대로 더하면 중복된다).
+    HOLD/WAIT 는 매수(qty)와 lot 수를 모두 담아 화면에서 전환할 수 있게 한다.
     """
     since = dt.date.today() - dt.timedelta(days=LOOKBACK_DAYS)
     types = ",".join(["%s"] * len(MOVE_LOT_TYPES))
@@ -46,9 +49,12 @@ def _fetch():
 
         cur.execute(f"""
             SELECT biz_date, `line`,
-                   SUM(qty)                                            AS wip_qty,
+                   SUM(qty)                                                        AS wip_qty,
+                   COUNT(*)                                                        AS wip_lot,
                    SUM(CASE WHEN lot_status = 'HOLD' THEN qty ELSE 0 END)          AS hold_qty,
-                   SUM(CASE WHEN lot_status = 'WAIT(진행불가)' THEN qty ELSE 0 END) AS blocked_qty
+                   SUM(CASE WHEN lot_status = 'HOLD' THEN 1 ELSE 0 END)            AS hold_lot,
+                   SUM(CASE WHEN lot_status = 'WAIT(진행불가)' THEN qty ELSE 0 END) AS blocked_qty,
+                   SUM(CASE WHEN lot_status = 'WAIT(진행불가)' THEN 1 ELSE 0 END)   AS blocked_lot
             FROM (
                 SELECT biz_date, `line`, lot_id,
                        MIN(CAST(qty AS SIGNED)) AS qty,
@@ -60,27 +66,38 @@ def _fetch():
             ) t
             GROUP BY biz_date, `line`
         """, [since, *MOVE_LOT_TYPES])
-        wip = {(r[0], r[1]): (float(r[2] or 0), float(r[3] or 0), float(r[4] or 0))
+        wip = {(r[0], r[1]): tuple(float(x or 0) for x in r[2:])
                for r in cur.fetchall()}
     return move, wip
 
 
-def _panels():
+def _panels(basis="qty"):
+    """basis: 'qty' = 매수 기준(기본), 'lot' = Lot 수 기준.
+
+    HOLD율 / WAIT성 진행불가율의 분모만 바뀐다. MOVE / W/T / 재공은
+    정의상 매수 기준이므로 영향받지 않는다(docs/common_conventions.md).
+    """
     move, wip = _fetch()
     keys = set(move) | set(wip)
+    i = 0 if basis == "qty" else 1        # (wip_qty, wip_lot, hold_qty, hold_lot, ...)
 
     d_move, d_wt, d_wip, d_hold, d_blk = {}, {}, {}, {}, {}
     for k in keys:
         mv = move.get(k)
-        w, h, b = wip.get(k, (None, None, None))
+        row = wip.get(k)
         if mv is not None:
             d_move[k] = mv
-        if w:
-            d_wip[k] = w
-            d_hold[k] = h / w * 100
-            d_blk[k] = b / w * 100
+        if not row:
+            continue
+        w_qty, w_lot, h_qty, h_lot, b_qty, b_lot = row
+        base = (w_qty, w_lot)[i]
+        if w_qty:
+            d_wip[k] = w_qty
             if mv is not None:
-                d_wt[k] = mv / w
+                d_wt[k] = mv / w_qty
+        if base:
+            d_hold[k] = (h_qty, h_lot)[i] / base * 100
+            d_blk[k] = (b_qty, b_lot)[i] / base * 100
 
     out = {}
     for p in PANELS:
@@ -101,7 +118,12 @@ def _panels():
 
 
 def api_flowstack(request):
-    return JsonResponse({"panels": _panels(), "order": [p["key"] for p in PANELS]})
+    basis = request.GET.get("basis", "qty")
+    if basis not in ("qty", "lot"):
+        basis = "qty"
+    return JsonResponse({"panels": _panels(basis),
+                         "order": [p["key"] for p in PANELS],
+                         "basis": basis})
 
 
 def flowstack(request):

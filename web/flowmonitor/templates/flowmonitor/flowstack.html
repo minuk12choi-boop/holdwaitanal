@@ -24,7 +24,15 @@
               align-items:baseline; }
   .panel h2 .unit { color:var(--mut); font-size:11px; font-weight:400; }
   .wrap { position:relative; }
-  #legend { display:flex; gap:14px; margin:0 0 8px 2px; font-size:12px; }
+  .topbar { display:flex; justify-content:space-between; align-items:center;
+            margin:0 0 8px 2px; }
+  #legend { display:flex; gap:14px; font-size:12px; }
+  .toggle { display:inline-flex; border:1px solid var(--bd); border-radius:5px;
+            overflow:hidden; font-size:12px; }
+  .toggle button { border:0; background:#fff; color:var(--mut); padding:4px 10px;
+                   cursor:pointer; }
+  .toggle button.on { background:var(--fg); color:#fff; }
+  .panel h2 .basis { color:var(--mut); font-size:11px; font-weight:400; }
   #legend span { display:inline-flex; align-items:center; gap:5px; }
   #legend i { width:14px; height:3px; border-radius:2px; display:inline-block; }
   .err { color:#B91C1C; font-size:13px; padding:8px 2px; }
@@ -42,10 +50,17 @@
 
 <main>
   <div class="left">
-    <div id="legend"></div>
+    <div class="topbar">
+      <div id="legend"></div>
+      <div class="toggle" title="HOLD율 / WAIT성 진행불가율의 분모">
+        <button id="b_qty" class="on" onclick="setBasis('qty')">매수</button>
+        <button id="b_lot" onclick="setBasis('lot')">Lot수</button>
+      </div>
+    </div>
     {% for p in panels %}
     <div class="panel">
-      <h2>{{ p.title }}<span class="unit">{{ p.unit }}</span></h2>
+      <h2>{{ p.title }}<span class="unit">{% if p.basis %}<span class="basis"
+          id="basis_{{ p.key }}">매수 기준</span> · {% endif %}{{ p.unit }}</span></h2>
       <div class="wrap" style="height:{{ p.h }}00px">
         <canvas id="c_{{ p.key }}"></canvas>
       </div>
@@ -59,69 +74,94 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 const KIND_KO = { month: "월평균", week: "주평균", day: "일" };
+const charts = {};
+let basis = "qty";
 
-fetch("/api/flowstack/").then(r => r.json()).then(res => {
-  if (!window.Chart) {
-    document.getElementById("err").textContent =
-      "Chart.js 로드 실패 (사내망 CDN 차단 가능). static 으로 내려받아 교체하세요.";
-    return;
+function setBasis(b) {
+  if (b === basis) return;
+  basis = b;
+  document.getElementById("b_qty").className = (b === "qty") ? "on" : "";
+  document.getElementById("b_lot").className = (b === "lot") ? "on" : "";
+  ["hold", "blocked"].forEach(k => {
+    const el = document.getElementById("basis_" + k);
+    if (el) el.textContent = (b === "qty") ? "매수 기준" : "Lot수 기준";
+  });
+  load();
+}
+
+// 단위가 바뀌는 지점에 세로 구분선
+const gapLine = {
+  id: "gapLine",
+  beforeDatasetsDraw(c) {
+    const x = c.scales.x, ctx = c.ctx;
+    (c.$kinds || []).forEach((k, i) => {
+      if (k !== "gap") return;
+      const px = x.getPixelForValue(i);
+      ctx.save();
+      ctx.strokeStyle = "#D1D5DB"; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(px, c.chartArea.top);
+      ctx.lineTo(px, c.chartArea.bottom); ctx.stroke(); ctx.restore();
+    });
   }
-  const first = res.panels[res.order[0]];
+};
 
-  // Line 범례는 패널마다 반복하지 않고 상단에 한 번만
-  document.getElementById("legend").innerHTML = first.datasets.map(
-    d => `<span><i style="background:${d.borderColor}"></i>${d.label}</span>`).join("");
-
-  // 단위가 바뀌는 지점에 세로 구분선
-  const gapLine = {
-    id: "gapLine",
-    beforeDatasetsDraw(c) {
-      const x = c.scales.x, ctx = c.ctx;
-      (c.$kinds || []).forEach((k, i) => {
-        if (k !== "gap") return;
-        const px = x.getPixelForValue(i);
-        ctx.save();
-        ctx.strokeStyle = "#D1D5DB"; ctx.setLineDash([3, 3]);
-        ctx.beginPath(); ctx.moveTo(px, c.chartArea.top);
-        ctx.lineTo(px, c.chartArea.bottom); ctx.stroke(); ctx.restore();
-      });
+function load() {
+  fetch("/api/flowstack/?basis=" + basis).then(r => r.json()).then(res => {
+    if (!window.Chart) {
+      document.getElementById("err").textContent =
+        "Chart.js 로드 실패 (사내망 CDN 차단 가능). static 으로 내려받아 교체하세요.";
+      return;
     }
-  };
+    const first = res.panels[res.order[0]];
+    document.getElementById("legend").innerHTML = first.datasets.map(
+      d => `<span><i style="background:${d.borderColor}"></i>${d.label}</span>`).join("");
 
-  res.order.forEach((key, idx) => {
-    const d = res.panels[key];
-    const last = idx === res.order.length - 1;   // x축 라벨은 마지막 패널에만
-    const ch = new Chart(document.getElementById("c_" + key), {
-      type: "line",
-      data: { labels: d.labels, datasets: d.datasets },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        interaction: { mode: "index", intersect: false },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: (t) => {
-                const i = t[0].dataIndex;
-                const k = KIND_KO[d.kinds[i]] || "";
-                return d.labels[i] + (k ? " (" + k + ")" : "");
-              },
-              label: (t) => `${t.dataset.label}  ${t.formattedValue} ${d.unit}`
+    res.order.forEach((key, idx) => {
+      const d = res.panels[key];
+      const last = idx === res.order.length - 1;   // x축 라벨은 마지막 패널에만
+
+      if (charts[key]) {                            // 토글 시에는 데이터만 교체
+        charts[key].data.labels = d.labels;
+        charts[key].data.datasets = d.datasets;
+        charts[key].$kinds = d.kinds;
+        charts[key].update();
+        return;
+      }
+      const ch = new Chart(document.getElementById("c_" + key), {
+        type: "line",
+        data: { labels: d.labels, datasets: d.datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: (t) => {
+                  const i = t[0].dataIndex;
+                  const k = KIND_KO[d.kinds[i]] || "";
+                  return d.labels[i] + (k ? " (" + k + ")" : "");
+                },
+                label: (t) => `${t.dataset.label}  ${t.formattedValue} ${d.unit}`
+              }
             }
+          },
+          scales: {
+            x: { grid: { display: false },
+                 ticks: { display: last, font: { size: 10 }, autoSkip: false } },
+            y: { beginAtZero: true, ticks: { font: { size: 10 } } }
           }
         },
-        scales: {
-          x: { grid: { display: false },
-               ticks: { display: last, font: { size: 10 }, autoSkip: false } },
-          y: { beginAtZero: true, ticks: { font: { size: 10 } } }
-        }
-      },
-      plugins: [gapLine]
+        plugins: [gapLine]
+      });
+      ch.$kinds = d.kinds;
+      charts[key] = ch;
+      ch.update();
     });
-    ch.$kinds = d.kinds;
-    ch.update();
   });
-});
+}
+
+load();
 </script>
 </body>
 </html>
