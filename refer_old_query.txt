@@ -634,3 +634,23 @@ where h0.r = h1.m
 1. MOS_KH_SMI.SMIMES_MI_EQP_GROUP_LIST는 line_id in ('PFR1', 'KFR7')만 불러와서 사용하면되고, 이 테이블도 max(impala_insert_time) over (line_id, eqp_group_name, eqp_id) = impala_insert_time인것만 불러와서 사용해야한다.
 2. 기존의 oracle문법 및 테이블을, impala테이블로 치환하고 문법에 맞게 바꾸면 된다.
 3. 기존의 문제점을 해결해야한다. 기존의 문제점은 데이터를 줄이고 원하는 데이터만 가져오게 하는 목적으로 where절을 썼을 때 오히려 loading시간이 더 오래걸린다는 점. 사내환경에선 loading 시간이 15분 이상 소요 시 cpu호출에러로 로딩이 안된다는 점. 그래서 차라리 가능한 생table을 그대로 불러와서 데이터 전처리는 python으로 하는게 필요하다.(*기존 kfr7 step table을 불러오는데 7분이 걸린다. 하지만 저 중에 가장 큰 테이블 용량을 차지하는 것으로 추정되는 smicdc_nrdk.mc_lot_step_path만 생으로 불러오면 2분이 소요된다)(*trackinprevent에 아무 조건을 걸지않은 생테이블을 불러올 때는 쿼리당 2분밖에 소요되지않으나, 기존의 것처럼 결합을 하고 연산하면 15분 이상의 호출시간이 소모되며 호출제한이 걸려 로딩이 안된다.)
+4. hold의 경우엔 아래 쿼리를 생테이블로 쓰면 될 것 같다. 그런데 내가 할 수 있는 방법이 아래 쿼리처럼 짤줄만 알아서 저렇게 준건데, distinct를 씀으로써 더 느려졌다. 얘도  MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT where line_id in ( 'KFR4', 'KFR7', 'PFR1' )로 생테이블을 불러오고 python단에서 중복데이터를 제거하라. memmss_fab_issue_lot의 컬럼 힌트를 하나 더 추가하자면 status_seq의 값이 '0':발의, '1':조치중, '2':조치완료, '3': 조치불가 이다.
+select distinct
+impala_insert_time,
+version_desc,
+item_type,
+status_seq, 
+lot_id,
+lot_type,
+lot_status_seg,
+proc_id,
+step_seq,
+issue_date,
+user_update_dttm,
+hold_user_name,
+update_user_name,
+issue_reason_cont
+from 
+MOS_KH_SMI.MEMMSS_FAB_ISSUE_LOT
+where line_id in ( 'KFR4', 'KFR7', 'PFR1' )
+5. 내가 준 것을 그대로 따르지 말고, 최대한 데이터 전처리 과정과 로딩 과정 모두를 효율화 시켜라. 중복 로딩하는 일을 최대한 없애도록 하고, 대부분의 table에 pk가 없어서 where 조건을 거는 것은 오래 걸리지만 컬럼을 줄이는 정도의 로딩과정에서의 효율화는 알아서 진행해라.(내가 알려주지 않더라도 실제 쓰이는 컬럼 외에는 로딩하지 않아도된다는 의미임)
