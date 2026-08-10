@@ -67,16 +67,34 @@ def snapshot_shift(boundary: dt.datetime):
 # ---------------------------------------------------------------------------
 # 접속
 # ---------------------------------------------------------------------------
-def load_env(path=".env"):
+def find_env(start=None):
+    """이 파일 위치에서 위로 올라가며 .env 를 찾는다.
+
+    getdata/ 에서 실행하든 web/ 에서 실행하든 저장소 루트의 .env 를 찾도록.
+    """
+    d = os.path.dirname(os.path.abspath(start or __file__))
+    for _ in range(5):
+        cand = os.path.join(d, ".env")
+        if os.path.exists(cand):
+            return cand
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    return None
+
+
+def load_env(path=None):
     """.env 를 읽어 os.environ 에 채운다(python-dotenv 없어도 동작)."""
+    path = path or find_env()
+    if not path or not os.path.exists(path):
+        return
     try:
         from dotenv import load_dotenv
         load_dotenv(path)
         return
     except ImportError:
         pass
-    if not os.path.exists(path):
-        return
     with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()

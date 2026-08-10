@@ -36,6 +36,8 @@
   #legend span { display:inline-flex; align-items:center; gap:5px; }
   #legend i { width:14px; height:3px; border-radius:2px; display:inline-block; }
   .err { color:#B91C1C; font-size:13px; padding:8px 2px; }
+  .notice { background:#FFFBEB; border:1px solid #FDE68A; color:#92400E;
+            border-radius:5px; padding:8px 10px; font-size:12px; margin-bottom:10px; }
 </style>
 </head>
 <body>
@@ -50,6 +52,7 @@
 
 <main>
   <div class="left">
+    <div id="notice" class="notice" style="display:none"></div>
     <div class="topbar">
       <div id="legend"></div>
       <div class="toggle" title="HOLD율 / WAIT성 진행불가율의 분모">
@@ -112,6 +115,10 @@ function load() {
         "Chart.js 로드 실패 (사내망 CDN 차단 가능). static 으로 내려받아 교체하세요.";
       return;
     }
+    const nb = document.getElementById("notice");
+    if (res.notice) { nb.textContent = res.notice; nb.style.display = "block"; }
+    else { nb.style.display = "none"; }
+
     const first = res.panels[res.order[0]];
     document.getElementById("legend").innerHTML = first.datasets.map(
       d => `<span><i style="background:${d.borderColor}"></i>${d.label}</span>`).join("");

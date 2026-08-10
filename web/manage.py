@@ -13,7 +13,9 @@ DEFAULT_PORT = "8010"
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, root)
+    sys.path.insert(0, os.path.join(root, "getdata"))
     try:
         import db_common
         db_common.load_env()

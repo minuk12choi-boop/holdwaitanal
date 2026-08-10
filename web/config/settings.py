@@ -4,11 +4,13 @@ import os
 import sys
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(BASE_DIR.parent))          # db_common 재사용
+BASE_DIR = Path(__file__).resolve().parent.parent       # web/
+ROOT_DIR = BASE_DIR.parent                              # 저장소 루트
+sys.path.insert(0, str(ROOT_DIR))
+sys.path.insert(0, str(ROOT_DIR / "getdata"))           # db_common 재사용
 
 import db_common as DB  # noqa: E402
-DB.load_env(str(BASE_DIR.parent / ".env"))
+DB.load_env()                                           # .env 는 루트에서 자동 탐색
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "change-me")
 DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() == "true"

@@ -7,7 +7,7 @@
 """
 import datetime as dt
 
-from django.db import connection
+from django.db import connection, ProgrammingError, OperationalError
 from django.http import JsonResponse
 from django.shortcuts import render
 
@@ -40,14 +40,25 @@ def _fetch():
     """
     since = dt.date.today() - dt.timedelta(days=LOOKBACK_DAYS)
     types = ",".join(["%s"] * len(MOVE_LOT_TYPES))
+    missing = []
 
-    with connection.cursor() as cur:
-        cur.execute(
-            "SELECT biz_date, sys_line_id, move_qty FROM move_daily "
-            "WHERE biz_date >= %s", [since])
-        move = {(r[0], r[1]): float(r[2] or 0) for r in cur.fetchall()}
+    def run(sql, params, table):
+        """적재 전이라 테이블이 없을 수 있다. 500 대신 빈 결과로 처리한다."""
+        try:
+            with connection.cursor() as cur:
+                cur.execute(sql, params)
+                return cur.fetchall()
+        except (ProgrammingError, OperationalError) as e:
+            if "doesn't exist" in str(e) or "1146" in str(e):
+                missing.append(table)
+                return []
+            raise
 
-        cur.execute(f"""
+    move = {(r[0], r[1]): float(r[2] or 0) for r in run(
+        "SELECT biz_date, sys_line_id, move_qty FROM move_daily WHERE biz_date >= %s",
+        [since], "move_daily")}
+
+    wip = {(r[0], r[1]): tuple(float(x or 0) for x in r[2:]) for r in run(f"""
             SELECT biz_date, `line`,
                    SUM(qty)                                                        AS wip_qty,
                    COUNT(*)                                                        AS wip_lot,
@@ -65,10 +76,9 @@ def _fetch():
                 GROUP  BY biz_date, `line`, lot_id
             ) t
             GROUP BY biz_date, `line`
-        """, [since, *MOVE_LOT_TYPES])
-        wip = {(r[0], r[1]): tuple(float(x or 0) for x in r[2:])
-               for r in cur.fetchall()}
-    return move, wip
+        """, [since, *MOVE_LOT_TYPES], "f3_history")}
+
+    return move, wip, missing
 
 
 def _panels(basis="qty"):
@@ -77,7 +87,7 @@ def _panels(basis="qty"):
     HOLD율 / WAIT성 진행불가율의 분모만 바뀐다. MOVE / W/T / 재공은
     정의상 매수 기준이므로 영향받지 않는다(docs/common_conventions.md).
     """
-    move, wip = _fetch()
+    move, wip, missing = _fetch()
     keys = set(move) | set(wip)
     i = 0 if basis == "qty" else 1        # (wip_qty, wip_lot, hold_qty, hold_lot, ...)
 
@@ -114,16 +124,21 @@ def _panels(basis="qty"):
             ds["pointRadius"] = 2
         data.update(key=p["key"], title=p["title"], unit=p["unit"], height=p["h"])
         out[p["key"]] = data
-    return out
+    return out, missing
 
 
 def api_flowstack(request):
     basis = request.GET.get("basis", "qty")
     if basis not in ("qty", "lot"):
         basis = "qty"
-    return JsonResponse({"panels": _panels(basis),
+    panels, missing = _panels(basis)
+    notice = ""
+    if missing:
+        notice = (f"아직 적재되지 않은 테이블: {', '.join(sorted(set(missing)))}. "
+                  f"getdata/build_f3.py · getdata/get_move.py 를 실행하세요.")
+    return JsonResponse({"panels": panels,
                          "order": [p["key"] for p in PANELS],
-                         "basis": basis})
+                         "basis": basis, "notice": notice})
 
 
 def flowstack(request):
