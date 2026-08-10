@@ -1447,7 +1447,10 @@ def main():
             raw_samples[name] = (df if cap is None else df.head(cap)).copy()
         return df
 
-    stamp = f"{dt.datetime.now():%Y%m%d_%H%M%S}"
+    # 스냅샷 시각은 '원천을 조회하기 시작한 시점' 이다. 파이프라인이 3분쯤
+    # 걸리므로 적재 시점을 쓰면 그만큼 뒤로 밀려 shift 기준시각 판정이 어긋난다.
+    run_at = dt.datetime.now().replace(microsecond=0)
+    stamp = f"{run_at:%Y%m%d_%H%M%S}"
 
     with timer("소형 원천 조회"):
         df_lot = fetch("lot", lot_query)
@@ -1543,7 +1546,7 @@ def main():
             with timer("DB 적재"):
                 conn = DB.connect()
                 DB.ensure_f3_schema(conn, SUMMARY_OUTPUT_COLUMNS)
-                snapshot_at = dt.datetime.now().replace(microsecond=0)
+                snapshot_at = run_at
                 DB.load_f3_live(conn, df_f3, SUMMARY_OUTPUT_COLUMNS, snapshot_at)
                 print(f"[DB] f3_live 갱신 snapshot_at={snapshot_at} "
                       f"rows={len(df_f3):,}", flush=True)
