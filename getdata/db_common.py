@@ -205,9 +205,16 @@ def ensure_load_log_schema(conn):
           elapsed_sec DOUBLE NULL,
           row_count BIGINT NULL,
           col_count INT NULL,
+          kind VARCHAR(8) NOT NULL DEFAULT '조회',
           KEY ix_ll_snap (snapshot_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
+        # 기존 테이블에 kind 컬럼 보강
+        try:
+            cur.execute("ALTER TABLE f3_load_log "
+                        "ADD COLUMN kind VARCHAR(8) NOT NULL DEFAULT '조회'")
+        except Exception:
+            pass
     conn.commit()
 
 
@@ -217,9 +224,11 @@ def load_f3_load_log(conn, snapshot_at, load_log, keep=2):
         cur.execute("DELETE FROM f3_load_log WHERE snapshot_at = %s", (snapshot_at,))
         cur.executemany(
             "INSERT INTO f3_load_log (snapshot_at, table_name, load_start, load_end,"
-            " elapsed_sec, row_count, col_count) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            " elapsed_sec, row_count, col_count, kind)"
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
             [(snapshot_at, r.get("테이블"), r.get("로딩_시작시각"), r.get("로딩_종료시각"),
-              r.get("소요_초"), r.get("행수"), r.get("컬럼수")) for r in load_log])
+              r.get("소요_초"), r.get("행수"), r.get("컬럼수"),
+              r.get("구분", "조회")) for r in load_log])
         cur.execute(
             "DELETE FROM f3_load_log WHERE snapshot_at NOT IN "
             "(SELECT * FROM (SELECT DISTINCT snapshot_at FROM f3_load_log "

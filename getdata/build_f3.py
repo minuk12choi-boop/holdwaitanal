@@ -1493,6 +1493,27 @@ def main():
     load_log = []
     raw_samples = {}
 
+    @contextmanager
+    def stage(name):
+        """로컬 처리 구간도 기록한다.
+
+        기존에는 getData 호출만 남겨서, 조회 사이의 로컬 연산이 '설명되지 않는
+        공백' 으로 보였다(소요합 300초 vs 실제 경과 483초). 이제 계 행의
+        소요합과 경과가 맞아떨어진다.
+        """
+        s0 = dt.datetime.now()
+        t0 = perf_counter()
+        print(f"[STAGE] {name} 시작", flush=True)
+        yield
+        secs = perf_counter() - t0
+        load_log.append({
+            "테이블": name, "구분": "처리",
+            "로딩_시작시각": s0, "로딩_종료시각": dt.datetime.now(),
+            "소요_초": round(secs, 3), "행수": None, "컬럼수": None,
+            "시트_기록행수": 0, "시트_잘림여부": "N",
+        })
+        print(f"[STAGE] {name} {secs:.1f}s", flush=True)
+
     def fetch(name, sql, keep_sample=True):
         start = dt.datetime.now()
         t0 = perf_counter()
@@ -1512,6 +1533,7 @@ def main():
             "컬럼수": df.shape[1],
             "시트_기록행수": sample_rows,
             "시트_잘림여부": "Y" if sample_rows < n else "N",
+            "구분": "조회",
         })
         print(f"[QUERY] {name} rows={n:,} cols={df.shape[1]} {secs:.1f}s", flush=True)
         if keep_sample:
@@ -1557,7 +1579,7 @@ def main():
             # 먼저 시도하고, 값이 안 나오면 전체 범위로 되돌린다.
             lo = (run_at - dt.timedelta(days=HOLD_VERSION_LOOKBACK_DAYS)
                   ).strftime("%Y%m%d-000000")
-            with timer("hold 최신 version_desc 조회"):
+            with stage("hold version_desc 조회"):
                 mv = getData(param=hold_max_query_bounded.replace("{LO}", lo),
                              convert_type=True, verbose=False).iloc[0, 0]
                 if not mv:
@@ -1574,11 +1596,11 @@ def main():
     s_parts = []
     for line, sql in (("KFR7", kfr7_step_path_query), ("PFR1", pfr1_step_path_query)):
         df_path = fetch(f"{line}_step_path", sql)
-        with timer(f"{line} f3 범위 축약"):
+        with stage(f"{line} 범위축약"):
             scope = narrow_step_to_scope(df_path, df_lot, line)
         del df_path
         print(f"[ROWS] {line} scope(step) = {len(scope):,}", flush=True)
-        with timer(f"{line} 설비그룹 전개"):
+        with stage(f"{line} 설비그룹전개"):
             s_parts.append(expand_with_equipment(scope, df_eqp, df_eqp_group, line))
     s = pd.concat(s_parts, ignore_index=True)
     print(f"[ROWS] s = {len(s):,}", flush=True)
@@ -1586,17 +1608,17 @@ def main():
     t_parts = []
     for line, sql in (("KFR7", kfr7_tip_query), ("PFR1", pfr1_tip_query)):
         df_tip = fetch(f"{line}_tip", sql)
-        with timer(f"{line} tip 선필터"):
+        with stage(f"{line} tip 선필터"):
             tip_f = prefilter_tip(df_tip, s[s["line"].eq(line)])
         print(f"[FILTER] {line} tip {len(df_tip):,} -> {len(tip_f):,}", flush=True)
         del df_tip
-        with timer(f"{line} tip 전처리"):
+        with stage(f"{line} tip 전처리"):
             t_parts.append(build_tip(tip_f, df_eqp, line))
         del tip_f
     t = pd.concat(t_parts, ignore_index=True)
     print(f"[ROWS] t = {len(t):,}", flush=True)
 
-    with timer("hold 전처리"):
+    with stage("hold 전처리"):
         holds = build_hold(df_hold, set(_lower_cols(df_lot)["lot_id"].dropna()))
     for k, v in holds.items():
         print(f"[ROWS] {k} = {len(v):,}", flush=True)
@@ -1608,7 +1630,7 @@ def main():
     for k, v in holds.items():
         con.register(k, v)
 
-    with timer("f3 생성"):
+    with stage("f3 생성"):
         df_f3, tip_match, eqpgroup_trace = build_f3(con)
     n_tip = int(df_f3["tip"].notna().sum())
     print(f"[TIP] f3 tip 값 있는 행 = {n_tip:,} / {len(df_f3):,}", flush=True)

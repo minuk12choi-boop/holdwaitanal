@@ -102,10 +102,10 @@ function setBasis(b) {
 }
 
 // 값 레이블을 점 위에 직접 그린다(별도 플러그인 의존 없이).
-function fmtLabel(v, fmt) {
+function fmtLabel(v, fmt, unit) {
   if (v === null || v === undefined) return "";
   if (fmt === "k") return (v / 1000).toFixed(1) + "k";
-  if (fmt === "i") return String(Math.round(v));
+  if (fmt === "i") return Math.round(v) + (unit === "%" ? "%" : "");
   return v.toFixed(1);
 }
 
@@ -123,7 +123,7 @@ const valueLabels = {
       meta.data.forEach((el, i) => {
         const v = ds.data[i];
         if (v === null || v === undefined) return;
-        const txt = fmtLabel(v, c.$fmt);
+        const txt = fmtLabel(v, c.$fmt, c.$unit);
         // 선이 겹칠 때 글자끼리 붙지 않도록 데이터셋마다 살짝 어긋나게
         ctx.fillStyle = ds.borderColor;
         ctx.fillText(txt, el.x, el.y - 5 - (di % 2) * 11);
@@ -181,6 +181,7 @@ function load() {
         charts[key].data.datasets = d.datasets;
         charts[key].$kinds = d.kinds;
         charts[key].$fmt = d.fmt;
+        charts[key].$unit = d.unit;
         charts[key].update();
         return;
       }
@@ -215,13 +216,16 @@ function load() {
           scales: {
             x: { grid: { display: false },
                  ticks: { display: last, font: { size: 10 }, autoSkip: false } },
-            y: { beginAtZero: true, ticks: { font: { size: 10 } } }
+            // grace: 최대값 위로 여유를 둬 값 레이블이 잘리지 않게 한다.
+          y: { beginAtZero: true, grace: "18%",
+               ticks: { font: { size: 10 } } }
           }
         },
         plugins: [gapLine, valueLabels]
       });
       ch.$kinds = d.kinds;
       ch.$fmt = d.fmt;
+      ch.$unit = d.unit;
       charts[key] = ch;
       ch.update();
       // 패널마다 아주 짧게 시차를 둬 위에서 아래로 자연스럽게 나타나게

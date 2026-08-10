@@ -60,17 +60,19 @@
   </form>
 
   <h1 style="font-size:15px">적재 시각</h1>
-  <div class="sub">이 스냅샷을 만들 때 원천 테이블을 불러온 기록입니다.</div>
+  <div class="sub">원천 조회와 로컬 처리 구간을 모두 기록합니다.
+    소요합과 경과가 크게 벌어지면 기록되지 않은 구간이 있다는 뜻입니다.</div>
   {% if load_log %}
   <table>
     <thead><tr>
-      <th>테이블</th><th>로딩 시작</th><th>로딩 종료</th>
+      <th>구분</th><th>단계</th><th>시작</th><th>종료</th>
       <th style="text-align:right">소요(초)</th>
       <th style="text-align:right">행수</th><th style="text-align:right">컬럼수</th>
     </tr></thead>
     <tbody>
       {% for r in load_log %}
       <tr>
+        <td style="color:var(--mut)">{{ r.kind }}</td>
         <td>{{ r.table }}</td>
         <td>{{ r.start|date:'Y-m-d H:i:s' }}</td>
         <td>{{ r.end|date:'Y-m-d H:i:s' }}</td>
@@ -83,6 +85,7 @@
     {% if load_total %}
     <tfoot>
       <tr style="font-weight:600; background:#F9FAFB">
+        <td></td>
         <td>{{ load_total.table }}</td>
         <td>{{ load_total.start|date:'Y-m-d H:i:s' }}</td>
         <td>{{ load_total.end|date:'Y-m-d H:i:s' }}</td>

@@ -206,11 +206,20 @@ def _load_log(snapshot_at):
     if not _table_exists("f3_load_log"):
         return [], None
     with connection.cursor() as cur:
-        cur.execute(
-            "SELECT table_name, load_start, load_end, elapsed_sec, row_count, col_count "
-            "FROM f3_load_log WHERE snapshot_at = %s ORDER BY id", [snapshot_at])
-        rows = [{"table": r[0], "start": r[1], "end": r[2], "sec": r[3],
-                 "rows": r[4], "cols": r[5]} for r in cur.fetchall()]
+        try:
+            cur.execute(
+                "SELECT table_name, load_start, load_end, elapsed_sec, row_count,"
+                " col_count, kind FROM f3_load_log WHERE snapshot_at = %s ORDER BY id",
+                [snapshot_at])
+            rows = [{"table": r[0], "start": r[1], "end": r[2], "sec": r[3],
+                     "rows": r[4], "cols": r[5], "kind": r[6]} for r in cur.fetchall()]
+        except Exception:          # kind 컬럼 추가 이전 스냅샷
+            cur.execute(
+                "SELECT table_name, load_start, load_end, elapsed_sec, row_count,"
+                " col_count FROM f3_load_log WHERE snapshot_at = %s ORDER BY id",
+                [snapshot_at])
+            rows = [{"table": r[0], "start": r[1], "end": r[2], "sec": r[3],
+                     "rows": r[4], "cols": r[5], "kind": "조회"} for r in cur.fetchall()]
 
     if not rows:
         return rows, None
@@ -218,7 +227,7 @@ def _load_log(snapshot_at):
     starts = [r["start"] for r in rows if r["start"]]
     ends = [r["end"] for r in rows if r["end"]]
     total = {
-        "table": "계",
+        "table": "계", "kind": "",
         "start": min(starts) if starts else None,
         "end": max(ends) if ends else None,
         "sec": round(sum(r["sec"] or 0 for r in rows), 3),
@@ -265,10 +274,11 @@ def download_wip_raw(request):
     log_rows, log_total = _load_log(snap)
     if log_total:
         log_rows = log_rows + [{k: log_total.get(k) for k in
-                                ("table", "start", "end", "sec", "rows", "cols")}]
+                                ("table", "kind", "start", "end", "sec", "rows", "cols")}]
     log = pd.DataFrame(log_rows)
     if len(log):
-        log.columns = ["테이블", "로딩_시작시각", "로딩_종료시각", "소요_초", "행수", "컬럼수"]
+        log.columns = ["테이블", "로딩_시작시각", "로딩_종료시각", "소요_초",
+                       "행수", "컬럼수", "구분"]
 
     buf = io.BytesIO()
     try:
