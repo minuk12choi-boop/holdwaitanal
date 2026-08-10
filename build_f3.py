@@ -509,8 +509,22 @@ EXCLUDE_NULL_STEP_SKIP_YN = True
 # 같은 lot·step 이 여러 행으로 갈라진다. eqpline 과 동일하게 step 단위로 합친다.
 AGGREGATE_BATCH_KIND = True
 
-# 원본테이블 검증 시트에 기록할 최대 행수 (Excel 시트 한계/파일크기 보호)
-RAW_SHEET_MAX_ROWS = 50_000
+# 원본테이블 검증 시트 설정
+#   시트 1장당 행수 상한. Excel 한계(1,048,576)보다 낮게 잡아야 안전하다.
+RAW_SHEET_ROWS_PER_SHEET = 500_000
+#   테이블별 총 기록 행수. None = 전량.
+#   step_path / tip 은 수백만 행이라 전량 기록 시 파일이 수 GB 가 되고 저장에만
+#   수십 분이 걸린다. 필요할 때만 숫자를 올릴 것.
+RAW_SHEET_MAX_ROWS = {
+    "lot": None,
+    "equipment": None,
+    "eqp_group": None,
+    "hold": None,
+    "KFR7_step_path": 200_000,
+    "PFR1_step_path": 200_000,
+    "KFR7_tip": 200_000,
+    "PFR1_tip": 200_000,
+}
 
 # hold 원천에서 제외할 status_seq. '2' = 조치완료 (기존 Oracle 쿼리 기준)
 HOLD_EXCLUDE_STATUS_SEQ = ("2",)
@@ -1059,18 +1073,52 @@ def diagnose_duplicates(df_f3):
     return dup.sort_values(key, kind="mergesort"), varying
 
 
+def diagnose_eqp_group_mix(df_eqp_group, df_eqp):
+    """한 설비그룹 안에 batch 설비와 single 설비가 섞여 있는지 점검한다.
+
+    실제 공정상 불가능한 조합이므로, 나온다면 원인은 둘 중 하나다.
+      (a) 원천 데이터 자체가 그렇게 등록돼 있다
+      (b) eqp_group 의 eqp_id 가 equipment 에 없어 batch_kind 가 NULL 이 됐다
+    두 경우를 구분할 수 있도록 matched 여부를 함께 표기한다.
+    """
+    eg = _lower_cols(df_eqp_group)
+    eg = eg[~eg["eqp_id"].str.contains("OFF", na=False)]
+    eg = eg[["line_id", "eqp_group_name", "eqp_id"]].drop_duplicates()
+
+    eq = _lower_cols(df_eqp)
+    eq = eq[["line_id", "eqp_id", "batch_kind", "tool_kind", "eqp_status"]].drop_duplicates()
+
+    j = eg.merge(eq, on=["line_id", "eqp_id"], how="left")
+    j["batch_kind_표기"] = j["batch_kind"].fillna("(equipment 미존재)")
+    j["구분"] = np.where(
+        j["batch_kind"].isin(BATCH_KINDS), "BATCH",
+        np.where(j["batch_kind"].isna(), "미매칭", "SINGLE"))
+
+    key = ["line_id", "eqp_group_name"]
+    kinds = j.groupby(key, dropna=False)["구분"].nunique()
+    mixed = kinds[kinds > 1].index
+    out = j.set_index(key).loc[mixed].reset_index() if len(mixed) else j.iloc[0:0]
+    return out.sort_values(key + ["eqp_id"], kind="mergesort")
+
+
 def _sheet_name(name):
     bad = set('[]:*?/\\')
     clean = "".join(ch for ch in str(name) if ch not in bad)
     return clean[:31] or "sheet"
 
 
-def save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols):
-    """f3 + 로딩시각 + 원본테이블 시트를 하나의 엑셀 파일로 저장."""
+def save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols, mixed_groups):
+    """f3 + 진단 + 로딩시각 + 원본테이블 시트를 하나의 엑셀 파일로 저장.
+
+    원본테이블이 시트 한계를 넘으면 name_1, name_2 ... 로 나눠 적재한다.
+    """
     with pd.ExcelWriter(path, engine="openpyxl") as xw:
         _excel_safe(df_f3).to_excel(xw, sheet_name="f3", index=False)
-
         pd.DataFrame(load_log).to_excel(xw, sheet_name="로딩시각", index=False)
+
+        if len(mixed_groups):
+            _excel_safe(mixed_groups).to_excel(
+                xw, sheet_name="설비그룹_batch혼재", index=False)
 
         if len(dup_rows):
             note = pd.DataFrame({"중복유발_컬럼": dup_cols or ["(없음)"]})
@@ -1079,7 +1127,15 @@ def save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols):
                 xw, sheet_name="중복진단", index=False, startrow=len(note) + 2)
 
         for name, df in raw_samples.items():
-            _excel_safe(df).to_excel(xw, sheet_name=_sheet_name(name), index=False)
+            safe = _excel_safe(df)
+            n = len(safe)
+            if n <= RAW_SHEET_ROWS_PER_SHEET:
+                safe.to_excel(xw, sheet_name=_sheet_name(name), index=False)
+                continue
+            for i in range(0, n, RAW_SHEET_ROWS_PER_SHEET):
+                part = i // RAW_SHEET_ROWS_PER_SHEET + 1
+                safe.iloc[i:i + RAW_SHEET_ROWS_PER_SHEET].to_excel(
+                    xw, sheet_name=_sheet_name(f"{name}_{part}"), index=False)
 
 
 # ---------------------------------------------------------------------------
@@ -1097,7 +1153,8 @@ def main():
         end = dt.datetime.now()
         secs = perf_counter() - t0
         n = len(df)
-        sample_rows = min(n, RAW_SHEET_MAX_ROWS) if keep_sample else 0
+        cap = RAW_SHEET_MAX_ROWS.get(name)
+        sample_rows = (n if cap is None else min(n, cap)) if keep_sample else 0
         load_log.append({
             "테이블": name,
             "로딩_시작시각": start,
@@ -1111,7 +1168,7 @@ def main():
         print(f"[QUERY] {name} rows={n:,} cols={df.shape[1]} {secs:.1f}s", flush=True)
         if keep_sample:
             # 원본 전체를 들고 있으면 메모리가 터지므로 시트 기록분만 복사해 둔다.
-            raw_samples[name] = df.head(RAW_SHEET_MAX_ROWS).copy()
+            raw_samples[name] = (df if cap is None else df.head(cap)).copy()
         return df
 
     stamp = f"{dt.datetime.now():%Y%m%d_%H%M%S}"
@@ -1166,9 +1223,18 @@ def main():
     else:
         print("[DUP] lot/step 중복 없음", flush=True)
 
+    mixed = diagnose_eqp_group_mix(df_eqp_group, df_eqp)
+    if len(mixed):
+        n_grp = mixed[["line_id", "eqp_group_name"]].drop_duplicates().shape[0]
+        n_unmatched = int((mixed["구분"] == "미매칭").sum())
+        print(f"[MIX] batch/single 혼재 설비그룹 {n_grp:,}개 "
+              f"(그중 equipment 미매칭 설비 {n_unmatched:,}건)", flush=True)
+    else:
+        print("[MIX] batch/single 혼재 설비그룹 없음", flush=True)
+
     with timer("엑셀 저장"):
         path = os.path.join(os.getcwd(), f"f3_{stamp}.xlsx")
-        save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols)
+        save_workbook(path, df_f3, load_log, raw_samples, dup_rows, dup_cols, mixed)
     print(f"saved: {path} rows={len(df_f3):,}", flush=True)
 
 if __name__ == "__main__":
