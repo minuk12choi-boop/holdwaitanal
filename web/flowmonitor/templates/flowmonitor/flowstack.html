@@ -25,9 +25,9 @@
   header nav a { color:var(--mut); text-decoration:none; margin-right:18px;
                  font-size:14px; padding:6px 0; }
   header nav a.on { color:var(--fg); border-bottom:2px solid var(--fg); }
-  header .right { margin-left:auto; text-align:right; font-size:12px;
-                  color:var(--mut); line-height:1.45; }
-  header .right b { color:var(--fg); font-weight:600; }
+  header .meta { margin-left:auto; font-size:12px; color:var(--mut);
+                 white-space:nowrap; }
+  header .meta b { color:var(--fg); font-weight:600; }
 
   /* 상단 현황 */
   .status { display:grid; grid-template-columns:repeat(4,1fr);
@@ -136,9 +136,9 @@
   /* 본문 */
   main { display:flex; gap:16px; padding:16px; align-items:flex-start; }
   .left { flex:0 0 32%; min-width:400px; }
-  .right { flex:1; border:1px solid var(--bd); border-radius:6px; padding:0;
-           overflow:hidden; scroll-margin-top:16px; }
-  .right .empty { padding:22px 16px; color:var(--mut); font-size:13px; }
+  .detail { flex:1; border:1px solid var(--bd); border-radius:6px; padding:0;
+            overflow:hidden; scroll-margin-top:16px; }
+  .detail .empty { padding:22px 16px; color:var(--mut); font-size:13px; }
   .panel { border:1px solid var(--bd); border-radius:6px; padding:10px 12px 6px;
            margin-bottom:10px; }
   .panel h2 { margin:0; font-size:14px; display:flex;
@@ -181,10 +181,7 @@
       <a href="{{ url }}" {% if forloop.first %}class="on"{% endif %}>{{ name }}</a>
     {% endfor %}
   </nav>
-  <div class="right">
-    문의: <b>minuk12.choi</b><br>
-    적재시각: <b id="snapAt">-</b>
-  </div>
+  <div class="meta">문의: <b>minuk12.choi</b> / 적재시각: <b id="snapAt">-</b></div>
 </header>
 
 <section class="status" id="status"></section>
@@ -210,7 +207,7 @@
     <div id="err" class="err"></div>
   </div>
 
-  <div class="right" id="drill">
+  <div class="detail" id="drill">
     <div class="empty">현황 카드의 <b>Low WT</b> 숫자나 좌측 추이 차트의
       <b>일별 지점</b>을 클릭하면 해당 LOT 상세가 여기에 표시됩니다.</div>
   </div>
@@ -840,9 +837,25 @@ function load() {
   });
 }
 
-fetch("/api/status/").then(r => r.json()).then(res => {
-  if (window.Chart) drawCards(res);
-});
+function statusError(msg) {
+  document.getElementById("status").innerHTML =
+    `<div style="padding:18px;color:#B91C1C;font-size:13px">
+       상단 현황을 그리지 못했습니다: ${msg}
+       <a href="/api/status/" target="_blank">/api/status/</a> 확인</div>`;
+}
+
+fetch("/api/status/")
+  .then(r => r.ok ? r.json() : Promise.reject("HTTP " + r.status))
+  .then(res => {
+    if (!window.Chart) return statusError("Chart.js 로드 실패");
+    try {
+      drawCards(res);
+    } catch (e) {
+      console.error(e);
+      statusError(e.message);
+    }
+  })
+  .catch(e => statusError(e));
 load();
 </script>
 </body>
