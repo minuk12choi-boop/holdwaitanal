@@ -95,7 +95,12 @@ TABLE_NAMES = [
     "PFR1_KFR7_MOVE",
 ]
 
-FMT = "pkl"          # 참고 코드와 동일. 'parquet' / 'csv' 로 바꿔도 된다.
+# 저장 형식.
+#   "pkl"     참고 코드와 동일. 빠르지만 Spotfire 의 pandas 버전과 읽는 쪽
+#             pandas 버전이 많이 다르면 unpickle 이 실패할 수 있다.
+#   "csv"     가장 안전. 버전에 무관하지만 용량이 크고 타입이 문자열로 뭉개진다.
+#   "parquet" 타입 보존 + 압축. 단 pyarrow 설치 필요.
+FMT = "pkl"
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +146,7 @@ if prefix and not prefix.endswith("/"):
     prefix += "/"        # 없으면 폴더가 아니라 파일명에 붙는다
 
 rows = []
+seen = {}            # 같은 데이터가 여러 이름으로 들어오는지 확인용
 started = dt.datetime.now()
 
 try:
@@ -163,11 +169,29 @@ try:
         if not isinstance(df, pd.DataFrame):
             df = pd.DataFrame(df)
 
+        # 입력 파라미터를 전부 같은 테이블에 매핑해 두면 8개가 똑같이 올라간다.
+        # 조용히 넘어가면 알아채기 어려우므로 여기서 잡는다.
+        sig = "%d|%d|%s" % (len(df), df.shape[1], ",".join(map(str, df.columns[:5])))
+        dup = seen.get(sig)
+        seen.setdefault(sig, name)
+
+        cols_preview = ", ".join(map(str, df.columns[:6]))
+        if len(df.columns) > 6:
+            cols_preview += ", ..."
+
+        if dup:
+            rows.append([name, "DUP", len(df), df.shape[1],
+                         "'%s' 과(와) 내용이 같습니다. 데이터 함수의 Input Parameter "
+                         "매핑을 확인하세요. | %s" % (dup, cols_preview),
+                         t0, dt.datetime.now()])
+            continue
+
         try:
             key = "%s%s.%s" % (prefix, name, FMT)
             client.upload_fileobj(to_buffer(df, FMT), bucket, key)
             rows.append([name, "OK", len(df), df.shape[1],
-                         "s3://%s/%s" % (bucket, key), t0, dt.datetime.now()])
+                         "s3://%s/%s  |  %s" % (bucket, key, cols_preview),
+                         t0, dt.datetime.now()])
         except Exception as e:
             rows.append([name, "FAIL", len(df), df.shape[1],
                          "%s: %s" % (type(e).__name__, e), t0, dt.datetime.now()])
