@@ -63,6 +63,15 @@ pip install waitress
 waitress-serve --listen=0.0.0.0:8020 config.wsgi:application
 ```
 
+`runserver` 는 static 파일을 자동으로 서빙하지만 **waitress 는 하지 않는다.**
+그대로 두면 `chart.umd.js` 가 404 나고 화면이 통째로 빈다.
+그래서 `config/urls.py` 에서 `/static/` 을 항상 서빙하도록 했다
+(사내망 전용이라 `insecure=True`).
+
+```
+Not Found: /static/flowmonitor/chart.umd.js   <- 이 로그가 보이면 위 설정이 빠진 것
+```
+
 ## 포트
 
 `python manage.py runserver` 는 인자가 없으면 **8010** 을 쓴다.

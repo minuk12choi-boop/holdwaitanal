@@ -840,14 +840,19 @@ function load() {
 function statusError(msg) {
   document.getElementById("status").innerHTML =
     `<div style="padding:18px;color:#B91C1C;font-size:13px">
-       상단 현황을 그리지 못했습니다: ${msg}
-       <a href="/api/status/" target="_blank">/api/status/</a> 확인</div>`;
+       상단 현황을 그리지 못했습니다: ${msg}<br>
+       <a href="/api/status/" target="_blank">/api/status/</a> ·
+       <a href="/api/health/" target="_blank">/api/health/</a></div>`;
 }
 
 fetch("/api/status/")
   .then(r => r.ok ? r.json() : Promise.reject("HTTP " + r.status))
   .then(res => {
-    if (!window.Chart) return statusError("Chart.js 로드 실패");
+    if (!window.Chart) {
+      return statusError("Chart.js 를 불러오지 못했습니다. "
+        + "<a href='/static/flowmonitor/chart.umd.js' target='_blank'>"
+        + "/static/flowmonitor/chart.umd.js</a> 가 200 으로 열리는지 확인하세요.");
+    }
     try {
       drawCards(res);
     } catch (e) {
