@@ -221,7 +221,10 @@ function setBasis(b) {
     const el = document.getElementById("basis_" + k);
     if (el) el.textContent = (b === "qty") ? "매수 기준" : "Lot수 기준";
   });
-  // ---------------------------------------------------------------------------
+  load();
+}
+
+// ---------------------------------------------------------------------------
 // 상단 현황 카드
 // ---------------------------------------------------------------------------
 const nf = (n) => Number(n || 0).toLocaleString("ko-KR");
@@ -659,6 +662,116 @@ function drawWt(i, line, d) {
     <table><tbody>${distRows}</tbody></table>
     <div class="sec">원인 · ${(d.bins.find(b => b.key === st.bin) || {}).label || ""}</div>
     <table><tbody>${causeRows}</tbody></table>`;
+}
+
+const gapLine = {
+  id: "gapLine",
+  beforeDatasetsDraw(c) {
+    const x = c.scales.x, ctx = c.ctx;
+    (c.$kinds || []).forEach((k, i) => {
+      if (k !== "gap") return;
+      const px = x.getPixelForValue(i);
+      ctx.save();
+      ctx.strokeStyle = "#D1D5DB"; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(px, c.chartArea.top);
+      ctx.lineTo(px, c.chartArea.bottom); ctx.stroke(); ctx.restore();
+    });
+  }
+};
+
+
+function load() {
+  fetch("/api/flowstack/?basis=" + basis).then(r => r.json()).then(res => {
+    if (!window.Chart) {
+      document.getElementById("err").innerHTML =
+        "Chart.js 로드 실패. <code>python manage.py collectstatic</code> 또는 "
+        + "<code>web/flowmonitor/static/flowmonitor/chart.umd.js</code> 존재 여부 확인.";
+      return;
+    }
+    const pts = res.order.reduce((a, k) => a + res.panels[k].datasets
+      .reduce((b, ds) => b + ds.data.filter(v => v !== null).length, 0), 0);
+    if (pts === 0) {
+      document.getElementById("err").innerHTML =
+        "적재는 됐지만 그릴 데이터가 없습니다. 진단: "
+        + "<a href='/api/health/' target='_blank'>/api/health/</a>";
+    }
+    const nb = document.getElementById("notice");
+    if (res.notice) { nb.textContent = res.notice; nb.style.display = "block"; }
+    else { nb.style.display = "none"; }
+
+    const first = res.panels[res.order[0]];
+    document.getElementById("legend").innerHTML = first.datasets.map(
+      d => `<span><i style="background:${d.borderColor}"></i>${d.label}</span>`).join("");
+
+    res.order.forEach((key, idx) => {
+      const d = res.panels[key];
+      const last = idx === res.order.length - 1;   // x축 라벨은 마지막 패널에만
+
+      if (charts[key]) {                            // 토글 시에는 데이터만 교체
+        charts[key].data.labels = d.labels;
+        charts[key].data.datasets = d.datasets;
+        charts[key].$kinds = d.kinds;
+        charts[key].$fmt = d.fmt;
+        charts[key].$unit = d.unit;
+        charts[key].update();
+        return;
+      }
+      const ch = new Chart(document.getElementById("c_" + key), {
+        type: "line",
+        data: { labels: d.labels, datasets: d.datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          // 선이 아래에서 솟아오르는 기본 애니메이션은 끄고,
+          // 컨테이너를 통째로 페이드인 시킨다(제자리에서 부드럽게).
+          animation: false,
+          animations: { colors: false, x: false, y: false },
+          transitions: { active: { animation: { duration: 0 } } },
+          interaction: { mode: "index", intersect: false },
+          layout: { padding: { top: 20, right: 10, left: 2 } },
+          onClick: (e, els, ch) => {
+            if (!els.length) return;
+            const i2 = els[0].index;
+            const day = d.dates[i2];
+            if (!day) return;                    // 월/주 버킷은 스냅샷이 없다
+            openDrill({ line: d.datasets[els[0].datasetIndex].label,
+                        col: "전체", biz_date: day, status: d.status });
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: (t) => {
+                  const i = t[0].dataIndex;
+                  const k = KIND_KO[d.kinds[i]] || "";
+                  return d.labels[i] + (k ? " (" + k + ")" : "");
+                },
+                // 커서를 올리면 축약 없이 원래 값 그대로
+                label: (t) => `${t.dataset.label}  `
+                  + Number(t.parsed.y).toLocaleString("ko-KR",
+                      { maximumFractionDigits: 1 }) + ` ${d.unit}`
+              }
+            }
+          },
+          scales: {
+            x: { grid: { display: false },
+                 ticks: { display: last, font: { size: 10 }, autoSkip: false } },
+            // grace: 최대값 위로 여유를 둬 값 레이블이 잘리지 않게 한다.
+          y: { beginAtZero: true, grace: "18%",
+               ticks: { font: { size: 10 } } }
+          }
+        },
+        plugins: [gapLine, valueLabels]
+      });
+      ch.$kinds = d.kinds;
+      ch.$fmt = d.fmt;
+      ch.$unit = d.unit;
+      charts[key] = ch;
+      ch.update();
+      // 패널마다 아주 짧게 시차를 둬 위에서 아래로 자연스럽게 나타나게
+      const wrap = document.getElementById("c_" + key).parentElement;
+      setTimeout(() => wrap.classList.add("ready"), 30 + idx * 45);
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------
