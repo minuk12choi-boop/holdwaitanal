@@ -69,117 +69,140 @@ raw_of_raw_table.txt
 ================================================================================
 
 --------------------------------------------------------------------------------
--- 1) lot : mc_lot + mc_lot_attr(GRADE) + mc_lot_step_comment  *호출시간: 
+-- 1) PFR1_KFR7_LOT : mc_lot + mc_lot_attr(GRADE) + mc_lot_step_comment
+--    *호출시간:
 --
---    build_f3.py 의 lot_query 를 그대로 옮긴 것이다. 구조/조건 동일.
---    단 materialworkstatus 는 datasource 가 달라 여기 조인할 수 없다.
---    fa_object4 는 #2 로 따로 받아 python 에서 (line, lot_id) 로 붙인다.
---      m   : 두 라인 mc_lot 을 합쳐 lot 별 최신 last_event_date 를 찾기 위한 소스
---      m0  : 같은 lot_id 가 두 라인에 있으면 last_event_date 가 최신인 쪽만 남긴다
---      m1  : 라인별 본문. lot_status_seg IN ('Active','Hold') 필터 포함
---      최종: line = sys_line_id, lot_type IN ('PP','PG','EG'),
---            cur_line_id NOT IN ('CHTV')
+--    [최적화 이력]
+--    처음 이식본은 Impala 의 m -> c -> m0 -> m1 CTE 구조를 그대로 옮겼는데,
+--    Oracle 에서 mc_lot 을 라인당 3회 읽는다(m 에서 1회, m0 의 재조인에서 1회,
+--    m1 에서 다시 1회). 거기에 SELECT DISTINCT 까지 걸려 CPU 가 터졌다.
 --
---    Impala 버전의 CAST / TO_TIMESTAMP 는 뺐다(python 이 형변환을 담당).
+--    아래는 같은 결과를 내면서 스캔을 1회로 줄인 형태다.
+--      - m/c/m0 3단 CTE  ->  MAX(...) OVER (PARTITION BY lot_id) 단일 패스
+--      - SELECT DISTINCT ->  제거. 대신 조인 상대를 1:1 로 보장한다
+--          grade : parent_object_id 기준 GROUP BY (중복 attr 방지)
+--          co    : lot_id 기준 rn=1 (최신 코멘트 1건)
+--
+--    [원본과 동일하게 유지한 것]
+--      - max_event_date 는 lot_status_seg 필터 '이전' 값으로 계산한다.
+--        (Active/Hold 가 아닌 행이 더 최신이면 그 lot 은 빠지는 동작을 보존)
+--      - order_seq IS NOT NULL 은 PFR1 에만 걸린다.
+--      - line = sys_line_id, lot_type IN ('PP','PG','EG'),
+--        cur_line_id NOT IN ('CHTV')
+--
+--    materialworkstatus 는 datasource 가 달라 #2 로 분리. python 이 (line, lot_id)
+--    로 붙인다.
 --------------------------------------------------------------------------------
-WITH m AS (
-    SELECT 'PFR1' AS line, sys_line_id, cur_line_id, origin_line_id,
-           lot_id, last_event_date
+WITH lot AS (
+    SELECT 'PFR1' AS line, object_id, sys_line_id, cur_line_id, origin_line_id,
+           lot_id, carr_id, lot_type, lot_level, cur_qty, bay_name,
+           lot_status_seg, step_status_seg, proc_id, order_seq, step_seq,
+           start_date, last_tkout_date, step_arrive_date, last_event_date
     FROM   smicdc_p3nrd.mc_lot
     UNION ALL
-    SELECT 'KFR7' AS line, sys_line_id, cur_line_id, origin_line_id,
-           lot_id, last_event_date
+    SELECT 'KFR7' AS line, object_id, sys_line_id, cur_line_id, origin_line_id,
+           lot_id, carr_id, lot_type, lot_level, cur_qty, bay_name,
+           lot_status_seg, step_status_seg, proc_id, order_seq, step_seq,
+           start_date, last_tkout_date, step_arrive_date, last_event_date
     FROM   smicdc_nrdk.mc_lot
 ),
-c AS (
-    SELECT lot_id, MAX(last_event_date) AS max_event_date
-    FROM   m
-    GROUP  BY lot_id
+lot_rank AS (
+    SELECT l.*,
+           MAX(last_event_date) OVER (PARTITION BY lot_id) AS max_event_date
+    FROM   lot l
 ),
-m0 AS (
-    SELECT m.line, m.lot_id, c.max_event_date
-    FROM   m
-    JOIN   c ON m.lot_id = c.lot_id
-    WHERE  m.last_event_date = c.max_event_date
-),
-g_pfr1 AS (
-    SELECT parent_object_id, attr_value AS grade
+grade AS (
+    SELECT 'PFR1' AS line, parent_object_id, MAX(attr_value) AS grade
     FROM   smicdc_p3nrd.mc_lot_attr
     WHERE  attr_name = 'GRADE'
-),
-g_kfr7 AS (
-    SELECT parent_object_id, attr_value AS grade
+    GROUP  BY parent_object_id
+    UNION ALL
+    SELECT 'KFR7' AS line, parent_object_id, MAX(attr_value) AS grade
     FROM   smicdc_nrdk.mc_lot_attr
     WHERE  attr_name = 'GRADE'
+    GROUP  BY parent_object_id
 ),
 co AS (
     SELECT line, lot_id, lot_inform
-    FROM  (SELECT 'PFR1' AS line, lot_id,
-                  step_comment AS lot_inform,
+    FROM  (SELECT 'PFR1' AS line, lot_id, step_comment AS lot_inform,
                   ROW_NUMBER() OVER (PARTITION BY lot_id
                                      ORDER BY update_date DESC) AS rn
            FROM   smicdc_p3nrd.mc_lot_step_comment
            WHERE  parent_order_seq = 0
              AND  comment_type = 'LOT')
-    WHERE rn = 1
+    WHERE  rn = 1
     UNION ALL
     SELECT line, lot_id, lot_inform
-    FROM  (SELECT 'KFR7' AS line, lot_id,
-                  step_comment AS lot_inform,
+    FROM  (SELECT 'KFR7' AS line, lot_id, step_comment AS lot_inform,
                   ROW_NUMBER() OVER (PARTITION BY lot_id
                                      ORDER BY update_date DESC) AS rn
            FROM   smicdc_nrdk.mc_lot_step_comment
            WHERE  parent_order_seq = 0
              AND  comment_type = 'LOT')
-    WHERE rn = 1
-),
-m1 AS (
-    SELECT 'PFR1' AS line,
-           m.cur_line_id, m.sys_line_id, m.origin_line_id,
-           m.lot_id, m.carr_id, m.lot_type,
-           CASE WHEN NVL(g.grade, '-') <> '-' THEN 'G' || g.grade END AS grade,
-           m.lot_level, m.cur_qty, m.bay_name,
-           CASE WHEN m.lot_status_seg = 'Hold' THEN 'HOLD'
-                ELSE m.step_status_seg END                            AS status,
-           m.proc_id, m.order_seq, m.step_seq,
-           m.start_date, m.last_tkout_date, m.step_arrive_date, m.last_event_date
-    FROM        smicdc_p3nrd.mc_lot m
-    JOIN        m0 ON m.lot_id = m0.lot_id
-                  AND m.last_event_date = m0.max_event_date
-    LEFT JOIN   g_pfr1 g ON m.object_id = g.parent_object_id
-    WHERE       m.lot_status_seg IN ('Active', 'Hold')
-      AND       m.order_seq IS NOT NULL
-    UNION ALL
-    SELECT 'KFR7' AS line,
-           m.cur_line_id, m.sys_line_id, m.origin_line_id,
-           m.lot_id, m.carr_id, m.lot_type,
-           CASE WHEN NVL(g.grade, '-') <> '-' THEN 'G' || g.grade END AS grade,
-           m.lot_level, m.cur_qty, m.bay_name,
-           CASE WHEN m.lot_status_seg = 'Hold' THEN 'HOLD'
-                ELSE m.step_status_seg END                            AS status,
-           m.proc_id, m.order_seq, m.step_seq,
-           m.start_date, m.last_tkout_date, m.step_arrive_date, m.last_event_date
-    FROM        smicdc_nrdk.mc_lot m
-    JOIN        m0 ON m.lot_id = m0.lot_id
-                  AND m.last_event_date = m0.max_event_date
-    LEFT JOIN   g_kfr7 g ON m.object_id = g.parent_object_id
-    WHERE       m.lot_status_seg IN ('Active', 'Hold')
+    WHERE  rn = 1
 )
-SELECT DISTINCT
-       m1.line, m1.cur_line_id, m1.sys_line_id, m1.origin_line_id,
-       m1.lot_id, m1.carr_id, m1.lot_type, m1.grade, m1.lot_level,
-       m1.cur_qty, m1.bay_name, m1.status, m1.proc_id, m1.order_seq, m1.step_seq,
-       m1.start_date, m1.last_tkout_date, m1.step_arrive_date, m1.last_event_date,
-       CASE WHEN m1.origin_line_id <> m1.sys_line_id THEN 'OLD_SEND'
-            WHEN m1.origin_line_id  = m1.sys_line_id
-             AND m1.sys_line_id    <> m1.cur_line_id THEN 'NEW_SEND'
-       END                                                            AS sendfab,
+SELECT l.line,
+       l.cur_line_id,
+       l.sys_line_id,
+       l.origin_line_id,
+       l.lot_id,
+       l.carr_id,
+       l.lot_type,
+       CASE WHEN NVL(g.grade, '-') <> '-' THEN 'G' || g.grade END      AS grade,
+       l.lot_level,
+       l.cur_qty,
+       l.bay_name,
+       CASE WHEN l.lot_status_seg = 'Hold' THEN 'HOLD'
+            ELSE l.step_status_seg END                                 AS status,
+       l.proc_id,
+       l.order_seq,
+       l.step_seq,
+       l.start_date,
+       l.last_tkout_date,
+       l.step_arrive_date,
+       l.last_event_date,
+       CASE WHEN l.origin_line_id <> l.sys_line_id THEN 'OLD_SEND'
+            WHEN l.origin_line_id  = l.sys_line_id
+             AND l.sys_line_id    <> l.cur_line_id THEN 'NEW_SEND'
+       END                                                             AS sendfab,
        co.lot_inform
-FROM       m1
-LEFT JOIN  co ON m1.line = co.line AND m1.lot_id = co.lot_id
-WHERE      m1.line = m1.sys_line_id
-  AND      m1.lot_type IN ('PP', 'PG', 'EG')
-  AND      m1.cur_line_id NOT IN ('CHTV')
+FROM       lot_rank l
+LEFT JOIN  grade g  ON g.line = l.line AND g.parent_object_id = l.object_id
+LEFT JOIN  co       ON co.line = l.line AND co.lot_id = l.lot_id
+WHERE      l.last_event_date = l.max_event_date
+  AND      l.lot_status_seg IN ('Active', 'Hold')
+  AND      l.line = l.sys_line_id
+  AND      l.lot_type IN ('PP', 'PG', 'EG')
+  AND      l.cur_line_id NOT IN ('CHTV')
+  AND      (l.line = 'KFR7' OR l.order_seq IS NOT NULL)
+;
+
+--------------------------------------------------------------------------------
+-- 1-B) 위 쿼리도 느리면 아래처럼 둘로 쪼갠다.
+--      코멘트만 분리하면 mc_lot_step_comment 의 윈도우 연산이 본문과 분리된다.
+--      python 은 (line, lot_id) 로 붙이면 된다.
+--
+--      1-B-1) PFR1_KFR7_LOT     : 위 쿼리에서 co 관련( CTE / LEFT JOIN /
+--                                 SELECT 의 co.lot_inform )만 제거
+--      1-B-2) PFR1_KFR7_COMMENT : 아래
+--------------------------------------------------------------------------------
+SELECT line, lot_id, lot_inform
+FROM  (SELECT 'PFR1' AS line, lot_id, step_comment AS lot_inform,
+              ROW_NUMBER() OVER (PARTITION BY lot_id
+                                 ORDER BY update_date DESC) AS rn
+       FROM   smicdc_p3nrd.mc_lot_step_comment
+       WHERE  parent_order_seq = 0
+         AND  comment_type = 'LOT')
+WHERE  rn = 1
+UNION ALL
+SELECT line, lot_id, lot_inform
+FROM  (SELECT 'KFR7' AS line, lot_id, step_comment AS lot_inform,
+              ROW_NUMBER() OVER (PARTITION BY lot_id
+                                 ORDER BY update_date DESC) AS rn
+       FROM   smicdc_nrdk.mc_lot_step_comment
+       WHERE  parent_order_seq = 0
+         AND  comment_type = 'LOT')
+WHERE  rn = 1
 ;
 
 --------------------------------------------------------------------------------
@@ -254,6 +277,7 @@ FROM   smicdc_nrdk.mc_lot_step_path p,
 WHERE  p.lot_id = c.lot_id
   AND  (p.order_seq >= c.order_seq
         OR p.delay_step_type IN ('S', 'Y'))
+;
 
 --------------------------------------------------------------------------------
 -- 4) PFR1_KFR7_TIP : smicdc_p3nrd.trackinprevent, smicdc_nrdk.trackinprevent *호출시간: 60초
@@ -290,6 +314,7 @@ process,
        eventtime
 FROM   smicdc_nrdk.trackinprevent
 WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
+;
 
 --------------------------------------------------------------------------------
 -- 5) PFR1_KFR7_EQUIPMENT : smimes.mi_equipment *호출시간: 8초
