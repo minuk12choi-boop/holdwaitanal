@@ -1,12 +1,35 @@
-적재 시각
-이 스냅샷을 만들 때 원천 테이블을 불러온 기록입니다.
-테이블	로딩 시작	로딩 종료	소요(초)	행수	컬럼수
-lot	2026-08-10 19:59:47	2026-08-10 19:59:52	5.356	8788	22
-equipment	2026-08-10 19:59:52	2026-08-10 20:00:43	51.314	37468	7
-eqp_group	2026-08-10 20:00:43	2026-08-10 20:00:56	13.05	13117	3
-hold	2026-08-10 20:03:33	2026-08-10 20:04:55	82.381	1743	9
-KFR7_step_path	2026-08-10 20:04:55	2026-08-10 20:05:55	59.936	4567056	15
-PFR1_step_path	2026-08-10 20:06:16	2026-08-10 20:06:22	6.0	421807	15
-KFR7_tip	2026-08-10 20:06:23	2026-08-10 20:07:22	58.661	6891220	10
-PFR1_tip	2026-08-10 20:07:27	2026-08-10 20:07:50	23.531	2961087	10
-계	2026-08-10 19:59:47	2026-08-10 20:07:50	300.229 (경과 483.0)	14902286	
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web> python manage.py runserver 8020
+Watching for file changes with StatReloader
+Performing system checks...
+
+System check identified no issues (0 silenced).
+August 11, 2026 - 08:59:40
+Django version 5.2.11, using settings 'config.settings'
+Starting development server at http://127.0.0.1:8020/
+Quit the server with CTRL-BREAK.
+
+WARNING: This is a development server. Do not use it in a production setting. Use a production WSGI or ASGI server instead.
+For more information on production servers see: https://docs.djangoproject.com/en/5.2/howto/deployment/
+[11/Aug/2026 08:59:43] "GET / HTTP/1.1" 200 43359
+[11/Aug/2026 08:59:43] "GET /static/flowmonitor/chart.umd.js HTTP/1.1" 200 205125
+[11/Aug/2026 08:59:43] "GET /api/flowstack/?basis=qty HTTP/1.1" 200 5403
+[11/Aug/2026 08:59:43] "GET /api/status/ HTTP/1.1" 200 6218
+[11/Aug/2026 08:59:44] "GET /api/lowwt/?line=PFR1&max_wt=0 HTTP/1.1" 200 750
+[11/Aug/2026 08:59:44] "GET /api/lowwt/?line=KFR7&max_wt=0 HTTP/1.1" 200 791
+[11/Aug/2026 09:00:11] "GET /api/lowwt/?line=PFR1&max_wt=0 HTTP/1.1" 200 750
+Internal Server Error: /api/lots/
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 720, in api_lots
+    qty = int(r.get("qty") or 0)
+ValueError: invalid literal for int() with base 10: '20.0'
+[11/Aug/2026 09:00:13] "GET /api/lots/?line=PFR1&col=SW&bin=0&max_wt=0 HTTP/1.1" 500 85356
+[11/Aug/2026 09:11:07] "GET /api/lowwt/?line=PFR1&max_wt=0.5 HTTP/1.1" 200 865
+[11/Aug/2026 09:11:14] "GET /api/lowwt/?line=PFR1&max_wt=1 HTTP/1.1" 200 1126
+[11/Aug/2026 09:11:16] "GET /api/lowwt/?line=PFR1&max_wt=0 HTTP/1.1" 200 750
+[11/Aug/2026 09:11:18] "GET /api/lowwt/?line=PFR1&max_wt=1 HTTP/1.1" 200 1126
+[11/Aug/2026 09:13:17] "GET /api/lowwt/?line=PFR1&max_wt=1 HTTP/1.1" 200 1126
+[11/Aug/2026 09:13:18] "GET /api/lowwt/?line=PFR1&max_wt=1 HTTP/1.1" 200 1126
