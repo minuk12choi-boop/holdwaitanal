@@ -73,6 +73,7 @@ LOOKBACK_DAYS = 140
 
 # blueprint 7.3 권장 상대 높이. 템플릿에는 계산된 px 로 넘긴다.
 PANEL_BASE_PX = 150
+PANEL_AXIS_PX = 26      # 모든 패널에 x축 라벨이 붙으므로 그만큼 더 준다
 PANELS = [
     # fmt: 차트에 직접 찍는 레이블 표기법
     #   k  = 1000 단위 + 소수 1자리 (13,300매 -> 13.3k)
@@ -221,7 +222,8 @@ def api_flowstack(request):
 
 
 def flowstack(request):
-    panels = [dict(p, px=int(round(p["h"] * PANEL_BASE_PX))) for p in PANELS]
+    panels = [dict(p, px=int(round(p["h"] * PANEL_BASE_PX)) + PANEL_AXIS_PX)
+              for p in PANELS]
     return render(request, "flowmonitor/flowstack.html",
                   {"menu": [("FAB현황", "/"), ("다운로드", "/downloads/")],
                    "panels": panels})
@@ -518,7 +520,13 @@ def api_status(request):
                 "pct": round(v["lots"] / tot_l * 100, 1) if tot_l else 0,
             })
         blocked = [x for x in status if x["name"] in ("HOLD", "WAIT(진행불가)")]
-        top = sorted(d["eqp"].items(), key=lambda kv: (-kv[1]["lots"], kv[0]))[:5]
+        # LOT 기준 상위 5와 매 기준 상위 5는 구성이 다를 수 있다.
+        # 단순 재정렬이 아니라 각 기준으로 다시 뽑는다.
+        def top_by(metric):
+            items = sorted(d["eqp"].items(),
+                           key=lambda kv: (-kv[1][metric], kv[0]))[:5]
+            return [{"name": k, "lots": round(v["lots"], 1),
+                     "qty": int(round(v["qty"]))} for k, v in items]
         return {
             "total": {"lots": tot_l, "qty": tot_q},
             "status": status,
@@ -529,8 +537,7 @@ def api_status(request):
                 "lots": sum(x["lots"] for x in blocked),
                 "qty": sum(x["qty"] for x in blocked),
             },
-            "top_eqp": [{"name": k, "lots": round(v["lots"], 1),
-                         "qty": int(round(v["qty"]))} for k, v in top],
+            "top_eqp": {"lots": top_by("lots"), "qty": top_by("qty")},
         }
 
     cards = []
@@ -557,8 +564,13 @@ def api_status(request):
                      "total": sum(mv.get(k, 0) for k in ("GY", "DAY", "SW"))},
         })
 
+    now = dt.datetime.now()
+    cur_shift = "GY" if (now.hour >= 22 or now.hour < 6) else (
+        "DAY" if now.hour < 14 else "SW")
+
     return JsonResponse({
         "cards": cards,
+        "current_shift": cur_shift,
         "snapshot_at": (snap.strftime("%Y-%m-%d %H:%M")
                         if hasattr(snap, "strftime") else (str(snap) if snap else None)),
         "move_biz_date": str(move_bd) if move_bd else None,

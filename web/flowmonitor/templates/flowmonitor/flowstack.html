@@ -96,7 +96,9 @@
   .mv .row .k { width:34px; font-size:12px; color:var(--mut); flex:0 0 34px; }
   .mv .row .bar { flex:1; height:16px; background:#F3F4F6; border-radius:3px;
                   overflow:hidden; }
-  .mv .row .bar i { display:block; height:100%; background:var(--brand); }
+  .mv .row .bar i { display:block; height:100%; background:#9CA3AF; }
+  .mv .cur .bar i { background:#111827; }
+  .mv .cur .k { color:var(--fg); font-weight:600; }
   .mv .row .v { width:60px; text-align:right; font-size:12px;
                 font-variant-numeric:tabular-nums; }
   .mv .tot .k, .mv .tot .v { color:var(--accent); font-weight:700; }
@@ -237,6 +239,7 @@ function smoothTo(el) {
    상단 현황 카드
    =========================================================================== */
 let CARDS = [];
+let CUR_SHIFT = "";
 const SEL_STATUS = {};
 const EQP_UNIT = {};
 
@@ -298,8 +301,8 @@ function cardHtml(c, i) {
     <div class="cell">
       <div class="cellttl"><span>대기 LOT 상위 설비 5</span>
         <span class="seg">
-          <button class="on" id="eul_${i}" onclick="setEqpUnit(${i},'lots')">LOT</button>
-          <button id="euq_${i}" onclick="setEqpUnit(${i},'qty')">매</button>
+          <button id="eul_${i}" onclick="setEqpUnit(${i},'lots')">LOT</button>
+          <button class="on" id="euq_${i}" onclick="setEqpUnit(${i},'qty')">매</button>
         </span></div>
       <div style="height:112px"><canvas id="eq_${i}"></canvas></div>
     </div>
@@ -407,24 +410,32 @@ function renderCard(i) {
   dn.update();
   setStatusInfo(i);
 
-  const unit = EQP_UNIT[i] || "lots";
-  const vals = p.top_eqp.map(e => unit === "lots" ? e.lots : e.qty);
+  // 기준(LOT / 매)마다 상위 5 구성 자체가 다르므로 목록을 통째로 바꾼다
+  const unit = EQP_UNIT[i] || "qty";
+  const list = p.top_eqp[unit] || [];
+  const vals = list.map(e => unit === "lots" ? e.lots : e.qty);
   const mx = Math.max.apply(null, vals.concat([0]));
   const eq = window["eq" + i];
-  eq.data.labels = p.top_eqp.map(e => e.name);
+  eq.data.labels = list.map(e => e.name);
   eq.data.datasets[0].data = vals;
   eq.data.datasets[0].backgroundColor = vals.map(v => shade(v, mx));
-  eq.$alt = p.top_eqp.map(e => unit === "lots" ? e.qty : e.lots);
+  eq.$alt = list.map(e => unit === "lots" ? e.qty : e.lots);
   eq.$unit = unit;
   eq.update();
 
-  const m = c.move, mmax = Math.max(m.total, 1);
-  const row = (k, v, cls) =>
+  // 계는 합계라 항상 최대. shift 막대는 shift 중 최대값 기준으로 길이를 잡아야
+  // 서로 비교가 된다(계 기준으로 잡으면 셋 다 짧게 눌린다).
+  const m = c.move;
+  const smax = Math.max(m.GY, m.DAY, m.SW, 1);
+  const row = (k, v, w, cls) =>
     `<div class="row ${cls || ""}"><div class="k">${k}</div>
-       <div class="bar"><i style="width:${Math.min(v / mmax * 100, 100)}%"></i></div>
+       <div class="bar"><i style="width:${Math.min(w, 100)}%"></i></div>
        <div class="v">${nf(v)}</div></div>`;
+  const shiftRow = (k) => row(k, m[k], m[k] / smax * 100,
+                              k === CUR_SHIFT ? "cur" : "");
   document.getElementById("mv_" + i).innerHTML =
-    row("계", m.total, "tot") + row("GY", m.GY) + row("DAY", m.DAY) + row("SW", m.SW);
+    row("계", m.total, 100, "tot")
+    + shiftRow("GY") + shiftRow("DAY") + shiftRow("SW");
 }
 
 function reloadCard(i) {
@@ -478,6 +489,7 @@ const barLabels = {
 
 function drawCards(res) {
   CARDS = res.cards;
+  CUR_SHIFT = res.current_shift || "";
   document.getElementById("status").innerHTML =
     res.cards.map((c, i) => cardHtml(c, i)).join("");
   document.getElementById("snapAt").textContent = res.snapshot_at || "-";
@@ -485,7 +497,7 @@ function drawCards(res) {
   res.cards.forEach((c, i) => {
     if (!c.ready) return;
     SEL_STATUS[i] = null;
-    EQP_UNIT[i] = "lots";
+    EQP_UNIT[i] = "qty";
 
     const dft = c.default_types || [];
     document.getElementById("ddb_" + i).innerHTML =
@@ -515,8 +527,9 @@ function drawCards(res) {
 
     window["eq" + i] = new Chart(document.getElementById("eq_" + i), {
       type: "bar",
-      data: { labels: p0.top_eqp.map(e => e.name),
-              datasets: [{ data: p0.top_eqp.map(e => e.lots), borderRadius: 2 }] },
+      data: { labels: (p0.top_eqp.qty || []).map(e => e.name),
+              datasets: [{ data: (p0.top_eqp.qty || []).map(e => e.qty),
+                           borderRadius: 2 }] },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
         layout: { padding: { top: 16 } },
@@ -778,7 +791,6 @@ function load() {
 
     res.order.forEach((key, idx) => {
       const d = res.panels[key];
-      const last = idx === res.order.length - 1;
 
       if (charts[key]) {
         charts[key].data.labels = d.labels;
@@ -818,9 +830,12 @@ function load() {
             } }
           },
           scales: {
+            // y축 폭을 고정해야 패널끼리 x축 위치가 맞는다
             x: { grid: { display: false },
-                 ticks: { display: last, font: { size: 10 }, autoSkip: false } },
-            y: { beginAtZero: true, grace: "18%", ticks: { font: { size: 10 } } }
+                 ticks: { font: { size: 10 }, autoSkip: false } },
+            y: { beginAtZero: true, grace: "18%",
+                 afterFit: (sc) => { sc.width = 46; },
+                 ticks: { font: { size: 10 }, maxTicksLimit: 5 } }
           }
         },
         plugins: [gapLine, valueLabels]
