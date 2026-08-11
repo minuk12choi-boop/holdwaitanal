@@ -1,10 +1,8 @@
 @echo off
-REM ---------------------------------------------------------------------------
-REM PYEXE 에 python 실행파일 '하나'만 담는다.
-REM 여러 토큰("py -3" 같은)을 변수에 담으면 뒤 인수와 붙어 깨진다.
-REM   예) %PY% getdata\build_f3.py  ->  py -3getdata\build_f3.py  ->  '3.py' 오류
-REM 찾는 순서: HOLDWAITANAL_PYTHON  ->  PATH 의 python  ->  py 런처가 알려주는 경로
-REM ---------------------------------------------------------------------------
+REM Locate a single python executable and put it in PYEXE.
+REM Do NOT put multi-token commands (like "py -3") in the variable:
+REM cmd would join it with the next argument and break ("3.py" error).
+REM Order: HOLDWAITANAL_PYTHON -> python on PATH -> py launcher's sys.executable
 set "PYEXE="
 
 if defined HOLDWAITANAL_PYTHON (
