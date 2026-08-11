@@ -48,11 +48,20 @@ def lot_type_key(t):
 
 # Low WT 분석
 SHIFT_COLS = ["GY", "DAY", "SW"]
-WT_BINS = [
-    {"key": "0",     "label": "WT = 0",         "lo": None, "hi": 0.0},
-    {"key": "0-0.5", "label": "0 < WT ≤ 0.5",   "lo": 0.0,  "hi": 0.5},
-    {"key": "0.5-1", "label": "0.5 < WT ≤ 1.0", "lo": 0.5,  "hi": 1.0},
-]
+def wt_bins(max_wt):
+    """WT=0 을 항상 유지하고, 그 위를 0.5 폭으로 나눈다.
+
+    기준을 직접 입력해도(예: 2.3) 구간이 자동으로 만들어진다.
+    기준을 넓혀도 WT=0 을 다른 구간과 합치지 않는다.
+    """
+    bins = [{"key": "0", "label": "WT = 0", "lo": None, "hi": 0.0}]
+    lo = 0.0
+    while lo < max_wt - 1e-9:
+        hi = min(round(lo + 0.5, 3), max_wt)
+        bins.append({"key": f"{lo:g}-{hi:g}",
+                     "label": f"{lo:g} < WT ≤ {hi:g}", "lo": lo, "hi": hi})
+        lo = hi
+    return bins
 # 원인 대분류. 위에서부터 우선순위. 겹치면 하나에만 귀속한다.
 WT_CAUSES = ["Hold", "Wait성 진행불가", "설비", "TIP", "기타/미분류"]
 LOOKBACK_DAYS = 140
@@ -439,6 +448,7 @@ def _blank():
 
 
 def api_status(request):
+    want = [t for t in request.GET.get("types", "").split(",") if t]
     snap = _latest_snapshot()
     lots = _lot_rows(snap) if snap else []
     move, move_bd = _move_by_shift()
@@ -450,14 +460,17 @@ def api_status(request):
         lt = (lot_type or "-").strip()
         types_by_line.setdefault(line, set()).add(lt)
         st = status or "-"
-        q = int(qty or 0)
+        q = num(qty)
 
         # 설비그룹은 n개 설비로 엮여 있으면 각 설비에 1/n LOT, 1/n 매로 나눠 계상한다.
         # (모든 설비에 1랏씩 계상하면 합계가 실제 대기량보다 부풀려진다)
         eqps = [x.strip() for x in str(eqpgroup or "").split(",") if x.strip()]
         w = 1.0 / len(eqps) if eqps else 0.0
 
-        for bucket in (ALL_TYPES, lt):
+        buckets = [ALL_TYPES, lt]
+        if want and lt in want:
+            buckets.append("_SEL_")
+        for bucket in buckets:
             d = agg.setdefault(line, {}).setdefault(bucket, _blank())
             d["lots"] += 1
             d["qty"] += q
@@ -502,11 +515,15 @@ def api_status(request):
         if not d:
             cards.append({**c, "ready": False})
             continue
-        types = [ALL_TYPES] + sorted(types_by_line.get(c["line"], ()), key=lot_type_key)
+        types = sorted(types_by_line.get(c["line"], ()), key=lot_type_key)
         mv = move.get(c["line"], {})
+        sel = d.get("_SEL_") if want else d.get(ALL_TYPES)
         cards.append({
             **c, "ready": True, "types": types,
-            "by_type": {t: pack(d[t]) for t in types if t in d},
+            "sel": pack(sel) if sel else pack(_blank()),
+            "by_lot_type": [
+                {"name": t, "lots": d[t]["lots"], "qty": d[t]["qty"]}
+                for t in types if t in d],
             "move": {"GY": mv.get("GY", 0), "DAY": mv.get("DAY", 0),
                      "SW": mv.get("SW", 0),
                      "total": sum(mv.get(k, 0) for k in ("GY", "DAY", "SW"))},
@@ -526,6 +543,15 @@ def api_status(request):
 #   원인은 Hold > Wait성 진행불가(exception/ftp) > 설비(down) > TIP(prevent)
 #   순으로 하나에만 귀속한다(중복 카운트 없음).
 # ---------------------------------------------------------------------------
+def num(v, default=0):
+    """f3 는 전 컬럼이 문자열이라 qty 가 '20.0' 처럼 올 수 있다.
+    int('20.0') 은 ValueError 이므로 float 을 거쳐 변환한다."""
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return default
+
+
 def _cause_of(hold, exception, ftp, down, tip):
     if hold:
         return "Hold"
@@ -539,15 +565,13 @@ def _cause_of(hold, exception, ftp, down, tip):
 
 
 def _bin_of(wt, max_wt):
-    if wt is None or wt > max_wt:
+    if wt is None or wt > max_wt + 1e-9:
         return None
-    for b in WT_BINS:
-        if b["hi"] > max_wt + 1e-9:
-            break
+    for b in wt_bins(max_wt):
         if b["lo"] is None:
             if wt <= 0:
                 return b["key"]
-        elif b["lo"] < wt <= b["hi"]:
+        elif b["lo"] < wt <= b["hi"] + 1e-9:
             return b["key"]
     return None
 
@@ -570,7 +594,7 @@ def _wt_source(biz_date, line):
         """, [biz_date, line, *MOVE_LOT_TYPES])
         for sh, lot, qty, hold, exc, ftp, down, tip in cur.fetchall():
             lots.setdefault(sh, {})[lot] = (
-                int(qty or 0), _cause_of(hold, exc, ftp, down, tip))
+                num(qty), _cause_of(hold, exc, ftp, down, tip))
 
         cur.execute("""
             SELECT shift, lot_id, SUM(move_qty)
@@ -606,7 +630,7 @@ def api_lowwt(request):
 
     lots, moves = _wt_source(bd, line)
     cols = ["전체"] + SHIFT_COLS
-    bins = [b for b in WT_BINS if b["hi"] <= max_wt + 1e-9] or [WT_BINS[0]]
+    bins = wt_bins(max_wt)
 
     summary, dist, cause = {}, {}, {}
     for col in cols:
@@ -717,7 +741,7 @@ def api_lots(request):
 
     out = []
     for r in recs:
-        qty = int(r.get("qty") or 0)
+        qty = num(r.get("qty"))
         wt = (mv.get(r["lot_id"], 0.0) / qty) if qty else 0.0
         if bin_key and _bin_of(wt, max_wt) != bin_key:
             continue

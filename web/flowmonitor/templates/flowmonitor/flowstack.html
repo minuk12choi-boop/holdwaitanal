@@ -2,12 +2,22 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Sans+KR:wght@500;600;700&family=Poppins:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
 <title>Multi Line Fab Monitor</title>
 <style>
-  :root { --bd:#E5E7EB; --fg:#111827; --mut:#6B7280; }
+  :root {
+    --bd:#E5E7EB; --fg:#111827; --mut:#6B7280;
+    --brand:#2F4B7C; --brand-on:#4C7DD1;
+    /* 라틴 폰트를 먼저 두면 영문에만 적용되고 한글은 뒤 폰트로 넘어간다 */
+    --f-body:"Poppins","Noto Sans KR","Malgun Gothic",sans-serif;
+    --f-title:"Plus Jakarta Sans","IBM Plex Sans KR","Malgun Gothic",sans-serif;
+  }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:"Malgun Gothic","Segoe UI",sans-serif; color:var(--fg);
-         font-size:14px; }
+  body { margin:0; font-family:var(--f-body); color:var(--fg); font-size:14px; }
+  h1, h2, .brand, .card .head, .cellttl, .wt .cellttl span,
+  .card .wip .lbl, .card .movetot span { font-family:var(--f-title); }
   header { border-bottom:1px solid var(--bd); padding:0 20px; display:flex;
            align-items:center; gap:28px; height:52px; }
   header .brand { font-weight:700; letter-spacing:-.02em; }
@@ -19,15 +29,34 @@
             border-bottom:1px solid var(--bd); }
   .card { border-right:1px solid var(--bd); position:relative; }
   .card:last-child { border-right:0; }
-  .card .head { color:#fff; text-align:center; font-weight:600; padding:8px 0;
-                font-size:15px; letter-spacing:-.01em; }
+  .card .head { color:#fff; text-align:center; font-weight:700; padding:9px 0;
+                font-size:16px; letter-spacing:-.01em; cursor:pointer;
+                background:var(--brand); transition:background .15s; }
+  .card.on .head { background:var(--brand-on); }
+  .card.on { box-shadow:inset 0 0 0 2px var(--brand-on); }
   .card .cell { border-top:1px solid var(--bd); padding:10px 12px; }
-  .card .wip { display:flex; align-items:center; justify-content:space-between;
-               gap:8px; }
-  .card .wip .nums { display:flex; gap:18px; }
-  .card .wip .nums div { text-align:left; }
-  .card .wip b { display:block; font-size:19px; line-height:1.2; }
-  .card .wip span { font-size:11px; color:var(--mut); }
+  .card .wip .top { display:flex; align-items:flex-end; justify-content:space-between;
+                    gap:8px; margin-bottom:8px; }
+  .card .wip .nums { display:flex; gap:20px; }
+  .card .wip b { display:block; font-size:23px; line-height:1.1; font-weight:600; }
+  .card .wip .stack { display:flex; height:10px; border-radius:5px; overflow:hidden;
+                      background:#F3F4F6; }
+  .card .wip .stack i { display:block; height:100%; }
+  .card .wip .stleg { display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:5px; }
+  .card .wip .stleg span { font-size:11px; color:var(--mut);
+                           display:inline-flex; align-items:center; gap:4px; }
+  .card .wip .stleg i { width:8px; height:8px; border-radius:2px; }
+  .dd { position:relative; }
+  .dd > button { font-size:11px; padding:4px 8px; border:1px solid var(--bd);
+                 border-radius:4px; background:#fff; cursor:pointer; }
+  .dd .menu { display:none; position:absolute; right:0; top:26px; z-index:20;
+              background:#fff; border:1px solid var(--bd); border-radius:5px;
+              box-shadow:0 4px 14px rgba(0,0,0,.10); padding:6px; min-width:118px; }
+  .dd.open .menu { display:block; }
+  .dd .menu label { display:flex; align-items:center; gap:6px; font-size:12px;
+                    padding:3px 4px; cursor:pointer; white-space:nowrap; }
+  .dd .menu label:hover { background:#F3F4F6; border-radius:3px; }
+  .card .wip .lbl { font-size:13px; font-weight:700; color:var(--fg); }
   .card .wip select { font-size:11px; padding:3px 5px; border:1px solid var(--bd);
                       border-radius:4px; background:#fff; }
   .card .donut { display:flex; align-items:center; gap:12px; }
@@ -36,15 +65,16 @@
   .card .donut .txt b { display:block; font-size:22px; color:var(--fg);
                         line-height:1.2; }
   .card .legend { display:flex; flex-wrap:wrap; gap:6px 10px; margin-top:6px; }
-  .card .legend span { font-size:11px; color:var(--mut); cursor:pointer;
+  .card .legend span { font-size:12px; color:var(--mut); cursor:pointer;
                        display:inline-flex; align-items:center; gap:4px; }
   .card .legend i { width:9px; height:9px; border-radius:2px; }
-  .card .cellttl { font-size:11px; color:var(--mut); margin-bottom:6px; }
+  .card .cellttl { font-size:13px; font-weight:700; color:var(--fg);
+                   margin-bottom:8px; }
   .card .movebox { display:flex; align-items:center; gap:12px; }
   .card .movebox .cv { flex:1; height:96px; }
   .card .movetot { text-align:right; }
   .card .movetot b { display:block; font-size:24px; line-height:1.15; }
-  .card .movetot span { font-size:11px; color:var(--mut); }
+  .card .movetot span { font-size:12px; font-weight:700; color:var(--mut); }
   /* Low WT 분석 */
   .wt .cellttl { display:flex; justify-content:space-between; align-items:center; }
   .wt select { font-size:11px; padding:2px 4px; border:1px solid var(--bd);
@@ -198,22 +228,32 @@ const donutCenter = {
 function cardHtml(c, i) {
   if (!c.ready) {
     return `<div class="card">
-      <div class="head" style="background:${c.head}">${c.label}</div>
+      <div class="head">${c.label}</div>
       <div class="cell" style="height:150px"></div>
+      <div class="cell" style="height:120px"></div>
       <div class="cell" style="height:120px"></div>
       <div class="cell" style="height:120px"></div>
       <div class="dev">개발중</div></div>`;
   }
-  const opts = c.types.map(t => `<option value="${t}">${t}</option>`).join("");
-  return `<div class="card">
-    <div class="head" style="background:${c.head}">${c.label}</div>
+  const boxes = c.types.map(t =>
+    `<label><input type="checkbox" value="${t}" onchange="onTypeCheck(${i})">${t}</label>`
+  ).join("");
+  return `<div class="card" id="cd_${i}">
+    <div class="head" onclick="pickCard(${i})">${c.label}</div>
     <div class="cell">
       <div class="wip">
-        <div class="nums">
-          <div><b id="wl_${i}">-</b><span>재공 LOT</span></div>
-          <div><b id="wq_${i}">-</b><span>재공 매</span></div>
+        <div class="top">
+          <div class="nums">
+            <div><b id="wl_${i}">-</b><div class="lbl">재공 LOT</div></div>
+            <div><b id="wq_${i}">-</b><div class="lbl">재공 매</div></div>
+          </div>
+          <div class="dd" id="dd_${i}">
+            <button onclick="toggleDd(${i})" id="ddb_${i}">전체 ▾</button>
+            <div class="menu">${boxes}</div>
+          </div>
         </div>
-        <select onchange="pickType(${i}, this.value)">${opts}</select>
+        <div class="stack" id="ws_${i}"></div>
+        <div class="stleg" id="wg_${i}"></div>
       </div>
     </div>
     <div class="cell">
@@ -238,11 +278,38 @@ function cardHtml(c, i) {
 }
 
 let STATUS_DATA = [];
-const CUR_TYPE = {};      // 카드별 선택된 lot_type
 const CUR_SEL = {};       // 카드별 선택된 status index
+const TYPE_COLORS = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#B9D4F2", "#D8E5F5"];
 
-function curPack(i) {
-  return STATUS_DATA[i].by_type[CUR_TYPE[i]];
+function curPack(i) { return STATUS_DATA[i].sel; }
+
+function pickCard(i) {
+  document.querySelectorAll(".card").forEach(el => el.classList.remove("on"));
+  const el = document.getElementById("cd_" + i);
+  if (el) el.classList.add("on");
+}
+
+function toggleDd(i) {
+  const el = document.getElementById("dd_" + i);
+  const open = el.classList.contains("open");
+  document.querySelectorAll(".dd").forEach(x => x.classList.remove("open"));
+  if (!open) el.classList.add("open");
+}
+document.addEventListener("click", e => {
+  if (!e.target.closest(".dd")) {
+    document.querySelectorAll(".dd").forEach(x => x.classList.remove("open"));
+  }
+});
+
+function selectedTypes(i) {
+  return [...document.querySelectorAll(`#dd_${i} input:checked`)].map(x => x.value);
+}
+
+function onTypeCheck(i) {
+  const t = selectedTypes(i);
+  document.getElementById("ddb_" + i).textContent =
+    (t.length ? (t.length <= 2 ? t.join(",") : t.length + "개 선택") : "전체") + " ▾";
+  reloadStatus();
 }
 
 function setCenter(i) {
@@ -260,9 +327,19 @@ function setCenter(i) {
 }
 
 function renderCard(i) {
-  const p = curPack(i);
+  const c = STATUS_DATA[i], p = c.sel;
   document.getElementById("wl_" + i).textContent = nf(p.total.lots);
   document.getElementById("wq_" + i).textContent = nf(p.total.qty);
+
+  // 재공 구성을 lot_type 막대로. 숫자만 늘어놓지 않고 비중이 한눈에 보이게.
+  const tot = c.by_lot_type.reduce((a, x) => a + x.lots, 0) || 1;
+  document.getElementById("ws_" + i).innerHTML = c.by_lot_type.map((x, k) =>
+    `<i style="width:${x.lots / tot * 100}%;background:${TYPE_COLORS[k % 5]}"
+        title="${x.name} ${nf(x.lots)} LOT · ${nf(x.qty)} 매"></i>`).join("");
+  document.getElementById("wg_" + i).innerHTML = c.by_lot_type.map((x, k) =>
+    `<span><i style="background:${TYPE_COLORS[k % 5]}"></i>${x.name}
+       ${(x.lots / tot * 100).toFixed(0)}%</span>`).join("");
+
   document.getElementById("lg_" + i).innerHTML = p.status.map((st, si) =>
     `<span onclick="pickStatus(${i},${si})"><i style="background:${st.color}"></i>`
     + `${st.name} ${st.pct}%</span>`).join("");
@@ -280,15 +357,23 @@ function renderCard(i) {
   eq.update();
 }
 
-function pickType(i, t) {
-  CUR_TYPE[i] = t;
-  CUR_SEL[i] = null;
-  renderCard(i);
+function pickStatus(i, si) {
+  CUR_SEL[i] = (CUR_SEL[i] === si) ? null : si;
+  setCenter(i);
 }
 
-function pickStatus(i, si) {
-  CUR_SEL[i] = (CUR_SEL[i] === si) ? null : si;   // 다시 누르면 기본값
-  setCenter(i);
+function reloadStatus() {
+  const q = STATUS_DATA.map((c, i) => c.ready ? selectedTypes(i).join(",") : "")
+                       .find(x => x) || "";
+  fetch("/api/status/?types=" + encodeURIComponent(q))
+    .then(r => r.json()).then(res => {
+      res.cards.forEach((c, i) => {
+        if (!c.ready) return;
+        STATUS_DATA[i] = { ...STATUS_DATA[i], ...c };
+        CUR_SEL[i] = null;
+        renderCard(i);
+      });
+    });
 }
 
 // 조각 위에 상태 비율을 직접 표기
@@ -322,8 +407,7 @@ function drawCards(res) {
   res.cards.forEach((c, i) => {
     if (!c.ready) return;
 
-    const p0 = c.by_type[c.types[0]];
-    CUR_TYPE[i] = c.types[0];
+    const p0 = c.sel;
     CUR_SEL[i] = null;
 
     window["dn" + i] = new Chart(document.getElementById("dn_" + i), {
@@ -410,7 +494,16 @@ const WT_OPTS = [
   { v: 0.5, t: "WT ≤ 0.5" },
   { v: 1.0, t: "WT ≤ 1.0" },
 ];
+
+function pickWtCustom(i, line, v) {
+  const x = parseFloat(v);
+  if (isNaN(x) || x < 0) return;
+  WT_STATE[i].max = x;
+  WT_STATE[i].bin = "0";
+  loadWt(i, line);
+}
 const WT_STATE = {};      // 카드별 {max, bin}
+const WT_LABELS = {};     // 카드별 구간 라벨
 
 function loadWt(i, line) {
   const st = WT_STATE[i] || (WT_STATE[i] = { max: 0, bin: "0" });
@@ -419,6 +512,11 @@ function loadWt(i, line) {
 }
 
 function pickWtMax(i, line, v) {
+  if (v === "custom") {                        // 숫자 입력칸 노출
+    const el = document.getElementById("wtc_" + i);
+    if (el) { el.style.display = ""; el.focus(); }
+    return;
+  }
   WT_STATE[i].max = parseFloat(v);
   WT_STATE[i].bin = "0";                 // 기준 변경 시 가장 심각한 구간부터
   loadWt(i, line);
@@ -442,8 +540,12 @@ function drawWt(i, line, d) {
     const keys = d.bins.map(b => b.key);
     if (!keys.includes(st.bin)) st.bin = keys[0];
   }
+  const known = WT_OPTS.some(o => o.v === st.max);
+  WT_LABELS[i] = {};
+  d.bins.forEach(b => { WT_LABELS[i][b.key] = b.label; });
   const opts = WT_OPTS.map(o =>
-    `<option value="${o.v}" ${o.v === st.max ? "selected" : ""}>${o.t}</option>`).join("");
+    `<option value="${o.v}" ${o.v === st.max ? "selected" : ""}>${o.t}</option>`).join("")
+    + `<option value="custom" ${known ? "" : "selected"}>직접 입력</option>`;
   const th = d.cols.map(c => `<th>${c}</th>`).join("");
 
   const sumRow = d.cols.map(c => `<td>${nf(d.summary[c].low)}</td>`).join("");
@@ -452,7 +554,8 @@ function drawWt(i, line, d) {
   const distRows = d.bins.map(b => {
     const tds = d.cols.map(c =>
       `<td class="pick" onclick="event.stopPropagation();`
-      + `openDrill({line:'${line}',col:'${c}',bin:'${b.key}',max_wt:${st.max}})">`
+      + `openDrill({line:'${line}',col:'${c}',bin:'${b.key}',max_wt:${st.max},`
+      + `bin_label:'${b.label}'})">`
       + `${nf(d.dist[c][b.key] || 0)}</td>`).join("");
     return `<tr class="pick ${b.key === st.bin ? "on" : ""}"
               onclick="pickWtBin(${i},'${line}','${b.key}')">
@@ -468,7 +571,8 @@ function drawWt(i, line, d) {
       const pct = low ? (n / low * 100).toFixed(0) : 0;
       return `<td class="pick" title="${cz} · ${n} LOT · 구간 내 ${pct}%"
                  onclick="openDrill({line:'${line}',col:'${c}',bin:'${st.bin}',
-                          cause:'${cz}',max_wt:${st.max}})">`
+                          cause:'${cz}',max_wt:${st.max},
+                          bin_label:'${WT_LABELS[i][st.bin] || ""}'})">`
              + `${n ? nf(n) : "-"}</td>`;
     }).join("");
     if (cz === "기타/미분류" && !any) return "";      // 0 이면 숨김
@@ -477,7 +581,14 @@ function drawWt(i, line, d) {
 
   el.innerHTML = `
     <div class="cellttl"><span>Low WT 분석</span>
-      <select onchange="pickWtMax(${i},'${line}',this.value)">${opts}</select></div>
+      <span style="display:flex;gap:4px;align-items:center">
+        <select onchange="pickWtMax(${i},'${line}',this.value)">${opts}</select>
+        <input type="number" step="0.1" min="0" value="${st.max}"
+               style="width:52px;font-size:11px;padding:2px 4px;border:1px solid var(--bd);
+                      border-radius:4px;${known ? "display:none" : ""}"
+               id="wtc_${i}"
+               onchange="pickWtCustom(${i},'${line}',this.value)">
+      </span></div>
     <table>
       <thead><tr><th></th>${th}</tr></thead>
       <tbody>
@@ -487,7 +598,7 @@ function drawWt(i, line, d) {
     </table>
     <div class="sec">WT 구간 분포 (행 클릭 → 아래 원인 갱신)</div>
     <table><tbody>${distRows}</tbody></table>
-    <div class="sec">원인 · ${d.bins.find(b => b.key === st.bin).label}</div>
+    <div class="sec">원인 · ${(d.bins.find(b => b.key === st.bin) || {}).label || ""}</div>
     <table><tbody>${causeRows}</tbody></table>`;
 }
 
@@ -508,12 +619,12 @@ function openDrill(opt) {
   el.innerHTML = `<div class="bar"><b>불러오는 중…</b></div>`;
   el.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
+  const binLabelIn = opt.bin_label || "";
   const q = Object.entries(opt)
-    .filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .filter(([k, v]) => k !== "bin_label" && v !== undefined && v !== null && v !== "")
     .map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
   fetch("/api/lots/?" + q).then(r => r.json()).then(d => {
-    const binLabel = { "0": "WT = 0", "0-0.5": "0 < WT ≤ 0.5",
-                       "0.5-1": "0.5 < WT ≤ 1.0" }[d.bin] || "";
+    const binLabel = binLabelIn;
     const path = [d.line, d.col, binLabel, d.status,
                   (d.cause !== "전체" ? d.cause : ""), d.biz_date]
                  .filter(Boolean).join(" · ");
@@ -716,22 +827,32 @@ const donutCenter = {
 function cardHtml(c, i) {
   if (!c.ready) {
     return `<div class="card">
-      <div class="head" style="background:${c.head}">${c.label}</div>
+      <div class="head">${c.label}</div>
       <div class="cell" style="height:150px"></div>
+      <div class="cell" style="height:120px"></div>
       <div class="cell" style="height:120px"></div>
       <div class="cell" style="height:120px"></div>
       <div class="dev">개발중</div></div>`;
   }
-  const opts = c.types.map(t => `<option value="${t}">${t}</option>`).join("");
-  return `<div class="card">
-    <div class="head" style="background:${c.head}">${c.label}</div>
+  const boxes = c.types.map(t =>
+    `<label><input type="checkbox" value="${t}" onchange="onTypeCheck(${i})">${t}</label>`
+  ).join("");
+  return `<div class="card" id="cd_${i}">
+    <div class="head" onclick="pickCard(${i})">${c.label}</div>
     <div class="cell">
       <div class="wip">
-        <div class="nums">
-          <div><b id="wl_${i}">-</b><span>재공 LOT</span></div>
-          <div><b id="wq_${i}">-</b><span>재공 매</span></div>
+        <div class="top">
+          <div class="nums">
+            <div><b id="wl_${i}">-</b><div class="lbl">재공 LOT</div></div>
+            <div><b id="wq_${i}">-</b><div class="lbl">재공 매</div></div>
+          </div>
+          <div class="dd" id="dd_${i}">
+            <button onclick="toggleDd(${i})" id="ddb_${i}">전체 ▾</button>
+            <div class="menu">${boxes}</div>
+          </div>
         </div>
-        <select onchange="pickType(${i}, this.value)">${opts}</select>
+        <div class="stack" id="ws_${i}"></div>
+        <div class="stleg" id="wg_${i}"></div>
       </div>
     </div>
     <div class="cell">
@@ -756,11 +877,38 @@ function cardHtml(c, i) {
 }
 
 let STATUS_DATA = [];
-const CUR_TYPE = {};      // 카드별 선택된 lot_type
 const CUR_SEL = {};       // 카드별 선택된 status index
+const TYPE_COLORS = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#B9D4F2", "#D8E5F5"];
 
-function curPack(i) {
-  return STATUS_DATA[i].by_type[CUR_TYPE[i]];
+function curPack(i) { return STATUS_DATA[i].sel; }
+
+function pickCard(i) {
+  document.querySelectorAll(".card").forEach(el => el.classList.remove("on"));
+  const el = document.getElementById("cd_" + i);
+  if (el) el.classList.add("on");
+}
+
+function toggleDd(i) {
+  const el = document.getElementById("dd_" + i);
+  const open = el.classList.contains("open");
+  document.querySelectorAll(".dd").forEach(x => x.classList.remove("open"));
+  if (!open) el.classList.add("open");
+}
+document.addEventListener("click", e => {
+  if (!e.target.closest(".dd")) {
+    document.querySelectorAll(".dd").forEach(x => x.classList.remove("open"));
+  }
+});
+
+function selectedTypes(i) {
+  return [...document.querySelectorAll(`#dd_${i} input:checked`)].map(x => x.value);
+}
+
+function onTypeCheck(i) {
+  const t = selectedTypes(i);
+  document.getElementById("ddb_" + i).textContent =
+    (t.length ? (t.length <= 2 ? t.join(",") : t.length + "개 선택") : "전체") + " ▾";
+  reloadStatus();
 }
 
 function setCenter(i) {
@@ -778,9 +926,19 @@ function setCenter(i) {
 }
 
 function renderCard(i) {
-  const p = curPack(i);
+  const c = STATUS_DATA[i], p = c.sel;
   document.getElementById("wl_" + i).textContent = nf(p.total.lots);
   document.getElementById("wq_" + i).textContent = nf(p.total.qty);
+
+  // 재공 구성을 lot_type 막대로. 숫자만 늘어놓지 않고 비중이 한눈에 보이게.
+  const tot = c.by_lot_type.reduce((a, x) => a + x.lots, 0) || 1;
+  document.getElementById("ws_" + i).innerHTML = c.by_lot_type.map((x, k) =>
+    `<i style="width:${x.lots / tot * 100}%;background:${TYPE_COLORS[k % 5]}"
+        title="${x.name} ${nf(x.lots)} LOT · ${nf(x.qty)} 매"></i>`).join("");
+  document.getElementById("wg_" + i).innerHTML = c.by_lot_type.map((x, k) =>
+    `<span><i style="background:${TYPE_COLORS[k % 5]}"></i>${x.name}
+       ${(x.lots / tot * 100).toFixed(0)}%</span>`).join("");
+
   document.getElementById("lg_" + i).innerHTML = p.status.map((st, si) =>
     `<span onclick="pickStatus(${i},${si})"><i style="background:${st.color}"></i>`
     + `${st.name} ${st.pct}%</span>`).join("");
@@ -798,15 +956,23 @@ function renderCard(i) {
   eq.update();
 }
 
-function pickType(i, t) {
-  CUR_TYPE[i] = t;
-  CUR_SEL[i] = null;
-  renderCard(i);
+function pickStatus(i, si) {
+  CUR_SEL[i] = (CUR_SEL[i] === si) ? null : si;
+  setCenter(i);
 }
 
-function pickStatus(i, si) {
-  CUR_SEL[i] = (CUR_SEL[i] === si) ? null : si;   // 다시 누르면 기본값
-  setCenter(i);
+function reloadStatus() {
+  const q = STATUS_DATA.map((c, i) => c.ready ? selectedTypes(i).join(",") : "")
+                       .find(x => x) || "";
+  fetch("/api/status/?types=" + encodeURIComponent(q))
+    .then(r => r.json()).then(res => {
+      res.cards.forEach((c, i) => {
+        if (!c.ready) return;
+        STATUS_DATA[i] = { ...STATUS_DATA[i], ...c };
+        CUR_SEL[i] = null;
+        renderCard(i);
+      });
+    });
 }
 
 // 조각 위에 상태 비율을 직접 표기
@@ -840,8 +1006,7 @@ function drawCards(res) {
   res.cards.forEach((c, i) => {
     if (!c.ready) return;
 
-    const p0 = c.by_type[c.types[0]];
-    CUR_TYPE[i] = c.types[0];
+    const p0 = c.sel;
     CUR_SEL[i] = null;
 
     window["dn" + i] = new Chart(document.getElementById("dn_" + i), {
@@ -928,7 +1093,16 @@ const WT_OPTS = [
   { v: 0.5, t: "WT ≤ 0.5" },
   { v: 1.0, t: "WT ≤ 1.0" },
 ];
+
+function pickWtCustom(i, line, v) {
+  const x = parseFloat(v);
+  if (isNaN(x) || x < 0) return;
+  WT_STATE[i].max = x;
+  WT_STATE[i].bin = "0";
+  loadWt(i, line);
+}
 const WT_STATE = {};      // 카드별 {max, bin}
+const WT_LABELS = {};     // 카드별 구간 라벨
 
 function loadWt(i, line) {
   const st = WT_STATE[i] || (WT_STATE[i] = { max: 0, bin: "0" });
@@ -937,6 +1111,11 @@ function loadWt(i, line) {
 }
 
 function pickWtMax(i, line, v) {
+  if (v === "custom") {                        // 숫자 입력칸 노출
+    const el = document.getElementById("wtc_" + i);
+    if (el) { el.style.display = ""; el.focus(); }
+    return;
+  }
   WT_STATE[i].max = parseFloat(v);
   WT_STATE[i].bin = "0";                 // 기준 변경 시 가장 심각한 구간부터
   loadWt(i, line);
@@ -960,8 +1139,12 @@ function drawWt(i, line, d) {
     const keys = d.bins.map(b => b.key);
     if (!keys.includes(st.bin)) st.bin = keys[0];
   }
+  const known = WT_OPTS.some(o => o.v === st.max);
+  WT_LABELS[i] = {};
+  d.bins.forEach(b => { WT_LABELS[i][b.key] = b.label; });
   const opts = WT_OPTS.map(o =>
-    `<option value="${o.v}" ${o.v === st.max ? "selected" : ""}>${o.t}</option>`).join("");
+    `<option value="${o.v}" ${o.v === st.max ? "selected" : ""}>${o.t}</option>`).join("")
+    + `<option value="custom" ${known ? "" : "selected"}>직접 입력</option>`;
   const th = d.cols.map(c => `<th>${c}</th>`).join("");
 
   const sumRow = d.cols.map(c => `<td>${nf(d.summary[c].low)}</td>`).join("");
@@ -970,7 +1153,8 @@ function drawWt(i, line, d) {
   const distRows = d.bins.map(b => {
     const tds = d.cols.map(c =>
       `<td class="pick" onclick="event.stopPropagation();`
-      + `openDrill({line:'${line}',col:'${c}',bin:'${b.key}',max_wt:${st.max}})">`
+      + `openDrill({line:'${line}',col:'${c}',bin:'${b.key}',max_wt:${st.max},`
+      + `bin_label:'${b.label}'})">`
       + `${nf(d.dist[c][b.key] || 0)}</td>`).join("");
     return `<tr class="pick ${b.key === st.bin ? "on" : ""}"
               onclick="pickWtBin(${i},'${line}','${b.key}')">
@@ -986,7 +1170,8 @@ function drawWt(i, line, d) {
       const pct = low ? (n / low * 100).toFixed(0) : 0;
       return `<td class="pick" title="${cz} · ${n} LOT · 구간 내 ${pct}%"
                  onclick="openDrill({line:'${line}',col:'${c}',bin:'${st.bin}',
-                          cause:'${cz}',max_wt:${st.max}})">`
+                          cause:'${cz}',max_wt:${st.max},
+                          bin_label:'${WT_LABELS[i][st.bin] || ""}'})">`
              + `${n ? nf(n) : "-"}</td>`;
     }).join("");
     if (cz === "기타/미분류" && !any) return "";      // 0 이면 숨김
@@ -995,7 +1180,14 @@ function drawWt(i, line, d) {
 
   el.innerHTML = `
     <div class="cellttl"><span>Low WT 분석</span>
-      <select onchange="pickWtMax(${i},'${line}',this.value)">${opts}</select></div>
+      <span style="display:flex;gap:4px;align-items:center">
+        <select onchange="pickWtMax(${i},'${line}',this.value)">${opts}</select>
+        <input type="number" step="0.1" min="0" value="${st.max}"
+               style="width:52px;font-size:11px;padding:2px 4px;border:1px solid var(--bd);
+                      border-radius:4px;${known ? "display:none" : ""}"
+               id="wtc_${i}"
+               onchange="pickWtCustom(${i},'${line}',this.value)">
+      </span></div>
     <table>
       <thead><tr><th></th>${th}</tr></thead>
       <tbody>
@@ -1005,7 +1197,7 @@ function drawWt(i, line, d) {
     </table>
     <div class="sec">WT 구간 분포 (행 클릭 → 아래 원인 갱신)</div>
     <table><tbody>${distRows}</tbody></table>
-    <div class="sec">원인 · ${d.bins.find(b => b.key === st.bin).label}</div>
+    <div class="sec">원인 · ${(d.bins.find(b => b.key === st.bin) || {}).label || ""}</div>
     <table><tbody>${causeRows}</tbody></table>`;
 }
 
@@ -1026,12 +1218,12 @@ function openDrill(opt) {
   el.innerHTML = `<div class="bar"><b>불러오는 중…</b></div>`;
   el.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
+  const binLabelIn = opt.bin_label || "";
   const q = Object.entries(opt)
-    .filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .filter(([k, v]) => k !== "bin_label" && v !== undefined && v !== null && v !== "")
     .map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
   fetch("/api/lots/?" + q).then(r => r.json()).then(d => {
-    const binLabel = { "0": "WT = 0", "0-0.5": "0 < WT ≤ 0.5",
-                       "0.5-1": "0.5 < WT ≤ 1.0" }[d.bin] || "";
+    const binLabel = binLabelIn;
     const path = [d.line, d.col, binLabel, d.status,
                   (d.cause !== "전체" ? d.cause : ""), d.biz_date]
                  .filter(Boolean).join(" · ");
