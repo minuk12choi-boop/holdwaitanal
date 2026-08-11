@@ -42,6 +42,7 @@ WAITING_STATUS = ("WAIT", "WAIT(진행불가)")
 
 # lot_type 정렬: PP > PB > PG > EG, 그 외는 뒤에 오름차순
 LOT_TYPE_ORDER = ["PP", "PB", "PG", "EG"]
+DEFAULT_LOT_TYPES = ["PP", "PG"]      # 카드 기본 선택
 
 
 def lot_type_key(t):
@@ -425,8 +426,12 @@ def _lot_rows(snapshot_at):
         return cur.fetchall()
 
 
-def _move_by_shift():
-    """가장 최근 업무일의 라인별 shift MOVE."""
+def _move_by_shift(types=None):
+    """가장 최근 업무일의 라인별 shift MOVE.
+
+    lot_type 이 지정되면 move_lot 을 f3_live 의 lot_type 과 연결해 걸러낸다.
+    (move_lot 자체에는 lot_type 이 없다)
+    """
     if not _table_exists("move_shift"):
         return {}, None
     with connection.cursor() as cur:
@@ -434,8 +439,22 @@ def _move_by_shift():
         bd = cur.fetchone()[0]
         if not bd:
             return {}, None
-        cur.execute("SELECT sys_line_id, shift, move_qty FROM move_shift "
-                    "WHERE biz_date = %s", [bd])
+
+        if types and _table_exists("move_lot") and _table_exists("f3_live"):
+            ph = ",".join(["%s"] * len(types))
+            cur.execute(f"""
+                SELECT m.sys_line_id, m.shift, SUM(m.move_qty)
+                FROM   move_lot m
+                JOIN  (SELECT DISTINCT `line`, lot_id, lot_type
+                       FROM   f3_live
+                       WHERE  snapshot_at = (SELECT MAX(snapshot_at) FROM f3_live)) f
+                  ON   f.`line` = m.sys_line_id AND f.lot_id = m.lot_id
+                WHERE  m.biz_date = %s AND f.lot_type IN ({ph})
+                GROUP  BY m.sys_line_id, m.shift
+            """, [bd, *types])
+        else:
+            cur.execute("SELECT sys_line_id, shift, move_qty FROM move_shift "
+                        "WHERE biz_date = %s", [bd])
         out = {}
         for line, sh, qty in cur.fetchall():
             out.setdefault(line, {})[sh] = int(qty or 0)
@@ -454,7 +473,7 @@ def api_status(request):
     only = request.GET.get("line", "")          # 지정 시 그 라인 카드만 반환
     snap = _latest_snapshot()
     lots = _lot_rows(snap) if snap else []
-    move, move_bd = _move_by_shift()
+    move, move_bd = _move_by_shift(want)
 
     # line -> lot_type -> 집계. ALL_TYPES 버킷도 함께 채운다.
     agg = {}
@@ -525,6 +544,7 @@ def api_status(request):
         sel = d.get("_SEL_") if want else d.get(ALL_TYPES)
         cards.append({
             **c, "ready": True, "types": types,
+            "default_types": [t for t in DEFAULT_LOT_TYPES if t in types],
             "sel": pack(sel) if sel else pack(_blank()),
             "by_lot_type": [
                 {"name": t, "lots": d[t]["lots"], "qty": d[t]["qty"]}
@@ -558,8 +578,10 @@ def num(v, default=0):
         return default
 
 
-def _cause_of(hold, exception, ftp, down, tip):
-    if hold:
+def _cause_of(hold, exception, ftp, down, tip, lot_status=None):
+    """겹치면 위에서부터 하나에만 귀속. lot_status='HOLD' 도 Hold 로 본다
+    (MEMMSS issue 기록이 없어도 상태가 HOLD 면 Hold 다)."""
+    if hold or (lot_status or "") == "HOLD":
         return "Hold"
     if exception or ftp:
         return "Wait성 진행불가"
@@ -593,14 +615,15 @@ def _wt_source(biz_date, line):
                    MIN(CAST(qty AS SIGNED)) AS qty,
                    MIN(hold) AS hold, MIN(exception) AS exception, MIN(ftp) AS ftp,
                    MIN(CASE WHEN `현스텝`='현스텝' THEN down END) AS down,
-                   MIN(CASE WHEN `현스텝`='현스텝' THEN tip END)  AS tip
+                   MIN(CASE WHEN `현스텝`='현스텝' THEN tip END)  AS tip,
+                   MIN(lot_status) AS lot_status
             FROM   f3_history
             WHERE  biz_date = %s AND `line` = %s AND lot_type IN ({types})
             GROUP  BY shift, lot_id
         """, [biz_date, line, *MOVE_LOT_TYPES])
-        for sh, lot, qty, hold, exc, ftp, down, tip in cur.fetchall():
+        for sh, lot, qty, hold, exc, ftp, down, tip, st in cur.fetchall():
             lots.setdefault(sh, {})[lot] = (
-                num(qty), _cause_of(hold, exc, ftp, down, tip))
+                num(qty), _cause_of(hold, exc, ftp, down, tip, st))
 
         cur.execute("""
             SELECT shift, lot_id, SUM(move_qty)
@@ -653,7 +676,7 @@ def api_lowwt(request):
             bin_cnt[key] += 1
             cause_cnt.setdefault(key, {}).setdefault(cs, 0)
             cause_cnt[key][cs] += 1
-        summary[col] = {"base": base, "low": low_lots,
+        summary[col] = {"base": base, "low": low_lots, "has": base > 0,
                         "rate": round(low_lots / base * 100, 1) if base else 0}
         dist[col] = bin_cnt
         cause[col] = cause_cnt
@@ -754,7 +777,7 @@ def api_lots(request):
         if status and (r.get("lot_status") or "") != status:
             continue
         cs = _cause_of(r.get("hold"), r.get("exception"), r.get("ftp"),
-                       r.get("down"), r.get("tip"))
+                       r.get("down"), r.get("tip"), r.get("lot_status"))
         if cause and cs != cause:
             continue
         r["wt"] = round(wt, 2)

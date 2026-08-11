@@ -90,8 +90,10 @@
   .wt .rate td { color:var(--mut); border-bottom:1px solid var(--bd); }
   .wt .sec { color:var(--mut); padding-top:6px; font-size:10px; }
   .wt tr.pick { cursor:pointer; }
-  .wt tr.pick:hover td { background:#F3F4F6; }
-  .wt tr.on td { background:#EEF2FF; font-weight:600; }
+  .wt tr.on > td:first-child { font-weight:700; color:var(--fg); }
+  .wt td.cell-pick { cursor:pointer; border:1px solid transparent; border-radius:3px; }
+  .wt td.cell-pick:hover { background:var(--brand); color:#fff; }
+  .wt td.none { color:#C4C7CE; }
   /* Drill-down */
   #drill { padding:0; overflow:hidden; }
   #drill .empty { padding:22px 16px; color:var(--mut); font-size:13px; }
@@ -109,9 +111,19 @@
   #drill thead th { position:sticky; top:0; background:#F3F4F6; color:var(--mut);
                     font-weight:600; z-index:1; }
   #drill td.num { text-align:right; font-variant-numeric:tabular-nums; }
-  .card .dev { position:absolute; inset:38px 0 0 0; background:rgba(255,255,255,.82);
+  .card .dev { position:absolute; inset:40px 0 0 0; background:rgba(255,255,255,.72);
+               backdrop-filter:blur(2px);
                display:flex; align-items:center; justify-content:center;
-               font-size:14px; color:var(--mut); font-weight:600; letter-spacing:.02em; }
+               font-family:var(--f-title); font-size:15px; color:var(--brand);
+               font-weight:700; letter-spacing:.04em; }
+  .card.ghost .cell { opacity:.5; }
+  .card.ghost .gcircle { width:112px; height:112px; border-radius:50%;
+                         background:conic-gradient(#2F4B7C 0 42%, #4C7DD1 0 68%,
+                                    #7FB3E8 0 86%, #B9D4F2 0 100%); margin:0 auto; }
+  .card.ghost .gbars { display:flex; align-items:flex-end; gap:8px; height:96px; }
+  .card.ghost .gbars i { flex:1; background:var(--brand); border-radius:2px 2px 0 0; }
+  .card.ghost .glines i { display:block; height:9px; margin-bottom:7px;
+                          background:var(--brand); border-radius:3px; opacity:.75; }
 
   main { display:flex; gap:16px; padding:16px; align-items:flex-start; }
   .left { flex:0 0 32%; min-width:400px; }
@@ -218,17 +230,36 @@ const nf = (n) => Number(n || 0).toLocaleString("ko-KR");
 
 function cardHtml(c, i) {
   if (!c.ready) {
-    return `<div class="card">
+    // 빈 화면처럼 보이지 않도록 실제 카드와 같은 골격을 배경에 깔고 흐리게 덮는다.
+    return `<div class="card ghost">
       <div class="head">${c.label}</div>
-      <div class="cell" style="height:150px"></div>
-      <div class="cell" style="height:120px"></div>
-      <div class="cell" style="height:120px"></div>
-      <div class="cell" style="height:120px"></div>
+      <div class="cell">
+        <div class="wip">
+          <div class="top"><div class="nums">
+            <div><b>3,412</b><div class="lbl">재공 LOT</div></div>
+            <div><b>84,300</b><div class="lbl">재공 매</div></div>
+          </div></div>
+          <div class="stack"><i style="width:52%;background:#2F4B7C"></i>
+            <i style="width:31%;background:#4C7DD1"></i>
+            <i style="width:17%;background:#7FB3E8"></i></div>
+        </div>
+      </div>
+      <div class="cell"><div class="cv gcircle"></div></div>
+      <div class="cell"><div class="cellttl">대기 LOT 상위 설비 5</div>
+        <div class="gbars">${[62,48,37,29,21].map(h =>
+          `<i style="height:${h}%"></i>`).join("")}</div></div>
+      <div class="cell"><div class="cellttl">Shift 별 MOVE</div>
+        <div class="gbars">${[70,55,40].map(h =>
+          `<i style="height:${h}%"></i>`).join("")}</div></div>
+      <div class="cell"><div class="cellttl">Low WT 분석</div>
+        <div class="glines">${[90,70,55,40].map(w =>
+          `<i style="width:${w}%"></i>`).join("")}</div></div>
       <div class="dev">개발중</div></div>`;
   }
+  const dft = c.default_types || [];
   const boxes = c.types.map(t =>
-    `<label><input type="checkbox" value="${t}" onchange="onTypeCheck(${i})">${t}</label>`
-  ).join("");
+    `<label><input type="checkbox" value="${t}" ${dft.includes(t) ? "checked" : ""}`
+    + ` onchange="onTypeCheck(${i})">${t}</label>`).join("");
   return `<div class="card" id="cd_${i}">
     <div class="head" onclick="pickCard(${i})">${c.label}</div>
     <div class="cell">
@@ -394,7 +425,7 @@ const donutSliceLabels = {
       const v = st[k];
       if (!v || v.pct < 6) return;            // 너무 얇으면 생략
       const a = (arc.startAngle + arc.endAngle) / 2;
-      const r = (arc.innerRadius + arc.outerRadius) / 2;
+      const r = arc.outerRadius * 0.62;
       ctx.fillStyle = "#fff";
       ctx.fillText(v.pct + "%",
                    arc.x + Math.cos(a) * r, arc.y + Math.sin(a) * r);
@@ -414,6 +445,11 @@ function drawCards(res) {
     const p0 = c.sel;
     CUR_SEL[i] = null;
 
+    // 기본 선택(PP+PG)을 버튼 라벨에 반영
+    const dft0 = c.default_types || [];
+    document.getElementById("ddb_" + i).textContent =
+      (dft0.length ? dft0.join(",") : "전체") + " ▾";
+
     window["dn" + i] = new Chart(document.getElementById("dn_" + i), {
       type: "doughnut",
       data: { labels: p0.status.map(s => s.name),
@@ -421,7 +457,7 @@ function drawCards(res) {
                            backgroundColor: p0.status.map(s => s.color),
                            borderWidth: 0 }] },
       options: {
-        responsive: true, maintainAspectRatio: false, cutout: "68%",
+        responsive: true, maintainAspectRatio: false, cutout: 0,
         animation: false,
         plugins: {
           legend: { display: false },
@@ -552,32 +588,40 @@ function drawWt(i, line, d) {
     + `<option value="custom" ${known ? "" : "selected"}>직접 입력</option>`;
   const th = d.cols.map(c => `<th>${c}</th>`).join("");
 
-  const sumRow = d.cols.map(c => `<td>${nf(d.summary[c].low)}</td>`).join("");
-  const rateRow = d.cols.map(c => `<td>${d.summary[c].rate}%</td>`).join("");
+  const has = c => d.summary[c].has;
+  const sumRow = d.cols.map(c =>
+    has(c) ? `<td>${nf(d.summary[c].low)}</td>`
+           : `<td class="none" title="이 shift 스냅샷이 아직 없습니다">-</td>`).join("");
+  const rateRow = d.cols.map(c =>
+    has(c) ? `<td>${d.summary[c].rate}%</td>` : `<td class="none">-</td>`).join("");
 
   const distRows = d.bins.map(b => {
-    const tds = d.cols.map(c =>
-      `<td class="pick" onclick="event.stopPropagation();`
-      + `openDrill({line:'${line}',col:'${c}',bin:'${b.key}',max_wt:${st.max},`
-      + `bin_label:'${b.label}'})">`
-      + `${nf(d.dist[c][b.key] || 0)}</td>`).join("");
+    const tds = d.cols.map(c => {
+      if (!has(c)) return `<td class="none">-</td>`;
+      const n = d.dist[c][b.key] || 0;
+      return `<td class="cell-pick" title="클릭: ${c} · ${b.label} LOT 목록"`
+        + ` onclick="event.stopPropagation();`
+        + `openDrill({line:'${line}',col:'${c}',bin:'${b.key}',max_wt:${st.max},`
+        + `bin_label:'${b.label}'})">${nf(n)}</td>`;
+    }).join("");
     return `<tr class="pick ${b.key === st.bin ? "on" : ""}"
               onclick="pickWtBin(${i},'${line}','${b.key}')">
-              <td>${b.label}</td>${tds}</tr>`;
+              <td title="클릭: 이 구간으로 원인 갱신">${b.label}</td>${tds}</tr>`;
   }).join("");
 
   const causeRows = d.causes.map(cz => {
     let any = false;
     const tds = d.cols.map(c => {
+      if (!has(c)) return `<td class="none">-</td>`;
       const n = ((d.cause[c] || {})[st.bin] || {})[cz] || 0;
       if (n) any = true;
       const low = d.dist[c][st.bin] || 0;
       const pct = low ? (n / low * 100).toFixed(0) : 0;
-      return `<td class="pick" title="${cz} · ${n} LOT · 구간 내 ${pct}%"
+      return `<td class="cell-pick" title="${cz} · ${n} LOT · 구간 내 ${pct}%"
                  onclick="openDrill({line:'${line}',col:'${c}',bin:'${st.bin}',
                           cause:'${cz}',max_wt:${st.max},
                           bin_label:'${WT_LABELS[i][st.bin] || ""}'})">`
-             + `${n ? nf(n) : "-"}</td>`;
+             + `${n ? nf(n) : "0"}</td>`;
     }).join("");
     if (cz === "기타/미분류" && !any) return "";      // 0 이면 숨김
     return `<tr><td>${cz}</td>${tds}</tr>`;
@@ -600,7 +644,8 @@ function drawWt(i, line, d) {
         <tr class="rate"><td>Low WT율</td>${rateRow}</tr>
       </tbody>
     </table>
-    <div class="sec">WT 구간 분포 (행 클릭 → 아래 원인 갱신)</div>
+    <div class="sec">WT 구간 분포 &middot; 구간명 클릭 = 아래 원인 갱신,
+      숫자 클릭 = 해당 셀 LOT 목록</div>
     <table><tbody>${distRows}</tbody></table>
     <div class="sec">원인 · ${(d.bins.find(b => b.key === st.bin) || {}).label || ""}</div>
     <table><tbody>${causeRows}</tbody></table>`;
@@ -621,7 +666,7 @@ function closeDrill() {
 function openDrill(opt) {
   const el = document.getElementById("drill");
   el.innerHTML = `<div class="bar"><b>불러오는 중…</b></div>`;
-  el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const binLabelIn = opt.bin_label || "";
   const q = Object.entries(opt)
@@ -811,17 +856,36 @@ const nf = (n) => Number(n || 0).toLocaleString("ko-KR");
 
 function cardHtml(c, i) {
   if (!c.ready) {
-    return `<div class="card">
+    // 빈 화면처럼 보이지 않도록 실제 카드와 같은 골격을 배경에 깔고 흐리게 덮는다.
+    return `<div class="card ghost">
       <div class="head">${c.label}</div>
-      <div class="cell" style="height:150px"></div>
-      <div class="cell" style="height:120px"></div>
-      <div class="cell" style="height:120px"></div>
-      <div class="cell" style="height:120px"></div>
+      <div class="cell">
+        <div class="wip">
+          <div class="top"><div class="nums">
+            <div><b>3,412</b><div class="lbl">재공 LOT</div></div>
+            <div><b>84,300</b><div class="lbl">재공 매</div></div>
+          </div></div>
+          <div class="stack"><i style="width:52%;background:#2F4B7C"></i>
+            <i style="width:31%;background:#4C7DD1"></i>
+            <i style="width:17%;background:#7FB3E8"></i></div>
+        </div>
+      </div>
+      <div class="cell"><div class="cv gcircle"></div></div>
+      <div class="cell"><div class="cellttl">대기 LOT 상위 설비 5</div>
+        <div class="gbars">${[62,48,37,29,21].map(h =>
+          `<i style="height:${h}%"></i>`).join("")}</div></div>
+      <div class="cell"><div class="cellttl">Shift 별 MOVE</div>
+        <div class="gbars">${[70,55,40].map(h =>
+          `<i style="height:${h}%"></i>`).join("")}</div></div>
+      <div class="cell"><div class="cellttl">Low WT 분석</div>
+        <div class="glines">${[90,70,55,40].map(w =>
+          `<i style="width:${w}%"></i>`).join("")}</div></div>
       <div class="dev">개발중</div></div>`;
   }
+  const dft = c.default_types || [];
   const boxes = c.types.map(t =>
-    `<label><input type="checkbox" value="${t}" onchange="onTypeCheck(${i})">${t}</label>`
-  ).join("");
+    `<label><input type="checkbox" value="${t}" ${dft.includes(t) ? "checked" : ""}`
+    + ` onchange="onTypeCheck(${i})">${t}</label>`).join("");
   return `<div class="card" id="cd_${i}">
     <div class="head" onclick="pickCard(${i})">${c.label}</div>
     <div class="cell">
@@ -987,7 +1051,7 @@ const donutSliceLabels = {
       const v = st[k];
       if (!v || v.pct < 6) return;            // 너무 얇으면 생략
       const a = (arc.startAngle + arc.endAngle) / 2;
-      const r = (arc.innerRadius + arc.outerRadius) / 2;
+      const r = arc.outerRadius * 0.62;
       ctx.fillStyle = "#fff";
       ctx.fillText(v.pct + "%",
                    arc.x + Math.cos(a) * r, arc.y + Math.sin(a) * r);
@@ -1007,6 +1071,11 @@ function drawCards(res) {
     const p0 = c.sel;
     CUR_SEL[i] = null;
 
+    // 기본 선택(PP+PG)을 버튼 라벨에 반영
+    const dft0 = c.default_types || [];
+    document.getElementById("ddb_" + i).textContent =
+      (dft0.length ? dft0.join(",") : "전체") + " ▾";
+
     window["dn" + i] = new Chart(document.getElementById("dn_" + i), {
       type: "doughnut",
       data: { labels: p0.status.map(s => s.name),
@@ -1014,7 +1083,7 @@ function drawCards(res) {
                            backgroundColor: p0.status.map(s => s.color),
                            borderWidth: 0 }] },
       options: {
-        responsive: true, maintainAspectRatio: false, cutout: "68%",
+        responsive: true, maintainAspectRatio: false, cutout: 0,
         animation: false,
         plugins: {
           legend: { display: false },
@@ -1145,32 +1214,40 @@ function drawWt(i, line, d) {
     + `<option value="custom" ${known ? "" : "selected"}>직접 입력</option>`;
   const th = d.cols.map(c => `<th>${c}</th>`).join("");
 
-  const sumRow = d.cols.map(c => `<td>${nf(d.summary[c].low)}</td>`).join("");
-  const rateRow = d.cols.map(c => `<td>${d.summary[c].rate}%</td>`).join("");
+  const has = c => d.summary[c].has;
+  const sumRow = d.cols.map(c =>
+    has(c) ? `<td>${nf(d.summary[c].low)}</td>`
+           : `<td class="none" title="이 shift 스냅샷이 아직 없습니다">-</td>`).join("");
+  const rateRow = d.cols.map(c =>
+    has(c) ? `<td>${d.summary[c].rate}%</td>` : `<td class="none">-</td>`).join("");
 
   const distRows = d.bins.map(b => {
-    const tds = d.cols.map(c =>
-      `<td class="pick" onclick="event.stopPropagation();`
-      + `openDrill({line:'${line}',col:'${c}',bin:'${b.key}',max_wt:${st.max},`
-      + `bin_label:'${b.label}'})">`
-      + `${nf(d.dist[c][b.key] || 0)}</td>`).join("");
+    const tds = d.cols.map(c => {
+      if (!has(c)) return `<td class="none">-</td>`;
+      const n = d.dist[c][b.key] || 0;
+      return `<td class="cell-pick" title="클릭: ${c} · ${b.label} LOT 목록"`
+        + ` onclick="event.stopPropagation();`
+        + `openDrill({line:'${line}',col:'${c}',bin:'${b.key}',max_wt:${st.max},`
+        + `bin_label:'${b.label}'})">${nf(n)}</td>`;
+    }).join("");
     return `<tr class="pick ${b.key === st.bin ? "on" : ""}"
               onclick="pickWtBin(${i},'${line}','${b.key}')">
-              <td>${b.label}</td>${tds}</tr>`;
+              <td title="클릭: 이 구간으로 원인 갱신">${b.label}</td>${tds}</tr>`;
   }).join("");
 
   const causeRows = d.causes.map(cz => {
     let any = false;
     const tds = d.cols.map(c => {
+      if (!has(c)) return `<td class="none">-</td>`;
       const n = ((d.cause[c] || {})[st.bin] || {})[cz] || 0;
       if (n) any = true;
       const low = d.dist[c][st.bin] || 0;
       const pct = low ? (n / low * 100).toFixed(0) : 0;
-      return `<td class="pick" title="${cz} · ${n} LOT · 구간 내 ${pct}%"
+      return `<td class="cell-pick" title="${cz} · ${n} LOT · 구간 내 ${pct}%"
                  onclick="openDrill({line:'${line}',col:'${c}',bin:'${st.bin}',
                           cause:'${cz}',max_wt:${st.max},
                           bin_label:'${WT_LABELS[i][st.bin] || ""}'})">`
-             + `${n ? nf(n) : "-"}</td>`;
+             + `${n ? nf(n) : "0"}</td>`;
     }).join("");
     if (cz === "기타/미분류" && !any) return "";      // 0 이면 숨김
     return `<tr><td>${cz}</td>${tds}</tr>`;
@@ -1193,7 +1270,8 @@ function drawWt(i, line, d) {
         <tr class="rate"><td>Low WT율</td>${rateRow}</tr>
       </tbody>
     </table>
-    <div class="sec">WT 구간 분포 (행 클릭 → 아래 원인 갱신)</div>
+    <div class="sec">WT 구간 분포 &middot; 구간명 클릭 = 아래 원인 갱신,
+      숫자 클릭 = 해당 셀 LOT 목록</div>
     <table><tbody>${distRows}</tbody></table>
     <div class="sec">원인 · ${(d.bins.find(b => b.key === st.bin) || {}).label || ""}</div>
     <table><tbody>${causeRows}</tbody></table>`;
@@ -1214,7 +1292,7 @@ function closeDrill() {
 function openDrill(opt) {
   const el = document.getElementById("drill");
   el.innerHTML = `<div class="bar"><b>불러오는 중…</b></div>`;
-  el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const binLabelIn = opt.bin_label || "";
   const q = Object.entries(opt)
