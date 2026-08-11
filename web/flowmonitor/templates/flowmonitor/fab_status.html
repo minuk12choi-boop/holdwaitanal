@@ -236,15 +236,15 @@ function renderWt() {
   const mx = Math.max.apply(null, vals.concat([1]));
   document.getElementById("wtb").innerHTML = d.wt_dist.map((x, i) => {
     const v = vals[i];
-    // 위(WT0)가 가장 진하고 아래로 갈수록 옅어진다 = 심각도 표현
-    const a = 0.9 - 0.11 * i;
+    // WT0 이 가장 진한 적색(#DC143C), 아래로 갈수록 옅어진다 = 심각도 표현
+    const a = 1 - 0.13 * i;
     const alt = u === "lots" ? x.qty + " 매" : x.lots + " LOT";
     return `<div class="row">
       <div class="k">${d.wt_ranges[i].label}</div>
       <div class="bar" title="${alt}"
            onclick="openDrill({line:'${LINE}',wt_range:'${x.name}',
                     label:'${d.wt_ranges[i].label}'})">
-        <i style="width:${v / mx * 100}%;background:rgba(47,75,124,${a.toFixed(2)})"></i>
+        <i style="width:${v / mx * 100}%;background:rgba(220,20,60,${a.toFixed(2)})"></i>
       </div>
       <div class="v">${nf(v)}</div></div>`;
   }).join("");
