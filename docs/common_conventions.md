@@ -163,8 +163,8 @@ W/T 의 분모(재공)는 스냅샷 시점 값이고 분자(MOVE)는 구간 누�
 S3_ACCESS_KEY_ID=
 S3_SECRET_ACCESS_KEY=
 S3_ENDPOINT_URL=http://s3.dataplatform.samsungds.net:9020
-S3_BUCKET=FAB_MODELING
-S3_PREFIX=PM/NRD_PM/InputData_RealTime(NRD)/
+S3_BUCKET=RND_FABMODELING
+S3_PREFIX=multi_report/
 ```
 
 ```

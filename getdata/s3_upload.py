@@ -10,8 +10,8 @@ s3_upload.py — S3 Drive 적재
     S3_ACCESS_KEY_ID=...
     S3_SECRET_ACCESS_KEY=...
     S3_ENDPOINT_URL=http://s3.dataplatform.samsungds.net:9020
-    S3_BUCKET=FAB_MODELING
-    S3_PREFIX=PM/NRD_PM/InputData_RealTime(NRD)/
+    S3_BUCKET=RND_FABMODELING
+    S3_PREFIX=multi_report/
 
 사용:
     import s3_upload
@@ -58,6 +58,10 @@ def upload_frames(frames, bucket=None, prefix=None, fmt="pkl"):
     DB.load_env()
     bucket = bucket or os.environ.get("S3_BUCKET", "")
     prefix = prefix if prefix is not None else os.environ.get("S3_PREFIX", "")
+    if prefix and not prefix.endswith("/"):
+        # S3 는 키 문자열을 그냥 이어붙인다. '/' 가 빠지면 폴더가 아니라
+        # 파일명에 붙어버리므로(multi_reportf3_live.pkl) 여기서 보정한다.
+        prefix += "/"
     if not bucket:
         raise RuntimeError(".env 에 S3_BUCKET 이 필요합니다.")
 
