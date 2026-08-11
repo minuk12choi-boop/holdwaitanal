@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
+r"""
 spotfire_s3_export.py — Spotfire 데이터 함수용 S3 자동 적재
 
 [사용법]
@@ -33,16 +33,39 @@ spotfire_s3_export.py — Spotfire 데이터 함수용 S3 자동 적재
 
       git config core.hooksPath .githooks
 
+[boto3 설치]
+  Spotfire 의 Python 은 별도 환경이라 boto3 가 없을 수 있다.
+  (ModuleNotFoundError: No module named 'boto3')
+
+  Spotfire Analyst 설치 폴더의 python 으로 설치한다. 보통 아래 경로다.
+
+      "C:\Program Files\TIBCO\Spotfire\<버전>\Modules\Python Interpreter_<...>\python.exe" -m pip install boto3
+
+  정확한 경로는 이 스크립트를 한 번 돌려 확인할 수 있다. 아래 USE_BOTO3 를
+  False 로 두면 업로드를 건너뛰고 python 실행 경로와 설치 명령을 upload_log 에
+  찍어준다.
+
+  사내망에서 pip 이 막히면 사내 미러를 쓴다.
+
+      python.exe -m pip install boto3 --index-url <사내 pypi 미러>
+
 [결과]
   s3://<S3_BUCKET>/<S3_PREFIX><테이블명>.pkl
   python 쪽(build_f3.py / get_move.py)은 같은 이름으로 읽으면 된다.
 """
 
 import io
+import sys
 import datetime as dt
 
-import boto3
 import pandas as pd
+
+try:
+    import boto3
+    BOTO3_ERR = ""
+except ImportError as _e:          # Spotfire 환경에 없을 수 있다
+    boto3 = None
+    BOTO3_ERR = str(_e)
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +78,10 @@ S3_SECRET_ACCESS_KEY = ""
 S3_ENDPOINT_URL      = "http://s3.dataplatform.samsungds.net:9020"
 S3_BUCKET            = ""
 S3_PREFIX            = ""          # 예) "multi_report/"  (끝 '/' 는 자동 보정)
+
+# boto3 설치 전 점검용. False 로 두면 업로드하지 않고 환경 정보만 upload_log 에
+# 남긴다(파이썬 경로 / 설치 명령).
+USE_BOTO3 = True
 # ────────────────────────────────────────────────────────────────────────────
 
 TABLE_NAMES = [
@@ -72,7 +99,15 @@ FMT = "pkl"          # 참고 코드와 동일. 'parquet' / 'csv' 로 바꿔도 
 
 
 # ---------------------------------------------------------------------------
+def env_report():
+    """boto3 가 없거나 점검 모드일 때 무엇을 해야 하는지 알려준다."""
+    exe = sys.executable or "(python 경로 확인 불가)"
+    return ('Spotfire python = %s  |  설치 명령: "%s" -m pip install boto3' % (exe, exe))
+
+
 def make_client():
+    if boto3 is None:
+        raise RuntimeError("boto3 가 없습니다 (%s). %s" % (BOTO3_ERR, env_report()))
     if not (S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY and S3_ENDPOINT_URL):
         raise RuntimeError(
             "스크립트 상단 [S3 설정] 의 S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY / "
@@ -109,6 +144,10 @@ rows = []
 started = dt.datetime.now()
 
 try:
+    if boto3 is None:
+        raise RuntimeError("boto3 가 없습니다 (%s). %s" % (BOTO3_ERR, env_report()))
+    if not USE_BOTO3:
+        raise RuntimeError("USE_BOTO3=False (점검 모드). " + env_report())
     if not bucket:
         raise RuntimeError("스크립트 상단 [S3 설정] 의 S3_BUCKET 을 채우세요.")
     client = make_client()
