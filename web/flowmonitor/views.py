@@ -30,12 +30,14 @@ LINE_CARDS = [
 ]
 
 STATUS_ORDER = ["RUN", "WAIT", "HOLD", "WAIT(진행불가)"]
+# 계열은 유지하되 채도를 낮춰 눈이 편하게 한다.
 STATUS_COLORS = {
-    "RUN": "#2563EB",            # 파랑
-    "WAIT": "#16A34A",           # 초록
-    "HOLD": "#DC2626",           # 빨강
-    "WAIT(진행불가)": "#EAB308",   # 노랑
+    "RUN": "#6699CC",            # 파랑
+    "WAIT": "#84C09A",           # 초록
+    "HOLD": "#F08080",           # 빨강
+    "WAIT(진행불가)": "#E8C46A",   # 노랑
 }
+ACCENT = "#6A5ACD"               # 소제목 / 합계 강조
 
 # Top5 설비의 '대기랏' 판정 기준. 진행 중(RUN)이 아니라 설비를 기다리는 상태.
 WAITING_STATUS = ("WAIT", "WAIT(진행불가)")

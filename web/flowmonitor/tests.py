@@ -17,8 +17,8 @@ TPL = (Path(__file__).resolve().parent / "templates" / "flowmonitor"
 MUST_BE_ONCE = [
     "const KIND_KO", "const gapLine", "const nf =",
     "function load()", "function cardHtml", "function drawCards",
-    "function renderCard", "function setCenter", "function openDrill",
-    "function drawWt", "let STATUS_DATA",
+    "function renderCard", "function setStatusInfo", "function openDrill",
+    "function drawWt", "function smoothTo", "function reloadCard",
 ]
 
 

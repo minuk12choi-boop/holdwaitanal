@@ -2,50 +2,63 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<title>Multi Line Fab Monitor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Sans+KR:wght@500;600;700&family=Poppins:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
-<title>Multi Line Fab Monitor</title>
 <style>
   :root {
     --bd:#E5E7EB; --fg:#111827; --mut:#6B7280;
-    --brand:#2F4B7C; --brand-on:#4C7DD1;
+    --brand:#2F4B7C; --brand-on:#4C7DD1; --accent:#6A5ACD;
     /* 라틴 폰트를 먼저 두면 영문에만 적용되고 한글은 뒤 폰트로 넘어간다 */
     --f-body:"Poppins","Noto Sans KR","Malgun Gothic",sans-serif;
     --f-title:"Plus Jakarta Sans","IBM Plex Sans KR","Malgun Gothic",sans-serif;
   }
+  html { scroll-behavior:smooth; }
   * { box-sizing:border-box; }
   body { margin:0; font-family:var(--f-body); color:var(--fg); font-size:14px; }
-  h1, h2, .brand, .card .head, .cellttl, .wt .cellttl span,
-  .card .wip .lbl, .card .movetot span { font-family:var(--f-title); }
-  header { border-bottom:1px solid var(--bd); padding:0 20px; display:flex;
-           align-items:center; gap:28px; height:52px; }
+  h1, h2, .brand, .card .head, .cellttl, .lbl { font-family:var(--f-title); }
+
+  header { border-bottom:1px solid var(--bd); padding:0 18px; display:flex;
+           align-items:center; height:52px; gap:26px; }
   header .brand { font-weight:700; letter-spacing:-.02em; }
-  header nav a { color:var(--mut); text-decoration:none; margin-right:20px;
+  header nav a { color:var(--mut); text-decoration:none; margin-right:18px;
                  font-size:14px; padding:6px 0; }
   header nav a.on { color:var(--fg); border-bottom:2px solid var(--fg); }
-  /* 상단 현황 구역 */
-  .status { display:grid; grid-template-columns:repeat(4,1fr); gap:0;
+  header .right { margin-left:auto; text-align:right; font-size:12px;
+                  color:var(--mut); line-height:1.45; }
+  header .right b { color:var(--fg); font-weight:600; }
+
+  /* 상단 현황 */
+  .status { display:grid; grid-template-columns:repeat(4,1fr);
             border-bottom:1px solid var(--bd); }
   .card { border-right:1px solid var(--bd); position:relative; }
   .card:last-child { border-right:0; }
   .card .head { color:#fff; text-align:center; font-weight:700; padding:9px 0;
-                font-size:16px; letter-spacing:-.01em; cursor:pointer;
-                background:var(--brand); transition:background .15s; }
+                font-size:16px; cursor:pointer; background:var(--brand);
+                transition:background .15s; }
   .card.on .head { background:var(--brand-on); }
   .card.on { box-shadow:inset 0 0 0 2px var(--brand-on); }
-  .card .cell { border-top:1px solid var(--bd); padding:10px 12px; }
-  .card .wip .top { display:flex; align-items:flex-end; justify-content:space-between;
-                    gap:8px; margin-bottom:8px; }
-  .card .wip .nums { display:flex; gap:20px; }
-  .card .wip b { display:block; font-size:23px; line-height:1.1; font-weight:600; }
-  .card .wip .stack { display:flex; height:10px; border-radius:5px; overflow:hidden;
-                      background:#F3F4F6; }
-  .card .wip .stack i { display:block; height:100%; }
-  .card .wip .stleg { display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:5px; }
-  .card .wip .stleg span { font-size:11px; color:var(--mut);
-                           display:inline-flex; align-items:center; gap:4px; }
-  .card .wip .stleg i { width:8px; height:8px; border-radius:2px; }
+  .card .cell { border-top:1px solid var(--bd); padding:11px 12px; }
+  .cellttl { font-size:14px; font-weight:700; color:var(--accent);
+             margin-bottom:9px; display:flex; justify-content:space-between;
+             align-items:center; gap:6px; }
+  .lbl { font-size:13px; font-weight:700; color:var(--fg); }
+
+  /* 재공 */
+  .wip .top { display:flex; align-items:flex-end; justify-content:space-between;
+              gap:8px; margin-bottom:8px; }
+  .wip .nums { display:flex; gap:20px; }
+  .wip b { display:block; font-size:23px; line-height:1.1; font-weight:600; }
+  .wip .stack { display:flex; height:10px; border-radius:5px; overflow:hidden;
+                background:#F3F4F6; }
+  .wip .stack i { display:block; height:100%; }
+  .wip .stleg { display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:5px; }
+  .wip .stleg span { font-size:11px; color:var(--mut);
+                     display:inline-flex; align-items:center; gap:4px; }
+  .wip .stleg i { width:8px; height:8px; border-radius:2px; }
+
+  /* 체크박스 드롭다운 */
   .dd { position:relative; }
   .dd > button { font-size:11px; padding:4px 8px; border:1px solid var(--bd);
                  border-radius:4px; background:#fff; cursor:pointer; }
@@ -56,101 +69,108 @@
   .dd .menu label { display:flex; align-items:center; gap:6px; font-size:12px;
                     padding:3px 4px; cursor:pointer; white-space:nowrap; }
   .dd .menu label:hover { background:#F3F4F6; border-radius:3px; }
-  .card .wip .lbl { font-size:13px; font-weight:700; color:var(--fg); }
-  .card .wip select { font-size:11px; padding:3px 5px; border:1px solid var(--bd);
-                      border-radius:4px; background:#fff; }
-  .card .donut { display:flex; align-items:center; gap:10px; }
-  .card .donut .cv { width:112px; height:112px; flex:0 0 112px; }
-  .card .legend { display:flex; flex-direction:column; gap:6px; flex:0 0 auto; }
-  .card .legend span { font-size:12px; color:var(--mut); cursor:pointer;
-                       display:flex; align-items:center; gap:5px; white-space:nowrap; }
-  .card .legend span.on { color:var(--fg); font-weight:700; }
-  .card .legend i { width:9px; height:9px; border-radius:2px; flex:0 0 9px; }
-  .card .pickinfo { flex:1; text-align:center; }
-  .card .pickinfo .nm { font-family:var(--f-title); font-weight:700; font-size:15px;
-                        line-height:1.2; margin-bottom:4px; }
-  .card .pickinfo .pc { font-size:26px; font-weight:600; line-height:1.1; }
-  .card .pickinfo .sub { font-size:12px; color:var(--mut); margin-top:3px; }
-  .card .cellttl { font-size:13px; font-weight:700; color:var(--fg);
-                   margin-bottom:8px; }
-  .card .movebox { display:flex; align-items:center; gap:12px; }
-  .card .movebox .cv { flex:1; height:96px; }
-  .card .movetot { text-align:right; }
-  .card .movetot b { display:block; font-size:24px; line-height:1.15; }
-  .card .movetot span { font-size:12px; font-weight:700; color:var(--mut); }
-  /* Low WT 분석 */
-  .wt .cellttl { display:flex; justify-content:space-between; align-items:center; }
-  .wt select { font-size:11px; padding:2px 4px; border:1px solid var(--bd);
-               border-radius:4px; }
+
+  /* 상태 원차트 */
+  .donut { display:flex; align-items:center; gap:10px; }
+  .donut .cv { width:112px; height:112px; flex:0 0 112px; }
+  .legend { display:flex; flex-direction:column; gap:6px; flex:0 0 auto; }
+  .legend span { font-size:12px; color:var(--mut); cursor:pointer;
+                 display:flex; align-items:center; gap:5px; white-space:nowrap; }
+  .legend span.on { color:var(--fg); font-weight:700; }
+  .legend i { width:9px; height:9px; border-radius:2px; flex:0 0 9px; }
+  .pickinfo { flex:1; text-align:center; }
+  .pickinfo .nm { font-family:var(--f-title); font-weight:700; font-size:15px;
+                  line-height:1.2; margin-bottom:4px; }
+  .pickinfo .pc { font-size:26px; font-weight:600; line-height:1.1; }
+  .pickinfo .sub { font-size:12px; color:var(--mut); margin-top:3px; }
+
+  /* 토글 */
+  .seg { display:inline-flex; border:1px solid var(--bd); border-radius:5px;
+         overflow:hidden; }
+  .seg button { border:0; background:#fff; color:var(--mut); font-size:11px;
+                padding:3px 9px; cursor:pointer; }
+  .seg button.on { background:var(--brand); color:#fff; }
+
+  /* Shift MOVE (세로 배치, 맨 위가 당일 계) */
+  .mv .row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .mv .row .k { width:34px; font-size:12px; color:var(--mut); flex:0 0 34px; }
+  .mv .row .bar { flex:1; height:16px; background:#F3F4F6; border-radius:3px;
+                  overflow:hidden; }
+  .mv .row .bar i { display:block; height:100%; background:var(--brand); }
+  .mv .row .v { width:60px; text-align:right; font-size:12px;
+                font-variant-numeric:tabular-nums; }
+  .mv .tot .k, .mv .tot .v { color:var(--accent); font-weight:700; }
+  .mv .tot .bar i { background:var(--accent); }
+  .mv .tot .v { font-size:15px; }
+
+  /* Low WT */
   .wt table { width:100%; border-collapse:collapse; font-size:11px; }
   .wt th, .wt td { padding:3px 4px; text-align:right; white-space:nowrap; }
   .wt th:first-child, .wt td:first-child { text-align:left; color:var(--mut); }
   .wt thead th { color:var(--mut); font-weight:600; border-bottom:1px solid var(--bd); }
   .wt .big td { font-size:13px; font-weight:600; }
   .wt .rate td { color:var(--mut); border-bottom:1px solid var(--bd); }
-  .wt .sec { color:var(--mut); padding-top:6px; font-size:10px; }
+  .wt .sec { color:var(--mut); padding-top:7px; font-size:10px; }
   .wt tr.pick { cursor:pointer; }
   .wt tr.on > td:first-child { font-weight:700; color:var(--fg); }
-  .wt td.cell-pick { cursor:pointer; border:1px solid transparent; border-radius:3px; }
+  .wt td.cell-pick { cursor:pointer; border-radius:3px; }
   .wt td.cell-pick:hover { background:var(--brand); color:#fff; }
   .wt td.none { color:#C4C7CE; }
-  /* Drill-down */
-  #drill { padding:0; overflow:hidden; }
-  #drill .empty { padding:22px 16px; color:var(--mut); font-size:13px; }
-  #drill .bar { display:flex; align-items:center; justify-content:space-between;
-                padding:9px 12px; border-bottom:1px solid var(--bd);
-                background:#F9FAFB; }
-  #drill .bar b { font-size:13px; }
-  #drill .bar .path { color:var(--mut); font-size:12px; margin-left:8px; }
-  #drill .bar button { border:1px solid var(--bd); background:#fff; border-radius:4px;
-                       font-size:12px; padding:4px 10px; cursor:pointer; }
-  #drill .scroll { max-height:520px; overflow:auto; }
-  #drill table { border-collapse:collapse; font-size:11px; width:100%; }
-  #drill th, #drill td { padding:4px 7px; border-bottom:1px solid var(--bd);
-                         white-space:nowrap; text-align:left; }
-  #drill thead th { position:sticky; top:0; background:#F3F4F6; color:var(--mut);
-                    font-weight:600; z-index:1; }
-  #drill td.num { text-align:right; font-variant-numeric:tabular-nums; }
-  .card .dev { position:absolute; inset:40px 0 0 0; background:rgba(255,255,255,.72);
-               backdrop-filter:blur(2px);
-               display:flex; align-items:center; justify-content:center;
-               font-family:var(--f-title); font-size:15px; color:var(--brand);
-               font-weight:700; letter-spacing:.04em; }
-  .card.ghost .cell { opacity:.5; }
-  .card.ghost .gcircle { width:112px; height:112px; border-radius:50%;
-                         background:conic-gradient(#2F4B7C 0 42%, #4C7DD1 0 68%,
-                                    #7FB3E8 0 86%, #B9D4F2 0 100%); margin:0 auto; }
-  .card.ghost .gbars { display:flex; align-items:flex-end; gap:8px; height:96px; }
-  .card.ghost .gbars i { flex:1; background:var(--brand); border-radius:2px 2px 0 0; }
-  .card.ghost .glines i { display:block; height:9px; margin-bottom:7px;
-                          background:var(--brand); border-radius:3px; opacity:.75; }
+  .wt select, .wt input { font-size:11px; padding:2px 4px;
+                          border:1px solid var(--bd); border-radius:4px; }
 
+  /* 개발중 */
+  .dev { position:absolute; inset:40px 0 0 0; background:rgba(255,255,255,.72);
+         backdrop-filter:blur(2px); display:flex; align-items:center;
+         justify-content:center; font-family:var(--f-title); font-size:15px;
+         color:var(--brand); font-weight:700; letter-spacing:.04em; }
+  .ghost .cell { opacity:.5; }
+  .ghost .gcircle { width:112px; height:112px; border-radius:50%; margin:0 auto;
+                    background:conic-gradient(#2F4B7C 0 42%, #4C7DD1 0 68%,
+                               #7FB3E8 0 86%, #B9D4F2 0 100%); }
+  .ghost .gbars { display:flex; align-items:flex-end; gap:8px; height:84px; }
+  .ghost .gbars i { flex:1; background:var(--brand); border-radius:2px 2px 0 0; }
+  .ghost .glines i { display:block; height:9px; margin-bottom:7px;
+                     background:var(--brand); border-radius:3px; opacity:.75; }
+
+  /* 본문 */
   main { display:flex; gap:16px; padding:16px; align-items:flex-start; }
   .left { flex:0 0 32%; min-width:400px; }
-  .right { flex:1; border:1px solid var(--bd); border-radius:6px; padding:16px;
-           color:var(--mut); position:sticky; top:16px; }
+  .right { flex:1; border:1px solid var(--bd); border-radius:6px; padding:0;
+           overflow:hidden; scroll-margin-top:16px; }
+  .right .empty { padding:22px 16px; color:var(--mut); font-size:13px; }
   .panel { border:1px solid var(--bd); border-radius:6px; padding:10px 12px 6px;
            margin-bottom:10px; }
-  .panel h2 { margin:0; font-size:13px; display:flex; justify-content:space-between;
-              align-items:baseline; }
+  .panel h2 { margin:0; font-size:14px; display:flex;
+              justify-content:space-between; align-items:baseline;
+              color:var(--accent); }
   .panel h2 .unit { color:var(--mut); font-size:11px; font-weight:400; }
   .wrap { position:relative; opacity:0; transition:opacity .28s ease-out; }
   .wrap.ready { opacity:1; }
   .topbar { display:flex; justify-content:space-between; align-items:center;
             margin:0 0 8px 2px; }
-  #legend { display:flex; gap:14px; font-size:12px; }
-  .toggle { display:inline-flex; border:1px solid var(--bd); border-radius:5px;
-            overflow:hidden; font-size:12px; }
-  .toggle button { border:0; background:#fff; color:var(--mut); padding:4px 10px;
-                   cursor:pointer; }
-  .toggle button.on { background:var(--fg); color:#fff; }
-  .panel h2 .basis { color:var(--mut); font-size:11px; font-weight:400; }
-  #legend span { display:inline-flex; align-items:center; gap:5px; }
-  #legend i { width:14px; height:3px; border-radius:2px; display:inline-block; }
-  .err { color:#B91C1C; font-size:13px; padding:8px 2px; }
-  .err code { background:#FEF2F2; padding:1px 4px; border-radius:3px; }
+  #legend2 { display:flex; gap:14px; font-size:12px; }
+  #legend2 span { display:inline-flex; align-items:center; gap:5px; }
+  #legend2 i { width:14px; height:3px; border-radius:2px; }
   .notice { background:#FFFBEB; border:1px solid #FDE68A; color:#92400E;
             border-radius:5px; padding:8px 10px; font-size:12px; margin-bottom:10px; }
+  .err { color:#B91C1C; font-size:13px; padding:8px 2px; }
+  .err code { background:#FEF2F2; padding:1px 4px; border-radius:3px; }
+
+  /* 드릴다운 */
+  .bar { display:flex; align-items:center; justify-content:space-between;
+         padding:9px 12px; border-bottom:1px solid var(--bd); background:#F9FAFB; }
+  .bar b { font-size:13px; }
+  .bar .path { color:var(--mut); font-size:12px; margin-left:8px; }
+  .bar button { border:1px solid var(--bd); background:#fff; border-radius:4px;
+                font-size:12px; padding:4px 10px; cursor:pointer; }
+  .scroll { max-height:560px; overflow:auto; }
+  .scroll table { border-collapse:collapse; font-size:11px; width:100%; }
+  .scroll th, .scroll td { padding:4px 7px; border-bottom:1px solid var(--bd);
+                           white-space:nowrap; text-align:left; }
+  .scroll thead th { position:sticky; top:0; background:#F3F4F6; color:var(--mut);
+                     font-weight:600; z-index:1; }
+  .scroll td.num { text-align:right; font-variant-numeric:tabular-nums; }
 </style>
 </head>
 <body>
@@ -161,6 +181,10 @@
       <a href="{{ url }}" {% if forloop.first %}class="on"{% endif %}>{{ name }}</a>
     {% endfor %}
   </nav>
+  <div class="right">
+    문의: <b>minuk12.choi</b><br>
+    적재시각: <b id="snapAt">-</b>
+  </div>
 </header>
 
 <section class="status" id="status"></section>
@@ -169,16 +193,15 @@
   <div class="left">
     <div id="notice" class="notice" style="display:none"></div>
     <div class="topbar">
-      <div id="legend"></div>
-      <div class="toggle" title="HOLD율 / WAIT성 진행불가율의 분모">
+      <div id="legend2"></div>
+      <div class="seg" title="HOLD율 / WAIT성 진행불가율의 분모">
         <button id="b_qty" class="on" onclick="setBasis('qty')">매수</button>
         <button id="b_lot" onclick="setBasis('lot')">Lot수</button>
       </div>
     </div>
     {% for p in panels %}
     <div class="panel">
-      <h2>{{ p.title }}<span class="unit">{% if p.basis %}<span class="basis"
-          id="basis_{{ p.key }}">매수 기준</span> · {% endif %}{{ p.unit }}</span></h2>
+      <h2>{{ p.title }}<span class="unit">{{ p.unit }}</span></h2>
       <div class="wrap" style="height:{{ p.px }}px">
         <canvas id="c_{{ p.key }}"></canvas>
       </div>
@@ -186,128 +209,112 @@
     {% endfor %}
     <div id="err" class="err"></div>
   </div>
+
   <div class="right" id="drill">
     <div class="empty">현황 카드의 <b>Low WT</b> 숫자나 좌측 추이 차트의
       <b>일별 지점</b>을 클릭하면 해당 LOT 상세가 여기에 표시됩니다.</div>
   </div>
 </main>
 
-<!-- 사내망 CDN 차단에 걸리지 않도록 로컬 static 을 먼저 쓴다 -->
 <script src="{% static 'flowmonitor/chart.umd.js' %}"></script>
 <script>
-  if (!window.Chart) {
-    document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/'
-      + 'dist/chart.umd.min.js"><\/script>');
-  }
-</script>
-<script>
 if (window.Chart) {
-  Chart.defaults.font.family =
-    "'Poppins','Noto Sans KR','Malgun Gothic',sans-serif";
+  Chart.defaults.font.family = "'Poppins','Noto Sans KR','Malgun Gothic',sans-serif";
   Chart.defaults.font.size = 11;
   Chart.defaults.color = "#374151";
 }
+
 const BRAND = "#2F4B7C";
+const TYPE_COLORS = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#B9D4F2", "#D8E5F5"];
 const KIND_KO = { month: "월평균", week: "주평균", day: "일" };
-const charts = {};
-let basis = "qty";
-
-function setBasis(b) {
-  if (b === basis) return;
-  basis = b;
-  document.getElementById("b_qty").className = (b === "qty") ? "on" : "";
-  document.getElementById("b_lot").className = (b === "lot") ? "on" : "";
-  ["hold", "blocked"].forEach(k => {
-    const el = document.getElementById("basis_" + k);
-    if (el) el.textContent = (b === "qty") ? "매수 기준" : "Lot수 기준";
-  });
-  load();
-}
-
-// ---------------------------------------------------------------------------
-// 상단 현황 카드
-// ---------------------------------------------------------------------------
 const nf = (n) => Number(n || 0).toLocaleString("ko-KR");
 
+/* 화면 하단으로 부드럽게 이동. 위치 계산 후 window.scrollTo 로 제어한다
+   (sticky/overflow 컨테이너에서 scrollIntoView 가 순간이동처럼 보이는 것 방지) */
+function smoothTo(el) {
+  const y = el.getBoundingClientRect().top + window.pageYOffset - 12;
+  window.scrollTo({ top: y, behavior: "smooth" });
+}
 
+/* ===========================================================================
+   상단 현황 카드
+   =========================================================================== */
+let CARDS = [];
+const SEL_STATUS = {};
+const EQP_UNIT = {};
+
+function ghostCard(c) {
+  return `<div class="card ghost">
+    <div class="head">${c.label}</div>
+    <div class="cell"><div class="wip">
+      <div class="top"><div class="nums">
+        <div><b>3,412</b><div class="lbl">재공 LOT</div></div>
+        <div><b>84,300</b><div class="lbl">재공 매</div></div>
+      </div></div>
+      <div class="stack"><i style="width:52%;background:#2F4B7C"></i>
+        <i style="width:31%;background:#4C7DD1"></i>
+        <i style="width:17%;background:#7FB3E8"></i></div>
+    </div></div>
+    <div class="cell"><div class="gcircle"></div></div>
+    <div class="cell"><div class="cellttl">대기 LOT 상위 설비 5</div>
+      <div class="gbars">${[62, 48, 37, 29, 21].map(h =>
+        `<i style="height:${h}%"></i>`).join("")}</div></div>
+    <div class="cell"><div class="cellttl">Shift 별 MOVE</div>
+      <div class="glines">${[92, 70, 55, 40].map(w =>
+        `<i style="width:${w}%"></i>`).join("")}</div></div>
+    <div class="cell"><div class="cellttl">Low WT 분석</div>
+      <div class="glines">${[90, 70, 55].map(w =>
+        `<i style="width:${w}%"></i>`).join("")}</div></div>
+    <div class="dev">개발중</div></div>`;
+}
 
 function cardHtml(c, i) {
-  if (!c.ready) {
-    // 빈 화면처럼 보이지 않도록 실제 카드와 같은 골격을 배경에 깔고 흐리게 덮는다.
-    return `<div class="card ghost">
-      <div class="head">${c.label}</div>
-      <div class="cell">
-        <div class="wip">
-          <div class="top"><div class="nums">
-            <div><b>3,412</b><div class="lbl">재공 LOT</div></div>
-            <div><b>84,300</b><div class="lbl">재공 매</div></div>
-          </div></div>
-          <div class="stack"><i style="width:52%;background:#2F4B7C"></i>
-            <i style="width:31%;background:#4C7DD1"></i>
-            <i style="width:17%;background:#7FB3E8"></i></div>
-        </div>
-      </div>
-      <div class="cell"><div class="cv gcircle"></div></div>
-      <div class="cell"><div class="cellttl">대기 LOT 상위 설비 5</div>
-        <div class="gbars">${[62,48,37,29,21].map(h =>
-          `<i style="height:${h}%"></i>`).join("")}</div></div>
-      <div class="cell"><div class="cellttl">Shift 별 MOVE</div>
-        <div class="gbars">${[70,55,40].map(h =>
-          `<i style="height:${h}%"></i>`).join("")}</div></div>
-      <div class="cell"><div class="cellttl">Low WT 분석</div>
-        <div class="glines">${[90,70,55,40].map(w =>
-          `<i style="width:${w}%"></i>`).join("")}</div></div>
-      <div class="dev">개발중</div></div>`;
-  }
+  if (!c.ready) return ghostCard(c);
   const dft = c.default_types || [];
   const boxes = c.types.map(t =>
     `<label><input type="checkbox" value="${t}" ${dft.includes(t) ? "checked" : ""}`
     + ` onchange="onTypeCheck(${i})">${t}</label>`).join("");
   return `<div class="card" id="cd_${i}">
     <div class="head" onclick="pickCard(${i})">${c.label}</div>
-    <div class="cell">
-      <div class="wip">
-        <div class="top">
-          <div class="nums">
-            <div><b id="wl_${i}">-</b><div class="lbl">재공 LOT</div></div>
-            <div><b id="wq_${i}">-</b><div class="lbl">재공 매</div></div>
-          </div>
-          <div class="dd" id="dd_${i}">
-            <button onclick="toggleDd(${i})" id="ddb_${i}">전체 ▾</button>
-            <div class="menu">${boxes}</div>
-          </div>
+
+    <div class="cell"><div class="wip">
+      <div class="top">
+        <div class="nums">
+          <div><b id="wl_${i}">-</b><div class="lbl">재공 LOT</div></div>
+          <div><b id="wq_${i}">-</b><div class="lbl">재공 매</div></div>
         </div>
-        <div class="stack" id="ws_${i}"></div>
-        <div class="stleg" id="wg_${i}"></div>
+        <div class="dd" id="dd_${i}">
+          <button onclick="toggleDd(${i})" id="ddb_${i}">전체 &#9662;</button>
+          <div class="menu">${boxes}</div>
+        </div>
       </div>
-    </div>
+      <div class="stack" id="ws_${i}"></div>
+      <div class="stleg" id="wg_${i}"></div>
+    </div></div>
+
+    <div class="cell"><div class="donut">
+      <div class="legend" id="lg_${i}"></div>
+      <div class="cv"><canvas id="dn_${i}"></canvas></div>
+      <div class="pickinfo" id="dt_${i}"></div>
+    </div></div>
+
     <div class="cell">
-      <div class="donut">
-        <div class="legend" id="lg_${i}"></div>
-        <div class="cv"><canvas id="dn_${i}"></canvas></div>
-        <div class="pickinfo" id="dt_${i}"></div>
-      </div>
+      <div class="cellttl"><span>대기 LOT 상위 설비 5</span>
+        <span class="seg">
+          <button class="on" id="eul_${i}" onclick="setEqpUnit(${i},'lots')">LOT</button>
+          <button id="euq_${i}" onclick="setEqpUnit(${i},'qty')">매</button>
+        </span></div>
+      <div style="height:112px"><canvas id="eq_${i}"></canvas></div>
     </div>
-    <div class="cell">
-      <div class="cellttl">대기 LOT 상위 설비 5</div>
-      <div style="height:118px"><canvas id="eq_${i}"></canvas></div>
-    </div>
+
     <div class="cell">
       <div class="cellttl">Shift 별 MOVE</div>
-      <div class="movebox">
-        <div class="cv"><canvas id="mv_${i}"></canvas></div>
-        <div class="movetot"><b id="mt_${i}">${nf(c.move.total)}</b>
-          <span>당일 MOVE (매)</span></div>
-      </div>
+      <div class="mv" id="mv_${i}"></div>
     </div>
-    <div class="cell wt" id="wt_${i}"></div></div>`;
+
+    <div class="cell wt" id="wt_${i}"></div>
+  </div>`;
 }
-
-let STATUS_DATA = [];
-const CUR_SEL = {};       // 카드별 선택된 status index
-const TYPE_COLORS = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#B9D4F2", "#D8E5F5"];  // 남색 톤
-
-function curPack(i) { return STATUS_DATA[i].sel; }
 
 function pickCard(i) {
   document.querySelectorAll(".card").forEach(el => el.classList.remove("on"));
@@ -328,44 +335,63 @@ document.addEventListener("click", e => {
 });
 
 function selectedTypes(i) {
-  return [...document.querySelectorAll(`#dd_${i} input:checked`)].map(x => x.value);
+  return [...document.querySelectorAll("#dd_" + i + " input:checked")].map(x => x.value);
 }
 
 function onTypeCheck(i) {
   const t = selectedTypes(i);
-  document.getElementById("ddb_" + i).textContent =
-    (t.length ? (t.length <= 2 ? t.join(",") : t.length + "개 선택") : "전체") + " ▾";
-  reloadStatus(i);
+  document.getElementById("ddb_" + i).innerHTML =
+    (t.length ? (t.length <= 2 ? t.join(",") : t.length + "개 선택") : "전체")
+    + " &#9662;";
+  reloadCard(i);
 }
 
-function setCenter(i) {
-  const p = curPack(i), sel = CUR_SEL[i];
+function setEqpUnit(i, u) {
+  EQP_UNIT[i] = u;
+  document.getElementById("eul_" + i).className = (u === "lots") ? "on" : "";
+  document.getElementById("euq_" + i).className = (u === "qty") ? "on" : "";
+  renderCard(i);
+}
+
+function setStatusInfo(i) {
+  const p = CARDS[i].sel, sel = SEL_STATUS[i];
   const d = (sel === null || sel === undefined)
     ? { label: p.default.label, pct: p.default.pct, lots: p.default.lots,
         qty: p.default.qty, color: BRAND }
     : { label: p.status[sel].name, pct: p.status[sel].pct,
-        lots: p.status[sel].lots, qty: p.status[sel].qty,
-        color: p.status[sel].color };
+        lots: p.status[sel].lots, qty: p.status[sel].qty, color: p.status[sel].color };
   document.getElementById("dt_" + i).innerHTML =
     `<div class="nm" style="color:${d.color}">${d.label}</div>
      <div class="pc">${d.pct.toFixed(1)}%</div>
-     <div class="sub">${nf(d.lots)} LOT · ${nf(d.qty)} 매</div>`;
-  // 범례 강조
-  document.querySelectorAll(`#lg_${i} span`).forEach((el, k) => {
-    el.classList.toggle("on", k === (sel === null || sel === undefined ? 0 : sel + 1));
+     <div class="sub">${nf(d.lots)} LOT &middot; ${nf(d.qty)} 매</div>`;
+  document.querySelectorAll("#lg_" + i + " span").forEach((el, k) => {
+    el.classList.toggle("on",
+      k === (sel === null || sel === undefined ? 0 : sel + 1));
   });
 }
 
+function pickStatus(i, si) {
+  SEL_STATUS[i] = (SEL_STATUS[i] === si) ? null : si;
+  setStatusInfo(i);
+}
+function pickDefault(i) { SEL_STATUS[i] = null; setStatusInfo(i); }
+
+/* 값이 클수록 진하게. 1위가 가장 진한 남색. */
+function shade(v, max) {
+  const a = 0.25 + 0.75 * (max ? v / max : 0);
+  return "rgba(47,75,124," + a.toFixed(2) + ")";
+}
+
 function renderCard(i) {
-  const c = STATUS_DATA[i], p = c.sel;
+  const c = CARDS[i], p = c.sel;
+
   document.getElementById("wl_" + i).textContent = nf(p.total.lots);
   document.getElementById("wq_" + i).textContent = nf(p.total.qty);
 
-  // 재공 구성을 lot_type 막대로. 숫자만 늘어놓지 않고 비중이 한눈에 보이게.
   const tot = c.by_lot_type.reduce((a, x) => a + x.lots, 0) || 1;
   document.getElementById("ws_" + i).innerHTML = c.by_lot_type.map((x, k) =>
     `<i style="width:${x.lots / tot * 100}%;background:${TYPE_COLORS[k % 5]}"
-        title="${x.name} ${nf(x.lots)} LOT · ${nf(x.qty)} 매"></i>`).join("");
+        title="${x.name} ${nf(x.lots)} LOT / ${nf(x.qty)} 매"></i>`).join("");
   document.getElementById("wg_" + i).innerHTML = c.by_lot_type.map((x, k) =>
     `<span><i style="background:${TYPE_COLORS[k % 5]}"></i>${x.name}
        ${(x.lots / tot * 100).toFixed(0)}%</span>`).join("");
@@ -379,90 +405,96 @@ function renderCard(i) {
 
   const dn = window["dn" + i];
   dn.data.datasets[0].data = p.status.map(s => s.lots);
+  dn.data.datasets[0].backgroundColor = p.status.map(s => s.color);
   dn.$status = p.status;
   dn.update();
-  setCenter(i);
+  setStatusInfo(i);
 
+  const unit = EQP_UNIT[i] || "lots";
+  const vals = p.top_eqp.map(e => unit === "lots" ? e.lots : e.qty);
+  const mx = Math.max.apply(null, vals.concat([0]));
   const eq = window["eq" + i];
   eq.data.labels = p.top_eqp.map(e => e.name);
-  eq.data.datasets[0].data = p.top_eqp.map(e => e.lots);
-  eq.$qty = p.top_eqp.map(e => e.qty);
+  eq.data.datasets[0].data = vals;
+  eq.data.datasets[0].backgroundColor = vals.map(v => shade(v, mx));
+  eq.$alt = p.top_eqp.map(e => unit === "lots" ? e.qty : e.lots);
+  eq.$unit = unit;
   eq.update();
 
-  // Shift 별 MOVE 도 선택된 lot_type 기준으로 다시 그린다
-  const mv = window["mv" + i];
-  if (mv && c.move) {
-    mv.data.datasets[0].data = [c.move.GY, c.move.DAY, c.move.SW];
-    mv.update();
-    const mt = document.getElementById("mt_" + i);
-    if (mt) mt.textContent = nf(c.move.total);
-  }
+  const m = c.move, mmax = Math.max(m.total, 1);
+  const row = (k, v, cls) =>
+    `<div class="row ${cls || ""}"><div class="k">${k}</div>
+       <div class="bar"><i style="width:${Math.min(v / mmax * 100, 100)}%"></i></div>
+       <div class="v">${nf(v)}</div></div>`;
+  document.getElementById("mv_" + i).innerHTML =
+    row("계", m.total, "tot") + row("GY", m.GY) + row("DAY", m.DAY) + row("SW", m.SW);
 }
 
-function pickStatus(i, si) {
-  CUR_SEL[i] = (CUR_SEL[i] === si) ? null : si;
-  setCenter(i);
-}
-
-function pickDefault(i) {      // 언제든 기본값(HOLD+진행불가)으로 복귀
-  CUR_SEL[i] = null;
-  setCenter(i);
-}
-
-function reloadStatus(i) {
-  // 카드마다 독립. 한 라인의 필터가 다른 라인에 영향을 주지 않는다.
-  const c = STATUS_DATA[i];
-  const q = selectedTypes(i).join(",");
-  fetch(`/api/status/?line=${encodeURIComponent(c.line)}`
-        + `&types=${encodeURIComponent(q)}`)
+function reloadCard(i) {
+  const c = CARDS[i];
+  fetch("/api/status/?line=" + encodeURIComponent(c.line)
+        + "&types=" + encodeURIComponent(selectedTypes(i).join(",")))
     .then(r => r.json()).then(res => {
       const nc = res.cards[0];
       if (!nc || !nc.ready) return;
-      STATUS_DATA[i] = { ...STATUS_DATA[i], ...nc };
-      CUR_SEL[i] = null;
+      CARDS[i] = Object.assign({}, CARDS[i], nc);
+      SEL_STATUS[i] = null;
       renderCard(i);
     });
 }
 
-// 조각 위에 상태 비율을 직접 표기
-const donutSliceLabels = {
-  id: "donutSliceLabels",
-  afterDatasetsDraw(c) {
-    const st = c.$status || [];
-    const ctx = c.ctx;
+const sliceLabels = {
+  id: "sliceLabels",
+  afterDatasetsDraw(ch) {
+    const st = ch.$status || [];
+    const ctx = ch.ctx;
     ctx.save();
-    ctx.font = "600 10px 'Malgun Gothic', sans-serif";
+    ctx.font = "600 10px 'Poppins','Noto Sans KR',sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    c.getDatasetMeta(0).data.forEach((arc, k) => {
+    ch.getDatasetMeta(0).data.forEach((arc, k) => {
       const v = st[k];
-      if (!v || v.pct < 6) return;            // 너무 얇으면 생략
+      if (!v || v.pct < 6) return;
       const a = (arc.startAngle + arc.endAngle) / 2;
       const r = arc.outerRadius * 0.62;
       ctx.fillStyle = "#fff";
-      ctx.fillText(v.pct + "%",
-                   arc.x + Math.cos(a) * r, arc.y + Math.sin(a) * r);
+      ctx.fillText(v.pct + "%", arc.x + Math.cos(a) * r, arc.y + Math.sin(a) * r);
+    });
+    ctx.restore();
+  }
+};
+
+const barLabels = {
+  id: "barLabels",
+  afterDatasetsDraw(ch) {
+    const ctx = ch.ctx;
+    ctx.save();
+    ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#374151";
+    ch.getDatasetMeta(0).data.forEach((el, k) => {
+      ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x, el.y - 4);
     });
     ctx.restore();
   }
 };
 
 function drawCards(res) {
+  CARDS = res.cards;
   document.getElementById("status").innerHTML =
     res.cards.map((c, i) => cardHtml(c, i)).join("");
-  STATUS_DATA = res.cards;
+  document.getElementById("snapAt").textContent = res.snapshot_at || "-";
 
   res.cards.forEach((c, i) => {
     if (!c.ready) return;
+    SEL_STATUS[i] = null;
+    EQP_UNIT[i] = "lots";
+
+    const dft = c.default_types || [];
+    document.getElementById("ddb_" + i).innerHTML =
+      (dft.length ? dft.join(",") : "전체") + " &#9662;";
 
     const p0 = c.sel;
-    CUR_SEL[i] = null;
-
-    // 기본 선택(PP+PG)을 버튼 라벨에 반영
-    const dft0 = c.default_types || [];
-    document.getElementById("ddb_" + i).textContent =
-      (dft0.length ? dft0.join(",") : "전체") + " ▾";
-
     window["dn" + i] = new Chart(document.getElementById("dn_" + i), {
       type: "doughnut",
       data: { labels: p0.status.map(s => s.name),
@@ -470,83 +502,70 @@ function drawCards(res) {
                            backgroundColor: p0.status.map(s => s.color),
                            borderWidth: 0 }] },
       options: {
-        responsive: true, maintainAspectRatio: false, cutout: 0,
-        animation: false,
+        responsive: true, maintainAspectRatio: false, cutout: 0, animation: false,
         plugins: {
           legend: { display: false },
           tooltip: { callbacks: { label: (t) => {
             const st = (t.chart.$status || p0.status)[t.dataIndex];
-            return `${st.name}  ${st.pct}% · ${nf(st.lots)} LOT · ${nf(st.qty)} 매`;
+            return st.name + "  " + st.pct + "% / " + nf(st.lots) + " LOT / "
+                   + nf(st.qty) + " 매";
           } } }
         },
         onClick: (e, els) => { if (els.length) pickStatus(i, els[0].index); }
       },
-      plugins: [donutSliceLabels]
+      plugins: [sliceLabels]
     });
 
     window["eq" + i] = new Chart(document.getElementById("eq_" + i), {
       type: "bar",
       data: { labels: p0.top_eqp.map(e => e.name),
-              datasets: [{ data: p0.top_eqp.map(e => e.lots),
-                           backgroundColor: BRAND, borderRadius: 2 }] },
+              datasets: [{ data: p0.top_eqp.map(e => e.lots), borderRadius: 2 }] },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
         layout: { padding: { top: 16 } },
         plugins: { legend: { display: false },
-                   tooltip: { callbacks: { label: (t) =>
-                     `${t.parsed.y} LOT · ${nf((t.chart.$qty || [])[t.dataIndex])} 매` } } },
+                   tooltip: { callbacks: { label: (t) => {
+                     const u = t.chart.$unit === "lots" ? "LOT" : "매";
+                     const o = t.chart.$unit === "lots" ? "매" : "LOT";
+                     return nf(t.parsed.y) + " " + u + " / "
+                            + nf((t.chart.$alt || [])[t.dataIndex]) + " " + o;
+                   } } } },
         scales: { x: { grid: { display: false }, ticks: { font: { size: 9 } } },
                   y: { display: false, beginAtZero: true, grace: "20%" } }
       },
-      plugins: [{ id: "barLbl", afterDatasetsDraw(ch) {
-        const ctx = ch.ctx; ctx.save();
-        ctx.font = "10px 'Malgun Gothic'"; ctx.textAlign = "center";
-        ch.getDatasetMeta(0).data.forEach((el, k) => {
-          ctx.fillStyle = "#374151";
-          ctx.fillText(ch.data.datasets[0].data[k], el.x, el.y - 4);
-        });
-        ctx.restore();
-      } }]
-    });
-    window["eq" + i].$qty = p0.top_eqp.map(e => e.qty);
-
-    window["mv" + i] = new Chart(document.getElementById("mv_" + i), {
-      type: "bar",
-      data: { labels: ["GY", "DAY", "SW"],
-              datasets: [{ data: [c.move.GY, c.move.DAY, c.move.SW],
-                           backgroundColor: BRAND, borderRadius: 2 }] },
-      options: {
-        responsive: true, maintainAspectRatio: false, animation: false,
-        layout: { padding: { top: 16 } },
-        plugins: { legend: { display: false },
-                   tooltip: { callbacks: { label: (t) => nf(t.parsed.y) + " 매" } } },
-        scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-                  y: { display: false, beginAtZero: true, grace: "20%" } }
-      },
-      plugins: [{ id: "mvLbl", afterDatasetsDraw(ch) {
-        const ctx = ch.ctx; ctx.save();
-        ctx.font = "10px 'Malgun Gothic'"; ctx.textAlign = "center";
-        ch.getDatasetMeta(0).data.forEach((el, k) => {
-          const v = ch.data.datasets[0].data[k];
-          ctx.fillStyle = "#374151";
-          ctx.fillText((v / 1000).toFixed(1) + "k", el.x, el.y - 4);
-        });
-        ctx.restore();
-      } }]
+      plugins: [barLabels]
     });
 
     renderCard(i);
+    loadWt(i, c.line);
   });
 }
 
-// ---------------------------------------------------------------------------
-// Low WT 분석
-// ---------------------------------------------------------------------------
+/* ===========================================================================
+   Low WT 분석
+   =========================================================================== */
 const WT_OPTS = [
-  { v: 0,   t: "WT = 0" },
-  { v: 0.5, t: "WT ≤ 0.5" },
-  { v: 1.0, t: "WT ≤ 1.0" },
+  { v: 0, t: "WT = 0" }, { v: 0.5, t: "WT <= 0.5" }, { v: 1.0, t: "WT <= 1.0" }
 ];
+const WT_STATE = {};
+const WT_LABELS = {};
+
+function loadWt(i, line) {
+  const st = WT_STATE[i] || (WT_STATE[i] = { max: 0, bin: "0" });
+  fetch("/api/lowwt/?line=" + encodeURIComponent(line) + "&max_wt=" + st.max)
+    .then(r => r.json()).then(d => drawWt(i, line, d));
+}
+
+function pickWtMax(i, line, v) {
+  if (v === "custom") {
+    const el = document.getElementById("wtc_" + i);
+    if (el) { el.style.display = ""; el.focus(); }
+    return;
+  }
+  WT_STATE[i].max = parseFloat(v);
+  WT_STATE[i].bin = "0";
+  loadWt(i, line);
+}
 
 function pickWtCustom(i, line, v) {
   const x = parseFloat(v);
@@ -555,30 +574,8 @@ function pickWtCustom(i, line, v) {
   WT_STATE[i].bin = "0";
   loadWt(i, line);
 }
-const WT_STATE = {};      // 카드별 {max, bin}
-const WT_LABELS = {};     // 카드별 구간 라벨
 
-function loadWt(i, line) {
-  const st = WT_STATE[i] || (WT_STATE[i] = { max: 0, bin: "0" });
-  fetch(`/api/lowwt/?line=${encodeURIComponent(line)}&max_wt=${st.max}`)
-    .then(r => r.json()).then(d => drawWt(i, line, d));
-}
-
-function pickWtMax(i, line, v) {
-  if (v === "custom") {                        // 숫자 입력칸 노출
-    const el = document.getElementById("wtc_" + i);
-    if (el) { el.style.display = ""; el.focus(); }
-    return;
-  }
-  WT_STATE[i].max = parseFloat(v);
-  WT_STATE[i].bin = "0";                 // 기준 변경 시 가장 심각한 구간부터
-  loadWt(i, line);
-}
-
-function pickWtBin(i, line, key) {
-  WT_STATE[i].bin = key;
-  loadWt(i, line);
-}
+function pickWtBin(i, line, key) { WT_STATE[i].bin = key; loadWt(i, line); }
 
 function drawWt(i, line, d) {
   const el = document.getElementById("wt_" + i);
@@ -589,37 +586,33 @@ function drawWt(i, line, d) {
     return;
   }
   const st = WT_STATE[i];
-  if (!d.dist["전체"][st.bin]) {
-    const keys = d.bins.map(b => b.key);
-    if (!keys.includes(st.bin)) st.bin = keys[0];
-  }
-  const known = WT_OPTS.some(o => o.v === st.max);
   WT_LABELS[i] = {};
   d.bins.forEach(b => { WT_LABELS[i][b.key] = b.label; });
+  if (!d.bins.some(b => b.key === st.bin)) st.bin = d.bins[0].key;
+
+  const known = WT_OPTS.some(o => o.v === st.max);
   const opts = WT_OPTS.map(o =>
     `<option value="${o.v}" ${o.v === st.max ? "selected" : ""}>${o.t}</option>`).join("")
     + `<option value="custom" ${known ? "" : "selected"}>직접 입력</option>`;
+  const has = (c) => d.summary[c].has;
   const th = d.cols.map(c => `<th>${c}</th>`).join("");
-
-  const has = c => d.summary[c].has;
-  const sumRow = d.cols.map(c =>
-    has(c) ? `<td>${nf(d.summary[c].low)}</td>`
-           : `<td class="none" title="이 shift 스냅샷이 아직 없습니다">-</td>`).join("");
-  const rateRow = d.cols.map(c =>
-    has(c) ? `<td>${d.summary[c].rate}%</td>` : `<td class="none">-</td>`).join("");
+  const sumRow = d.cols.map(c => has(c)
+    ? `<td>${nf(d.summary[c].low)}</td>`
+    : `<td class="none" title="이 shift 스냅샷이 아직 없습니다">-</td>`).join("");
+  const rateRow = d.cols.map(c => has(c)
+    ? `<td>${d.summary[c].rate}%</td>` : `<td class="none">-</td>`).join("");
 
   const distRows = d.bins.map(b => {
     const tds = d.cols.map(c => {
       if (!has(c)) return `<td class="none">-</td>`;
-      const n = d.dist[c][b.key] || 0;
-      return `<td class="cell-pick" title="클릭: ${c} · ${b.label} LOT 목록"`
-        + ` onclick="event.stopPropagation();`
-        + `openDrill({line:'${line}',col:'${c}',bin:'${b.key}',max_wt:${st.max},`
-        + `bin_label:'${b.label}'})">${nf(n)}</td>`;
+      return `<td class="cell-pick" title="클릭: ${c} / ${b.label} LOT 목록"`
+        + ` onclick="event.stopPropagation();openDrill({line:'${line}',col:'${c}',`
+        + `bin:'${b.key}',max_wt:${st.max},bin_label:'${b.label}'})">`
+        + `${nf(d.dist[c][b.key] || 0)}</td>`;
     }).join("");
     return `<tr class="pick ${b.key === st.bin ? "on" : ""}"
-              onclick="pickWtBin(${i},'${line}','${b.key}')">
-              <td title="클릭: 이 구간으로 원인 갱신">${b.label}</td>${tds}</tr>`;
+      onclick="pickWtBin(${i},'${line}','${b.key}')">
+      <td title="클릭: 이 구간으로 원인 갱신">${b.label}</td>${tds}</tr>`;
   }).join("");
 
   const causeRows = d.causes.map(cz => {
@@ -630,13 +623,12 @@ function drawWt(i, line, d) {
       if (n) any = true;
       const low = d.dist[c][st.bin] || 0;
       const pct = low ? (n / low * 100).toFixed(0) : 0;
-      return `<td class="cell-pick" title="${cz} · ${n} LOT · 구간 내 ${pct}%"
-                 onclick="openDrill({line:'${line}',col:'${c}',bin:'${st.bin}',
-                          cause:'${cz}',max_wt:${st.max},
-                          bin_label:'${WT_LABELS[i][st.bin] || ""}'})">`
-             + `${n ? nf(n) : "0"}</td>`;
+      return `<td class="cell-pick" title="${cz} / ${n} LOT / 구간 내 ${pct}%"`
+        + ` onclick="openDrill({line:'${line}',col:'${c}',bin:'${st.bin}',`
+        + `cause:'${cz}',max_wt:${st.max},bin_label:'${WT_LABELS[i][st.bin] || ""}'})">`
+        + `${nf(n)}</td>`;
     }).join("");
-    if (cz === "기타/미분류" && !any) return "";      // 0 이면 숨김
+    if (cz === "기타/미분류" && !any) return "";
     return `<tr><td>${cz}</td>${tds}</tr>`;
   }).join("");
 
@@ -644,24 +636,77 @@ function drawWt(i, line, d) {
     <div class="cellttl"><span>Low WT 분석</span>
       <span style="display:flex;gap:4px;align-items:center">
         <select onchange="pickWtMax(${i},'${line}',this.value)">${opts}</select>
-        <input type="number" step="0.1" min="0" value="${st.max}"
-               style="width:52px;font-size:11px;padding:2px 4px;border:1px solid var(--bd);
-                      border-radius:4px;${known ? "display:none" : ""}"
-               id="wtc_${i}"
+        <input type="number" step="0.1" min="0" value="${st.max}" id="wtc_${i}"
+               style="width:52px;${known ? "display:none" : ""}"
                onchange="pickWtCustom(${i},'${line}',this.value)">
       </span></div>
-    <table>
-      <thead><tr><th></th>${th}</tr></thead>
-      <tbody>
-        <tr class="big"><td>Low WT Lot</td>${sumRow}</tr>
-        <tr class="rate"><td>Low WT율</td>${rateRow}</tr>
-      </tbody>
-    </table>
-    <div class="sec">WT 구간 분포 &middot; 구간명 클릭 = 아래 원인 갱신,
+    <table><thead><tr><th></th>${th}</tr></thead><tbody>
+      <tr class="big"><td>Low WT Lot</td>${sumRow}</tr>
+      <tr class="rate"><td>Low WT율</td>${rateRow}</tr>
+    </tbody></table>
+    <div class="sec">WT 구간 분포 &middot; 구간명 클릭 = 원인 갱신,
       숫자 클릭 = 해당 셀 LOT 목록</div>
     <table><tbody>${distRows}</tbody></table>
-    <div class="sec">원인 · ${(d.bins.find(b => b.key === st.bin) || {}).label || ""}</div>
+    <div class="sec">원인 &middot; ${WT_LABELS[i][st.bin] || ""}</div>
     <table><tbody>${causeRows}</tbody></table>`;
+}
+
+/* ===========================================================================
+   드릴다운
+   =========================================================================== */
+const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝도착경과_일"]);
+
+function closeDrill() {
+  document.getElementById("drill").innerHTML =
+    `<div class="empty">현황 카드의 <b>Low WT</b> 숫자나 좌측 추이 차트의
+      <b>일별 지점</b>을 클릭하면 해당 LOT 상세가 여기에 표시됩니다.</div>`;
+}
+
+function openDrill(opt) {
+  const el = document.getElementById("drill");
+  el.innerHTML = `<div class="bar"><b>불러오는 중…</b></div>`;
+  smoothTo(el);
+
+  const binLabelIn = opt.bin_label || "";
+  const q = Object.entries(opt)
+    .filter(([k, v]) => k !== "bin_label" && v !== undefined && v !== null && v !== "")
+    .map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
+
+  fetch("/api/lots/?" + q).then(r => r.json()).then(d => {
+    const path = [d.line, d.col, binLabelIn, d.status,
+                  (d.cause && d.cause !== "전체" ? d.cause : ""), d.biz_date]
+                 .filter(Boolean).join(" / ");
+    const cols = d.cols || [];
+    const rows = d.rows || [];
+    const head = cols.map(c => `<th>${c.t}</th>`).join("");
+    const body = rows.map(r => "<tr>" + cols.map(c =>
+      `<td class="${NUM_COLS.has(c.k) ? "num" : ""}">`
+      + (r[c.k] === null || r[c.k] === undefined ? "" : r[c.k]) + "</td>").join("")
+      + "</tr>").join("");
+    el.innerHTML = `
+      <div class="bar">
+        <div><b>${nf(rows.length)} LOT</b><span class="path">${path}</span></div>
+        <button onclick="closeDrill()">닫기</button>
+      </div>
+      <div class="scroll"><table><thead><tr>${head}</tr></thead><tbody>${body
+        || `<tr><td colspan="${cols.length}" style="color:#6B7280">`
+           + `해당 조건의 LOT 이 없습니다.</td></tr>`}</tbody></table></div>`;
+    smoothTo(el);
+  });
+}
+
+/* ===========================================================================
+   FlowStack (추이)
+   =========================================================================== */
+const charts = {};
+let basis = "qty";
+
+function setBasis(b) {
+  if (b === basis) return;
+  basis = b;
+  document.getElementById("b_qty").className = (b === "qty") ? "on" : "";
+  document.getElementById("b_lot").className = (b === "lot") ? "on" : "";
+  load();
 }
 
 const gapLine = {
@@ -679,35 +724,66 @@ const gapLine = {
   }
 };
 
+function fmtLabel(v, fmt, unit) {
+  if (v === null || v === undefined) return "";
+  if (fmt === "k") return (v / 1000).toFixed(1) + "k";
+  if (fmt === "i") return Math.round(v) + (unit === "%" ? "%" : "");
+  return v.toFixed(1);
+}
+
+const valueLabels = {
+  id: "valueLabels",
+  afterDatasetsDraw(c) {
+    const ctx = c.ctx;
+    ctx.save();
+    ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    c.data.datasets.forEach((ds, di) => {
+      if (!c.isDatasetVisible(di)) return;
+      c.getDatasetMeta(di).data.forEach((el, i) => {
+        const v = ds.data[i];
+        if (v === null || v === undefined) return;
+        ctx.fillStyle = ds.borderColor;
+        ctx.fillText(fmtLabel(v, c.$fmt, c.$unit), el.x, el.y - 5 - (di % 2) * 11);
+      });
+    });
+    ctx.restore();
+  }
+};
 
 function load() {
   fetch("/api/flowstack/?basis=" + basis).then(r => r.json()).then(res => {
     if (!window.Chart) {
       document.getElementById("err").innerHTML =
-        "Chart.js 로드 실패. <code>python manage.py collectstatic</code> 또는 "
-        + "<code>web/flowmonitor/static/flowmonitor/chart.umd.js</code> 존재 여부 확인.";
+        "Chart.js 로드 실패. <code>web/flowmonitor/static/flowmonitor/chart.umd.js</code>"
+        + " 존재 여부 확인.";
       return;
-    }
-    const pts = res.order.reduce((a, k) => a + res.panels[k].datasets
-      .reduce((b, ds) => b + ds.data.filter(v => v !== null).length, 0), 0);
-    if (pts === 0) {
-      document.getElementById("err").innerHTML =
-        "적재는 됐지만 그릴 데이터가 없습니다. 진단: "
-        + "<a href='/api/health/' target='_blank'>/api/health/</a>";
     }
     const nb = document.getElementById("notice");
     if (res.notice) { nb.textContent = res.notice; nb.style.display = "block"; }
     else { nb.style.display = "none"; }
 
+    let pts = 0;
+    res.order.forEach(k => {
+      res.panels[k].datasets.forEach(ds => {
+        ds.data.forEach(v => { if (v !== null && v !== undefined) pts += 1; });
+      });
+    });
+    document.getElementById("err").innerHTML = (pts === 0)
+      ? "적재는 됐지만 그릴 데이터가 없습니다. 진단: "
+        + "<a href='/api/health/' target='_blank'>/api/health/</a>"
+      : "";
+
     const first = res.panels[res.order[0]];
-    document.getElementById("legend").innerHTML = first.datasets.map(
+    document.getElementById("legend2").innerHTML = first.datasets.map(
       d => `<span><i style="background:${d.borderColor}"></i>${d.label}</span>`).join("");
 
     res.order.forEach((key, idx) => {
       const d = res.panels[key];
-      const last = idx === res.order.length - 1;   // x축 라벨은 마지막 패널에만
+      const last = idx === res.order.length - 1;
 
-      if (charts[key]) {                            // 토글 시에는 데이터만 교체
+      if (charts[key]) {
         charts[key].data.labels = d.labels;
         charts[key].data.datasets = d.datasets;
         charts[key].$kinds = d.kinds;
@@ -716,48 +792,38 @@ function load() {
         charts[key].update();
         return;
       }
+
       const ch = new Chart(document.getElementById("c_" + key), {
         type: "line",
         data: { labels: d.labels, datasets: d.datasets },
         options: {
-          responsive: true, maintainAspectRatio: false,
-          // 선이 아래에서 솟아오르는 기본 애니메이션은 끄고,
-          // 컨테이너를 통째로 페이드인 시킨다(제자리에서 부드럽게).
-          animation: false,
-          animations: { colors: false, x: false, y: false },
-          transitions: { active: { animation: { duration: 0 } } },
+          responsive: true, maintainAspectRatio: false, animation: false,
           interaction: { mode: "index", intersect: false },
           layout: { padding: { top: 20, right: 10, left: 2 } },
-          onClick: (e, els, ch) => {
+          onClick: (e, els) => {
             if (!els.length) return;
-            const i2 = els[0].index;
-            const day = d.dates[i2];
-            if (!day) return;                    // 월/주 버킷은 스냅샷이 없다
+            const day = (d.dates || [])[els[0].index];
+            if (!day) return;
             openDrill({ line: d.datasets[els[0].datasetIndex].label,
                         col: "전체", biz_date: day, status: d.status });
           },
           plugins: {
             legend: { display: false },
-            tooltip: {
-              callbacks: {
-                title: (t) => {
-                  const i = t[0].dataIndex;
-                  const k = KIND_KO[d.kinds[i]] || "";
-                  return d.labels[i] + (k ? " (" + k + ")" : "");
-                },
-                // 커서를 올리면 축약 없이 원래 값 그대로
-                label: (t) => `${t.dataset.label}  `
-                  + Number(t.parsed.y).toLocaleString("ko-KR",
-                      { maximumFractionDigits: 1 }) + ` ${d.unit}`
-              }
-            }
+            tooltip: { callbacks: {
+              title: (t) => {
+                const i2 = t[0].dataIndex;
+                const k = KIND_KO[d.kinds[i2]] || "";
+                return d.labels[i2] + (k ? " (" + k + ")" : "");
+              },
+              label: (t) => t.dataset.label + "  "
+                + Number(t.parsed.y).toLocaleString("ko-KR",
+                    { maximumFractionDigits: 1 }) + " " + d.unit
+            } }
           },
           scales: {
             x: { grid: { display: false },
                  ticks: { display: last, font: { size: 10 }, autoSkip: false } },
-            // grace: 최대값 위로 여유를 둬 값 레이블이 잘리지 않게 한다.
-          y: { beginAtZero: true, grace: "18%",
-               ticks: { font: { size: 10 } } }
+            y: { beginAtZero: true, grace: "18%", ticks: { font: { size: 10 } } }
           }
         },
         plugins: [gapLine, valueLabels]
@@ -767,64 +833,16 @@ function load() {
       ch.$unit = d.unit;
       charts[key] = ch;
       ch.update();
-      // 패널마다 아주 짧게 시차를 둬 위에서 아래로 자연스럽게 나타나게
+
       const wrap = document.getElementById("c_" + key).parentElement;
       setTimeout(() => wrap.classList.add("ready"), 30 + idx * 45);
     });
   });
 }
 
-// ---------------------------------------------------------------------------
-// Drill-down: 화면 아래로 구역이 펼쳐지며 lot 상세를 보여준다
-// ---------------------------------------------------------------------------
-const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝도착경과_일"]);
-
-function closeDrill() {
-  document.getElementById("drill").innerHTML =
-    `<div class="empty">현황 카드의 <b>Low WT</b> 숫자나 좌측 추이 차트의
-      <b>일별 지점</b>을 클릭하면 해당 LOT 상세가 여기에 표시됩니다.</div>`;
-}
-
-// 현황(Low WT)과 추이(FlowStack) 양쪽에서 같은 형식으로 연다.
-function openDrill(opt) {
-  const el = document.getElementById("drill");
-  el.innerHTML = `<div class="bar"><b>불러오는 중…</b></div>`;
-  el.scrollIntoView({ behavior: "smooth", block: "start" });
-
-  const binLabelIn = opt.bin_label || "";
-  const q = Object.entries(opt)
-    .filter(([k, v]) => k !== "bin_label" && v !== undefined && v !== null && v !== "")
-    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
-  fetch("/api/lots/?" + q).then(r => r.json()).then(d => {
-    const binLabel = binLabelIn;
-    const path = [d.line, d.col, binLabel, d.status,
-                  (d.cause !== "전체" ? d.cause : ""), d.biz_date]
-                 .filter(Boolean).join(" · ");
-    const head = d.cols.map(c => `<th>${c.t}</th>`).join("");
-    const body = d.rows.map(r => "<tr>" + d.cols.map(c =>
-      `<td class="${NUM_COLS.has(c.k) ? "num" : ""}">`
-      + (r[c.k] === null || r[c.k] === undefined ? "" : r[c.k]) + "</td>").join("")
-      + "</tr>").join("");
-    el.innerHTML = `
-      <div class="bar">
-        <div><b>${d.rows.length.toLocaleString("ko-KR")} LOT</b>
-          <span class="path">${path}</span></div>
-        <button onclick="closeDrill()">닫기</button>
-      </div>
-      <div class="scroll"><table><thead><tr>${head}</tr></thead>
-        <tbody>${body || `<tr><td colspan="${d.cols.length}"
-          style="color:#6B7280">해당 조건의 LOT 이 없습니다.</td></tr>`}</tbody>
-      </table></div>`;
-  });
-}
-
 fetch("/api/status/").then(r => r.json()).then(res => {
   if (window.Chart) drawCards(res);
-  res.cards.forEach((c, i) => {
-    if (c.ready) { WT_STATE[i] = { max: 0, bin: "0" }; loadWt(i, c.line); }
-  });
 });
-
 load();
 </script>
 </body>
