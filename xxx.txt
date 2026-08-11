@@ -1,18 +1,1 @@
-Could not execute function call 's3drive' (2)
-
-
-Error executing Python script:
-
-ModuleNotFoundError: No module named 'boto3'
-
-Traceback (most recent call last):
-  File "data_function.py", line 364, in _execute_script
-    exec(compiled_script, self.globals)
-  File "<data_function>", line 4, in <module>
-
-
-
-   at Spotfire.Dxp.Data.DataFunctions.Executors.LocalPythonFunctionClient.<RunFunction>d__8.MoveNext()
-   at Spotfire.Dxp.Data.DataFunctions.Executors.PythonScriptExecutor.<ExecuteFunction>d__11.MoveNext()
-   at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
-
+RuntimeError: boto3 가 없습니다 (No module named 'boto3'). Spotfire python = C:\Program Files (x86)\TIBCO\Spotfire\10.10.0\Modules\Python Interpreter_3.1006.10804.23\python\python.exe  |  설치 명령: "C:\Program Files (x86)\TIBCO\Spotfire\10.10.0\Modules\Python Interpreter_3.1006.10804.23\python\python.exe" -m pip install boto3
