@@ -1,4 +1,130 @@
-C:\Users\minuk12.choi>where /r C:\ Spotfire.Dxp.exe
-C:\Program Files (x86)\TIBCO\Spotfire\12.0.4\Spotfire.Dxp.exe
-C:\Program Files (x86)\TIBCO\Spotfire\12.0.4\Modules\Starter_56.11.20102.4497\Spotfire.Dxp.exe
-C:\Windows\Installer\{8ECBF779-9DC0-4A96-B609-826187F396E7}\Spotfire.Dxp.exe
+C:\Users\minuk12.choi>dir "C:\Program Files (x86)\TIBCO\Spotfire\12.0.4\Modules"
+ C 드라이브의 볼륨에는 이름이 없습니다.
+ 볼륨 일련 번호: 0E57-9717
+
+ C:\Program Files (x86)\TIBCO\Spotfire\12.0.4\Modules 디렉터리
+
+2026-05-11  오전 09:40    <DIR>          ..
+2026-05-11  오전 09:42    <DIR>          AddRowsDataTable_1.3
+2026-05-11  오전 09:42    <DIR>          Automation Services Core_56.11.20102.4497
+2026-05-11  오전 09:42    <DIR>          Automation Services_56.11.20102.4497
+2026-05-11  오전 09:42    <DIR>          AutoReloadTool_1.21
+2026-05-11  오전 09:42    <DIR>          Cobranding_1.0.1.0
+2026-05-11  오전 09:42    <DIR>          Core_56.11.20102.4497
+2026-05-11  오전 09:42    <DIR>          CustomDataFunction_1.0.1.16
+2026-05-11  오전 09:42    <DIR>          DataEngine_64_56.11.20102.4497
+2026-05-11  오전 09:42    <DIR>          DateTime Data Function_1.0.0.0
+2026-07-13  오후 03:32    <DIR>          DSSpotfireS3Service_1.2.7.0
+2026-05-11  오전 09:42    <DIR>          EdmService_2.0.0.2
+2026-05-11  오전 09:42    <DIR>          ExportDataTable_1.0.9031.2547
+2026-05-11  오전 09:42    <DIR>          ExportJson_1.2
+2026-05-11  오전 09:42    <DIR>          ExportLineAndCurve_1.0.9031.1550
+2026-05-11  오전 09:42    <DIR>          ExportMarkedRows_2.0.11712.3156
+2026-05-11  오전 09:42    <DIR>          ExtensionToolTester_1.0
+2026-05-11  오전 09:42    <DIR>          GeoAnalyticsFiles_56.11.20102.4497
+2026-05-11  오전 09:42    <DIR>          GetRowValue_1.0.9214.1889
+2026-05-11  오전 09:42    <DIR>          Help Files_56.11.20102.4497
+2026-07-13  오후 03:32    <DIR>          InformationLinkPlusWindowsDialog_3.68
+2026-05-11  오전 09:42    <DIR>          LoadDataAlarm_1.0.21
+2026-05-11  오전 09:42    <DIR>          LoadData_Led_19.19.15221.2254
+2026-05-11  오전 09:42    <DIR>          LoadData_SaveParam_2.2.24431.2522
+2026-05-11  오전 09:42    <DIR>          Loader_56.11.20102.4497
+2026-05-11  오전 09:42    <DIR>          ProbabilityPlot_2.1.11712.3114
+2026-05-11  오전 09:42    <DIR>          Publisher_Client_6.4.50916.165
+2026-05-11  오전 09:42    <DIR>          Python Interpreter_3.1006.10804.23
+2026-05-11  오전 09:42    <DIR>          Sample Files_56.11.20102.4497
+2026-05-11  오전 09:42    <DIR>          Script Support_56.11.20102.4497
+2026-05-11  오전 09:42    <DIR>          SendEmail_BigData_3.39
+2026-05-11  오전 09:42    <DIR>          Spotfire ADOMD based Connectors_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Apache HAWQ Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Apache HAWQ Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Apache Spark SQL Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Apache Spark SQL Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Application Profiler_56.11.20102.4497
+2026-05-11  오전 09:42    <DIR>          Spotfire Attivio Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Attivio Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Cloudera Hive Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Cloudera Hive Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Cloudera Impala Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Cloudera Impala Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Connector Internals_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Drill Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Drill Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Driver for SQL Server_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Driver for TIBCO Data Virtualization_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire DXP Forms_56.11.20102.4497
+2026-05-11  오전 09:42    <DIR>          Spotfire Enterprise Runtime for R_64_6.1.4.13
+2026-05-11  오전 09:42    <DIR>          Spotfire Google Analytics 4 Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Google Analytics 4 Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Google Analytics Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Google Analytics Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Google BigQuery Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Google BigQuery Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Google Common Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Google Common_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Greenplum Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Greenplum Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Hortonworks Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Hortonworks Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire IBM DB2 Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire IBM DB2 Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire IBM Netezza Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire IBM Netezza Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Microsoft Common_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Microsoft Sharepoint Online Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Microsoft Sharepoint Online Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire MySql Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire MySql Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire OData Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire OData Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire ODBC Connector Base_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Odbc_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Oracle Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Oracle Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Oracle Essbase Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Oracle Essbase Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire PostgreSql Base_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire PostgreSql Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire PostgreSql Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Redshift Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Redshift Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Salesforce Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Salesforce Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire SAP BW Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire SAP BW Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire SAP HANA Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire SAP HANA Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Snowflake Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Snowflake Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire SQL Server Analysis Services Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire SQL Server Analysis Services Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire SQL Server Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire SQL Server Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Teradata Aster Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Teradata Aster Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Teradata Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Teradata Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire TIBCO Cloud Live Apps Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire TIBCO Cloud Live Apps Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire TIBCO Data Virtualization Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire TIBCO Data Virtualization Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Vertica Connector Forms_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Vertica Connector_56.11.20101.988
+2026-05-11  오전 09:42    <DIR>          Spotfire Web Browser_64_56.11.20102.4497
+2026-06-05  오후 01:27    <DIR>          Spotfire_LibraryBookmarks_1.11
+2026-06-05  오후 01:27    <DIR>          Spotfire_LibraryBookmarks_1.14
+2026-06-05  오후 01:27    <DIR>          Spotfire_LibraryManager_2.10.32
+2026-06-05  오후 01:27    <DIR>          Spotfire_LibraryManager_2.11.2
+2026-05-11  오전 09:42    <DIR>          Starter_56.11.20102.4497
+2026-05-11  오전 09:42    <DIR>          S_QA_DS_1.0.0.12
+2026-05-11  오전 09:42    <DIR>          S_VOC_DS_1.9
+2026-05-11  오전 09:42    <DIR>          TERR Tools_6.1.4.13
+2026-05-11  오전 09:42    <DIR>          Third Party Products_56.11.20102.4497
+2026-05-11  오전 09:42    <DIR>          TSumData_19.19.15221.2265
+2026-05-11  오전 09:42    <DIR>          TSumData_Anal_19.19.15221.2265
+2026-05-11  오전 09:42    <DIR>          TSumData_Pkg_19.19.15221.2265
+2026-05-11  오전 09:42    <DIR>          Upgrade Installer_46.6.17128.4484
+2026-05-11  오전 09:42    <DIR>          URLPermissionsCheck_1.7
+2026-05-11  오전 09:42    <DIR>          WaferMapVisualization_2.6.14128.1581
+               0개 파일                   0 바이트
+             122개 디렉터리  28,483,653,632 바이트 남음
