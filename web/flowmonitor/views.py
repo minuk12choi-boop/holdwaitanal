@@ -721,7 +721,7 @@ LOT_DETAIL_COLS = [
 
 
 def api_lots(request):
-    """LOT 상세. 현황(Low WT)과 추이(FlowStack) 양쪽에서 같은 형식으로 쓴다.
+    """LOT 상세. 현황과 추이 양쪽에서 같은 형식으로 쓴다.
 
     line     라인 코드
     col      전체 | GY | DAY | SW
@@ -735,11 +735,16 @@ def api_lots(request):
     cause = request.GET.get("cause", "")
     status = request.GET.get("status", "")
     wt_range = request.GET.get("wt_range", "")     # FAB현황 W/T 분포에서
+    big = request.GET.get("big", "")               # 원인 대분류
+    mid = request.GET.get("mid", "")               # 중분류
+    sub = request.GET.get("sub", "")               # 소분류(설비명 또는 유형)
     req_date = request.GET.get("biz_date", "")
     max_wt = float(request.GET.get("max_wt", 0) or 0)
 
     if not (_table_exists("f3_history") and _table_exists("move_lot")):
         return JsonResponse({"rows": [], "cols": [], "reason": "미적재"})
+
+    rules = _cause_rules()
 
     if req_date:
         bd = req_date
@@ -762,9 +767,11 @@ def api_lots(request):
         else:
             shift = col
 
-        sel = ", ".join(
-            f"MIN(`{c}`) AS `{c}`" for c, _ in LOT_DETAIL_COLS
-            if c not in ("lot_id", "wt", "cause"))
+        need = [c for c, _ in LOT_DETAIL_COLS if c not in ("lot_id", "wt", "cause")]
+        for extra in ("recipe_id",):
+            if extra not in need:
+                need.append(extra)
+        sel = ", ".join(f"MIN(`{c}`) AS `{c}`" for c in need)
         cur.execute(f"""
             SELECT lot_id, {sel}
             FROM   f3_history
@@ -797,6 +804,15 @@ def api_lots(request):
                        r.get("down"), r.get("tip"), r.get("lot_status"))
         if cause and cs != cause:
             continue
+
+        if big or mid or sub:
+            b2, m2, s2 = classify_lot(r, rules)
+            if big and b2 != big:
+                continue
+            if mid and (m2 or "") != mid:
+                continue
+            if sub and sub not in s2:
+                continue
         r["wt"] = round(wt, 2)
         r["cause"] = cs
         out.append({c: r.get(c) for c, _ in LOT_DETAIL_COLS})
@@ -918,10 +934,58 @@ def _bucket(d, key, qty):
     c["qty"] += qty
 
 
+def classify_lot(r, rules):
+    """LOT 1건 -> (대분류, 중분류, 소분류후보리스트).
+
+    소분류가 설비 단위인 경우 lot 이 여러 설비에 걸릴 수 있어 리스트로 준다.
+    api_summary 와 api_lots 가 같은 함수를 써야 화면과 드릴다운이 어긋나지 않는다.
+    """
+    st = r.get("lot_status") or "-"
+    eqps = [x.strip() for x in str(r.get("eqpgroup") or "").split(",") if x.strip()]
+
+    if r.get("hold") or st == "HOLD":
+        return ("Hold", None,
+                [_classify(r.get("hold_reason"), rules.get("hold", []))])
+
+    virtual = "WAIT" in " ".join(
+        str(r.get(k) or "") for k in ("recipe_id", "step_seq", "step_desc")).upper()
+
+    if st == "WAIT(진행불가)" or r.get("exception") or r.get("ftp") \
+            or _eqp_status_of(r.get("down")) or r.get("tip"):
+        if r.get("exception"):
+            return ("Wait성 진행불가", "예약제외",
+                    [_classify(r.get("exception_reason"), rules.get("exception", []))])
+        if r.get("ftp"):
+            return ("Wait성 진행불가", "FTP",
+                    [_classify(r.get("ftp_reason"), rules.get("ftp", []))])
+        eqp_st = _eqp_status_of(r.get("down"))
+        if eqp_st:
+            return ("Wait성 진행불가", "설비이슈", eqps or ["(설비미상)"])
+        if r.get("tip"):
+            return ("Wait성 진행불가", "TIP", eqps or ["(설비미상)"])
+        if virtual:
+            return ("Wait성 진행불가", "가상스텝 대기", ["가상스텝"])
+        return ("Wait성 진행불가", "기타", ["미분류"])
+
+    if st == "WAIT":
+        if virtual:
+            return ("Wait성 진행불가", "가상스텝 대기", ["가상스텝"])
+        return ("Bottleneck", None, eqps or ["(설비미상)"])
+
+    return (None, None, [])
+
+
+def _add(node, lots, qty):
+    node["lots"] += lots
+    node["qty"] += qty
+
+
 def api_summary(request):
     """FAB현황 좌측 summary 뷰 한 벌."""
-    line = request.GET.get("line") or LINE_CARDS[2]["line"]
-    types = [t for t in request.GET.get("types", "").split(",") if t]
+    line = request.GET.get("line") or DEFAULT_LINE
+    raw = request.GET.get("types")
+    types = ([t for t in raw.split(",") if t] if raw is not None
+             else list(DEFAULT_LOT_TYPES))
 
     if not _table_exists("f3_live"):
         return JsonResponse({"ready": False, "reason": "f3_live 미적재"})
@@ -930,13 +994,16 @@ def api_summary(request):
     if not rows:
         return JsonResponse({"ready": False, "reason": "이 라인의 스냅샷이 없습니다"})
 
+    # lot_type 목록은 필터와 무관하게 전체에서 뽑아야 토글이 유지된다
+    all_rows, _ = _summary_rows(line, [])
+    all_types = sorted({(r.get("lot_type") or "-") for r in all_rows}, key=lot_type_key)
+
     mv = _lot_move_map(line)
     rules = _cause_rules()
 
     tot = {"lots": 0, "qty": 0}
     by_type, by_status, by_wt = {}, {}, {}
-    cause = {"Hold": {}, "Wait성 진행불가": {}, "Bottleneck": {}}
-    eqp_wait, eqp_issue = {}, {}
+    tree = {}
 
     for r in rows:
         q = num(r.get("qty"))
@@ -947,57 +1014,42 @@ def api_summary(request):
         _bucket(by_status, st, q)
         _bucket(by_wt, _wt_range_key((mv.get(r["lot_id"], 0.0) / q) if q else 0.0), q)
 
-        eqps = [x.strip() for x in str(r.get("eqpgroup") or "").split(",") if x.strip()]
-        w = 1.0 / len(eqps) if eqps else 0.0
-
-        # --- 대분류 판정 (겹치면 위에서부터 하나에만) ---
-        if r.get("hold") or st == "HOLD":
-            _bucket(cause["Hold"], _classify(r.get("hold_reason"), rules.get("hold", [])), q)
+        big, mid, subs = classify_lot(r, rules)
+        if not big:
             continue
+        w = 1.0 / len(subs) if subs else 0.0      # 설비 여러 개면 지분으로 나눔
+        g = tree.setdefault(big, {"lots": 0.0, "qty": 0.0, "mid": {}})
+        _add(g, 1, q)
+        mkey = mid or "_"
+        m = g["mid"].setdefault(mkey, {"lots": 0.0, "qty": 0.0, "sub": {}})
+        _add(m, 1, q)
+        for sname in subs:
+            sc = m["sub"].setdefault(sname, {"lots": 0.0, "qty": 0.0})
+            _add(sc, w, q * w)
 
-        eqp_st = _eqp_status_of(r.get("down"))
-        if r.get("exception") or r.get("ftp") or eqp_st or r.get("tip"):
-            d = cause["Wait성 진행불가"]
-            if r.get("exception"):
-                _bucket(d, "EXC · " + _classify(r.get("exception_reason"),
-                                                rules.get("exception", [])), q)
-            elif r.get("ftp"):
-                _bucket(d, "FTP · " + _classify(r.get("ftp_reason"),
-                                                rules.get("ftp", [])), q)
-            elif eqp_st:
-                for e in eqps:
-                    ec = eqp_issue.setdefault((eqp_st, e), {"lots": 0.0, "qty": 0.0})
-                    ec["lots"] += w
-                    ec["qty"] += q * w
-                _bucket(d, "설비 · " + eqp_st, q)
-            else:
-                _bucket(d, "TIP · PREVENT", q)
+    def node(name, v, extra=None):
+        d = {"name": name, "lots": round(v["lots"], 1), "qty": int(round(v["qty"]))}
+        if extra:
+            d.update(extra)
+        return d
+
+    def subs_of(m, limit=TOP_N):
+        items = sorted(m["sub"].items(), key=lambda kv: (-kv[1]["qty"], kv[0]))
+        return [node(k, v) for k, v in items[:limit]]
+
+    causes = []
+    for big in ("Hold", "Wait성 진행불가", "Bottleneck"):
+        g = tree.get(big)
+        if not g:
+            causes.append({"name": big, "lots": 0, "qty": 0, "children": []})
             continue
-
-        # --- Bottleneck: 진행불가는 아니나 대기가 쌓인 것 ---
-        if st == "WAIT":
-            txt = " ".join(str(r.get(k) or "") for k in
-                           ("recipe_id", "step_seq", "step_desc")).upper()
-            if "WAIT" in txt:
-                _bucket(cause["Bottleneck"], "가상스텝 대기", q)
+        children = []
+        for mkey, m in sorted(g["mid"].items(), key=lambda kv: -kv[1]["qty"]):
+            if mkey == "_":
+                children = subs_of(m, 12)          # 중분류 없는 대분류
             else:
-                for e in eqps:
-                    ec = eqp_wait.setdefault(e, {"lots": 0.0, "qty": 0.0})
-                    ec["lots"] += w
-                    ec["qty"] += q * w
-                _bucket(cause["Bottleneck"], "설비 대기", q)
-
-    def pack(d, keys=None):
-        items = [(k, v) for k, v in d.items()] if keys is None else \
-                [(k, d.get(k, {"lots": 0, "qty": 0})) for k in keys]
-        return [{"name": k, "lots": round(v["lots"], 1) if isinstance(v["lots"], float)
-                 else v["lots"], "qty": int(round(v["qty"]))} for k, v in items]
-
-    def top(d, metric):
-        items = sorted(d.items(), key=lambda kv: (-kv[1][metric], str(kv[0])))[:TOP_N]
-        return [{"name": (k if isinstance(k, str) else " · ".join(k)),
-                 "lots": round(v["lots"], 1), "qty": int(round(v["qty"]))}
-                for k, v in items]
+                children.append(node(mkey, m, {"children": subs_of(m)}))
+        causes.append(node(big, g, {"children": children}))
 
     status = [{"name": s, "color": STATUS_COLORS[s],
                "lots": by_status.get(s, {}).get("lots", 0),
@@ -1011,7 +1063,7 @@ def api_summary(request):
         "ready": True, "line": line,
         "snapshot_at": (snap.strftime("%Y-%m-%d %H:%M")
                         if hasattr(snap, "strftime") else str(snap)),
-        "types": sorted(by_type, key=lot_type_key),
+        "types": all_types, "selected_types": types,
         "total": tot,
         "by_lot_type": [{"name": k, **by_type[k]}
                         for k in sorted(by_type, key=lot_type_key)],
@@ -1023,16 +1075,10 @@ def api_summary(request):
             "lots": sum(x["lots"] for x in blocked),
             "qty": sum(x["qty"] for x in blocked)},
         "wt_ranges": WT_RANGES,
-        "wt_dist": pack(by_wt, [r["key"] for r in WT_RANGES]),
-        "causes": [
-            {"name": "Hold", "sub": pack(cause["Hold"])},
-            {"name": "Wait성 진행불가", "sub": pack(cause["Wait성 진행불가"])},
-            {"name": "Bottleneck", "sub": pack(cause["Bottleneck"])},
-        ],
-        "top_eqp": {
-            "wait": {"lots": top(eqp_wait, "lots"), "qty": top(eqp_wait, "qty")},
-            "issue": {"lots": top(eqp_issue, "lots"), "qty": top(eqp_issue, "qty")},
-        },
+        "wt_dist": [{"name": r["key"], "label": r["label"],
+                     **by_wt.get(r["key"], {"lots": 0, "qty": 0})}
+                    for r in WT_RANGES],
+        "causes": causes,
     }, json_dumps_params={"ensure_ascii": False})
 
 
@@ -1105,3 +1151,50 @@ def standards(request):
     return render(request, "flowmonitor/standards.html",
                   {"menu": MENU, "rules": rules, "msg": msg,
                    "categories": ["hold", "exception", "ftp"]})
+
+
+def api_lots_live(request):
+    """FAB현황 드릴다운. 현재 단면(f3_live) 기준.
+
+    W/T 분포 막대와 원인 분석 노드에서 넘어온 조건을 그대로 적용한다.
+    분류는 api_summary 와 동일한 classify_lot 을 쓴다.
+    """
+    line = request.GET.get("line") or DEFAULT_LINE
+    raw = request.GET.get("types")
+    types = ([t for t in raw.split(",") if t] if raw is not None
+             else list(DEFAULT_LOT_TYPES))
+    wt_range = request.GET.get("wt_range", "")
+    big = request.GET.get("big", "")
+    mid = request.GET.get("mid", "")
+    sub = request.GET.get("sub", "")
+
+    if not _table_exists("f3_live"):
+        return JsonResponse({"rows": [], "cols": [], "reason": "f3_live 미적재"})
+
+    rows, snap = _summary_rows(line, types)
+    mv = _lot_move_map(line)
+    rules = _cause_rules()
+
+    out = []
+    for r in rows:
+        q = num(r.get("qty"))
+        wt = (mv.get(r["lot_id"], 0.0) / q) if q else 0.0
+        if wt_range and _wt_range_key(wt) != wt_range:
+            continue
+        b2, m2, s2 = classify_lot(r, rules)
+        if big and b2 != big:
+            continue
+        if mid and (m2 or "") != mid:
+            continue
+        if sub and sub not in s2:
+            continue
+        rec = dict(r)
+        rec["wt"] = round(wt, 2)
+        rec["cause"] = " / ".join(x for x in (b2, m2) if x)
+        out.append({c: rec.get(c) for c, _ in LOT_DETAIL_COLS})
+
+    out.sort(key=lambda x: (x["wt"], str(x["lot_id"])))
+    return JsonResponse({
+        "rows": out, "cols": [{"k": c, "t": t} for c, t in LOT_DETAIL_COLS],
+        "line": line, "snapshot_at": str(snap) if snap else "",
+    }, json_dumps_params={"ensure_ascii": False})

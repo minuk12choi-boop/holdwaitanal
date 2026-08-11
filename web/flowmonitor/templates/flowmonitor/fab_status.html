@@ -47,7 +47,7 @@
           <button id="wu_lots" onclick="setWtUnit('lots')">LOT</button>
           <button class="on" id="wu_qty" onclick="setWtUnit('qty')">매</button>
         </span></div>
-      <div class="wtb" id="wtb"></div>
+      <div style="height:190px"><canvas id="wtc"></canvas></div>
     </div>
 
     <!-- 원인 분석 뷰 -->
@@ -57,7 +57,8 @@
           <button id="cu_lots" onclick="setCauseUnit('lots')">LOT</button>
           <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
         </span></div>
-      <div class="cz" id="cz"></div>
+      <div id="czpath" class="czpath"></div>
+      <div style="height:200px"><canvas id="czc"></canvas></div>
     </div>
   </div>
 
@@ -83,6 +84,14 @@ let LINE = "{{ default_line }}";
 let DATA = null;
 let SEL_STATUS = null;
 let WT_UNIT = "qty";
+// lot_type 선택은 라인/뷰를 바꿔도 유지된다. 기본은 PP+PG.
+let TYPE_PREF = (() => {
+  try {
+    const v = JSON.parse(localStorage.getItem("lotTypePref"));
+    if (Array.isArray(v)) return v;
+  } catch (e) {}
+  return ["PP", "PG"];
+})();
 let CAUSE_UNIT = "qty";
 let dnChart = null;
 
@@ -99,13 +108,21 @@ document.addEventListener("click", e => {
 });
 
 function selectedTypes() {
-  return [...document.querySelectorAll("#ddm input:checked")].map(x => x.value);
+  const boxes = document.querySelectorAll("#ddm input:checked");
+  if (!document.getElementById("ddm").innerHTML) return TYPE_PREF;   // 초기 로드
+  return [...boxes].map(x => x.value);
+}
+
+function syncTypeLabel() {
+  const t = selectedTypes();
+  document.getElementById("ddb").innerHTML =
+    (t.length ? (t.length <= 3 ? t.join(",") : t.length + "개 선택") : "전체") + " &#9662;";
 }
 
 function onTypeCheck() {
-  const t = selectedTypes();
-  document.getElementById("ddb").innerHTML =
-    (t.length ? (t.length <= 2 ? t.join(",") : t.length + "개 선택") : "전체") + " &#9662;";
+  TYPE_PREF = selectedTypes();
+  try { localStorage.setItem("lotTypePref", JSON.stringify(TYPE_PREF)); } catch (e) {}
+  syncTypeLabel();
   loadSummary();
 }
 
@@ -113,8 +130,7 @@ function pickLine(line) {
   LINE = line;
   document.querySelectorAll("#lineseg button").forEach(b =>
     b.classList.toggle("on", b.dataset.line === line));
-  document.getElementById("ddm").innerHTML = "";   // 라인마다 lot_type 이 다르다
-  document.getElementById("ddb").innerHTML = "전체 &#9662;";
+  document.getElementById("ddm").innerHTML = "";   // 라인마다 lot_type 이 다를 수 있다
   loadSummary();
 }
 
@@ -139,9 +155,11 @@ function renderWip() {
   document.getElementById("wq").textContent = nf(d.total.qty);
 
   if (!document.getElementById("ddm").innerHTML) {
+    const sel = new Set(d.selected_types || []);
     document.getElementById("ddm").innerHTML = d.types.map(t =>
-      `<label><input type="checkbox" value="${t}" onchange="onTypeCheck()">${t}</label>`
-    ).join("");
+      `<label><input type="checkbox" value="${t}" ${sel.has(t) ? "checked" : ""}`
+      + ` onchange="onTypeCheck()">${t}</label>`).join("");
+    syncTypeLabel();
   }
   const tot = d.by_lot_type.reduce((a, x) => a + x.lots, 0) || 1;
   document.getElementById("ws").innerHTML = d.by_lot_type.map((x, k) =>
@@ -229,41 +247,140 @@ function renderStatus() {
   setStatusInfo();
 }
 
-/* --- W/T 분포 : 위가 WT0, 아래로 갈수록 정상 --- */
+/* --- W/T 분포 : 위가 WT0(가장 심각), 아래로 갈수록 정상 --- */
+let wtChart = null;
+
 function renderWt() {
   const d = DATA, u = WT_UNIT;
   const vals = d.wt_dist.map(x => u === "lots" ? x.lots : x.qty);
-  const mx = Math.max.apply(null, vals.concat([1]));
-  document.getElementById("wtb").innerHTML = d.wt_dist.map((x, i) => {
-    const v = vals[i];
-    // WT0 이 가장 진한 적색(#DC143C), 아래로 갈수록 옅어진다 = 심각도 표현
-    const a = 1 - 0.13 * i;
-    const alt = u === "lots" ? x.qty + " 매" : x.lots + " LOT";
-    return `<div class="row">
-      <div class="k">${d.wt_ranges[i].label}</div>
-      <div class="bar" title="${alt}"
-           onclick="openDrill({line:'${LINE}',wt_range:'${x.name}',
-                    label:'${d.wt_ranges[i].label}'})">
-        <i style="width:${v / mx * 100}%;background:rgba(220,20,60,${a.toFixed(2)})"></i>
-      </div>
-      <div class="v">${nf(v)}</div></div>`;
-  }).join("");
+  const colors = d.wt_dist.map((_, i) =>
+    `rgba(220,20,60,${Math.max(1 - 0.13 * i, 0.18).toFixed(2)})`);
+
+  if (!wtChart) {
+    wtChart = new Chart(document.getElementById("wtc"), {
+      type: "bar",
+      data: { labels: [], datasets: [{ data: [], borderRadius: 3 }] },
+      options: {
+        indexAxis: "y", responsive: true, maintainAspectRatio: false,
+        animation: false,
+        layout: { padding: { right: 34 } },
+        plugins: { legend: { display: false },
+                   tooltip: { callbacks: { label: (t) => {
+                     const x = DATA.wt_dist[t.dataIndex];
+                     return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
+                   } } } },
+        scales: { x: { display: false, beginAtZero: true, grace: "12%" },
+                  y: { grid: { display: false }, ticks: { font: { size: 11 } } } },
+        onClick: (e, els) => {
+          if (!els.length) return;
+          const x = DATA.wt_dist[els[0].index];
+          openDrill({ wt_range: x.name }, x.label);
+        }
+      },
+      plugins: [{
+        id: "wtVal",
+        afterDatasetsDraw(ch) {
+          const ctx = ch.ctx;
+          ctx.save();
+          ctx.font = "11px 'Poppins','Noto Sans KR',sans-serif";
+          ctx.textAlign = "left"; ctx.textBaseline = "middle";
+          ctx.fillStyle = "#374151";
+          ch.getDatasetMeta(0).data.forEach((el, k) => {
+            ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x + 6, el.y);
+          });
+          ctx.restore();
+        }
+      }]
+    });
+  }
+  wtChart.data.labels = d.wt_dist.map(x => x.label);
+  wtChart.data.datasets[0].data = vals;
+  wtChart.data.datasets[0].backgroundColor = colors;
+  wtChart.update();
 }
 
-/* --- 원인 분석 --- */
+/* --- 원인 분석 : 대분류 > 중분류 > 소분류 를 차트로 파고든다 --- */
+let czChart = null;
+let CZ_PATH = [];          // [{name, node}]
+
+function czNodes() {
+  let list = DATA.causes;
+  for (const p of CZ_PATH) {
+    const hit = list.find(x => x.name === p);
+    list = (hit && hit.children) || [];
+  }
+  return list;
+}
+
+function czFilter() {
+  const f = {};
+  if (CZ_PATH[0]) f.big = CZ_PATH[0];
+  if (CZ_PATH[1]) f.mid = CZ_PATH[1];
+  if (CZ_PATH[2]) f.sub = CZ_PATH[2];
+  return f;
+}
+
+function czGo(depth) { CZ_PATH = CZ_PATH.slice(0, depth); renderCause(); }
+
 function renderCause() {
-  const d = DATA, u = CAUSE_UNIT;
-  document.getElementById("cz").innerHTML = d.causes.map(g => {
-    const rows = g.sub.slice()
-      .sort((a, b) => (u === "lots" ? b.lots - a.lots : b.qty - a.qty));
-    const sum = rows.reduce((a, x) => a + (u === "lots" ? x.lots : x.qty), 0);
-    const body = rows.length ? rows.map(x =>
-      `<div class="it"><span>${x.name}</span>
-         <b>${nf(u === "lots" ? x.lots : x.qty)}</b></div>`).join("")
-      : `<div class="none">해당 없음</div>`;
-    return `<div class="grp"><div class="gh"><span>${g.name}</span>
-      <span>${nf(sum)} ${u === "lots" ? "LOT" : "매"}</span></div>${body}</div>`;
-  }).join("");
+  const u = CAUSE_UNIT;
+  const nodes = czNodes();
+
+  document.getElementById("czpath").innerHTML =
+    `<a onclick="czGo(0)">전체</a>`
+    + CZ_PATH.map((p, i) => ` &rsaquo; <a onclick="czGo(${i + 1})">${p}</a>`).join("");
+
+  if (!czChart) {
+    czChart = new Chart(document.getElementById("czc"), {
+      type: "bar",
+      data: { labels: [], datasets: [{ data: [], borderRadius: 3 }] },
+      options: {
+        indexAxis: "y", responsive: true, maintainAspectRatio: false,
+        animation: false,
+        layout: { padding: { right: 34 } },
+        plugins: { legend: { display: false },
+                   tooltip: { callbacks: { label: (t) => {
+                     const x = czNodes()[t.dataIndex];
+                     return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
+                   } } } },
+        scales: { x: { display: false, beginAtZero: true, grace: "12%" },
+                  y: { grid: { display: false }, ticks: { font: { size: 11 } } } },
+        onClick: (e, els) => {
+          if (!els.length) return;
+          const x = czNodes()[els[0].index];
+          if (x.children && x.children.length) {      // 더 파고들 수 있으면 진입
+            CZ_PATH.push(x.name);
+            renderCause();
+          } else {                                     // 말단이면 드릴다운
+            CZ_PATH.push(x.name);
+            renderCause();
+            openDrill(czFilter(), CZ_PATH.join(" › "));
+          }
+        }
+      },
+      plugins: [{
+        id: "czVal",
+        afterDatasetsDraw(ch) {
+          const ctx = ch.ctx;
+          ctx.save();
+          ctx.font = "11px 'Poppins','Noto Sans KR',sans-serif";
+          ctx.textAlign = "left"; ctx.textBaseline = "middle";
+          ctx.fillStyle = "#374151";
+          ch.getDatasetMeta(0).data.forEach((el, k) => {
+            ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x + 6, el.y);
+          });
+          ctx.restore();
+        }
+      }]
+    });
+  }
+  const vals = nodes.map(x => u === "lots" ? x.lots : x.qty);
+  const mx = Math.max.apply(null, vals.concat([1]));
+  czChart.data.labels = nodes.map(x => x.name);
+  czChart.data.datasets[0].data = vals;
+  czChart.data.datasets[0].backgroundColor = vals.map(v =>
+    `rgba(47,75,124,${(0.3 + 0.7 * v / mx).toFixed(2)})`);
+  czChart.update();
 }
 
 /* --- 드릴다운 --- */
@@ -275,15 +392,15 @@ function closeDrill() {
       해당 LOT 상세가 여기에 표시됩니다.</div>`;
 }
 
-function openDrill(opt) {
+function openDrill(filt, label) {
   const el = document.getElementById("drill");
   el.innerHTML = `<div class="bar"><b>불러오는 중…</b></div>`;
   smoothTo(el);
-  const label = opt.label || "";
-  const q = Object.entries(opt)
-    .filter(([k, v]) => k !== "label" && v !== undefined && v !== null && v !== "")
+  const base = { line: LINE, types: selectedTypes().join(",") };
+  const q = Object.entries(Object.assign(base, filt || {}))
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
     .map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
-  fetch("/api/lots/?" + q).then(r => r.json()).then(d => {
+  fetch("/api/lots-live/?" + q).then(r => r.json()).then(d => {
     const cols = d.cols || [], rows = d.rows || [];
     const head = cols.map(c => `<th>${c.t}</th>`).join("");
     const body = rows.map(r => "<tr>" + cols.map(c =>
@@ -292,7 +409,7 @@ function openDrill(opt) {
       + "</tr>").join("");
     el.innerHTML = `<div class="bar">
         <div><b>${nf(rows.length)} LOT</b>
-          <span class="path">${[LINE, label, d.biz_date].filter(Boolean).join(" / ")}</span></div>
+          <span class="path">${[LINE, label].filter(Boolean).join(" / ")}</span></div>
         <button onclick="closeDrill()">닫기</button></div>
       <div class="scroll"><table><thead><tr>${head}</tr></thead><tbody>${body
         || `<tr><td colspan="${cols.length}" style="color:#6B7280">`
@@ -311,6 +428,7 @@ function loadSummary() {
       err.textContent = "";
       DATA = d;
       SEL_STATUS = null;
+      CZ_PATH = [];
       document.getElementById("snapAt").textContent = d.snapshot_at || "-";
       renderWip(); renderStatus(); renderWt(); renderCause();
     })
