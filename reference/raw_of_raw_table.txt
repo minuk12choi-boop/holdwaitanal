@@ -69,7 +69,7 @@ raw_of_raw_table.txt
 ================================================================================
 
 --------------------------------------------------------------------------------
--- 1) lot : mc_lot + mc_lot_attr(GRADE) + mc_lot_step_comment
+-- 1) lot : mc_lot + mc_lot_attr(GRADE) + mc_lot_step_comment  *호출시간: 
 --
 --    build_f3.py 의 lot_query 를 그대로 옮긴 것이다. 구조/조건 동일.
 --    단 materialworkstatus 는 datasource 가 달라 여기 조인할 수 없다.
@@ -183,7 +183,7 @@ WHERE      m1.line = m1.sys_line_id
 ;
 
 --------------------------------------------------------------------------------
--- 2) materialworkstatus : fa_object4
+-- 2) PFR1_KFR7_MATERIALWORKSTATUS : fa_object4  *호출시간: 7초
 --    #1 과 datasource 가 달라 따로 부른다. 라인은 LINE 컬럼으로 구분한다.
 --    python 이 lot 결과에 (line, lot_id) 로 LEFT JOIN 해 fa_object4 를 붙인다.
 --------------------------------------------------------------------------------
@@ -199,11 +199,13 @@ FROM   smicdc_nrdk.materialworkstatus
 ;
 
 --------------------------------------------------------------------------------
--- 3) pfr1_step_path : smicdc_p3nrd.mc_lot_step_path
+-- 3) PFR1_KFR7_STEP_PATH: smicdc_p3nrd.mc_lot_step_path, smicdc_nrdk.mc_lot_step_path *호출시간: 62초
 --    현재 Impala 버전과 동일하게 mc_lot(Active/Hold) 조인으로 행을 줄인다.
 --    delay_step_type S/Y 는 de_rank 누적 계산에 필요해 위치와 무관하게 남긴다.
 --------------------------------------------------------------------------------
-SELECT p.lot_id,
+SELECT 
+'PFR1' AS LINE_ID, 
+p.lot_id,
        p.order_seq,
        p.proc_id,
        p.step_seq,
@@ -225,12 +227,12 @@ FROM   smicdc_p3nrd.mc_lot_step_path p,
 WHERE  p.lot_id = c.lot_id
   AND  (p.order_seq >= c.order_seq
         OR p.delay_step_type IN ('S', 'Y'))
-;
 
---------------------------------------------------------------------------------
--- 4) kfr7_step_path : smicdc_nrdk.mc_lot_step_path
---------------------------------------------------------------------------------
-SELECT p.lot_id,
+UNION ALL
+
+SELECT 
+	'KFR7' AS LINE_ID, 
+	p.lot_id,
        p.order_seq,
        p.proc_id,
        p.step_seq,
@@ -252,13 +254,14 @@ FROM   smicdc_nrdk.mc_lot_step_path p,
 WHERE  p.lot_id = c.lot_id
   AND  (p.order_seq >= c.order_seq
         OR p.delay_step_type IN ('S', 'Y'))
-;
 
 --------------------------------------------------------------------------------
--- 5) pfr1_tip : smicdc_p3nrd.trackinprevent
+-- 4) PFR1_KFR7_TIP : smicdc_p3nrd.trackinprevent, smicdc_nrdk.trackinprevent *호출시간: 60초
 --     lot_type 컬럼은 없다. python 이 '-'(와일드카드)로 채운다.
 --------------------------------------------------------------------------------
-SELECT process,
+SELECT 
+'PFR1' as line_id,
+process,
        step,
        ppid,
        eqpid,
@@ -270,12 +273,12 @@ SELECT process,
        eventtime
 FROM   smicdc_p3nrd.trackinprevent
 WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
-;
 
---------------------------------------------------------------------------------
--- 6) kfr7_tip : smicdc_nrdk.trackinprevent
---------------------------------------------------------------------------------
-SELECT process,
+union all 
+
+SELECT 
+'KFR7' as line_id,
+process,
        step,
        ppid,
        eqpid,
@@ -287,10 +290,9 @@ SELECT process,
        eventtime
 FROM   smicdc_nrdk.trackinprevent
 WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
-;
 
 --------------------------------------------------------------------------------
--- 7) equipment : smimes.mi_equipment
+-- 5) PFR1_KFR7_EQUIPMENT : smimes.mi_equipment *호출시간: 8초
 --     Impala 버전의 조건(line_id 한정, tool_kind IN ('EQP','CHAMBER'))은 유지.
 --     impala_insert_time 최신 선별만 뺀다(Oracle 원본에는 없는 컬럼).
 --------------------------------------------------------------------------------
@@ -307,7 +309,7 @@ WHERE  line_id IN ('KFR7', 'PFR1')
 ;
 
 --------------------------------------------------------------------------------
--- 8) eqp_group : smimes.mi_eqp_group_list
+-- 6) PFR1_KFR7_EQP_GROUP : smimes.mi_eqp_group_list *호출시간: 6초
 --     Impala 버전과 동일. 'OFF' 설비 제외는 python 에서 한다(하루 1회 캐시 대상).
 --------------------------------------------------------------------------------
 SELECT line_id,
@@ -318,7 +320,7 @@ WHERE  line_id IN ('KFR7', 'PFR1')
 ;
 
 --------------------------------------------------------------------------------
--- 9) hold : memmss.fab_issue_lot
+-- 7) PFR1_KFR7_HOLD : memmss.fab_issue_lot *호출시간: 15초 (*fab_issue_lot의 datasource도 mc_lot과 달라서 분리해둠)
 --     impala_insert_time 은 Impala 적재본 전용 컬럼이라 넣지 않는다.
 --     version_desc 는 적재 스냅샷 ID 로 Oracle 원본에도 있다. 반드시 포함한다.
 --     Impala 버전은 최신 version_desc + status_seq <> '2' + 재공 lot 조인까지
@@ -339,15 +341,10 @@ WHERE  h.line_id IN ('KFR7', 'PFR1')
   AND  h.version_desc = (SELECT MAX(version_desc)
                          FROM   memmss.fab_issue_lot
                          WHERE  line_id IN ('KFR7', 'PFR1'))
-  AND  h.lot_id IN (SELECT lot_id FROM smicdc_p3nrd.mc_lot
-                    WHERE lot_status_seg IN ('Active', 'Hold')
-                    UNION ALL
-                    SELECT lot_id FROM smicdc_nrdk.mc_lot
-                    WHERE lot_status_seg IN ('Active', 'Hold'))
 ;
 
 --------------------------------------------------------------------------------
--- 10) move : SMIMES.MI_LOT_TRANSN_HIST
+-- 8) PFR1_KFR7_MOVE : SMIMES.MI_LOT_TRANSN_HIST  *호출시간: 9초
 --     MOVE = TrackOut 매수. lot_type 은 PP/PB/PG 만.
 --     line_id 는 cur/sys 합집합이라 sys_line_id 조건을 함께 건다.
 --     기간은 Spotfire 파라미터로 바꿔 쓴다(아래는 최근 3일).
