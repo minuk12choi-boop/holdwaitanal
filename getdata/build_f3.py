@@ -112,13 +112,15 @@ m1 AS (
                         'yyyyMMddHHmmss')    AS step_arrive_date,
            TO_TIMESTAMP(RPAD(SUBSTR(REGEXP_REPLACE(m.last_event_date, '[^0-9]', ''), 1, 14), 14, '0'),
                         'yyyyMMddHHmmss')    AS last_event_date,
-	NULL as fa_object4
+           w.fa_object4
     FROM        MOS_KH_SMI.SMICDC_P3NRD_MC_LOT m
     JOIN        m0
       ON        m.lot_id          = m0.lot_id
      AND        m.last_event_date = m0.max_event_date
     LEFT JOIN   g_pfr1 g
       ON        m.object_id = g.parent_object_id
+    LEFT JOIN   MOS_KH_SMI.SMICDC_P3NRD_MATERIALWORKSTATUS w
+      ON        m.lot_id = w.lotid
     WHERE       m.lot_status_seg IN ('Active', 'Hold')
       AND       m.order_seq IS NOT NULL
 
