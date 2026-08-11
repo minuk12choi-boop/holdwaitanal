@@ -1,0 +1,150 @@
+<참고용_다른프로젝트에서쓰이는s3drive삽입코드>
+import boto3
+
+import io
+
+import pandas as pd
+
+
+
+PMCBMData_df = PMCBMData
+
+PMTBMData_df = PMTBMData
+
+PMCBMDayUseData_df = PMCBMDayUseData
+
+EQPEfficiencyBodyData_df = EQPEfficiencyBodyData
+
+EQPEfficiencyChamberData_df = EQPEfficiencyChamberData
+
+InitialProcessingWIPData_df = InitialProcessingWIPData
+
+InitialWaitingWIPData_df = InitialWaitingWIPData
+
+ReleasePlanData_df = ReleasePlanData
+
+ChamberInfoData_df = ChamberInfoData
+
+PPIDProcTimeData_df = PPIDProcTimeData
+
+EQPProcTimeData_df = EQPProcTimeData
+
+LotTransnProcTimeData_df = LotTransnProcTimeData
+
+WaitTimeData_df = WaitTimeData
+
+RealQTYRatioData_df = RealQTYRatioData
+
+StepToStepCountData_df = StepToStepCountData
+
+DayRealMovingData_df = DayRealMovingData
+
+
+
+Name1='PMCBM'
+
+Name2='PMTBM'
+
+Name3='PMCBMDayUse'
+
+Name4='EQPEfficiencyBody'
+
+Name5='EQPEfficiencyChamber'
+
+Name6='InitialProcessingWIP'
+
+Name7='InitialWaitingWIP'
+
+Name8='ReleasePlan'
+
+Name9='ChamberInfo'
+
+Name10='PPIDProcTime'
+
+Name11='EQPProcTime'
+
+Name12='LotTransnProcTime'
+
+Name13='WaitTime'
+
+Name14='RealQTYRatio'
+
+Name15='StepToStepCount'
+
+Name16='DayRealMoving'
+
+
+
+DataNameDict={Name1:PMCBMData_df,
+
+Name2:PMTBMData_df,
+
+Name3:PMCBMDayUseData_df,
+
+Name4:EQPEfficiencyBodyData_df,
+
+Name5:EQPEfficiencyChamberData_df,
+
+Name6:InitialProcessingWIPData_df,
+
+Name7:InitialWaitingWIPData_df,
+
+Name8:ReleasePlanData_df,
+
+Name9:ChamberInfoData_df,
+
+Name10:PPIDProcTimeData_df,
+
+Name11:EQPProcTimeData_df,
+
+Name12:LotTransnProcTimeData_df,
+
+Name13:WaitTimeData_df,
+
+Name14:RealQTYRatioData_df,
+
+Name15:StepToStepCountData_df,
+
+Name16:DayRealMovingData_df
+
+}
+
+
+
+bucket_name = "FAB_MODELING"
+
+bucket_path = "PM/NRD_PM/InputData_RealTime(NRD)/"
+
+
+
+s3_client = boto3.client(
+
+    service_name='s3',
+
+    aws_access_key_id="AKIA224306DD8AE960EA",
+
+    aws_secret_access_key="GVWrWl9gAgcIUUi1Eh/cuou4tc5tjOUAUp1Jftlc",
+
+    endpoint_url='http://s3.dataplatform.samsungds.net:9020'
+
+)
+
+
+
+for key, value in DataNameDict.items():
+
+    buffer = io.BytesIO()
+
+    object_key = bucket_path+key+'.pkl'
+
+    value.to_pickle(buffer)
+
+    buffer.seek(0)
+
+    s3_client.upload_fileobj(buffer, bucket_name, object_key)
+
+
+
+<내 정보>
+aws_access_key_id="AKIA2DBBF18BDEA535F3"
+aws_secret_access_key="vyyKvOA5PJIN8BJTMM3brzIL0oRbNVSzjrLg+vLr"
