@@ -154,6 +154,30 @@ W/T 의 분모(재공)는 스냅샷 시점 값이고 분자(MOVE)는 구간 누�
 
 ---
 
+## 5-1. S3 Drive 적재
+
+`getdata/s3_upload.py` 가 DB 의 최신 스냅샷/집계를 S3 로 올린다.
+자격증명은 **코드에 박지 않고 `.env`** 에서 읽는다(`.env` 는 git 에 올리지 않는다).
+
+```
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
+S3_ENDPOINT_URL=http://s3.dataplatform.samsungds.net:9020
+S3_BUCKET=FAB_MODELING
+S3_PREFIX=PM/NRD_PM/InputData_RealTime(NRD)/
+```
+
+```
+python getdata/s3_upload.py          # f3_live / move_* 를 pkl 로 업로드
+```
+
+다른 코드에서 임의의 DataFrame 을 올릴 때:
+
+```python
+import s3_upload
+s3_upload.upload_frames({"f3": df_f3, "move_daily": df_move})   # fmt="parquet" 도 가능
+```
+
 ## 6. 적재 주기
 
 | 스크립트 | 주기 | 비고 |
