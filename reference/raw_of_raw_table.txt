@@ -33,15 +33,15 @@ raw_of_raw_table.txt
   5   smicdc_p3nrd.mc_lot_step_comment       pfr1_step_comment        lot_inform
   6   smicdc_nrdk.mc_lot_step_comment        kfr7_step_comment        lot_inform
   7   smicdc_p3nrd.materialworkstatus        pfr1_materialworkstatus  fa_object4
-  7'  smicdc_nrdk.materialworkstatus         kfr7_materialworkstatus  fa_object4
-  8   smicdc_p3nrd.mc_lot_step_path          pfr1_step_path           잔여 step
-  9   smicdc_nrdk.mc_lot_step_path           kfr7_step_path           잔여 step
-  10  smicdc_p3nrd.trackinprevent            pfr1_tip                 TIP
-  11  smicdc_nrdk.trackinprevent             kfr7_tip                 TIP
-  12  smimes.mi_equipment                    equipment                설비 상태
-  13  smimes.mi_eqp_group_list               eqp_group                설비그룹
-  14  memmss.fab_issue_lot                   hold                     HOLD/EXC/FTP
-  15  MI_LOT_TRANSN_HIST_V                   move                     MOVE(get_move)
+  8   smicdc_nrdk.materialworkstatus         kfr7_materialworkstatus  fa_object4
+  9   smicdc_p3nrd.mc_lot_step_path          pfr1_step_path           잔여 step
+  10  smicdc_nrdk.mc_lot_step_path           kfr7_step_path           잔여 step
+  11  smicdc_p3nrd.trackinprevent            pfr1_tip                 TIP
+  12  smicdc_nrdk.trackinprevent             kfr7_tip                 TIP
+  13  smimes.mi_equipment                    equipment                설비 상태
+  14  smimes.mi_eqp_group_list               eqp_group                설비그룹
+  15  memmss.fab_issue_lot                   hold                     HOLD/EXC/FTP
+  16  MI_LOT_TRANSN_HIST_V                   move                     MOVE(get_move)
 
 [매칭표(refer_matching_table.txt) 기준 확인 완료]
   전 테이블이 매칭표에 존재한다(M: mc_lot_attr, N: materialworkstatus 포함).
@@ -166,7 +166,7 @@ FROM   smicdc_p3nrd.materialworkstatus
 ;
 
 --------------------------------------------------------------------------------
--- 7') kfr7_materialworkstatus : smicdc_nrdk.materialworkstatus   (fa_object4)
+-- 8) kfr7_materialworkstatus : smicdc_nrdk.materialworkstatus   (fa_object4)
 --------------------------------------------------------------------------------
 SELECT lotid,
        fa_object4
@@ -174,7 +174,7 @@ FROM   smicdc_nrdk.materialworkstatus
 ;
 
 --------------------------------------------------------------------------------
--- 8) pfr1_step_path : smicdc_p3nrd.mc_lot_step_path
+-- 9) pfr1_step_path : smicdc_p3nrd.mc_lot_step_path
 --    현재 Impala 버전과 동일하게 mc_lot(Active/Hold) 조인으로 행을 줄인다.
 --    delay_step_type S/Y 는 de_rank 누적 계산에 필요해 위치와 무관하게 남긴다.
 --------------------------------------------------------------------------------
@@ -203,7 +203,7 @@ WHERE  p.lot_id = c.lot_id
 ;
 
 --------------------------------------------------------------------------------
--- 9) kfr7_step_path : smicdc_nrdk.mc_lot_step_path
+-- 10) kfr7_step_path : smicdc_nrdk.mc_lot_step_path
 --------------------------------------------------------------------------------
 SELECT p.lot_id,
        p.order_seq,
@@ -230,7 +230,7 @@ WHERE  p.lot_id = c.lot_id
 ;
 
 --------------------------------------------------------------------------------
--- 10) pfr1_tip : smicdc_p3nrd.trackinprevent
+-- 11) pfr1_tip : smicdc_p3nrd.trackinprevent
 --     lot_type 컬럼은 없다. python 이 '-'(와일드카드)로 채운다.
 --------------------------------------------------------------------------------
 SELECT process,
@@ -248,7 +248,7 @@ WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
 ;
 
 --------------------------------------------------------------------------------
--- 11) kfr7_tip : smicdc_nrdk.trackinprevent
+-- 12) kfr7_tip : smicdc_nrdk.trackinprevent
 --------------------------------------------------------------------------------
 SELECT process,
        step,
@@ -265,7 +265,7 @@ WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
 ;
 
 --------------------------------------------------------------------------------
--- 12) equipment : smimes.mi_equipment
+-- 13) equipment : smimes.mi_equipment
 --     Impala 버전의 '최신 impala_insert_time 선별'은 적재본 중복을 걷어내는
 --     처리였다. Oracle 원본에는 그 컬럼이 없으므로 선별 없이 가져오고,
 --     (line_id, eqp_id) 중복이 있으면 python 에서 제거한다.
@@ -282,7 +282,7 @@ WHERE  line_id IN ('KFR7', 'PFR1')
 ;
 
 --------------------------------------------------------------------------------
--- 13) eqp_group : smimes.mi_eqp_group_list
+-- 14) eqp_group : smimes.mi_eqp_group_list
 --     'OFF' 설비 제외는 python 에서 한다(로딩 조건으로 걸면 느려짐).
 --------------------------------------------------------------------------------
 SELECT line_id,
@@ -293,7 +293,7 @@ WHERE  line_id IN ('KFR7', 'PFR1')
 ;
 
 --------------------------------------------------------------------------------
--- 14) hold : memmss.fab_issue_lot
+-- 15) hold : memmss.fab_issue_lot
 --     impala_insert_time 은 Oracle 에 없다(적재본 전용). 넣지 않는다.
 --     version_desc 는 매칭표에 있으나 Oracle 원본이 스냅샷 누적인지 현재값인지에
 --     따라 필요 여부가 갈린다 -> [3. 확인필요] (2)
@@ -312,7 +312,7 @@ WHERE  line_id IN ('KFR7', 'PFR1')
 ;
 
 --------------------------------------------------------------------------------
--- 15) move : MI_LOT_TRANSN_HIST_V
+-- 16) move : MI_LOT_TRANSN_HIST_V
 --     MOVE = TrackOut 매수. lot_type 은 PP/PB/PG 만.
 --     line_id 는 cur/sys 합집합이라 sys_line_id 조건을 함께 건다.
 --     기간은 Spotfire 파라미터로 바꿔 쓴다(아래는 최근 3일).
