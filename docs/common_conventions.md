@@ -154,6 +154,31 @@ W/T 의 분모(재공)는 스냅샷 시점 값이고 분자(MOVE)는 구간 누�
 
 ---
 
+## 5-0. 데이터 조달 경로 (변경)
+
+```
+기존  bdq -> datalake(Impala) 직접 조회 -> python 전처리
+변경  Spotfire 로 원본 DB 조회 -> S3 Drive 적재 -> python 이 S3 에서 읽어 전처리
+```
+
+Spotfire 쪽 Oracle 쿼리 8개는 `reference/raw_of_raw_table.txt` 에 있고,
+테이블 이름을 그대로 S3 오브젝트 이름으로 쓴다.
+
+| Spotfire 테이블 | S3 오브젝트 |
+|---|---|
+| `PFR1_KFR7_LOT` | `<prefix>PFR1_KFR7_LOT.pkl` |
+| `PFR1_KFR7_MATERIALWORKSTATUS` | 〃 |
+| `PFR1_KFR7_STEP_PATH` | 〃 |
+| `PFR1_KFR7_TIP` | 〃 |
+| `PFR1_KFR7_EQUIPMENT` | 〃 |
+| `PFR1_KFR7_EQP_GROUP` | 〃 |
+| `PFR1_KFR7_HOLD` | 〃 |
+| `PFR1_KFR7_MOVE` | 〃 |
+
+적재는 `getdata/spotfire_s3_export.py` 를 Spotfire 데이터 함수로 등록해 처리한다
+(Tools > Register Data Functions, Refresh = Automatic). 분석 파일이 열려 데이터가
+새로 로딩될 때마다 자동으로 올라간다.
+
 ## 5-1. S3 Drive 적재
 
 `getdata/s3_upload.py` 가 DB 의 최신 스냅샷/집계를 S3 로 올린다.
