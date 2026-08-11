@@ -1,9 +1,364 @@
-lot_query
-kfr7_tip_query
-pfr1_tip_query
-eqp_query
-eqp_group_query
-kfr7_step_path_query
-pfr1_step_path_query
-hold_query_raw
-move_query
+================================================================================
+raw_of_raw_table.txt
+  Spotfire 로딩용 Oracle 원본(raw) 테이블 조회 쿼리
+================================================================================
+
+[목적]
+  기존: bdq -> datalake(Impala) 직접 조회
+  변경: Spotfire 로 원본 DB 조회 -> S3 Drive 적재 -> python 이 S3 에서 읽어 전처리
+
+  따라서 여기에는 **전처리가 전혀 없는 생테이블 조회**만 둔다.
+  결합/윈도우/집계는 전부 python(build_f3.py, get_move.py)이 그대로 담당한다.
+
+[원칙]
+  - Oracle 도 PK 가 없어 WHERE 를 많이 건다고 빨라지지 않는다.
+    현재 Impala 최적화 버전에서 유지 중인 조건(라인 한정, owner, TrackOut 등)만 옮긴다.
+  - 컬럼은 python 이 실제로 쓰는 것만 SELECT 한다(전송량 절감).
+  - 날짜/숫자 변환, NULL 처리, 최신건 선별은 여기서 하지 않는다.
+    (Impala 버전의 CAST / TO_TIMESTAMP / 윈도우 선별은 python 단으로 이관)
+  - S3 에 올릴 때 아래 [S3 파일명] 을 그대로 쓰면 python 쪽 매핑이 단순해진다.
+
+[대상 라인] PFR1(=smicdc_p3nrd), KFR7(=smicdc_nrdk)
+
+================================================================================
+1. 필요 raw 테이블 목록 (15개 쿼리 / 14개 테이블)
+================================================================================
+
+  #   Oracle 테이블                          S3 파일명                용도
+  --  -------------------------------------  -----------------------  ------------------
+  1   smicdc_p3nrd.mc_lot                    pfr1_mc_lot              재공(lot_query)
+  2   smicdc_nrdk.mc_lot                     kfr7_mc_lot              재공(lot_query)
+  3   smicdc_p3nrd.mc_lot_attr               pfr1_mc_lot_attr         GRADE
+  4   smicdc_nrdk.mc_lot_attr                kfr7_mc_lot_attr         GRADE
+  5   smicdc_p3nrd.mc_lot_step_comment       pfr1_step_comment        lot_inform
+  6   smicdc_nrdk.mc_lot_step_comment        kfr7_step_comment        lot_inform
+  7   smicdc_nrdk.materialworkstatus         kfr7_materialworkstatus  fa_object4
+  8   smicdc_p3nrd.mc_lot_step_path          pfr1_step_path           잔여 step
+  9   smicdc_nrdk.mc_lot_step_path           kfr7_step_path           잔여 step
+  10  smicdc_p3nrd.trackinprevent            pfr1_tip                 TIP
+  11  smicdc_nrdk.trackinprevent             kfr7_tip                 TIP
+  12  smimes.mi_equipment                    equipment                설비 상태
+  13  smimes.mi_eqp_group_list               eqp_group                설비그룹
+  14  memmss.fab_issue_lot                   hold                     HOLD/EXC/FTP
+  15  MI_LOT_TRANSN_HIST_V                   move                     MOVE(get_move)
+
+[매칭표(refer_matching_table.txt) 대비 변경]
+  + 추가 : smicdc_p3nrd.mc_lot_attr, smicdc_nrdk.mc_lot_attr
+           GRADE 를 M_LOT_TRANSN_HIST 이력이 아니라 MC_LOT_ATTR 에서 직접 읽도록
+           바꿨으므로 필요. 매칭표에 없어 확인 필요 -> [3. 확인필요] 참조
+  + 추가 : smicdc_nrdk.materialworkstatus
+           fa_object4 용도. 매칭표에 없음 -> [3. 확인필요] 참조
+  - 제외 : smicdc_nrd.mc_lot / todoplan / steprule / stepcomments
+           KFR4 브랜치를 제거해 더 이상 쓰지 않음
+  - 유지 : MI_LOT_TRANSN_HIST_V 는 MOVE 용도로만 사용(GRADE 이력 용도는 폐지)
+
+
+================================================================================
+2. 쿼리
+================================================================================
+
+--------------------------------------------------------------------------------
+-- 1) pfr1_mc_lot : smicdc_p3nrd.mc_lot
+--------------------------------------------------------------------------------
+SELECT object_id,
+       sys_line_id,
+       cur_line_id,
+       origin_line_id,
+       lot_id,
+       carr_id,
+       lot_type,
+       lot_level,
+       cur_qty,
+       bay_name,
+       lot_status_seg,
+       step_status_seg,
+       proc_id,
+       order_seq,
+       step_seq,
+       start_date,
+       last_tkout_date,
+       step_arrive_date,
+       last_event_date
+FROM   smicdc_p3nrd.mc_lot
+;
+
+--------------------------------------------------------------------------------
+-- 2) kfr7_mc_lot : smicdc_nrdk.mc_lot
+--------------------------------------------------------------------------------
+SELECT object_id,
+       sys_line_id,
+       cur_line_id,
+       origin_line_id,
+       lot_id,
+       carr_id,
+       lot_type,
+       lot_level,
+       cur_qty,
+       bay_name,
+       lot_status_seg,
+       step_status_seg,
+       proc_id,
+       order_seq,
+       step_seq,
+       start_date,
+       last_tkout_date,
+       step_arrive_date,
+       last_event_date
+FROM   smicdc_nrdk.mc_lot
+;
+
+--------------------------------------------------------------------------------
+-- 3) pfr1_mc_lot_attr : smicdc_p3nrd.mc_lot_attr   (GRADE)
+--------------------------------------------------------------------------------
+SELECT parent_object_id,
+       attr_name,
+       attr_value
+FROM   smicdc_p3nrd.mc_lot_attr
+WHERE  attr_name = 'GRADE'
+;
+
+--------------------------------------------------------------------------------
+-- 4) kfr7_mc_lot_attr : smicdc_nrdk.mc_lot_attr   (GRADE)
+--------------------------------------------------------------------------------
+SELECT parent_object_id,
+       attr_name,
+       attr_value
+FROM   smicdc_nrdk.mc_lot_attr
+WHERE  attr_name = 'GRADE'
+;
+
+--------------------------------------------------------------------------------
+-- 5) pfr1_step_comment : smicdc_p3nrd.mc_lot_step_comment
+--------------------------------------------------------------------------------
+SELECT lot_id,
+       step_comment,
+       update_date,
+       parent_order_seq,
+       comment_type
+FROM   smicdc_p3nrd.mc_lot_step_comment
+WHERE  parent_order_seq = 0
+  AND  comment_type = 'LOT'
+;
+
+--------------------------------------------------------------------------------
+-- 6) kfr7_step_comment : smicdc_nrdk.mc_lot_step_comment
+--------------------------------------------------------------------------------
+SELECT lot_id,
+       step_comment,
+       update_date,
+       parent_order_seq,
+       comment_type
+FROM   smicdc_nrdk.mc_lot_step_comment
+WHERE  parent_order_seq = 0
+  AND  comment_type = 'LOT'
+;
+
+--------------------------------------------------------------------------------
+-- 7) kfr7_materialworkstatus : smicdc_nrdk.materialworkstatus   (fa_object4)
+--    KFR7 에만 붙는다. PFR1 은 python 에서 NULL 로 채운다.
+--------------------------------------------------------------------------------
+SELECT lotid,
+       fa_object4
+FROM   smicdc_nrdk.materialworkstatus
+;
+
+--------------------------------------------------------------------------------
+-- 8) pfr1_step_path : smicdc_p3nrd.mc_lot_step_path
+--    현재 Impala 버전과 동일하게 mc_lot(Active/Hold) 조인으로 행을 줄인다.
+--    delay_step_type S/Y 는 de_rank 누적 계산에 필요해 위치와 무관하게 남긴다.
+--------------------------------------------------------------------------------
+SELECT p.lot_id,
+       p.order_seq,
+       p.proc_id,
+       p.step_seq,
+       p.step_desc,
+       p.step_level,
+       p.step_skip_yn,
+       p.delay_step_type,
+       p.delay_time_mins,
+       p.layer_id,
+       p.eqp_type,
+       p.eqp_group_id,
+       p.recipe_id,
+       p.ext_1st_vals,
+       p.tkin_type_detail
+FROM   smicdc_p3nrd.mc_lot_step_path p,
+       (SELECT DISTINCT lot_id, order_seq
+        FROM   smicdc_p3nrd.mc_lot
+        WHERE  lot_status_seg IN ('Active', 'Hold')) c
+WHERE  p.lot_id = c.lot_id
+  AND  (p.order_seq >= c.order_seq
+        OR p.delay_step_type IN ('S', 'Y'))
+;
+
+--------------------------------------------------------------------------------
+-- 9) kfr7_step_path : smicdc_nrdk.mc_lot_step_path
+--------------------------------------------------------------------------------
+SELECT p.lot_id,
+       p.order_seq,
+       p.proc_id,
+       p.step_seq,
+       p.step_desc,
+       p.step_level,
+       p.step_skip_yn,
+       p.delay_step_type,
+       p.delay_time_mins,
+       p.layer_id,
+       p.eqp_type,
+       p.eqp_group_id,
+       p.recipe_id,
+       p.ext_1st_vals,
+       p.tkin_type_detail
+FROM   smicdc_nrdk.mc_lot_step_path p,
+       (SELECT DISTINCT lot_id, order_seq
+        FROM   smicdc_nrdk.mc_lot
+        WHERE  lot_status_seg IN ('Active', 'Hold')) c
+WHERE  p.lot_id = c.lot_id
+  AND  (p.order_seq >= c.order_seq
+        OR p.delay_step_type IN ('S', 'Y'))
+;
+
+--------------------------------------------------------------------------------
+-- 10) pfr1_tip : smicdc_p3nrd.trackinprevent
+--     lot_type 컬럼은 없다. python 이 '-'(와일드카드)로 채운다.
+--------------------------------------------------------------------------------
+SELECT process,
+       step,
+       ppid,
+       eqpid,
+       chamberid,
+       type,
+       checkcount,
+       tkin_count,
+       updated,
+       eventtime
+FROM   smicdc_p3nrd.trackinprevent
+WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
+;
+
+--------------------------------------------------------------------------------
+-- 11) kfr7_tip : smicdc_nrdk.trackinprevent
+--------------------------------------------------------------------------------
+SELECT process,
+       step,
+       ppid,
+       eqpid,
+       chamberid,
+       type,
+       checkcount,
+       tkin_count,
+       updated,
+       eventtime
+FROM   smicdc_nrdk.trackinprevent
+WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
+;
+
+--------------------------------------------------------------------------------
+-- 12) equipment : smimes.mi_equipment
+--     Impala 버전의 '최신 impala_insert_time 선별'은 적재본 중복을 걷어내는
+--     처리였다. Oracle 원본에는 그 컬럼이 없으므로 선별 없이 가져오고,
+--     (line_id, eqp_id) 중복이 있으면 python 에서 제거한다.
+--------------------------------------------------------------------------------
+SELECT line_id,
+       origin_line_id,
+       batch_kind,
+       eqp_id,
+       eqp_status,
+       tool_kind,
+       eqp_status_change_time
+FROM   smimes.mi_equipment
+WHERE  line_id IN ('KFR7', 'PFR1')
+;
+
+--------------------------------------------------------------------------------
+-- 13) eqp_group : smimes.mi_eqp_group_list
+--     'OFF' 설비 제외는 python 에서 한다(로딩 조건으로 걸면 느려짐).
+--------------------------------------------------------------------------------
+SELECT line_id,
+       eqp_group_name,
+       eqp_id
+FROM   smimes.mi_eqp_group_list
+WHERE  line_id IN ('KFR7', 'PFR1')
+;
+
+--------------------------------------------------------------------------------
+-- 14) hold : memmss.fab_issue_lot
+--     version_desc(적재 스냅샷 ID)는 Impala 적재본 개념이다. Oracle 원본이
+--     현재값만 갖고 있다면 최신 스냅샷 선별이 필요 없다.
+--     status_seq '2'(조치완료) 제외도 python 에서 한다.
+--------------------------------------------------------------------------------
+SELECT line_id,
+       item_type,
+       status_seq,
+       lot_id,
+       step_seq,
+       hold_user_name,
+       issue_reason_cont,
+       issue_date
+FROM   memmss.fab_issue_lot
+WHERE  line_id IN ('KFR7', 'PFR1')
+;
+
+--------------------------------------------------------------------------------
+-- 15) move : MI_LOT_TRANSN_HIST_V
+--     MOVE = TrackOut 매수. lot_type 은 PP/PB/PG 만.
+--     line_id 는 cur/sys 합집합이라 sys_line_id 조건을 함께 건다.
+--     기간은 Spotfire 파라미터로 바꿔 쓴다(아래는 최근 3일).
+--------------------------------------------------------------------------------
+SELECT sys_line_id,
+       line_id,
+       current_line_id      AS cur_line_id,
+       lot_id,
+       lot_type,
+       component_qty        AS move,
+       ppid,
+       process_eqp_id,
+       process_id,
+       step_seq,
+       step_desc,
+       eqp_type,
+       recent_tkout_time,
+       tkin_date,
+       process_start_date,
+       process_finish_date,
+       lot_transn_time
+FROM   MI_LOT_TRANSN_HIST_V
+WHERE  line_id     IN ('KFR7', 'PFR1')
+  AND  sys_line_id IN ('KFR7', 'PFR1')
+  AND  lot_transn_type = 'TrackOut'
+  AND  lot_type IN ('PP', 'PB', 'PG')
+  AND  lot_transn_time >= TO_CHAR(SYSDATE - 3, 'YYYYMMDD HH24MISS')
+;
+
+  ※ 최초 3개월 백필 시에는 마지막 조건만 바꾼다.
+       AND lot_transn_time >= TO_CHAR(TRUNC(ADD_MONTHS(SYSDATE, -3), 'MM'),
+                                      'YYYYMMDD HH24MISS')
+  ※ lot_transn_time 이 DATE 타입이면 TO_CHAR 없이 비교한다.
+       AND lot_transn_time >= SYSDATE - 3
+
+
+================================================================================
+3. 확인필요
+================================================================================
+
+(1) smicdc_p3nrd.mc_lot_attr / smicdc_nrdk.mc_lot_attr
+    매칭표에 없다. 컬럼은 [PARENT_OBJECT_ID, ATTR_NAME, ATTR_VALUE] 로 알고 있으나
+    Oracle 쪽 스키마/테이블명이 위와 같은지 확인 필요.
+
+(2) smicdc_nrdk.materialworkstatus
+    매칭표에 없다. lotid, fa_object4 두 컬럼만 쓴다. Oracle 테이블명 확인 필요.
+
+(3) MI_LOT_TRANSN_HIST_V 의 스키마 접두
+    매칭표에 스키마 없이 뷰 이름만 있다. 접근에 스키마가 필요하면 앞에 붙일 것.
+
+(4) mc_lot 의 date 계열 컬럼 타입
+    Impala 에서는 STRING 이라 python 이 숫자만 뽑아 파싱한다. Oracle 에서 DATE 로
+    오면 python 파싱을 손봐야 한다. 첫 적재 후 타입 확인 필요.
+
+(5) memmss.fab_issue_lot 의 version_desc
+    Impala 적재본에만 있는 컬럼으로 보고 SELECT 에서 뺐다. Oracle 원본에도 있고
+    스냅샷 누적 구조라면 다시 넣고 python 의 최신 선별을 유지해야 한다.
+
+(6) step_path 조인의 Oracle 성능
+    Impala 에서는 이 조인이 전송량을 크게 줄였다(683만 -> 457만). Oracle 에서
+    느리다면 조인을 빼고 생테이블로 받아 python 에서 거르는 쪽으로 되돌린다.
