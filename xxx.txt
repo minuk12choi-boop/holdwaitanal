@@ -1,1 +1,4 @@
-RuntimeError: boto3 가 없습니다 (No module named 'boto3'). Spotfire python = C:\Program Files (x86)\TIBCO\Spotfire\10.10.0\Modules\Python Interpreter_3.1006.10804.23\python\python.exe  |  설치 명령: "C:\Program Files (x86)\TIBCO\Spotfire\10.10.0\Modules\Python Interpreter_3.1006.10804.23\python\python.exe" -m pip install boto3
+C:\Users\minuk12.choi>where /r C:\ Spotfire.Dxp.exe
+C:\Program Files (x86)\TIBCO\Spotfire\12.0.4\Spotfire.Dxp.exe
+C:\Program Files (x86)\TIBCO\Spotfire\12.0.4\Modules\Starter_56.11.20102.4497\Spotfire.Dxp.exe
+C:\Windows\Installer\{8ECBF779-9DC0-4A96-B609-826187F396E7}\Spotfire.Dxp.exe
