@@ -1,44 +1,9 @@
-C:\Users\minuk12.choi>"C:\Program Files (x86)\TIBCO\Spotfire\12.0.4\Modules\Python Interpreter_3.1006.10804.23\python\python.exe" -m pip install boto3
-Looking in indexes: https://repo.samsungds.net/artifactory/api/pypi/pypi-remote/simple, http://nexus.adpaas.cloud.samsungds.net/repository/dataservice-pypi/simple, https://nexus.adpaas.cloud.samsungds.net/repository/aiplatform-pypi/simple
-Looking in links: https://repo.samsungds.net/artifactory/api/pypi/pypi-torch/torch_stable.html
-Collecting boto3
-  Downloading https://repo.samsungds.net/artifactory/api/pypi/pypi-remote/packages/packages/96/bd/36dd3f5718160ea7f8ef5a81b461cfb9d0f0b289bb31ed416ae6a1cbfee3/boto3-1.43.68-py3-none-any.whl (140 kB)
-     ---------------------------------------- 140.0/140.0 kB 8.1 MB/s eta 0:00:00
-Collecting s3transfer<0.20.0,>=0.19.0
-  Downloading https://repo.samsungds.net/artifactory/api/pypi/pypi-remote/packages/packages/bc/e7/5c595c75e9f41a44f30e526eda465ea0b4eec93470e074e4a111b253f13a/s3transfer-0.19.2-py3-none-any.whl (90 kB)
-     ---------------------------------------- 90.2/90.2 kB ? eta 0:00:00
-Collecting botocore<1.44.0,>=1.43.68
-  Downloading https://repo.samsungds.net/artifactory/api/pypi/pypi-remote/packages/packages/32/48/18dc095a908da94e2389d8e4127f4438b185dfd2dd9190fe6f946b9f41ac/botocore-1.43.68-py3-none-any.whl (15.6 MB)
-     ---------------------------------------- 15.6/15.6 MB 109.9 MB/s eta 0:00:00
-Collecting jmespath<2.0.0,>=0.7.1
-  Downloading https://repo.samsungds.net/artifactory/api/pypi/pypi-remote/packages/packages/14/2f/967ba146e6d58cf6a652da73885f52fc68001525b4197effc174321d70b4/jmespath-1.1.0-py3-none-any.whl (20 kB)
-Collecting urllib3!=2.2.0,<3,>=1.25.4
-  Downloading https://repo.samsungds.net/artifactory/api/pypi/pypi-remote/packages/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl (131 kB)
-     ---------------------------------------- 131.1/131.1 kB ? eta 0:00:00
-Requirement already satisfied: python-dateutil<3.0.0,>=2.1 in c:\program files (x86)\tibco\spotfire\12.0.4\modules\python interpreter_3.1006.10804.23\python\lib\site-packages (from botocore<1.44.0,>=1.43.68->boto3) (2.8.2)
-Requirement already satisfied: six>=1.5 in c:\program files (x86)\tibco\spotfire\12.0.4\modules\python interpreter_3.1006.10804.23\python\lib\site-packages (from python-dateutil<3.0.0,>=2.1->botocore<1.44.0,>=1.43.68->boto3) (1.16.0)
-Installing collected packages: urllib3, jmespath, botocore, s3transfer, boto3
-Successfully installed boto3-1.43.68 botocore-1.43.68 jmespath-1.1.0 s3transfer-0.19.2 urllib3-2.7.0
-
-[notice] A new release of pip available: 22.3.1 -> 26.2.1
-[notice] To update, run: C:\Program Files (x86)\TIBCO\Spotfire\12.0.4\Modules\Python Interpreter_3.1006.10804.23\python\python.exe -m pip install --upgrade pip
-
-
-Could not execute function call 's3drive'
-
-
-Error executing Python script:
-
-ModuleNotFoundError: No module named 'boto3'
-
-Traceback (most recent call last):
-  File "data_function.py", line 364, in _execute_script
-    exec(compiled_script, self.globals)
-  File "<data_function>", line 4, in <module>
-
-
-
-   at Spotfire.Dxp.Data.DataFunctions.Executors.LocalPythonFunctionClient.<RunFunction>d__8.MoveNext()
-   at Spotfire.Dxp.Data.DataFunctions.Executors.PythonScriptExecutor.<ExecuteFunction>d__11.MoveNext()
-   at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
-
+table	status	rows	cols	detail	start	end	elapsed_sec
+PFR1_KFR7_LOT	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_LOT.pkl	2026-08-11 오후 8:35:25	2026-08-11 오후 8:35:25	0.18
+PFR1_KFR7_MATERIALWORKSTATUS	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_MATERIALWORKSTATUS.pkl	2026-08-11 오후 8:35:25	2026-08-11 오후 8:35:25	0.14
+PFR1_KFR7_STEP_PATH	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_STEP_PATH.pkl	2026-08-11 오후 8:35:25	2026-08-11 오후 8:35:25	0.13
+PFR1_KFR7_TIP	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_TIP.pkl	2026-08-11 오후 8:35:25	2026-08-11 오후 8:35:25	0.14
+PFR1_KFR7_EQUIPMENT	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQUIPMENT.pkl	2026-08-11 오후 8:35:25	2026-08-11 오후 8:35:26	0.16
+PFR1_KFR7_EQP_GROUP	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQP_GROUP.pkl	2026-08-11 오후 8:35:26	2026-08-11 오후 8:35:26	0.14
+PFR1_KFR7_HOLD	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_HOLD.pkl	2026-08-11 오후 8:35:26	2026-08-11 오후 8:35:26	0.13
+PFR1_KFR7_MOVE	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_MOVE.pkl	2026-08-11 오후 8:35:26	2026-08-11 오후 8:35:26	0.18
