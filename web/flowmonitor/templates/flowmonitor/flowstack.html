@@ -59,15 +59,18 @@
   .card .wip .lbl { font-size:13px; font-weight:700; color:var(--fg); }
   .card .wip select { font-size:11px; padding:3px 5px; border:1px solid var(--bd);
                       border-radius:4px; background:#fff; }
-  .card .donut { display:flex; align-items:center; gap:12px; }
-  .card .donut .cv { width:118px; height:118px; flex:0 0 118px; }
-  .card .donut .txt { font-size:12px; color:var(--mut); line-height:1.5; }
-  .card .donut .txt b { display:block; font-size:22px; color:var(--fg);
-                        line-height:1.2; }
-  .card .legend { display:flex; flex-wrap:wrap; gap:6px 10px; margin-top:6px; }
+  .card .donut { display:flex; align-items:center; gap:10px; }
+  .card .donut .cv { width:112px; height:112px; flex:0 0 112px; }
+  .card .legend { display:flex; flex-direction:column; gap:6px; flex:0 0 auto; }
   .card .legend span { font-size:12px; color:var(--mut); cursor:pointer;
-                       display:inline-flex; align-items:center; gap:4px; }
-  .card .legend i { width:9px; height:9px; border-radius:2px; }
+                       display:flex; align-items:center; gap:5px; white-space:nowrap; }
+  .card .legend span.on { color:var(--fg); font-weight:700; }
+  .card .legend i { width:9px; height:9px; border-radius:2px; flex:0 0 9px; }
+  .card .pickinfo { flex:1; text-align:center; }
+  .card .pickinfo .nm { font-family:var(--f-title); font-weight:700; font-size:15px;
+                        line-height:1.2; margin-bottom:4px; }
+  .card .pickinfo .pc { font-size:26px; font-weight:600; line-height:1.1; }
+  .card .pickinfo .sub { font-size:12px; color:var(--mut); margin-top:3px; }
   .card .cellttl { font-size:13px; font-weight:700; color:var(--fg);
                    margin-bottom:8px; }
   .card .movebox { display:flex; align-items:center; gap:12px; }
@@ -186,6 +189,13 @@
   }
 </script>
 <script>
+if (window.Chart) {
+  Chart.defaults.font.family =
+    "'Poppins','Noto Sans KR','Malgun Gothic',sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = "#374151";
+}
+const BRAND = "#2F4B7C";
 const KIND_KO = { month: "월평균", week: "주평균", day: "일" };
 const charts = {};
 let basis = "qty";
@@ -204,26 +214,7 @@ function setBasis(b) {
 // ---------------------------------------------------------------------------
 const nf = (n) => Number(n || 0).toLocaleString("ko-KR");
 
-// 도넛 가운데 텍스트
-const donutCenter = {
-  id: "donutCenter",
-  afterDraw(c) {
-    const t = c.$center;
-    if (!t) return;
-    const { top, bottom, left, right } = c.chartArea;
-    const x = (left + right) / 2, y = (top + bottom) / 2;
-    const ctx = c.ctx;
-    ctx.save();
-    ctx.textAlign = "center";
-    ctx.fillStyle = t.color || "#111827";
-    ctx.font = "600 19px 'Malgun Gothic', sans-serif";
-    ctx.fillText(t.big, x, y + 2);
-    ctx.fillStyle = "#6B7280";
-    ctx.font = "10px 'Malgun Gothic', sans-serif";
-    ctx.fillText(t.small, x, y + 17);
-    ctx.restore();
-  }
-};
+
 
 function cardHtml(c, i) {
   if (!c.ready) {
@@ -258,10 +249,10 @@ function cardHtml(c, i) {
     </div>
     <div class="cell">
       <div class="donut">
+        <div class="legend" id="lg_${i}"></div>
         <div class="cv"><canvas id="dn_${i}"></canvas></div>
-        <div class="txt" id="dt_${i}"></div>
+        <div class="pickinfo" id="dt_${i}"></div>
       </div>
-      <div class="legend" id="lg_${i}"></div>
     </div>
     <div class="cell">
       <div class="cellttl">대기 LOT 상위 설비 5</div>
@@ -279,7 +270,7 @@ function cardHtml(c, i) {
 
 let STATUS_DATA = [];
 const CUR_SEL = {};       // 카드별 선택된 status index
-const TYPE_COLORS = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#B9D4F2", "#D8E5F5"];
+const TYPE_COLORS = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#B9D4F2", "#D8E5F5"];  // 남색 톤
 
 function curPack(i) { return STATUS_DATA[i].sel; }
 
@@ -309,21 +300,25 @@ function onTypeCheck(i) {
   const t = selectedTypes(i);
   document.getElementById("ddb_" + i).textContent =
     (t.length ? (t.length <= 2 ? t.join(",") : t.length + "개 선택") : "전체") + " ▾";
-  reloadStatus();
+  reloadStatus(i);
 }
 
 function setCenter(i) {
-  const p = curPack(i), sel = CUR_SEL[i], ch = window["dn" + i];
+  const p = curPack(i), sel = CUR_SEL[i];
   const d = (sel === null || sel === undefined)
     ? { label: p.default.label, pct: p.default.pct, lots: p.default.lots,
-        qty: p.default.qty, color: "#111827" }
+        qty: p.default.qty, color: BRAND }
     : { label: p.status[sel].name, pct: p.status[sel].pct,
         lots: p.status[sel].lots, qty: p.status[sel].qty,
         color: p.status[sel].color };
-  ch.$center = { big: d.pct.toFixed(1) + "%", small: d.label, color: d.color };
-  ch.draw();
   document.getElementById("dt_" + i).innerHTML =
-    `<b>${nf(d.lots)} LOT</b>${nf(d.qty)} 매`;
+    `<div class="nm" style="color:${d.color}">${d.label}</div>
+     <div class="pc">${d.pct.toFixed(1)}%</div>
+     <div class="sub">${nf(d.lots)} LOT · ${nf(d.qty)} 매</div>`;
+  // 범례 강조
+  document.querySelectorAll(`#lg_${i} span`).forEach((el, k) => {
+    el.classList.toggle("on", k === (sel === null || sel === undefined ? 0 : sel + 1));
+  });
 }
 
 function renderCard(i) {
@@ -340,9 +335,12 @@ function renderCard(i) {
     `<span><i style="background:${TYPE_COLORS[k % 5]}"></i>${x.name}
        ${(x.lots / tot * 100).toFixed(0)}%</span>`).join("");
 
-  document.getElementById("lg_" + i).innerHTML = p.status.map((st, si) =>
-    `<span onclick="pickStatus(${i},${si})"><i style="background:${st.color}"></i>`
-    + `${st.name} ${st.pct}%</span>`).join("");
+  document.getElementById("lg_" + i).innerHTML =
+    `<span onclick="pickDefault(${i})"><i style="background:${BRAND}"></i>`
+    + `${p.default.label}</span>`
+    + p.status.map((st, si) =>
+        `<span onclick="pickStatus(${i},${si})"><i style="background:${st.color}"></i>`
+        + `${st.name}</span>`).join("");
 
   const dn = window["dn" + i];
   dn.data.datasets[0].data = p.status.map(s => s.lots);
@@ -362,17 +360,23 @@ function pickStatus(i, si) {
   setCenter(i);
 }
 
-function reloadStatus() {
-  const q = STATUS_DATA.map((c, i) => c.ready ? selectedTypes(i).join(",") : "")
-                       .find(x => x) || "";
-  fetch("/api/status/?types=" + encodeURIComponent(q))
+function pickDefault(i) {      // 언제든 기본값(HOLD+진행불가)으로 복귀
+  CUR_SEL[i] = null;
+  setCenter(i);
+}
+
+function reloadStatus(i) {
+  // 카드마다 독립. 한 라인의 필터가 다른 라인에 영향을 주지 않는다.
+  const c = STATUS_DATA[i];
+  const q = selectedTypes(i).join(",");
+  fetch(`/api/status/?line=${encodeURIComponent(c.line)}`
+        + `&types=${encodeURIComponent(q)}`)
     .then(r => r.json()).then(res => {
-      res.cards.forEach((c, i) => {
-        if (!c.ready) return;
-        STATUS_DATA[i] = { ...STATUS_DATA[i], ...c };
-        CUR_SEL[i] = null;
-        renderCard(i);
-      });
+      const nc = res.cards[0];
+      if (!nc || !nc.ready) return;
+      STATUS_DATA[i] = { ...STATUS_DATA[i], ...nc };
+      CUR_SEL[i] = null;
+      renderCard(i);
     });
 }
 
@@ -428,14 +432,14 @@ function drawCards(res) {
         },
         onClick: (e, els) => { if (els.length) pickStatus(i, els[0].index); }
       },
-      plugins: [donutCenter, donutSliceLabels]
+      plugins: [donutSliceLabels]
     });
 
     window["eq" + i] = new Chart(document.getElementById("eq_" + i), {
       type: "bar",
       data: { labels: p0.top_eqp.map(e => e.name),
               datasets: [{ data: p0.top_eqp.map(e => e.lots),
-                           backgroundColor: c.head, borderRadius: 2 }] },
+                           backgroundColor: BRAND, borderRadius: 2 }] },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
         layout: { padding: { top: 16 } },
@@ -461,7 +465,7 @@ function drawCards(res) {
       type: "bar",
       data: { labels: ["GY", "DAY", "SW"],
               datasets: [{ data: [c.move.GY, c.move.DAY, c.move.SW],
-                           backgroundColor: c.head, borderRadius: 2 }] },
+                           backgroundColor: BRAND, borderRadius: 2 }] },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
         layout: { padding: { top: 16 } },
@@ -803,26 +807,7 @@ function load() {
 // ---------------------------------------------------------------------------
 const nf = (n) => Number(n || 0).toLocaleString("ko-KR");
 
-// 도넛 가운데 텍스트
-const donutCenter = {
-  id: "donutCenter",
-  afterDraw(c) {
-    const t = c.$center;
-    if (!t) return;
-    const { top, bottom, left, right } = c.chartArea;
-    const x = (left + right) / 2, y = (top + bottom) / 2;
-    const ctx = c.ctx;
-    ctx.save();
-    ctx.textAlign = "center";
-    ctx.fillStyle = t.color || "#111827";
-    ctx.font = "600 19px 'Malgun Gothic', sans-serif";
-    ctx.fillText(t.big, x, y + 2);
-    ctx.fillStyle = "#6B7280";
-    ctx.font = "10px 'Malgun Gothic', sans-serif";
-    ctx.fillText(t.small, x, y + 17);
-    ctx.restore();
-  }
-};
+
 
 function cardHtml(c, i) {
   if (!c.ready) {
@@ -857,10 +842,10 @@ function cardHtml(c, i) {
     </div>
     <div class="cell">
       <div class="donut">
+        <div class="legend" id="lg_${i}"></div>
         <div class="cv"><canvas id="dn_${i}"></canvas></div>
-        <div class="txt" id="dt_${i}"></div>
+        <div class="pickinfo" id="dt_${i}"></div>
       </div>
-      <div class="legend" id="lg_${i}"></div>
     </div>
     <div class="cell">
       <div class="cellttl">대기 LOT 상위 설비 5</div>
@@ -878,7 +863,7 @@ function cardHtml(c, i) {
 
 let STATUS_DATA = [];
 const CUR_SEL = {};       // 카드별 선택된 status index
-const TYPE_COLORS = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#B9D4F2", "#D8E5F5"];
+const TYPE_COLORS = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#B9D4F2", "#D8E5F5"];  // 남색 톤
 
 function curPack(i) { return STATUS_DATA[i].sel; }
 
@@ -908,21 +893,25 @@ function onTypeCheck(i) {
   const t = selectedTypes(i);
   document.getElementById("ddb_" + i).textContent =
     (t.length ? (t.length <= 2 ? t.join(",") : t.length + "개 선택") : "전체") + " ▾";
-  reloadStatus();
+  reloadStatus(i);
 }
 
 function setCenter(i) {
-  const p = curPack(i), sel = CUR_SEL[i], ch = window["dn" + i];
+  const p = curPack(i), sel = CUR_SEL[i];
   const d = (sel === null || sel === undefined)
     ? { label: p.default.label, pct: p.default.pct, lots: p.default.lots,
-        qty: p.default.qty, color: "#111827" }
+        qty: p.default.qty, color: BRAND }
     : { label: p.status[sel].name, pct: p.status[sel].pct,
         lots: p.status[sel].lots, qty: p.status[sel].qty,
         color: p.status[sel].color };
-  ch.$center = { big: d.pct.toFixed(1) + "%", small: d.label, color: d.color };
-  ch.draw();
   document.getElementById("dt_" + i).innerHTML =
-    `<b>${nf(d.lots)} LOT</b>${nf(d.qty)} 매`;
+    `<div class="nm" style="color:${d.color}">${d.label}</div>
+     <div class="pc">${d.pct.toFixed(1)}%</div>
+     <div class="sub">${nf(d.lots)} LOT · ${nf(d.qty)} 매</div>`;
+  // 범례 강조
+  document.querySelectorAll(`#lg_${i} span`).forEach((el, k) => {
+    el.classList.toggle("on", k === (sel === null || sel === undefined ? 0 : sel + 1));
+  });
 }
 
 function renderCard(i) {
@@ -939,9 +928,12 @@ function renderCard(i) {
     `<span><i style="background:${TYPE_COLORS[k % 5]}"></i>${x.name}
        ${(x.lots / tot * 100).toFixed(0)}%</span>`).join("");
 
-  document.getElementById("lg_" + i).innerHTML = p.status.map((st, si) =>
-    `<span onclick="pickStatus(${i},${si})"><i style="background:${st.color}"></i>`
-    + `${st.name} ${st.pct}%</span>`).join("");
+  document.getElementById("lg_" + i).innerHTML =
+    `<span onclick="pickDefault(${i})"><i style="background:${BRAND}"></i>`
+    + `${p.default.label}</span>`
+    + p.status.map((st, si) =>
+        `<span onclick="pickStatus(${i},${si})"><i style="background:${st.color}"></i>`
+        + `${st.name}</span>`).join("");
 
   const dn = window["dn" + i];
   dn.data.datasets[0].data = p.status.map(s => s.lots);
@@ -961,17 +953,23 @@ function pickStatus(i, si) {
   setCenter(i);
 }
 
-function reloadStatus() {
-  const q = STATUS_DATA.map((c, i) => c.ready ? selectedTypes(i).join(",") : "")
-                       .find(x => x) || "";
-  fetch("/api/status/?types=" + encodeURIComponent(q))
+function pickDefault(i) {      // 언제든 기본값(HOLD+진행불가)으로 복귀
+  CUR_SEL[i] = null;
+  setCenter(i);
+}
+
+function reloadStatus(i) {
+  // 카드마다 독립. 한 라인의 필터가 다른 라인에 영향을 주지 않는다.
+  const c = STATUS_DATA[i];
+  const q = selectedTypes(i).join(",");
+  fetch(`/api/status/?line=${encodeURIComponent(c.line)}`
+        + `&types=${encodeURIComponent(q)}`)
     .then(r => r.json()).then(res => {
-      res.cards.forEach((c, i) => {
-        if (!c.ready) return;
-        STATUS_DATA[i] = { ...STATUS_DATA[i], ...c };
-        CUR_SEL[i] = null;
-        renderCard(i);
-      });
+      const nc = res.cards[0];
+      if (!nc || !nc.ready) return;
+      STATUS_DATA[i] = { ...STATUS_DATA[i], ...nc };
+      CUR_SEL[i] = null;
+      renderCard(i);
     });
 }
 
@@ -1027,14 +1025,14 @@ function drawCards(res) {
         },
         onClick: (e, els) => { if (els.length) pickStatus(i, els[0].index); }
       },
-      plugins: [donutCenter, donutSliceLabels]
+      plugins: [donutSliceLabels]
     });
 
     window["eq" + i] = new Chart(document.getElementById("eq_" + i), {
       type: "bar",
       data: { labels: p0.top_eqp.map(e => e.name),
               datasets: [{ data: p0.top_eqp.map(e => e.lots),
-                           backgroundColor: c.head, borderRadius: 2 }] },
+                           backgroundColor: BRAND, borderRadius: 2 }] },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
         layout: { padding: { top: 16 } },
@@ -1060,7 +1058,7 @@ function drawCards(res) {
       type: "bar",
       data: { labels: ["GY", "DAY", "SW"],
               datasets: [{ data: [c.move.GY, c.move.DAY, c.move.SW],
-                           backgroundColor: c.head, borderRadius: 2 }] },
+                           backgroundColor: BRAND, borderRadius: 2 }] },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
         layout: { padding: { top: 16 } },

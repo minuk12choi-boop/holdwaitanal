@@ -1,17 +1,26 @@
 @echo off
-REM ---------------------------------------------------------------------------
-REM get_move.py 수동 실행 래퍼
-REM
-REM 자동 실행은 run_build_f3.bat 이 shift 시점(06/14/22시)에 이어서 처리한다.
-REM 이 파일은 스케줄러에 등록하지 않는다. 백필이나 재적재가 필요할 때만 쓴다.
-REM
-REM   scripts\run_get_move.bat              최근 2일치 재적재
-REM   scripts\run_get_move.bat --full       3개월치 백필
-REM   scripts\run_get_move.bat --days 7     최근 7일
-REM ---------------------------------------------------------------------------
+setlocal
+REM get_move.py 수동 실행 래퍼 (백필/재적재용). 자동 실행은 run_build_f3.bat 이 처리.
+REM   scripts\run_get_move.bat --full
 cd /d "%~dp0.."
 if not exist logs mkdir logs
+set LOG=logs\get_move.log
 
-echo. >> logs\get_move.log
-echo ===== %DATE% %TIME% ^(수동 실행 %*^) ===== >> logs\get_move.log
-python getdata\get_move.py %* >> logs\get_move.log 2>&1
+set PY=
+if defined HOLDWAITANAL_PYTHON if exist "%HOLDWAITANAL_PYTHON%" set PY="%HOLDWAITANAL_PYTHON%"
+if not defined PY (
+    for /f "delims=" %%p in ('where python 2^>nul') do (
+        if not defined PY set PY="%%p"
+    )
+)
+if not defined PY py -3 --version >nul 2>&1 && set PY=py -3
+if not defined PY (
+    echo [ERROR] python 실행기를 찾지 못했습니다.>> "%LOG%"
+    exit /b 2
+)
+
+echo.>> "%LOG%"
+echo ===== %DATE% %TIME% ^(수동 %*^) =====>> "%LOG%"
+%PY% getdata\get_move.py %* >> "%LOG%" 2>&1
+echo [EXIT] =%ERRORLEVEL%>> "%LOG%"
+endlocal

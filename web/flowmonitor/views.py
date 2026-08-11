@@ -13,18 +13,20 @@ from django.shortcuts import render
 
 from .chartdata import build_panel
 
-LINE_COLORS = {"KFR7": "#2563EB", "PFR1": "#059669",
-               "KFR4": "#EA580C", "P3R3": "#D19A00"}
+# 전체 톤은 진한 남색 계열로 통일한다. 색은 라인 구분이 아니라
+# 정보 전달(status)과 강조에만 쓴다.
+BRAND = "#2F4B7C"
+LINE_TONES = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#A9C8E8"]
 
 MOVE_LOT_TYPES = ("PP", "PB", "PG")
 
 # 상단 현황 카드. 좌측부터 고정 순서.
 #   label = 화면 표기, line = f3/move 의 실제 라인 코드
 LINE_CARDS = [
-    {"label": "NRD",   "line": "KFR4", "head": "#2F4B7C"},
-    {"label": "NRD-P", "line": "PFR1", "head": "#2FA8D8"},
-    {"label": "NRD-K", "line": "KFR7", "head": "#8CC63F"},
-    {"label": "NRD-V", "line": "KFR6", "head": "#F97C4F"},
+    {"label": "NRD",   "line": "KFR4"},
+    {"label": "NRD-P", "line": "PFR1"},
+    {"label": "NRD-K", "line": "KFR7"},
+    {"label": "NRD-V", "line": "KFR6"},
 ]
 
 STATUS_ORDER = ["RUN", "WAIT", "HOLD", "WAIT(진행불가)"]
@@ -186,8 +188,8 @@ def _panels(basis="qty"):
             "hold": (d_hold, 1), "blocked": (d_blk, 1),
         }[p["key"]]
         data = build_panel(daily, decimals=dec)
-        for ds in data["datasets"]:
-            ds["borderColor"] = LINE_COLORS.get(ds["label"], "#6B7280")
+        for k, ds in enumerate(data["datasets"]):
+            ds["borderColor"] = LINE_TONES[k % len(LINE_TONES)]
             ds["backgroundColor"] = ds["borderColor"]
             ds["spanGaps"] = False
             ds["tension"] = 0.25
@@ -449,6 +451,7 @@ def _blank():
 
 def api_status(request):
     want = [t for t in request.GET.get("types", "").split(",") if t]
+    only = request.GET.get("line", "")          # 지정 시 그 라인 카드만 반환
     snap = _latest_snapshot()
     lots = _lot_rows(snap) if snap else []
     move, move_bd = _move_by_shift()
@@ -511,6 +514,8 @@ def api_status(request):
 
     cards = []
     for c in LINE_CARDS:
+        if only and c["line"] != only:
+            continue
         d = agg.get(c["line"])
         if not d:
             cards.append({**c, "ready": False})
@@ -523,7 +528,8 @@ def api_status(request):
             "sel": pack(sel) if sel else pack(_blank()),
             "by_lot_type": [
                 {"name": t, "lots": d[t]["lots"], "qty": d[t]["qty"]}
-                for t in types if t in d],
+                for t in types if t in d and (not want or t in want)],
+            "selected_types": want,
             "move": {"GY": mv.get("GY", 0), "DAY": mv.get("DAY", 0),
                      "SW": mv.get("SW", 0),
                      "total": sum(mv.get(k, 0) for k in ("GY", "DAY", "SW"))},
