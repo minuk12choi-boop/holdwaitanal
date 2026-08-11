@@ -41,14 +41,14 @@ raw_of_raw_table.txt
   13  smimes.mi_equipment                    equipment                설비 상태
   14  smimes.mi_eqp_group_list               eqp_group                설비그룹
   15  memmss.fab_issue_lot                   hold                     HOLD/EXC/FTP
-  16  MI_LOT_TRANSN_HIST_V                   move                     MOVE(get_move)
+  16  SMIMES.MI_LOT_TRANSN_HIST              move                     MOVE(get_move)
 
 [매칭표(refer_matching_table.txt) 기준 확인 완료]
   전 테이블이 매칭표에 존재한다(M: mc_lot_attr, N: materialworkstatus 포함).
 
   - 제외 : smicdc_nrd.mc_lot / todoplan / steprule / stepcomments
            KFR4 브랜치를 제거해 더 이상 쓰지 않음
-  - 유지 : MI_LOT_TRANSN_HIST_V 는 MOVE 용도로만 사용
+  - 유지 : SMIMES.MI_LOT_TRANSN_HIST 는 MOVE 용도로만 사용
            (GRADE 는 이력이 아니라 MC_LOT_ATTR 에서 직접 읽도록 변경)
   - 주의 : impala_insert_time 은 Impala 적재본에만 있는 컬럼이다.
            Oracle 조회에는 넣지 않는다(equipment / eqp_group / fab_issue_lot).
@@ -311,7 +311,7 @@ WHERE  line_id IN ('KFR7', 'PFR1')
 ;
 
 --------------------------------------------------------------------------------
--- 16) move : MI_LOT_TRANSN_HIST_V
+-- 16) move : SMIMES.MI_LOT_TRANSN_HIST
 --     MOVE = TrackOut 매수. lot_type 은 PP/PB/PG 만.
 --     line_id 는 cur/sys 합집합이라 sys_line_id 조건을 함께 건다.
 --     기간은 Spotfire 파라미터로 바꿔 쓴다(아래는 최근 3일).
@@ -333,7 +333,7 @@ SELECT sys_line_id,
        process_start_date,
        process_finish_date,
        lot_transn_time
-FROM   MI_LOT_TRANSN_HIST_V
+FROM   SMIMES.MI_LOT_TRANSN_HIST
 WHERE  line_id     IN ('KFR7', 'PFR1')
   AND  sys_line_id IN ('KFR7', 'PFR1')
   AND  lot_transn_type = 'TrackOut'
@@ -341,26 +341,34 @@ WHERE  line_id     IN ('KFR7', 'PFR1')
   AND  lot_transn_time >= TO_CHAR(SYSDATE - 3, 'YYYYMMDD HH24MISS')
 ;
 
+  ※ lot_transn_time 은 STRING('YYYYMMDD HH24MISS') 이라 문자열 비교로 자른다.
   ※ 최초 3개월 백필 시에는 마지막 조건만 바꾼다.
        AND lot_transn_time >= TO_CHAR(TRUNC(ADD_MONTHS(SYSDATE, -3), 'MM'),
                                       'YYYYMMDD HH24MISS')
-  ※ lot_transn_time 이 DATE 타입이면 TO_CHAR 없이 비교한다.
-       AND lot_transn_time >= SYSDATE - 3
 
 
 ================================================================================
-3. 확인필요
+3. 참고 (매칭표 확인 완료 사항)
 ================================================================================
 
-(1) MI_LOT_TRANSN_HIST_V 의 스키마 접두
-    매칭표에 스키마 없이 뷰 이름만 있다. 접근에 스키마가 필요하면 앞에 붙일 것.
+(1) 날짜 계열 컬럼 타입 — 전부 STRING 이라 현행 python 파싱 그대로 쓴다.
 
-(2) 날짜 계열 컬럼 타입
-    Impala 에서는 STRING 이라 python 이 숫자만 뽑아 파싱한다
-    (mc_lot 의 start_date / last_tkout_date / step_arrive_date / last_event_date,
-     equipment 의 eqp_status_change_time, move 의 lot_transn_time).
-    Oracle 에서 DATE 로 오면 python 파싱을 손봐야 한다. 첫 적재 후 확인.
+    mc_lot (E / G)
+      start_date, last_tkout_date, step_arrive_date, last_event_date  : STRING
+    mi_equipment (B)
+      eqp_status_change_time                                          : STRING
+    mi_lot_transn_hist (L)
+      lot_transn_time, recent_tkout_time                              : STRING
+      tkin_date, process_start_date, process_finish_date               : TIMESTAMP
+      tkout_date                                                       : DATE
+
+    -> python 의 '숫자만 뽑아 yyyyMMddHHmmss 로 파싱' 로직을 손댈 필요가 없다.
+       단 get_move 는 lot_transn_time(STRING)을 쓰므로 문자열 비교로 자른다.
+
+(2) impala_insert_time 은 Impala 적재본 전용이라 Oracle 조회에 넣지 않는다.
+    version_desc 는 Oracle 원본에도 있으므로 hold 조회에 포함한다.
 
 (3) step_path 조인의 Oracle 성능
     Impala 에서는 이 조인이 전송량을 크게 줄였다(683만 -> 457만). Oracle 에서
     느리다면 조인을 빼고 생테이블로 받아 python 에서 거르는 쪽으로 되돌린다.
+    (이것만 실측이 필요하다)
