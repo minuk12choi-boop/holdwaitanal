@@ -20,15 +20,18 @@ spotfire_s3_export.py — Spotfire 데이터 함수용 S3 자동 적재
   즉 데이터가 새로 로딩될 때마다 S3 에 올라간다.
 
 [자격증명]
-  .env 에서 읽는다. Spotfire 는 작업 폴더가 제각각이라 ENV_CANDIDATES 의
-  경로를 순서대로 찾는다. 본인 경로가 다르면 첫 줄만 고치면 된다.
-  .env 를 못 찾으면 os.environ 을 본다.
+  Spotfire 는 .env 를 읽지 못하므로 아래 [S3 설정] 블록에 값을 직접 넣는다.
 
-      S3_ACCESS_KEY_ID=
-      S3_SECRET_ACCESS_KEY=
-      S3_ENDPOINT_URL=http://s3.dataplatform.samsungds.net:9020
-      S3_BUCKET=
-      S3_PREFIX=
+  주의: 이 파일을 그대로 git 에 올리면 키가 노출된다.
+        아래 값을 채운 뒤에는 저장소에 커밋하지 말고 Spotfire 에만 붙여넣을 것.
+        (저장소의 파일은 빈 값으로 유지한다)
+
+[키 관리]
+  이 파일은 저장소에도 있으므로 **빈 값 그대로 커밋**한다.
+  값을 채운 사본은 Spotfire 데이터 함수 안에만 둔다.
+  실수 방지용 pre-commit 훅이 있다. 한 번만 켜두면 된다.
+
+      git config core.hooksPath .githooks
 
 [결과]
   s3://<S3_BUCKET>/<S3_PREFIX><테이블명>.pkl
@@ -36,7 +39,6 @@ spotfire_s3_export.py — Spotfire 데이터 함수용 S3 자동 적재
 """
 
 import io
-import os
 import datetime as dt
 
 import boto3
@@ -46,11 +48,14 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 # 설정
 # ---------------------------------------------------------------------------
-ENV_CANDIDATES = [
-    r"D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\.env",
-    os.path.join(os.path.expanduser("~"), "7_holdwaitanal", ".env"),
-    ".env",
-]
+# ─── S3 설정 ────────────────────────────────────────────────────────────────
+# Spotfire 에 붙여넣기 전에 아래 5개를 채운다.
+S3_ACCESS_KEY_ID     = ""
+S3_SECRET_ACCESS_KEY = ""
+S3_ENDPOINT_URL      = "http://s3.dataplatform.samsungds.net:9020"
+S3_BUCKET            = ""
+S3_PREFIX            = ""          # 예) "multi_report/"  (끝 '/' 는 자동 보정)
+# ────────────────────────────────────────────────────────────────────────────
 
 TABLE_NAMES = [
     "PFR1_KFR7_LOT",
@@ -67,36 +72,16 @@ FMT = "pkl"          # 참고 코드와 동일. 'parquet' / 'csv' 로 바꿔도 
 
 
 # ---------------------------------------------------------------------------
-def load_env():
-    """.env 를 찾아 os.environ 에 채운다. 이미 값이 있으면 덮지 않는다."""
-    for path in ENV_CANDIDATES:
-        if not path or not os.path.exists(path):
-            continue
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip())
-        return path
-    return None
-
-
 def make_client():
-    key = os.environ.get("S3_ACCESS_KEY_ID", "")
-    secret = os.environ.get("S3_SECRET_ACCESS_KEY", "")
-    endpoint = os.environ.get("S3_ENDPOINT_URL", "")
-    if not (key and secret and endpoint):
+    if not (S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY and S3_ENDPOINT_URL):
         raise RuntimeError(
-            "S3 자격증명을 찾지 못했습니다. .env 의 S3_ACCESS_KEY_ID / "
-            "S3_SECRET_ACCESS_KEY / S3_ENDPOINT_URL 을 확인하세요. "
-            "(찾은 .env: %s)" % (ENV_PATH or "없음"))
+            "스크립트 상단 [S3 설정] 의 S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY / "
+            "S3_ENDPOINT_URL 을 채우세요.")
     return boto3.client(
         service_name="s3",
-        aws_access_key_id=key,
-        aws_secret_access_key=secret,
-        endpoint_url=endpoint,
+        aws_access_key_id=S3_ACCESS_KEY_ID,
+        aws_secret_access_key=S3_SECRET_ACCESS_KEY,
+        endpoint_url=S3_ENDPOINT_URL,
     )
 
 
@@ -115,10 +100,8 @@ def to_buffer(df, fmt):
 # ---------------------------------------------------------------------------
 # 실행
 # ---------------------------------------------------------------------------
-ENV_PATH = load_env()
-
-bucket = os.environ.get("S3_BUCKET", "")
-prefix = os.environ.get("S3_PREFIX", "")
+bucket = S3_BUCKET
+prefix = S3_PREFIX
 if prefix and not prefix.endswith("/"):
     prefix += "/"        # 없으면 폴더가 아니라 파일명에 붙는다
 
@@ -127,7 +110,7 @@ started = dt.datetime.now()
 
 try:
     if not bucket:
-        raise RuntimeError(".env 에 S3_BUCKET 이 비어 있습니다.")
+        raise RuntimeError("스크립트 상단 [S3 설정] 의 S3_BUCKET 을 채우세요.")
     client = make_client()
 
     for name in TABLE_NAMES:

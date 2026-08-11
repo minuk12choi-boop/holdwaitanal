@@ -1,0 +1,10 @@
+#!/bin/sh
+# spotfire_s3_export.py 에 실제 키가 채워진 채로 커밋되는 것을 막는다.
+if git diff --cached --name-only | grep -q "spotfire_s3_export.py"; then
+  if git show ":getdata/spotfire_s3_export.py" 2>/dev/null \
+     | grep -qE '^S3_(ACCESS_KEY_ID|SECRET_ACCESS_KEY) *= *"[^"]+"'; then
+    echo "[중단] getdata/spotfire_s3_export.py 에 S3 키가 채워져 있습니다."
+    echo "       저장소에는 빈 값으로 두고, 값은 Spotfire 사본에만 넣으세요."
+    exit 1
+  fi
+fi
