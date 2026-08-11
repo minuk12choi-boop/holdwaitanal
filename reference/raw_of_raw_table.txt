@@ -21,27 +21,27 @@ raw_of_raw_table.txt
 [대상 라인] PFR1(=smicdc_p3nrd), KFR7(=smicdc_nrdk)
 
 ================================================================================
-1. 필요 raw 테이블 목록 (16개 쿼리 / 16개 테이블)
+1. 필요 raw 테이블 목록 (11개 쿼리 / 16개 테이블)
 ================================================================================
 
   #   Oracle 테이블                          S3 파일명                용도
   --  -------------------------------------  -----------------------  ------------------
-  1   smicdc_p3nrd.mc_lot                    pfr1_mc_lot              재공(lot_query)
-  2   smicdc_nrdk.mc_lot                     kfr7_mc_lot              재공(lot_query)
-  3   smicdc_p3nrd.mc_lot_attr               pfr1_mc_lot_attr         GRADE
-  4   smicdc_nrdk.mc_lot_attr                kfr7_mc_lot_attr         GRADE
-  5   smicdc_p3nrd.mc_lot_step_comment       pfr1_step_comment        lot_inform
-  6   smicdc_nrdk.mc_lot_step_comment        kfr7_step_comment        lot_inform
-  7   smicdc_p3nrd.materialworkstatus        pfr1_materialworkstatus  fa_object4
-  8   smicdc_nrdk.materialworkstatus         kfr7_materialworkstatus  fa_object4
-  9   smicdc_p3nrd.mc_lot_step_path          pfr1_step_path           잔여 step
-  10  smicdc_nrdk.mc_lot_step_path           kfr7_step_path           잔여 step
-  11  smicdc_p3nrd.trackinprevent            pfr1_tip                 TIP
-  12  smicdc_nrdk.trackinprevent             kfr7_tip                 TIP
-  13  smimes.mi_equipment                    equipment                설비 상태
-  14  smimes.mi_eqp_group_list               eqp_group                설비그룹
-  15  memmss.fab_issue_lot                   hold                     HOLD/EXC/FTP
-  16  SMIMES.MI_LOT_TRANSN_HIST              move                     MOVE(get_move)
+  1   smicdc_p3nrd.mc_lot                    lot                      재공 + GRADE + 코멘트
+      + smicdc_p3nrd.mc_lot_attr                                      (라인 구분 포함
+      + smicdc_p3nrd.mc_lot_step_comment                               한 쿼리로 통합)
+      + smicdc_nrdk.mc_lot
+      + smicdc_nrdk.mc_lot_attr
+      + smicdc_nrdk.mc_lot_step_comment
+  2   smicdc_p3nrd.materialworkstatus        pfr1_materialworkstatus  fa_object4
+  3   smicdc_nrdk.materialworkstatus         kfr7_materialworkstatus  fa_object4
+  4   smicdc_p3nrd.mc_lot_step_path          pfr1_step_path           잔여 step
+  5   smicdc_nrdk.mc_lot_step_path           kfr7_step_path           잔여 step
+  6   smicdc_p3nrd.trackinprevent            pfr1_tip                 TIP
+  7   smicdc_nrdk.trackinprevent             kfr7_tip                 TIP
+  8   smimes.mi_equipment                    equipment                설비 상태
+  9   smimes.mi_eqp_group_list               eqp_group                설비그룹
+  10  memmss.fab_issue_lot                   hold                     HOLD/EXC/FTP
+  11  SMIMES.MI_LOT_TRANSN_HIST              move                     MOVE(get_move)
 
 [매칭표(refer_matching_table.txt) 기준 확인 완료]
   전 테이블이 매칭표에 존재한다(M: mc_lot_attr, N: materialworkstatus 포함).
@@ -52,6 +52,10 @@ raw_of_raw_table.txt
            (GRADE 는 이력이 아니라 MC_LOT_ATTR 에서 직접 읽도록 변경)
   - 주의 : impala_insert_time 은 Impala 적재본에만 있는 컬럼이다.
            Oracle 조회에는 넣지 않는다(equipment / eqp_group / fab_issue_lot).
+  - 통합 : mc_lot + mc_lot_attr + mc_lot_step_comment 는 로딩이 빨라 한 쿼리로
+           합쳤다(#1). 라인은 UNION ALL 안에서 LINE 컬럼으로 구분한다.
+           materialworkstatus 도 같은 방식으로 합칠 수 있으나, lot_id 기준 조인이라
+           별도 유지했다. 필요하면 #1 에 LEFT JOIN 으로 붙이면 된다.
 
 
 ================================================================================
@@ -59,103 +63,91 @@ raw_of_raw_table.txt
 ================================================================================
 
 --------------------------------------------------------------------------------
--- 1) pfr1_mc_lot : smicdc_p3nrd.mc_lot
+-- 1) lot : mc_lot + mc_lot_attr(GRADE) + mc_lot_step_comment
+--
+--    세 테이블 모두 로딩이 빨라 한 쿼리로 합친다. 라인은 LINE 컬럼으로 구분한다.
+--    조인만 하고 그 외 전처리는 하지 않는다.
+--      - GRADE          : object_id = parent_object_id, attr_name='GRADE'
+--      - LOT_INFORM     : lot 별 최신 코멘트 1건 (여러 건이면 행이 불어나므로
+--                         여기서 1건으로 줄인다)
+--    lot_status_seg 필터, 라인 간 최신 last_event_date 선별, 날짜/숫자 변환은
+--    전부 python 이 담당한다.
 --------------------------------------------------------------------------------
-SELECT object_id,
-       sys_line_id,
-       cur_line_id,
-       origin_line_id,
-       lot_id,
-       carr_id,
-       lot_type,
-       lot_level,
-       cur_qty,
-       bay_name,
-       lot_status_seg,
-       step_status_seg,
-       proc_id,
-       order_seq,
-       step_seq,
-       start_date,
-       last_tkout_date,
-       step_arrive_date,
-       last_event_date
-FROM   smicdc_p3nrd.mc_lot
+SELECT 'PFR1'              AS line,
+       m.object_id,
+       m.sys_line_id,
+       m.cur_line_id,
+       m.origin_line_id,
+       m.lot_id,
+       m.carr_id,
+       m.lot_type,
+       m.lot_level,
+       m.cur_qty,
+       m.bay_name,
+       m.lot_status_seg,
+       m.step_status_seg,
+       m.proc_id,
+       m.order_seq,
+       m.step_seq,
+       m.start_date,
+       m.last_tkout_date,
+       m.step_arrive_date,
+       m.last_event_date,
+       a.attr_value        AS grade,
+       c.step_comment      AS lot_inform
+FROM   smicdc_p3nrd.mc_lot m
+LEFT JOIN smicdc_p3nrd.mc_lot_attr a
+       ON a.parent_object_id = m.object_id
+      AND a.attr_name = 'GRADE'
+LEFT JOIN (SELECT lot_id, step_comment
+           FROM  (SELECT lot_id, step_comment,
+                         ROW_NUMBER() OVER (PARTITION BY lot_id
+                                            ORDER BY update_date DESC) AS rn
+                  FROM   smicdc_p3nrd.mc_lot_step_comment
+                  WHERE  parent_order_seq = 0
+                    AND  comment_type = 'LOT')
+           WHERE rn = 1) c
+       ON c.lot_id = m.lot_id
+UNION ALL
+SELECT 'KFR7'              AS line,
+       m.object_id,
+       m.sys_line_id,
+       m.cur_line_id,
+       m.origin_line_id,
+       m.lot_id,
+       m.carr_id,
+       m.lot_type,
+       m.lot_level,
+       m.cur_qty,
+       m.bay_name,
+       m.lot_status_seg,
+       m.step_status_seg,
+       m.proc_id,
+       m.order_seq,
+       m.step_seq,
+       m.start_date,
+       m.last_tkout_date,
+       m.step_arrive_date,
+       m.last_event_date,
+       a.attr_value        AS grade,
+       c.step_comment      AS lot_inform
+FROM   smicdc_nrdk.mc_lot m
+LEFT JOIN smicdc_nrdk.mc_lot_attr a
+       ON a.parent_object_id = m.object_id
+      AND a.attr_name = 'GRADE'
+LEFT JOIN (SELECT lot_id, step_comment
+           FROM  (SELECT lot_id, step_comment,
+                         ROW_NUMBER() OVER (PARTITION BY lot_id
+                                            ORDER BY update_date DESC) AS rn
+                  FROM   smicdc_nrdk.mc_lot_step_comment
+                  WHERE  parent_order_seq = 0
+                    AND  comment_type = 'LOT')
+           WHERE rn = 1) c
+       ON c.lot_id = m.lot_id
 ;
 
 --------------------------------------------------------------------------------
--- 2) kfr7_mc_lot : smicdc_nrdk.mc_lot
---------------------------------------------------------------------------------
-SELECT object_id,
-       sys_line_id,
-       cur_line_id,
-       origin_line_id,
-       lot_id,
-       carr_id,
-       lot_type,
-       lot_level,
-       cur_qty,
-       bay_name,
-       lot_status_seg,
-       step_status_seg,
-       proc_id,
-       order_seq,
-       step_seq,
-       start_date,
-       last_tkout_date,
-       step_arrive_date,
-       last_event_date
-FROM   smicdc_nrdk.mc_lot
-;
-
---------------------------------------------------------------------------------
--- 3) pfr1_mc_lot_attr : smicdc_p3nrd.mc_lot_attr   (GRADE)
---------------------------------------------------------------------------------
-SELECT parent_object_id,
-       attr_name,
-       attr_value
-FROM   smicdc_p3nrd.mc_lot_attr
-WHERE  attr_name = 'GRADE'
-;
-
---------------------------------------------------------------------------------
--- 4) kfr7_mc_lot_attr : smicdc_nrdk.mc_lot_attr   (GRADE)
---------------------------------------------------------------------------------
-SELECT parent_object_id,
-       attr_name,
-       attr_value
-FROM   smicdc_nrdk.mc_lot_attr
-WHERE  attr_name = 'GRADE'
-;
-
---------------------------------------------------------------------------------
--- 5) pfr1_step_comment : smicdc_p3nrd.mc_lot_step_comment
---------------------------------------------------------------------------------
-SELECT lot_id,
-       step_comment,
-       update_date,
-       parent_order_seq,
-       comment_type
-FROM   smicdc_p3nrd.mc_lot_step_comment
-WHERE  parent_order_seq = 0
-  AND  comment_type = 'LOT'
-;
-
---------------------------------------------------------------------------------
--- 6) kfr7_step_comment : smicdc_nrdk.mc_lot_step_comment
---------------------------------------------------------------------------------
-SELECT lot_id,
-       step_comment,
-       update_date,
-       parent_order_seq,
-       comment_type
-FROM   smicdc_nrdk.mc_lot_step_comment
-WHERE  parent_order_seq = 0
-  AND  comment_type = 'LOT'
-;
-
---------------------------------------------------------------------------------
--- 7) pfr1_materialworkstatus : smicdc_p3nrd.materialworkstatus   (fa_object4)
+-- 2) pfr1_materialworkstatus : smicdc_p3nrd.materialworkstatus   (fa_object4)
 --    PFR1 / KFR7 양쪽 모두 fa_object4 를 붙인다.
 --    (기존 python 은 PFR1 을 NULL 로 채웠으나 그 처리는 폐지)
 --------------------------------------------------------------------------------
@@ -165,7 +157,7 @@ FROM   smicdc_p3nrd.materialworkstatus
 ;
 
 --------------------------------------------------------------------------------
--- 8) kfr7_materialworkstatus : smicdc_nrdk.materialworkstatus   (fa_object4)
+-- 3) kfr7_materialworkstatus : smicdc_nrdk.materialworkstatus   (fa_object4)
 --------------------------------------------------------------------------------
 SELECT lotid,
        fa_object4
@@ -173,7 +165,7 @@ FROM   smicdc_nrdk.materialworkstatus
 ;
 
 --------------------------------------------------------------------------------
--- 9) pfr1_step_path : smicdc_p3nrd.mc_lot_step_path
+-- 4) pfr1_step_path : smicdc_p3nrd.mc_lot_step_path
 --    현재 Impala 버전과 동일하게 mc_lot(Active/Hold) 조인으로 행을 줄인다.
 --    delay_step_type S/Y 는 de_rank 누적 계산에 필요해 위치와 무관하게 남긴다.
 --------------------------------------------------------------------------------
@@ -202,7 +194,7 @@ WHERE  p.lot_id = c.lot_id
 ;
 
 --------------------------------------------------------------------------------
--- 10) kfr7_step_path : smicdc_nrdk.mc_lot_step_path
+-- 5) kfr7_step_path : smicdc_nrdk.mc_lot_step_path
 --------------------------------------------------------------------------------
 SELECT p.lot_id,
        p.order_seq,
@@ -229,7 +221,7 @@ WHERE  p.lot_id = c.lot_id
 ;
 
 --------------------------------------------------------------------------------
--- 11) pfr1_tip : smicdc_p3nrd.trackinprevent
+-- 6) pfr1_tip : smicdc_p3nrd.trackinprevent
 --     lot_type 컬럼은 없다. python 이 '-'(와일드카드)로 채운다.
 --------------------------------------------------------------------------------
 SELECT process,
@@ -247,7 +239,7 @@ WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
 ;
 
 --------------------------------------------------------------------------------
--- 12) kfr7_tip : smicdc_nrdk.trackinprevent
+-- 7) kfr7_tip : smicdc_nrdk.trackinprevent
 --------------------------------------------------------------------------------
 SELECT process,
        step,
@@ -264,7 +256,7 @@ WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
 ;
 
 --------------------------------------------------------------------------------
--- 13) equipment : smimes.mi_equipment
+-- 8) equipment : smimes.mi_equipment
 --     Impala 버전의 '최신 impala_insert_time 선별'은 적재본 중복을 걷어내는
 --     처리였다. Oracle 원본에는 그 컬럼이 없으므로 선별 없이 가져오고,
 --     (line_id, eqp_id) 중복이 있으면 python 에서 제거한다.
@@ -281,7 +273,7 @@ WHERE  line_id IN ('KFR7', 'PFR1')
 ;
 
 --------------------------------------------------------------------------------
--- 14) eqp_group : smimes.mi_eqp_group_list
+-- 9) eqp_group : smimes.mi_eqp_group_list
 --     'OFF' 설비 제외는 python 에서 한다(로딩 조건으로 걸면 느려짐).
 --------------------------------------------------------------------------------
 SELECT line_id,
@@ -292,7 +284,7 @@ WHERE  line_id IN ('KFR7', 'PFR1')
 ;
 
 --------------------------------------------------------------------------------
--- 15) hold : memmss.fab_issue_lot
+-- 10) hold : memmss.fab_issue_lot
 --     impala_insert_time 은 Impala 적재본 전용 컬럼이라 넣지 않는다.
 --     version_desc 는 적재 스냅샷 ID 로 Oracle 원본에도 있다. 반드시 포함한다.
 --     최신 version_desc 선별과 status_seq '2'(조치완료) 제외는 python 에서 한다.
@@ -311,7 +303,7 @@ WHERE  line_id IN ('KFR7', 'PFR1')
 ;
 
 --------------------------------------------------------------------------------
--- 16) move : SMIMES.MI_LOT_TRANSN_HIST
+-- 11) move : SMIMES.MI_LOT_TRANSN_HIST
 --     MOVE = TrackOut 매수. lot_type 은 PP/PB/PG 만.
 --     line_id 는 cur/sys 합집합이라 sys_line_id 조건을 함께 건다.
 --     기간은 Spotfire 파라미터로 바꿔 쓴다(아래는 최근 3일).
