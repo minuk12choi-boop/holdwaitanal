@@ -69,8 +69,8 @@ raw_of_raw_table.txt
 ================================================================================
 
 --------------------------------------------------------------------------------
--- 1) PFR1_KFR7_LOT : mc_lot + mc_lot_attr(GRADE) + mc_lot_step_comment
---    *호출시간:
+-- 1) PFR1_KFR7_LOT_GRADE : mc_lot + mc_lot_attr(GRADE) + mc_lot_step_comment
+--    *호출시간: 8초
 --
 --    [최적화 이력]
 --    처음 이식본은 Impala 의 m -> c -> m0 -> m1 CTE 구조를 그대로 옮겼는데,
@@ -177,33 +177,6 @@ WHERE      l.last_event_date = l.max_event_date
   AND      (l.line = 'KFR7' OR l.order_seq IS NOT NULL)
 ;
 
---------------------------------------------------------------------------------
--- 1-B) 위 쿼리도 느리면 아래처럼 둘로 쪼갠다.
---      코멘트만 분리하면 mc_lot_step_comment 의 윈도우 연산이 본문과 분리된다.
---      python 은 (line, lot_id) 로 붙이면 된다.
---
---      1-B-1) PFR1_KFR7_LOT     : 위 쿼리에서 co 관련( CTE / LEFT JOIN /
---                                 SELECT 의 co.lot_inform )만 제거
---      1-B-2) PFR1_KFR7_COMMENT : 아래
---------------------------------------------------------------------------------
-SELECT line, lot_id, lot_inform
-FROM  (SELECT 'PFR1' AS line, lot_id, step_comment AS lot_inform,
-              ROW_NUMBER() OVER (PARTITION BY lot_id
-                                 ORDER BY update_date DESC) AS rn
-       FROM   smicdc_p3nrd.mc_lot_step_comment
-       WHERE  parent_order_seq = 0
-         AND  comment_type = 'LOT')
-WHERE  rn = 1
-UNION ALL
-SELECT line, lot_id, lot_inform
-FROM  (SELECT 'KFR7' AS line, lot_id, step_comment AS lot_inform,
-              ROW_NUMBER() OVER (PARTITION BY lot_id
-                                 ORDER BY update_date DESC) AS rn
-       FROM   smicdc_nrdk.mc_lot_step_comment
-       WHERE  parent_order_seq = 0
-         AND  comment_type = 'LOT')
-WHERE  rn = 1
-;
 
 --------------------------------------------------------------------------------
 -- 2) PFR1_KFR7_MATERIALWORKSTATUS : fa_object4  *호출시간: 7초
