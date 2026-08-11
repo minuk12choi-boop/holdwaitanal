@@ -1,12 +1,18 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web> waitress-serve --listen=0.0.0.0:8020 config.wsgi:application
-INFO:waitress:Serving on http://0.0.0.0:8020
-Not Found: /static/flowmonitor/chart.umd.js
-WARNING:django.request:Not Found: /static/flowmonitor/chart.umd.js
-Not Found: /static/flowmonitor/chart.umd.js
-WARNING:django.request:Not Found: /static/flowmonitor/chart.umd.js
-Not Found: /favicon.ico
-WARNING:django.request:Not Found: /favicon.ico
-Not Found: /static/flowmonitor/chart.umd.js
-WARNING:django.request:Not Found: /static/flowmonitor/chart.umd.js
-Not Found: /favicon.ico
-WARNING:django.request:Not Found: /favicon.ico
+Could not execute function call 's3drive' (2)
+
+
+Error executing Python script:
+
+ModuleNotFoundError: No module named 'boto3'
+
+Traceback (most recent call last):
+  File "data_function.py", line 364, in _execute_script
+    exec(compiled_script, self.globals)
+  File "<data_function>", line 4, in <module>
+
+
+
+   at Spotfire.Dxp.Data.DataFunctions.Executors.LocalPythonFunctionClient.<RunFunction>d__8.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.Executors.PythonScriptExecutor.<ExecuteFunction>d__11.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
+
