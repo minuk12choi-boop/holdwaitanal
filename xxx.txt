@@ -1,35 +1,38 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web> python manage.py runserver 8020
-Watching for file changes with StatReloader
-Performing system checks...
-
-System check identified no issues (0 silenced).
-August 11, 2026 - 08:59:40
-Django version 5.2.11, using settings 'config.settings'
-Starting development server at http://127.0.0.1:8020/
-Quit the server with CTRL-BREAK.
-
-WARNING: This is a development server. Do not use it in a production setting. Use a production WSGI or ASGI server instead.
-For more information on production servers see: https://docs.djangoproject.com/en/5.2/howto/deployment/
-[11/Aug/2026 08:59:43] "GET / HTTP/1.1" 200 43359
-[11/Aug/2026 08:59:43] "GET /static/flowmonitor/chart.umd.js HTTP/1.1" 200 205125
-[11/Aug/2026 08:59:43] "GET /api/flowstack/?basis=qty HTTP/1.1" 200 5403
-[11/Aug/2026 08:59:43] "GET /api/status/ HTTP/1.1" 200 6218
-[11/Aug/2026 08:59:44] "GET /api/lowwt/?line=PFR1&max_wt=0 HTTP/1.1" 200 750
-[11/Aug/2026 08:59:44] "GET /api/lowwt/?line=KFR7&max_wt=0 HTTP/1.1" 200 791
-[11/Aug/2026 09:00:11] "GET /api/lowwt/?line=PFR1&max_wt=0 HTTP/1.1" 200 750
-Internal Server Error: /api/lots/
-Traceback (most recent call last):
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\exception.py", line 55, in inner
-    response = get_response(request)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
-    response = wrapped_callback(request, *callback_args, **callback_kwargs)
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web\flowmonitor\views.py", line 720, in api_lots
-    qty = int(r.get("qty") or 0)
-ValueError: invalid literal for int() with base 10: '20.0'
-[11/Aug/2026 09:00:13] "GET /api/lots/?line=PFR1&col=SW&bin=0&max_wt=0 HTTP/1.1" 500 85356
-[11/Aug/2026 09:11:07] "GET /api/lowwt/?line=PFR1&max_wt=0.5 HTTP/1.1" 200 865
-[11/Aug/2026 09:11:14] "GET /api/lowwt/?line=PFR1&max_wt=1 HTTP/1.1" 200 1126
-[11/Aug/2026 09:11:16] "GET /api/lowwt/?line=PFR1&max_wt=0 HTTP/1.1" 200 750
-[11/Aug/2026 09:11:18] "GET /api/lowwt/?line=PFR1&max_wt=1 HTTP/1.1" 200 1126
-[11/Aug/2026 09:13:17] "GET /api/lowwt/?line=PFR1&max_wt=1 HTTP/1.1" 200 1126
-[11/Aug/2026 09:13:18] "GET /api/lowwt/?line=PFR1&max_wt=1 HTTP/1.1" 200 1126
+정보	2026-08-11 오전 8:00:03	102	작업이 완료되었습니다.	(2)	371e8895-fd49-4ad3-aaba-f960751650fe
+정보	2026-08-11 오전 8:00:03	201	동작이 완료되었습니다.	(2)	371e8895-fd49-4ad3-aaba-f960751650fe
+정보	2026-08-11 오전 8:00:02	200	동작이 시작되었습니다.	(1)	371e8895-fd49-4ad3-aaba-f960751650fe
+정보	2026-08-11 오전 8:00:02	100	작업이 시작되었습니다.	(1)	371e8895-fd49-4ad3-aaba-f960751650fe
+정보	2026-08-11 오전 8:00:02	129	만들어진 작업 프로세스	정보	
+정보	2026-08-11 오전 8:00:01	107	스케줄러에서 작업이 트리거되었습니다.	정보	371e8895-fd49-4ad3-aaba-f960751650fe
+정보	2026-08-11 오전 6:00:03	102	작업이 완료되었습니다.	(2)	6dc7af1f-acd8-410b-8651-ac25c3fc7e2d
+정보	2026-08-11 오전 6:00:03	201	동작이 완료되었습니다.	(2)	6dc7af1f-acd8-410b-8651-ac25c3fc7e2d
+정보	2026-08-11 오전 6:00:02	200	동작이 시작되었습니다.	(1)	6dc7af1f-acd8-410b-8651-ac25c3fc7e2d
+정보	2026-08-11 오전 6:00:02	100	작업이 시작되었습니다.	(1)	6dc7af1f-acd8-410b-8651-ac25c3fc7e2d
+정보	2026-08-11 오전 6:00:02	129	만들어진 작업 프로세스	정보	
+정보	2026-08-11 오전 6:00:01	107	스케줄러에서 작업이 트리거되었습니다.	정보	6dc7af1f-acd8-410b-8651-ac25c3fc7e2d
+정보	2026-08-11 오전 4:00:03	102	작업이 완료되었습니다.	(2)	4b74cc9f-abcb-417b-ad50-9cabf55957de
+정보	2026-08-11 오전 4:00:03	201	동작이 완료되었습니다.	(2)	4b74cc9f-abcb-417b-ad50-9cabf55957de
+정보	2026-08-11 오전 4:00:02	200	동작이 시작되었습니다.	(1)	4b74cc9f-abcb-417b-ad50-9cabf55957de
+정보	2026-08-11 오전 4:00:02	100	작업이 시작되었습니다.	(1)	4b74cc9f-abcb-417b-ad50-9cabf55957de
+정보	2026-08-11 오전 4:00:02	129	만들어진 작업 프로세스	정보	
+정보	2026-08-11 오전 4:00:01	107	스케줄러에서 작업이 트리거되었습니다.	정보	4b74cc9f-abcb-417b-ad50-9cabf55957de
+정보	2026-08-11 오전 2:00:03	102	작업이 완료되었습니다.	(2)	ec19abb1-8bdf-48e4-ac1b-f4625a1ec290
+정보	2026-08-11 오전 2:00:03	201	동작이 완료되었습니다.	(2)	ec19abb1-8bdf-48e4-ac1b-f4625a1ec290
+정보	2026-08-11 오전 2:00:02	200	동작이 시작되었습니다.	(1)	ec19abb1-8bdf-48e4-ac1b-f4625a1ec290
+정보	2026-08-11 오전 2:00:02	100	작업이 시작되었습니다.	(1)	ec19abb1-8bdf-48e4-ac1b-f4625a1ec290
+정보	2026-08-11 오전 2:00:02	129	만들어진 작업 프로세스	정보	
+정보	2026-08-11 오전 2:00:01	107	스케줄러에서 작업이 트리거되었습니다.	정보	ec19abb1-8bdf-48e4-ac1b-f4625a1ec290
+정보	2026-08-11 오전 12:00:03	102	작업이 완료되었습니다.	(2)	2ad57dea-1c40-4907-8216-025127dbf536
+정보	2026-08-11 오전 12:00:03	201	동작이 완료되었습니다.	(2)	2ad57dea-1c40-4907-8216-025127dbf536
+정보	2026-08-11 오전 12:00:02	200	동작이 시작되었습니다.	(1)	2ad57dea-1c40-4907-8216-025127dbf536
+정보	2026-08-11 오전 12:00:02	100	작업이 시작되었습니다.	(1)	2ad57dea-1c40-4907-8216-025127dbf536
+정보	2026-08-11 오전 12:00:02	129	만들어진 작업 프로세스	정보	
+정보	2026-08-11 오전 12:00:01	107	스케줄러에서 작업이 트리거되었습니다.	정보	2ad57dea-1c40-4907-8216-025127dbf536
+정보	2026-08-10 오후 10:00:02	102	작업이 완료되었습니다.	(2)	f9f7025b-35ea-4e15-8a1b-78b6d950417a
+정보	2026-08-10 오후 10:00:02	201	동작이 완료되었습니다.	(2)	f9f7025b-35ea-4e15-8a1b-78b6d950417a
+정보	2026-08-10 오후 10:00:01	200	동작이 시작되었습니다.	(1)	f9f7025b-35ea-4e15-8a1b-78b6d950417a
+정보	2026-08-10 오후 10:00:01	100	작업이 시작되었습니다.	(1)	f9f7025b-35ea-4e15-8a1b-78b6d950417a
+정보	2026-08-10 오후 10:00:01	129	만들어진 작업 프로세스	정보	
+정보	2026-08-10 오후 10:00:00	107	스케줄러에서 작업이 트리거되었습니다.	정보	f9f7025b-35ea-4e15-8a1b-78b6d950417a
+정보	2026-08-10 오후 8:43:50	140	작업 등록이 업데이트되었습니다.	정보	266c96c5-ad39-46fd-b555-91ec3b4a5ff4
+정보	2026-08-10 오후 8:42:29	106	등록된 작업	정보	f868d60f-159e-4ad2-87c6-030846df9252
