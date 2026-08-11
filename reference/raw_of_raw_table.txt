@@ -21,7 +21,7 @@ raw_of_raw_table.txt
 [대상 라인] PFR1(=smicdc_p3nrd), KFR7(=smicdc_nrdk)
 
 ================================================================================
-1. 필요 raw 테이블 목록 (15개 쿼리 / 14개 테이블)
+1. 필요 raw 테이블 목록 (16개 쿼리 / 16개 테이블)
 ================================================================================
 
   #   Oracle 테이블                          S3 파일명                용도
@@ -32,7 +32,8 @@ raw_of_raw_table.txt
   4   smicdc_nrdk.mc_lot_attr                kfr7_mc_lot_attr         GRADE
   5   smicdc_p3nrd.mc_lot_step_comment       pfr1_step_comment        lot_inform
   6   smicdc_nrdk.mc_lot_step_comment        kfr7_step_comment        lot_inform
-  7   smicdc_nrdk.materialworkstatus         kfr7_materialworkstatus  fa_object4
+  7   smicdc_p3nrd.materialworkstatus        pfr1_materialworkstatus  fa_object4
+  7'  smicdc_nrdk.materialworkstatus         kfr7_materialworkstatus  fa_object4
   8   smicdc_p3nrd.mc_lot_step_path          pfr1_step_path           잔여 step
   9   smicdc_nrdk.mc_lot_step_path           kfr7_step_path           잔여 step
   10  smicdc_p3nrd.trackinprevent            pfr1_tip                 TIP
@@ -42,15 +43,15 @@ raw_of_raw_table.txt
   14  memmss.fab_issue_lot                   hold                     HOLD/EXC/FTP
   15  MI_LOT_TRANSN_HIST_V                   move                     MOVE(get_move)
 
-[매칭표(refer_matching_table.txt) 대비 변경]
-  + 추가 : smicdc_p3nrd.mc_lot_attr, smicdc_nrdk.mc_lot_attr
-           GRADE 를 M_LOT_TRANSN_HIST 이력이 아니라 MC_LOT_ATTR 에서 직접 읽도록
-           바꿨으므로 필요. 매칭표에 없어 확인 필요 -> [3. 확인필요] 참조
-  + 추가 : smicdc_nrdk.materialworkstatus
-           fa_object4 용도. 매칭표에 없음 -> [3. 확인필요] 참조
+[매칭표(refer_matching_table.txt) 기준 확인 완료]
+  전 테이블이 매칭표에 존재한다(M: mc_lot_attr, N: materialworkstatus 포함).
+
   - 제외 : smicdc_nrd.mc_lot / todoplan / steprule / stepcomments
            KFR4 브랜치를 제거해 더 이상 쓰지 않음
-  - 유지 : MI_LOT_TRANSN_HIST_V 는 MOVE 용도로만 사용(GRADE 이력 용도는 폐지)
+  - 유지 : MI_LOT_TRANSN_HIST_V 는 MOVE 용도로만 사용
+           (GRADE 는 이력이 아니라 MC_LOT_ATTR 에서 직접 읽도록 변경)
+  - 주의 : impala_insert_time 은 Impala 적재본에만 있는 컬럼이다.
+           Oracle 조회에는 넣지 않는다(equipment / eqp_group / fab_issue_lot).
 
 
 ================================================================================
@@ -154,8 +155,18 @@ WHERE  parent_order_seq = 0
 ;
 
 --------------------------------------------------------------------------------
--- 7) kfr7_materialworkstatus : smicdc_nrdk.materialworkstatus   (fa_object4)
---    KFR7 에만 붙는다. PFR1 은 python 에서 NULL 로 채운다.
+-- 7) pfr1_materialworkstatus : smicdc_p3nrd.materialworkstatus   (fa_object4)
+--    현재 python 은 KFR7 만 조인하고 PFR1 은 NULL 로 채우고 있다.
+--    매칭표에 PFR1 쪽도 존재하므로 함께 받아 둔다.
+--    (PFR1 에도 붙일지는 [3. 확인필요] (1) 참조)
+--------------------------------------------------------------------------------
+SELECT lotid,
+       fa_object4
+FROM   smicdc_p3nrd.materialworkstatus
+;
+
+--------------------------------------------------------------------------------
+-- 7') kfr7_materialworkstatus : smicdc_nrdk.materialworkstatus   (fa_object4)
 --------------------------------------------------------------------------------
 SELECT lotid,
        fa_object4
@@ -283,9 +294,10 @@ WHERE  line_id IN ('KFR7', 'PFR1')
 
 --------------------------------------------------------------------------------
 -- 14) hold : memmss.fab_issue_lot
---     version_desc(적재 스냅샷 ID)는 Impala 적재본 개념이다. Oracle 원본이
---     현재값만 갖고 있다면 최신 스냅샷 선별이 필요 없다.
---     status_seq '2'(조치완료) 제외도 python 에서 한다.
+--     impala_insert_time 은 Oracle 에 없다(적재본 전용). 넣지 않는다.
+--     version_desc 는 매칭표에 있으나 Oracle 원본이 스냅샷 누적인지 현재값인지에
+--     따라 필요 여부가 갈린다 -> [3. 확인필요] (2)
+--     status_seq '2'(조치완료) 제외는 python 에서 한다.
 --------------------------------------------------------------------------------
 SELECT line_id,
        item_type,
@@ -341,24 +353,29 @@ WHERE  line_id     IN ('KFR7', 'PFR1')
 3. 확인필요
 ================================================================================
 
-(1) smicdc_p3nrd.mc_lot_attr / smicdc_nrdk.mc_lot_attr
-    매칭표에 없다. 컬럼은 [PARENT_OBJECT_ID, ATTR_NAME, ATTR_VALUE] 로 알고 있으나
-    Oracle 쪽 스키마/테이블명이 위와 같은지 확인 필요.
+(1) PFR1 의 fa_object4
+    지금 python 은 KFR7 만 materialworkstatus 를 조인하고 PFR1 은 NULL 로 채운다.
+    매칭표에 PFR1 쪽 테이블도 있으므로 쿼리는 함께 넣어 두었다.
+    PFR1 에도 값을 붙일지 결정 필요. 붙이면 기존 결과와 값이 달라진다.
 
-(2) smicdc_nrdk.materialworkstatus
-    매칭표에 없다. lotid, fa_object4 두 컬럼만 쓴다. Oracle 테이블명 확인 필요.
+(2) memmss.fab_issue_lot 의 version_desc
+    Impala 적재본에서는 스냅샷 ID 였고, 최신 version_desc 로 좁힌 뒤
+    status_seq <> '2' 를 적용했다.
+    - Oracle 원본이 **현재값만** 갖는 구조면: version_desc 불필요. 지금 쿼리 그대로.
+    - Oracle 원본도 **누적 스냅샷**이면: SELECT 에 version_desc 를 넣고
+      python 에서 최신 선별을 유지해야 한다. 넣지 않으면 조치완료된 옛 건이
+      되살아난다.
+    첫 적재 후 (lot_id, step_seq, item_type) 중복 여부로 판별 가능하다.
 
 (3) MI_LOT_TRANSN_HIST_V 의 스키마 접두
     매칭표에 스키마 없이 뷰 이름만 있다. 접근에 스키마가 필요하면 앞에 붙일 것.
 
-(4) mc_lot 의 date 계열 컬럼 타입
-    Impala 에서는 STRING 이라 python 이 숫자만 뽑아 파싱한다. Oracle 에서 DATE 로
-    오면 python 파싱을 손봐야 한다. 첫 적재 후 타입 확인 필요.
+(4) 날짜 계열 컬럼 타입
+    Impala 에서는 STRING 이라 python 이 숫자만 뽑아 파싱한다
+    (mc_lot 의 start_date / last_tkout_date / step_arrive_date / last_event_date,
+     equipment 의 eqp_status_change_time, move 의 lot_transn_time).
+    Oracle 에서 DATE 로 오면 python 파싱을 손봐야 한다. 첫 적재 후 확인 필요.
 
-(5) memmss.fab_issue_lot 의 version_desc
-    Impala 적재본에만 있는 컬럼으로 보고 SELECT 에서 뺐다. Oracle 원본에도 있고
-    스냅샷 누적 구조라면 다시 넣고 python 의 최신 선별을 유지해야 한다.
-
-(6) step_path 조인의 Oracle 성능
+(5) step_path 조인의 Oracle 성능
     Impala 에서는 이 조인이 전송량을 크게 줄였다(683만 -> 457만). Oracle 에서
     느리다면 조인을 빼고 생테이블로 받아 python 에서 거르는 쪽으로 되돌린다.
