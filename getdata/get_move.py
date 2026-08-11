@@ -33,7 +33,11 @@ import pandas as pd
 import db_common as DB
 
 INIT_MONTHS = 3
-INCREMENTAL_DAYS = 2
+
+# 2시간 주기 실행 기준 증분 조회 폭(시간).
+#   진행 중인 shift(최대 8h) + 직전 shift(8h) 를 덮고도 남는 여유를 둔다.
+#   실행이 몇 시간 밀려도 공백이 생기지 않는다. (교체 적재라 겹쳐도 무해)
+INCREMENTAL_HOURS = 20
 BOUNDARY_SHIFT = {22: "GY", 6: "DAY", 14: "SW"}
 TARGET_LINES = ("KFR7", "PFR1")
 
@@ -78,25 +82,34 @@ WHERE  line_id IN ('KFR7', 'PFR1')          -- 파티션 프루닝용(PK)
 """
 
 
+def shift_start_at_or_before(ts):
+    """ts 가 속한 shift 의 시작 시각."""
+    for h in (22, 14, 6):
+        b = ts.replace(hour=h, minute=0, second=0, microsecond=0)
+        if b <= ts:
+            return b
+    return (ts - dt.timedelta(days=1)).replace(hour=22, minute=0,
+                                               second=0, microsecond=0)
+
+
 def resolve_range(conn, args):
     """조회 구간을 결정한다.
 
-    끝은 '가장 최근에 지난 shift 기준시각'으로 맞춘다. 진행 중인 shift 를 반쯤
-    담아두면 다음 실행 때 값이 바뀐다.
+    끝은 '지금'이다. 진행 중인 shift 도 부분 집계해 둔다(다음 실행에서 교체).
+    시작은 INCREMENTAL_HOURS 이전이 속한 shift 의 시작 시각으로 맞춰
+    구간이 shift 경계에서 잘리지 않게 한다.
     """
-    now = dt.datetime.now()
-    bounds = DB.shift_boundaries(now, back_hours=26)
-    ts_to = bounds[0][0] if bounds else now
+    now = dt.datetime.now().replace(second=0, microsecond=0)
 
     if args.ts_from and args.ts_to:
         return (dt.datetime.combine(args.ts_from, dt.time(22)) - dt.timedelta(days=1),
                 dt.datetime.combine(args.ts_to, dt.time(22)))
     if args.days:
-        return ts_to - dt.timedelta(days=args.days), ts_to
+        return shift_start_at_or_before(now - dt.timedelta(days=args.days)), now
     if args.full or DB.move_last_biz_date(conn) is None:
-        first = (ts_to.date() - dt.timedelta(days=INIT_MONTHS * 30)).replace(day=1)
-        return dt.datetime.combine(first, dt.time(22)) - dt.timedelta(days=1), ts_to
-    return ts_to - dt.timedelta(days=INCREMENTAL_DAYS), ts_to
+        first = (now.date() - dt.timedelta(days=INIT_MONTHS * 30)).replace(day=1)
+        return dt.datetime.combine(first, dt.time(22)) - dt.timedelta(days=1), now
+    return shift_start_at_or_before(now - dt.timedelta(hours=INCREMENTAL_HOURS)), now
 
 
 def aggregate(df, ts_from, ts_to):
@@ -111,11 +124,12 @@ def aggregate(df, ts_from, ts_to):
     d["move"] = pd.to_numeric(d["move"], errors="coerce").fillna(0)
 
     rows, lot_rows = [], []
-    boundary = ts_to - dt.timedelta(hours=8)
+    boundary = shift_start_at_or_before(ts_to)
     while boundary >= ts_from:
         lo, hi = DB.shift_window(boundary)
+        hi = min(hi, ts_to)                 # 진행 중인 shift 는 지금까지만
         shift = BOUNDARY_SHIFT.get(boundary.hour)
-        if shift:
+        if shift and hi > lo:
             bd = DB.biz_date(boundary)
             chunk = d[(d["tkout_date"] > lo) & (d["tkout_date"] <= hi)]
             for line, g in chunk.groupby("sys_line_id", dropna=True):
@@ -175,10 +189,10 @@ def main():
         return
 
     biz_dates = sorted(set(df_shift["biz_date"])) if len(df_shift) else []
-    DB.replace_move(conn, df_shift, df_daily, biz_dates, df_lot)
-    print(f"[MOVE] 적재 완료: 업무일 {len(biz_dates)}일 "
-          f"({biz_dates[0] if biz_dates else '-'} ~ "
-          f"{biz_dates[-1] if biz_dates else '-'})", flush=True)
+    pairs = DB.replace_move(conn, df_shift, df_daily, biz_dates, df_lot)
+    print(f"[MOVE] 적재 완료: {len(pairs)}개 (업무일,shift) 교체", flush=True)
+    for bd, sh in pairs[-6:]:
+        print(f"        {bd} {sh}", flush=True)
     conn.close()
 
 

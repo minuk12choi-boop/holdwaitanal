@@ -369,14 +369,21 @@ def promote_to_history(conn, columns, now=None):
 
 
 def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None):
-    """지정 업무일 구간을 통째로 교체한다(중복 비교 없이 멱등)."""
+    """이번 조회가 커버한 (업무일, shift) 만 교체한다.
+
+    업무일 통째로 지우면 안 된다. 2시간 주기로 최근 몇 시간만 조회할 때
+    같은 업무일의 이전 shift(이미 적재된 것)까지 날아간다.
+    move_daily 는 교체 후 move_shift 에서 다시 합산해 만든다.
+    """
     now = dt.datetime.now()
+    pairs = sorted({(r.biz_date, r.shift) for r in df_shift.itertuples(index=False)}) \
+        if len(df_shift) else []
+
     with conn.cursor() as cur:
-        if biz_dates:
-            lo, hi = min(biz_dates), max(biz_dates)
-            cur.execute("DELETE FROM move_shift WHERE biz_date BETWEEN %s AND %s", (lo, hi))
-            cur.execute("DELETE FROM move_daily WHERE biz_date BETWEEN %s AND %s", (lo, hi))
-            cur.execute("DELETE FROM move_lot WHERE biz_date BETWEEN %s AND %s", (lo, hi))
+        for bd, sh in pairs:
+            cur.execute("DELETE FROM move_shift WHERE biz_date=%s AND shift=%s", (bd, sh))
+            cur.execute("DELETE FROM move_lot   WHERE biz_date=%s AND shift=%s", (bd, sh))
+
         if len(df_shift):
             cur.executemany(
                 "INSERT INTO move_shift "
@@ -384,13 +391,7 @@ def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None):
                 "VALUES (%s,%s,%s,%s,%s,%s)",
                 [(r.biz_date, r.shift, r.sys_line_id, int(r.move_qty), int(r.lot_cnt), now)
                  for r in df_shift.itertuples(index=False)])
-        if len(df_daily):
-            cur.executemany(
-                "INSERT INTO move_daily "
-                "(biz_date, sys_line_id, move_qty, lot_cnt, loaded_at) "
-                "VALUES (%s,%s,%s,%s,%s)",
-                [(r.biz_date, r.sys_line_id, int(r.move_qty), int(r.lot_cnt), now)
-                 for r in df_daily.itertuples(index=False)])
+
         if df_lot is not None and len(df_lot):
             cur.executemany(
                 "INSERT INTO move_lot "
@@ -399,7 +400,18 @@ def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None):
                 [(r.biz_date, r.shift, r.sys_line_id, str(r.lot_id)[:64],
                   int(r.move_qty), int(r.tkout_cnt), now)
                  for r in df_lot.itertuples(index=False)])
+
+        # 영향받은 업무일의 일 집계를 shift 합으로 다시 만든다
+        for bd in sorted({b for b, _ in pairs}):
+            cur.execute("DELETE FROM move_daily WHERE biz_date=%s", (bd,))
+            cur.execute(
+                "INSERT INTO move_daily "
+                "(biz_date, sys_line_id, move_qty, lot_cnt, loaded_at) "
+                "SELECT biz_date, sys_line_id, SUM(move_qty), SUM(lot_cnt), %s "
+                "FROM move_shift WHERE biz_date=%s "
+                "GROUP BY biz_date, sys_line_id", (now, bd))
     conn.commit()
+    return pairs
 
 
 def move_last_biz_date(conn):

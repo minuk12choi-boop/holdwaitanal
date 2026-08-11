@@ -10,13 +10,13 @@
 
 | 파일 | 스케줄러 등록 | 역할 |
 |---|---|---|
-| `scripts\run_build_f3.bat` | **등록함** | build_f3 매번 + get_move 를 06/14/22시에 이어서 |
+| `scripts\run_build_f3.bat` | **등록함** | build_f3 + get_move 를 매 실행마다 |
 | `scripts\run_get_move.bat` | 등록 안 함 | 손으로 백필·재적재할 때만 |
 | `getdata\db_common.py` | 등록 안 함 | 공용 라이브러리 (`--init` 으로 한 번만) |
 
-`get_move` 도 **하루 3번 shift 시점마다 자동 실행된다.** 별도 작업으로 등록하지
-않는 것뿐이지 수동이 아니다. `run_build_f3.bat` 이 실행 시각을 보고 06 / 14 / 22
-시일 때만 이어서 돌린다.
+`get_move` 도 **2시간마다 자동 실행된다.** 별도 작업으로 등록하지 않는 것뿐이지
+수동이 아니다. `run_build_f3.bat` 이 build_f3 뒤에 이어서 돌린다.
+증분 조회가 최근 20시간이라 실행이 밀려도 공백이 생기지 않는다.
 
 ---
 
