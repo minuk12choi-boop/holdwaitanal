@@ -1,0 +1,322 @@
+{% extends "flowmonitor/base.html" %}
+{% load static %}
+{% block body %}
+<div class="layout">
+  <div class="summary">
+    <div class="lineseg" id="lineseg">
+      {% for l in lines %}
+        <button data-line="{{ l.line }}" {% if not l.ready %}disabled
+          title="아직 적재된 데이터가 없습니다"{% endif %}
+          onclick="pickLine('{{ l.line }}')">{{ l.label }}</button>
+      {% endfor %}
+    </div>
+
+    <div id="err" class="err"></div>
+
+    <!-- 재공 뷰 -->
+    <div class="cell">
+      <div class="wip">
+        <div class="top">
+          <div class="nums">
+            <div><b id="wl">-</b><div class="lbl">재공 LOT</div></div>
+            <div><b id="wq">-</b><div class="lbl">재공 매</div></div>
+          </div>
+          <div class="dd" id="dd">
+            <button onclick="toggleDd()" id="ddb">전체 &#9662;</button>
+            <div class="menu" id="ddm"></div>
+          </div>
+        </div>
+        <div class="stack" id="ws"></div>
+        <div class="stleg" id="wg"></div>
+      </div>
+    </div>
+
+    <!-- status 뷰 -->
+    <div class="cell">
+      <div class="donut">
+        <div class="legend" id="lg"></div>
+        <div class="cv"><canvas id="dn"></canvas></div>
+        <div class="pickinfo" id="dt"></div>
+      </div>
+    </div>
+
+    <!-- WT 분포 뷰 -->
+    <div class="cell">
+      <div class="cellttl"><span>W/T 분포</span>
+        <span class="seg">
+          <button id="wu_lots" onclick="setWtUnit('lots')">LOT</button>
+          <button class="on" id="wu_qty" onclick="setWtUnit('qty')">매</button>
+        </span></div>
+      <div class="wtb" id="wtb"></div>
+    </div>
+
+    <!-- 원인 분석 뷰 -->
+    <div class="cell">
+      <div class="cellttl"><span>원인 분석</span>
+        <span class="seg">
+          <button id="cu_lots" onclick="setCauseUnit('lots')">LOT</button>
+          <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
+        </span></div>
+      <div class="cz" id="cz"></div>
+    </div>
+  </div>
+
+  <div class="detail" id="drill" style="flex:1">
+    <div class="empty">좌측 <b>W/T 분포</b> 막대나 <b>원인 분석</b> 항목을 클릭하면
+      해당 LOT 상세가 여기에 표시됩니다.</div>
+  </div>
+</div>
+
+<script src="{% static 'flowmonitor/chart.umd.js' %}"></script>
+<script>
+if (window.Chart) {
+  Chart.defaults.font.family = "'Poppins','Noto Sans KR','Malgun Gothic',sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = "#374151";
+}
+
+const BRAND = "#2F4B7C";
+const TYPE_COLORS = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#B9D4F2", "#D8E5F5"];
+const nf = (n) => Number(n || 0).toLocaleString("ko-KR");
+
+let LINE = "{{ default_line }}";
+let DATA = null;
+let SEL_STATUS = null;
+let WT_UNIT = "qty";
+let CAUSE_UNIT = "qty";
+let dnChart = null;
+
+function smoothTo(el) {
+  const y = el.getBoundingClientRect().top + window.pageYOffset - 12;
+  window.scrollTo({ top: y, behavior: "smooth" });
+}
+
+function toggleDd() {
+  document.getElementById("dd").classList.toggle("open");
+}
+document.addEventListener("click", e => {
+  if (!e.target.closest(".dd")) document.getElementById("dd").classList.remove("open");
+});
+
+function selectedTypes() {
+  return [...document.querySelectorAll("#ddm input:checked")].map(x => x.value);
+}
+
+function onTypeCheck() {
+  const t = selectedTypes();
+  document.getElementById("ddb").innerHTML =
+    (t.length ? (t.length <= 2 ? t.join(",") : t.length + "개 선택") : "전체") + " &#9662;";
+  loadSummary();
+}
+
+function pickLine(line) {
+  LINE = line;
+  document.querySelectorAll("#lineseg button").forEach(b =>
+    b.classList.toggle("on", b.dataset.line === line));
+  document.getElementById("ddm").innerHTML = "";   // 라인마다 lot_type 이 다르다
+  document.getElementById("ddb").innerHTML = "전체 &#9662;";
+  loadSummary();
+}
+
+function setWtUnit(u) {
+  WT_UNIT = u;
+  document.getElementById("wu_lots").className = (u === "lots") ? "on" : "";
+  document.getElementById("wu_qty").className = (u === "qty") ? "on" : "";
+  renderWt();
+}
+
+function setCauseUnit(u) {
+  CAUSE_UNIT = u;
+  document.getElementById("cu_lots").className = (u === "lots") ? "on" : "";
+  document.getElementById("cu_qty").className = (u === "qty") ? "on" : "";
+  renderCause();
+}
+
+/* --- 재공 --- */
+function renderWip() {
+  const d = DATA;
+  document.getElementById("wl").textContent = nf(d.total.lots);
+  document.getElementById("wq").textContent = nf(d.total.qty);
+
+  if (!document.getElementById("ddm").innerHTML) {
+    document.getElementById("ddm").innerHTML = d.types.map(t =>
+      `<label><input type="checkbox" value="${t}" onchange="onTypeCheck()">${t}</label>`
+    ).join("");
+  }
+  const tot = d.by_lot_type.reduce((a, x) => a + x.lots, 0) || 1;
+  document.getElementById("ws").innerHTML = d.by_lot_type.map((x, k) =>
+    `<i style="width:${x.lots / tot * 100}%;background:${TYPE_COLORS[k % 5]}"
+        title="${x.name} ${nf(x.lots)} LOT / ${nf(x.qty)} 매"></i>`).join("");
+  document.getElementById("wg").innerHTML = d.by_lot_type.map((x, k) =>
+    `<span><i style="background:${TYPE_COLORS[k % 5]}"></i>${x.name}
+       ${(x.lots / tot * 100).toFixed(0)}%</span>`).join("");
+}
+
+/* --- status --- */
+const sliceLabels = {
+  id: "sliceLabels",
+  afterDatasetsDraw(ch) {
+    const st = ch.$status || [];
+    const ctx = ch.ctx;
+    ctx.save();
+    ctx.font = "600 10px 'Poppins','Noto Sans KR',sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ch.getDatasetMeta(0).data.forEach((arc, k) => {
+      const v = st[k];
+      if (!v || v.pct < 6) return;
+      const a = (arc.startAngle + arc.endAngle) / 2;
+      const r = arc.outerRadius * 0.62;
+      ctx.fillStyle = "#fff";
+      ctx.fillText(v.pct + "%", arc.x + Math.cos(a) * r, arc.y + Math.sin(a) * r);
+    });
+    ctx.restore();
+  }
+};
+
+function setStatusInfo() {
+  const d = DATA;
+  const s = (SEL_STATUS === null)
+    ? { label: d.default.label, pct: d.default.pct, lots: d.default.lots,
+        qty: d.default.qty, color: BRAND }
+    : { label: d.status[SEL_STATUS].name, pct: d.status[SEL_STATUS].pct,
+        lots: d.status[SEL_STATUS].lots, qty: d.status[SEL_STATUS].qty,
+        color: d.status[SEL_STATUS].color };
+  document.getElementById("dt").innerHTML =
+    `<div class="nm" style="color:${s.color}">${s.label}</div>
+     <div class="pc">${s.pct.toFixed(1)}%</div>
+     <div class="sub">${nf(s.lots)} LOT &middot; ${nf(s.qty)} 매</div>`;
+  document.querySelectorAll("#lg span").forEach((el, k) =>
+    el.classList.toggle("on", k === (SEL_STATUS === null ? 0 : SEL_STATUS + 1)));
+}
+
+function pickStatus(i) { SEL_STATUS = (SEL_STATUS === i) ? null : i; setStatusInfo(); }
+function pickDefault() { SEL_STATUS = null; setStatusInfo(); }
+
+function renderStatus() {
+  const d = DATA;
+  document.getElementById("lg").innerHTML =
+    `<span onclick="pickDefault()"><i style="background:${BRAND}"></i>`
+    + `${d.default.label}</span>`
+    + d.status.map((st, i) =>
+        `<span onclick="pickStatus(${i})"><i style="background:${st.color}"></i>`
+        + `${st.name}</span>`).join("");
+
+  if (!dnChart) {
+    dnChart = new Chart(document.getElementById("dn"), {
+      type: "doughnut",
+      data: { labels: d.status.map(s => s.name),
+              datasets: [{ data: d.status.map(s => s.lots),
+                           backgroundColor: d.status.map(s => s.color),
+                           borderWidth: 0 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: 0, animation: false,
+        plugins: { legend: { display: false },
+                   tooltip: { callbacks: { label: (t) => {
+                     const st = (t.chart.$status || [])[t.dataIndex] || {};
+                     return st.name + "  " + st.pct + "% / " + nf(st.lots) + " LOT / "
+                            + nf(st.qty) + " 매";
+                   } } } },
+        onClick: (e, els) => { if (els.length) pickStatus(els[0].index); }
+      },
+      plugins: [sliceLabels]
+    });
+  }
+  dnChart.data.labels = d.status.map(s => s.name);
+  dnChart.data.datasets[0].data = d.status.map(s => s.lots);
+  dnChart.data.datasets[0].backgroundColor = d.status.map(s => s.color);
+  dnChart.$status = d.status;
+  dnChart.update();
+  setStatusInfo();
+}
+
+/* --- W/T 분포 : 위가 WT0, 아래로 갈수록 정상 --- */
+function renderWt() {
+  const d = DATA, u = WT_UNIT;
+  const vals = d.wt_dist.map(x => u === "lots" ? x.lots : x.qty);
+  const mx = Math.max.apply(null, vals.concat([1]));
+  document.getElementById("wtb").innerHTML = d.wt_dist.map((x, i) => {
+    const v = vals[i];
+    // 위(WT0)가 가장 진하고 아래로 갈수록 옅어진다 = 심각도 표현
+    const a = 0.9 - 0.11 * i;
+    const alt = u === "lots" ? x.qty + " 매" : x.lots + " LOT";
+    return `<div class="row">
+      <div class="k">${d.wt_ranges[i].label}</div>
+      <div class="bar" title="${alt}"
+           onclick="openDrill({line:'${LINE}',wt_range:'${x.name}',
+                    label:'${d.wt_ranges[i].label}'})">
+        <i style="width:${v / mx * 100}%;background:rgba(47,75,124,${a.toFixed(2)})"></i>
+      </div>
+      <div class="v">${nf(v)}</div></div>`;
+  }).join("");
+}
+
+/* --- 원인 분석 --- */
+function renderCause() {
+  const d = DATA, u = CAUSE_UNIT;
+  document.getElementById("cz").innerHTML = d.causes.map(g => {
+    const rows = g.sub.slice()
+      .sort((a, b) => (u === "lots" ? b.lots - a.lots : b.qty - a.qty));
+    const sum = rows.reduce((a, x) => a + (u === "lots" ? x.lots : x.qty), 0);
+    const body = rows.length ? rows.map(x =>
+      `<div class="it"><span>${x.name}</span>
+         <b>${nf(u === "lots" ? x.lots : x.qty)}</b></div>`).join("")
+      : `<div class="none">해당 없음</div>`;
+    return `<div class="grp"><div class="gh"><span>${g.name}</span>
+      <span>${nf(sum)} ${u === "lots" ? "LOT" : "매"}</span></div>${body}</div>`;
+  }).join("");
+}
+
+/* --- 드릴다운 --- */
+const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝도착경과_일"]);
+
+function closeDrill() {
+  document.getElementById("drill").innerHTML =
+    `<div class="empty">좌측 <b>W/T 분포</b> 막대나 <b>원인 분석</b> 항목을 클릭하면
+      해당 LOT 상세가 여기에 표시됩니다.</div>`;
+}
+
+function openDrill(opt) {
+  const el = document.getElementById("drill");
+  el.innerHTML = `<div class="bar"><b>불러오는 중…</b></div>`;
+  smoothTo(el);
+  const label = opt.label || "";
+  const q = Object.entries(opt)
+    .filter(([k, v]) => k !== "label" && v !== undefined && v !== null && v !== "")
+    .map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
+  fetch("/api/lots/?" + q).then(r => r.json()).then(d => {
+    const cols = d.cols || [], rows = d.rows || [];
+    const head = cols.map(c => `<th>${c.t}</th>`).join("");
+    const body = rows.map(r => "<tr>" + cols.map(c =>
+      `<td class="${NUM_COLS.has(c.k) ? "num" : ""}">`
+      + (r[c.k] === null || r[c.k] === undefined ? "" : r[c.k]) + "</td>").join("")
+      + "</tr>").join("");
+    el.innerHTML = `<div class="bar">
+        <div><b>${nf(rows.length)} LOT</b>
+          <span class="path">${[LINE, label, d.biz_date].filter(Boolean).join(" / ")}</span></div>
+        <button onclick="closeDrill()">닫기</button></div>
+      <div class="scroll"><table><thead><tr>${head}</tr></thead><tbody>${body
+        || `<tr><td colspan="${cols.length}" style="color:#6B7280">`
+           + `해당 조건의 LOT 이 없습니다.</td></tr>`}</tbody></table></div>`;
+  });
+}
+
+/* --- 로딩 --- */
+function loadSummary() {
+  fetch("/api/summary/?line=" + encodeURIComponent(LINE)
+        + "&types=" + encodeURIComponent(selectedTypes().join(",")))
+    .then(r => r.ok ? r.json() : Promise.reject("HTTP " + r.status))
+    .then(d => {
+      const err = document.getElementById("err");
+      if (!d.ready) { err.textContent = d.reason || "데이터 없음"; return; }
+      err.textContent = "";
+      DATA = d;
+      SEL_STATUS = null;
+      document.getElementById("snapAt").textContent = d.snapshot_at || "-";
+      renderWip(); renderStatus(); renderWt(); renderCause();
+    })
+    .catch(e => { document.getElementById("err").textContent = "조회 실패: " + e; });
+}
+
+pickLine(LINE);
+</script>
+{% endblock %}

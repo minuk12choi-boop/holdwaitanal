@@ -192,6 +192,27 @@ def ensure_f3_schema(conn, columns):
     conn.commit()
 
 
+def ensure_standard_schema(conn):
+    """기준정보: 원인 소분류 규칙.
+
+    hold / exception / ftp 의 '유형' 은 아직 정립 전이라, 사유 문자열에 포함된
+    키워드로 유형을 붙이는 방식으로 시작한다. 화면(기준정보)에서 편집한다.
+    """
+    with conn.cursor() as cur:
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS cause_rules (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          category VARCHAR(32) NOT NULL,      -- hold | exception | ftp
+          keyword VARCHAR(128) NOT NULL,      -- 사유에 포함되면 매칭
+          label VARCHAR(64) NOT NULL,         -- 화면에 보일 유형명
+          sort_no INT NOT NULL DEFAULT 100,
+          updated_at DATETIME NULL,
+          KEY ix_cr (category, sort_no)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+    conn.commit()
+
+
 def ensure_load_log_schema(conn):
     """원천 테이블별 로딩 시작/종료 시각. 웹 다운로드 화면에서 보여준다."""
     with conn.cursor() as cur:
@@ -431,6 +452,7 @@ def _init_schema():
     ensure_f3_schema(conn, SUMMARY_OUTPUT_COLUMNS)
     ensure_load_log_schema(conn)
     ensure_move_schema(conn)
+    ensure_standard_schema(conn)
     with conn.cursor() as cur:
         cur.execute("SHOW TABLES")
         names = sorted(r[0] for r in cur.fetchall())

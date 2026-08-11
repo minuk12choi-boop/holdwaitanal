@@ -1,0 +1,46 @@
+{% extends "flowmonitor/base.html" %}
+{% block body %}
+<div class="std">
+  <h1 style="font-size:17px;margin:0 0 4px">기준정보 · 원인 소분류 규칙</h1>
+  <div style="color:#6B7280;font-size:12px;margin-bottom:14px">
+    HOLD / EXCEPTION / FTP 의 사유 문자열에 <b>키워드</b>가 포함되면 그 <b>유형</b>으로
+    분류합니다. 위에서부터 먼저 맞는 규칙이 적용되고, 어디에도 안 맞으면 사유 원문이
+    그대로 표시됩니다.
+  </div>
+
+  {% if msg %}<div class="msg">{{ msg }}</div>{% endif %}
+
+  <table>
+    <thead><tr><th>대분류</th><th>키워드</th><th>유형</th><th>순서</th><th></th></tr></thead>
+    <tbody>
+      {% for r in rules %}
+      <tr>
+        <td>{{ r.category }}</td>
+        <td>{{ r.keyword }}</td>
+        <td>{{ r.label }}</td>
+        <td>{{ r.sort_no }}</td>
+        <td>
+          <form method="post" style="margin:0">{% csrf_token %}
+            <input type="hidden" name="delete" value="{{ r.id }}">
+            <button type="submit">삭제</button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="color:#6B7280">
+        등록된 규칙이 없습니다. 사유 원문이 그대로 유형으로 표시됩니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form method="post">{% csrf_token %}
+    <select name="category">
+      {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+    </select>
+    <input name="keyword" placeholder="키워드 (사유에 포함될 문자열)" size="30" required>
+    <input name="label" placeholder="유형명" size="18" required>
+    <input name="sort_no" type="number" value="100" style="width:70px" title="순서">
+    <button type="submit">추가</button>
+  </form>
+</div>
+{% endblock %}

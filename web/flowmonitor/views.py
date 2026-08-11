@@ -734,6 +734,7 @@ def api_lots(request):
     bin_key = request.GET.get("bin", "")
     cause = request.GET.get("cause", "")
     status = request.GET.get("status", "")
+    wt_range = request.GET.get("wt_range", "")     # FAB현황 W/T 분포에서
     req_date = request.GET.get("biz_date", "")
     max_wt = float(request.GET.get("max_wt", 0) or 0)
 
@@ -788,6 +789,8 @@ def api_lots(request):
         wt = (mv.get(r["lot_id"], 0.0) / qty) if qty else 0.0
         if bin_key and _bin_of(wt, max_wt) != bin_key:
             continue
+        if wt_range and _wt_range_key(wt) != wt_range:
+            continue
         if status and (r.get("lot_status") or "") != status:
             continue
         cs = _cause_of(r.get("hold"), r.get("exception"), r.get("ftp"),
@@ -804,3 +807,301 @@ def api_lots(request):
         "biz_date": str(bd), "line": line, "col": col,
         "bin": bin_key, "cause": cause or "전체", "status": status,
     }, json_dumps_params={"ensure_ascii": False})
+
+
+# ---------------------------------------------------------------------------
+# FAB현황 (단일 라인) — 재공 / status / WT 분포 / 원인 분석
+# ---------------------------------------------------------------------------
+# 2-4. WT 분포 구간. WT=0 을 맨 위에 두고 아래로 갈수록 정상에 가깝다.
+WT_RANGES = [
+    {"key": "0",   "label": "WT = 0",       "lo": None, "hi": 0.0},
+    {"key": "0-1", "label": "0 < WT ≤ 1",   "lo": 0.0,  "hi": 1.0},
+    {"key": "1-2", "label": "1 < WT ≤ 2",   "lo": 1.0,  "hi": 2.0},
+    {"key": "2-3", "label": "2 < WT ≤ 3",   "lo": 2.0,  "hi": 3.0},
+    {"key": "3-4", "label": "3 < WT ≤ 4",   "lo": 3.0,  "hi": 4.0},
+    {"key": "4-5", "label": "4 < WT ≤ 5",   "lo": 4.0,  "hi": 5.0},
+    {"key": "5+",  "label": "WT > 5",       "lo": 5.0,  "hi": None},
+]
+
+EQP_ISSUE = ("DOWN", "PM", "LOCAL")
+TOP_N = 5
+
+
+def _wt_range_key(wt):
+    if wt is None:
+        return None
+    if wt <= 0:
+        return "0"
+    for r in WT_RANGES[1:-1]:
+        if r["lo"] < wt <= r["hi"]:
+            return r["key"]
+    return "5+"
+
+
+def _cause_rules():
+    """기준정보의 소분류 규칙. 없으면 빈 목록(=사유 원문을 그대로 유형으로)."""
+    if not _table_exists("cause_rules"):
+        return {}
+    out = {}
+    with connection.cursor() as cur:
+        cur.execute("SELECT category, keyword, label FROM cause_rules "
+                    "ORDER BY category, sort_no, id")
+        for cat, kw, label in cur.fetchall():
+            out.setdefault(cat, []).append((kw, label))
+    return out
+
+
+def _classify(text, rules, fallback="미분류"):
+    t = (text or "").strip()
+    for kw, label in rules:
+        if kw and kw in t:
+            return label
+    return t[:40] if t else fallback
+
+
+def _eqp_status_of(down):
+    for s in EQP_ISSUE:
+        if s in (down or ""):
+            return s
+    return None
+
+
+def _summary_rows(line, types):
+    """현재 스냅샷의 lot 단위 원자료 (현스텝 기준)."""
+    snap = _latest_snapshot()
+    if not snap:
+        return [], None
+    cond, params = "", [snap, line]
+    if types:
+        cond = " AND lot_type IN (%s)" % ",".join(["%s"] * len(types))
+        params += list(types)
+    with connection.cursor() as cur:
+        cur.execute(f"""
+            SELECT lot_id,
+                   MIN(lot_type) AS lot_type,
+                   MIN(CAST(qty AS SIGNED)) AS qty,
+                   MIN(lot_status) AS lot_status,
+                   MIN(CASE WHEN `현스텝`='현스텝' THEN eqpgroup END)  AS eqpgroup,
+                   MIN(CASE WHEN `현스텝`='현스텝' THEN down END)      AS down,
+                   MIN(CASE WHEN `현스텝`='현스텝' THEN tip END)       AS tip,
+                   MIN(CASE WHEN `현스텝`='현스텝' THEN recipe_id END) AS recipe_id,
+                   MIN(CASE WHEN `현스텝`='현스텝' THEN step_seq END)  AS step_seq,
+                   MIN(CASE WHEN `현스텝`='현스텝' THEN step_desc END) AS step_desc,
+                   MIN(hold) AS hold, MIN(hold_reason) AS hold_reason,
+                   MIN(exception) AS exception, MIN(exception_reason) AS exception_reason,
+                   MIN(ftp) AS ftp, MIN(ftp_reason) AS ftp_reason
+            FROM   f3_live
+            WHERE  snapshot_at = %s AND `line` = %s {cond}
+            GROUP  BY lot_id
+        """, params)
+        names = [d[0] for d in cur.description]
+        return [dict(zip(names, r)) for r in cur.fetchall()], snap
+
+
+def _lot_move_map(line):
+    """당일 lot 별 MOVE (WT 계산용)."""
+    if not _table_exists("move_lot"):
+        return {}
+    with connection.cursor() as cur:
+        cur.execute("SELECT MAX(biz_date) FROM move_lot")
+        bd = cur.fetchone()[0]
+        if not bd:
+            return {}
+        cur.execute("SELECT lot_id, SUM(move_qty) FROM move_lot "
+                    "WHERE biz_date=%s AND sys_line_id=%s GROUP BY lot_id", [bd, line])
+        return {r[0]: float(r[1] or 0) for r in cur.fetchall()}
+
+
+def _bucket(d, key, qty):
+    c = d.setdefault(key, {"lots": 0, "qty": 0})
+    c["lots"] += 1
+    c["qty"] += qty
+
+
+def api_summary(request):
+    """FAB현황 좌측 summary 뷰 한 벌."""
+    line = request.GET.get("line") or LINE_CARDS[2]["line"]
+    types = [t for t in request.GET.get("types", "").split(",") if t]
+
+    if not _table_exists("f3_live"):
+        return JsonResponse({"ready": False, "reason": "f3_live 미적재"})
+
+    rows, snap = _summary_rows(line, types)
+    if not rows:
+        return JsonResponse({"ready": False, "reason": "이 라인의 스냅샷이 없습니다"})
+
+    mv = _lot_move_map(line)
+    rules = _cause_rules()
+
+    tot = {"lots": 0, "qty": 0}
+    by_type, by_status, by_wt = {}, {}, {}
+    cause = {"Hold": {}, "Wait성 진행불가": {}, "Bottleneck": {}}
+    eqp_wait, eqp_issue = {}, {}
+
+    for r in rows:
+        q = num(r.get("qty"))
+        st = r.get("lot_status") or "-"
+        tot["lots"] += 1
+        tot["qty"] += q
+        _bucket(by_type, r.get("lot_type") or "-", q)
+        _bucket(by_status, st, q)
+        _bucket(by_wt, _wt_range_key((mv.get(r["lot_id"], 0.0) / q) if q else 0.0), q)
+
+        eqps = [x.strip() for x in str(r.get("eqpgroup") or "").split(",") if x.strip()]
+        w = 1.0 / len(eqps) if eqps else 0.0
+
+        # --- 대분류 판정 (겹치면 위에서부터 하나에만) ---
+        if r.get("hold") or st == "HOLD":
+            _bucket(cause["Hold"], _classify(r.get("hold_reason"), rules.get("hold", [])), q)
+            continue
+
+        eqp_st = _eqp_status_of(r.get("down"))
+        if r.get("exception") or r.get("ftp") or eqp_st or r.get("tip"):
+            d = cause["Wait성 진행불가"]
+            if r.get("exception"):
+                _bucket(d, "EXC · " + _classify(r.get("exception_reason"),
+                                                rules.get("exception", [])), q)
+            elif r.get("ftp"):
+                _bucket(d, "FTP · " + _classify(r.get("ftp_reason"),
+                                                rules.get("ftp", [])), q)
+            elif eqp_st:
+                for e in eqps:
+                    ec = eqp_issue.setdefault((eqp_st, e), {"lots": 0.0, "qty": 0.0})
+                    ec["lots"] += w
+                    ec["qty"] += q * w
+                _bucket(d, "설비 · " + eqp_st, q)
+            else:
+                _bucket(d, "TIP · PREVENT", q)
+            continue
+
+        # --- Bottleneck: 진행불가는 아니나 대기가 쌓인 것 ---
+        if st == "WAIT":
+            txt = " ".join(str(r.get(k) or "") for k in
+                           ("recipe_id", "step_seq", "step_desc")).upper()
+            if "WAIT" in txt:
+                _bucket(cause["Bottleneck"], "가상스텝 대기", q)
+            else:
+                for e in eqps:
+                    ec = eqp_wait.setdefault(e, {"lots": 0.0, "qty": 0.0})
+                    ec["lots"] += w
+                    ec["qty"] += q * w
+                _bucket(cause["Bottleneck"], "설비 대기", q)
+
+    def pack(d, keys=None):
+        items = [(k, v) for k, v in d.items()] if keys is None else \
+                [(k, d.get(k, {"lots": 0, "qty": 0})) for k in keys]
+        return [{"name": k, "lots": round(v["lots"], 1) if isinstance(v["lots"], float)
+                 else v["lots"], "qty": int(round(v["qty"]))} for k, v in items]
+
+    def top(d, metric):
+        items = sorted(d.items(), key=lambda kv: (-kv[1][metric], str(kv[0])))[:TOP_N]
+        return [{"name": (k if isinstance(k, str) else " · ".join(k)),
+                 "lots": round(v["lots"], 1), "qty": int(round(v["qty"]))}
+                for k, v in items]
+
+    status = [{"name": s, "color": STATUS_COLORS[s],
+               "lots": by_status.get(s, {}).get("lots", 0),
+               "qty": by_status.get(s, {}).get("qty", 0),
+               "pct": round(by_status.get(s, {}).get("lots", 0) / tot["lots"] * 100, 1)
+                      if tot["lots"] else 0}
+              for s in STATUS_ORDER]
+    blocked = [x for x in status if x["name"] in ("HOLD", "WAIT(진행불가)")]
+
+    return JsonResponse({
+        "ready": True, "line": line,
+        "snapshot_at": (snap.strftime("%Y-%m-%d %H:%M")
+                        if hasattr(snap, "strftime") else str(snap)),
+        "types": sorted(by_type, key=lot_type_key),
+        "total": tot,
+        "by_lot_type": [{"name": k, **by_type[k]}
+                        for k in sorted(by_type, key=lot_type_key)],
+        "status": status,
+        "default": {
+            "label": "HOLD+진행불가",
+            "pct": round(sum(x["lots"] for x in blocked) / tot["lots"] * 100, 1)
+                   if tot["lots"] else 0,
+            "lots": sum(x["lots"] for x in blocked),
+            "qty": sum(x["qty"] for x in blocked)},
+        "wt_ranges": WT_RANGES,
+        "wt_dist": pack(by_wt, [r["key"] for r in WT_RANGES]),
+        "causes": [
+            {"name": "Hold", "sub": pack(cause["Hold"])},
+            {"name": "Wait성 진행불가", "sub": pack(cause["Wait성 진행불가"])},
+            {"name": "Bottleneck", "sub": pack(cause["Bottleneck"])},
+        ],
+        "top_eqp": {
+            "wait": {"lots": top(eqp_wait, "lots"), "qty": top(eqp_wait, "qty")},
+            "issue": {"lots": top(eqp_issue, "lots"), "qty": top(eqp_issue, "qty")},
+        },
+    }, json_dumps_params={"ensure_ascii": False})
+
+
+# ---------------------------------------------------------------------------
+# 페이지
+# ---------------------------------------------------------------------------
+MENU = [("FAB현황", "/"), ("기준정보", "/standards/"), ("다운로드", "/downloads/")]
+DEFAULT_LINE = "KFR7"          # NRD-K
+
+
+def fab_status(request):
+    lines = [{"label": c["label"], "line": c["line"]} for c in LINE_CARDS]
+    ready = set()
+    if _table_exists("f3_live"):
+        snap = _latest_snapshot()
+        if snap:
+            with connection.cursor() as cur:
+                cur.execute("SELECT DISTINCT `line` FROM f3_live WHERE snapshot_at=%s",
+                            [snap])
+                ready = {r[0] for r in cur.fetchall()}
+    for x in lines:
+        x["ready"] = x["line"] in ready
+    return render(request, "flowmonitor/fab_status.html",
+                  {"menu": MENU, "lines": lines, "default_line": DEFAULT_LINE})
+
+
+def fab_metrics(request):
+    """FAB지표. 메뉴에는 노출하지 않지만 URL 로는 접근 가능하다.
+    Shift 별 MOVE 와 추이 그래프가 이쪽으로 옮겨왔다."""
+    panels = [dict(p, px=int(round(p["h"] * PANEL_BASE_PX)) + PANEL_AXIS_PX)
+              for p in PANELS]
+    return render(request, "flowmonitor/fab_metrics.html",
+                  {"menu": MENU, "panels": panels,
+                   "lines": [{"label": c["label"], "line": c["line"]}
+                             for c in LINE_CARDS]})
+
+
+def standards(request):
+    """기준정보: 원인 소분류 규칙 편집."""
+    import db_common as DB
+
+    msg = ""
+    if request.method == "POST":
+        conn = DB.connect()
+        DB.ensure_standard_schema(conn)
+        with conn.cursor() as cur:
+            if request.POST.get("delete"):
+                cur.execute("DELETE FROM cause_rules WHERE id=%s",
+                            [request.POST["delete"]])
+                msg = "삭제했습니다."
+            else:
+                cur.execute(
+                    "INSERT INTO cause_rules (category, keyword, label, sort_no,"
+                    " updated_at) VALUES (%s,%s,%s,%s,NOW())",
+                    [request.POST.get("category", "hold"),
+                     request.POST.get("keyword", "").strip(),
+                     request.POST.get("label", "").strip() or "미지정",
+                     int(request.POST.get("sort_no") or 100)])
+                msg = "추가했습니다."
+        conn.commit()
+        conn.close()
+
+    rules = []
+    if _table_exists("cause_rules"):
+        with connection.cursor() as cur:
+            cur.execute("SELECT id, category, keyword, label, sort_no "
+                        "FROM cause_rules ORDER BY category, sort_no, id")
+            rules = [{"id": r[0], "category": r[1], "keyword": r[2],
+                      "label": r[3], "sort_no": r[4]} for r in cur.fetchall()]
+    return render(request, "flowmonitor/standards.html",
+                  {"menu": MENU, "rules": rules, "msg": msg,
+                   "categories": ["hold", "exception", "ftp"]})

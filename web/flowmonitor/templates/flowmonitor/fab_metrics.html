@@ -1,0 +1,182 @@
+{% extends "flowmonitor/base.html" %}
+{% load static %}
+{% block body %}
+<div class="layout">
+  <div class="summary">
+    <div class="cell">
+      <div class="cellttl">Shift 별 MOVE</div>
+      <div id="lineList"></div>
+    </div>
+  </div>
+
+  <div style="flex:1">
+    <div id="notice" class="notice" style="display:none"></div>
+    <div class="topbar">
+      <div id="legend2"></div>
+      <div class="seg" title="HOLD율 / WAIT성 진행불가율의 분모">
+        <button id="b_qty" class="on" onclick="setBasis('qty')">매수</button>
+        <button id="b_lot" onclick="setBasis('lot')">Lot수</button>
+      </div>
+    </div>
+    {% for p in panels %}
+    <div class="panel">
+      <h2>{{ p.title }}<span class="unit">{{ p.unit }}</span></h2>
+      <div class="wrap" style="height:{{ p.px }}px">
+        <canvas id="c_{{ p.key }}"></canvas>
+      </div>
+    </div>
+    {% endfor %}
+    <div id="err" class="err"></div>
+  </div>
+</div>
+
+<script src="{% static 'flowmonitor/chart.umd.js' %}"></script>
+<script>
+if (window.Chart) {
+  Chart.defaults.font.family = "'Poppins','Noto Sans KR','Malgun Gothic',sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = "#374151";
+}
+const KIND_KO = { month: "월평균", week: "주평균", day: "일" };
+const nf = (n) => Number(n || 0).toLocaleString("ko-KR");
+const charts = {};
+let basis = "qty";
+
+/* Shift 별 MOVE (라인별) */
+function drawMove(res) {
+  document.getElementById("snapAt").textContent = res.snapshot_at || "-";
+  const cur = res.current_shift || "";
+  document.getElementById("lineList").innerHTML = res.cards.filter(c => c.ready)
+    .map(c => {
+      const m = c.move, smax = Math.max(m.GY, m.DAY, m.SW, 1);
+      const row = (k, v, w, cls) =>
+        `<div class="row ${cls || ""}"><div class="k">${k}</div>
+           <div class="bar"><i style="width:${Math.min(w, 100)}%"></i></div>
+           <div class="v">${nf(v)}</div></div>`;
+      return `<div style="margin-bottom:14px">
+        <div class="lbl" style="margin-bottom:6px">${c.label}</div>
+        <div class="mv">
+          ${row("계", m.total, 100, "tot")}
+          ${["GY", "DAY", "SW"].map(k =>
+            row(k, m[k], m[k] / smax * 100, k === cur ? "cur" : "")).join("")}
+        </div></div>`;
+    }).join("");
+}
+
+function setBasis(b) {
+  if (b === basis) return;
+  basis = b;
+  document.getElementById("b_qty").className = (b === "qty") ? "on" : "";
+  document.getElementById("b_lot").className = (b === "lot") ? "on" : "";
+  load();
+}
+
+const gapLine = {
+  id: "gapLine",
+  beforeDatasetsDraw(c) {
+    const x = c.scales.x, ctx = c.ctx;
+    (c.$kinds || []).forEach((k, i) => {
+      if (k !== "gap") return;
+      const px = x.getPixelForValue(i);
+      ctx.save();
+      ctx.strokeStyle = "#D1D5DB"; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(px, c.chartArea.top);
+      ctx.lineTo(px, c.chartArea.bottom); ctx.stroke(); ctx.restore();
+    });
+  }
+};
+
+function fmtLabel(v, fmt, unit) {
+  if (v === null || v === undefined) return "";
+  if (fmt === "k") return (v / 1000).toFixed(1) + "k";
+  if (fmt === "i") return Math.round(v) + (unit === "%" ? "%" : "");
+  return v.toFixed(1);
+}
+
+const valueLabels = {
+  id: "valueLabels",
+  afterDatasetsDraw(c) {
+    const ctx = c.ctx;
+    ctx.save();
+    ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+    c.data.datasets.forEach((ds, di) => {
+      if (!c.isDatasetVisible(di)) return;
+      c.getDatasetMeta(di).data.forEach((el, i) => {
+        const v = ds.data[i];
+        if (v === null || v === undefined) return;
+        ctx.fillStyle = ds.borderColor;
+        ctx.fillText(fmtLabel(v, c.$fmt, c.$unit), el.x, el.y - 5 - (di % 2) * 11);
+      });
+    });
+    ctx.restore();
+  }
+};
+
+function load() {
+  fetch("/api/flowstack/?basis=" + basis).then(r => r.json()).then(res => {
+    if (!window.Chart) {
+      document.getElementById("err").textContent = "Chart.js 로드 실패";
+      return;
+    }
+    const nb = document.getElementById("notice");
+    if (res.notice) { nb.textContent = res.notice; nb.style.display = "block"; }
+    else { nb.style.display = "none"; }
+
+    const first = res.panels[res.order[0]];
+    document.getElementById("legend2").innerHTML = first.datasets.map(
+      d => `<span><i style="background:${d.borderColor}"></i>${d.label}</span>`).join("");
+
+    res.order.forEach((key, idx) => {
+      const d = res.panels[key];
+      if (charts[key]) {
+        charts[key].data.labels = d.labels;
+        charts[key].data.datasets = d.datasets;
+        charts[key].$kinds = d.kinds; charts[key].$fmt = d.fmt; charts[key].$unit = d.unit;
+        charts[key].update();
+        return;
+      }
+      const ch = new Chart(document.getElementById("c_" + key), {
+        type: "line",
+        data: { labels: d.labels, datasets: d.datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: false,
+          interaction: { mode: "index", intersect: false },
+          layout: { padding: { top: 20, right: 10, left: 2 } },
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: {
+              title: (t) => {
+                const i2 = t[0].dataIndex;
+                const k = KIND_KO[d.kinds[i2]] || "";
+                return d.labels[i2] + (k ? " (" + k + ")" : "");
+              },
+              label: (t) => t.dataset.label + "  "
+                + Number(t.parsed.y).toLocaleString("ko-KR",
+                    { maximumFractionDigits: 1 }) + " " + d.unit
+            } }
+          },
+          scales: {
+            x: { grid: { display: false },
+                 ticks: { font: { size: 10 }, autoSkip: false } },
+            y: { beginAtZero: true, grace: "18%",
+                 afterFit: (sc) => { sc.width = 46; },
+                 ticks: { font: { size: 10 }, maxTicksLimit: 5 } }
+          }
+        },
+        plugins: [gapLine, valueLabels]
+      });
+      ch.$kinds = d.kinds; ch.$fmt = d.fmt; ch.$unit = d.unit;
+      charts[key] = ch; ch.update();
+      const wrap = document.getElementById("c_" + key).parentElement;
+      setTimeout(() => wrap.classList.add("ready"), 30 + idx * 45);
+    });
+  });
+}
+
+fetch("/api/status/").then(r => r.json()).then(res => {
+  if (window.Chart) drawMove(res);
+});
+load();
+</script>
+{% endblock %}
