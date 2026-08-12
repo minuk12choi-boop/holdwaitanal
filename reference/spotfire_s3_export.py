@@ -33,6 +33,18 @@ spotfire_s3_export.py — Spotfire 데이터 함수용 S3 자동 적재
 
       git config core.hooksPath .githooks
 
+[느릴 때 어디를 볼 것인가]
+  upload_log 에 구간이 나뉘어 찍힌다.
+
+      serialize_sec     DataFrame -> parquet 변환
+      upload_sec        S3 전송
+      script_total_sec  이 스크립트 전체
+
+  실측(5.1M + 9.9M 행 기준) 직렬화는 약 7초, 전송은 100MB 남짓이다.
+  script_total_sec 이 10~30초인데 Spotfire 체감이 몇 분이라면, 병목은 이
+  스크립트가 아니라 **Spotfire -> python 입력 전달(마샬링)** 이다.
+  그 구간은 스크립트로 줄일 수 없고, 입력 테이블 수/컬럼 수를 줄여야 한다.
+
 [boto3 설치]
   Spotfire 의 Python 은 별도 환경이라 boto3 가 없을 수 있다.
   (ModuleNotFoundError: No module named 'boto3')
@@ -58,6 +70,7 @@ import io
 import json
 import sys
 import datetime as dt
+from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 
@@ -108,6 +121,10 @@ TABLE_NAMES = [
 # 바뀌므로 낡은 값을 재사용하면 실시간 전환의 의미가 없다.
 # 전송량은 주기를 늦추는 대신 압축으로 줄인다.
 FMT = "parquet"
+
+# 업로드 동시 실행 수. 전송은 네트워크 대기라 겹치면 이득이 있다.
+# (직렬화 자체는 실측 6.5초라 병목이 아니다. 1 로 두면 순차 실행)
+WORKERS = 4
 
 
 # ---------------------------------------------------------------------------
@@ -165,26 +182,19 @@ try:
         raise RuntimeError("스크립트 상단 [S3 설정] 의 S3_BUCKET 을 채우세요.")
     client = make_client()
 
+    # ── 1) 입력 점검 (전역 변수 -> DataFrame) ────────────────────────────
+    jobs = []
     for name in TABLE_NAMES:
         t0 = dt.datetime.now()
-        # Spotfire 는 입력 파라미터를 전역 변수로 넣어준다.
-        # 등록하지 않은 테이블이 있어도 전체가 멈추지 않게 개별 처리한다.
         df = globals().get(name)
         if df is None:
-            rows.append([name, "SKIP", 0, 0, "", "입력 파라미터 미등록",
-                         t0, dt.datetime.now()])
+            rows.append([name, "SKIP", 0, 0, "", 0.0, 0.0,
+                         "입력 파라미터 미등록", t0, dt.datetime.now()])
             continue
         if not isinstance(df, pd.DataFrame):
             df = pd.DataFrame(df)
 
-        # 입력 파라미터를 전부 같은 테이블에 매핑해 두면 8개가 똑같이 올라간다.
-        # 조용히 넘어가면 알아채기 어려우므로 여기서 잡는다.
-        sig = "%d|%d|%s" % (len(df), df.shape[1], ",".join(map(str, df.columns[:5])))
-        dup = seen.get(sig)
-        seen.setdefault(sig, name)
-
-        # 원천 조회 시각. Oracle 쿼리의 query_time 컬럼(SYSDATE)에서 읽는다.
-        # 업로드 시각만 보면 '같은 데이터를 다시 올린 것' 과 구분되지 않는다.
+        # 원천 조회 시각(SYSDATE). 업로드 시각만으로는 재조회 여부를 알 수 없다.
         qt = ""
         for c in df.columns:
             if str(c).lower() == "query_time":
@@ -198,21 +208,45 @@ try:
         if len(df.columns) > 6:
             cols_preview += ", ..."
 
+        sig = "%d|%d|%s" % (len(df), df.shape[1], ",".join(map(str, df.columns[:5])))
+        dup = seen.get(sig)
+        seen.setdefault(sig, name)
         if dup:
-            rows.append([name, "DUP", len(df), df.shape[1], qt,
+            rows.append([name, "DUP", len(df), df.shape[1], qt, 0.0, 0.0,
                          "'%s' 과(와) 내용이 같습니다. Input Parameter 매핑 확인. | %s"
                          % (dup, cols_preview), t0, dt.datetime.now()])
             continue
 
+        jobs.append((name, df, qt))
+
+    # ── 2) 직렬화 + 업로드 (병렬) ────────────────────────────────────────
+    def work(job):
+        name, df, qt = job
+        t0 = dt.datetime.now()
         try:
+            s0 = dt.datetime.now()
+            buf = to_buffer(df, FMT)
+            ser = (dt.datetime.now() - s0).total_seconds()
+            size_mb = len(buf.getvalue()) / 1024.0 / 1024.0
+
+            u0 = dt.datetime.now()
             key = "%s%s.%s" % (prefix, name, FMT)
-            client.upload_fileobj(to_buffer(df, FMT), bucket, key)
-            rows.append([name, "OK", len(df), df.shape[1], qt,
-                         "s3://%s/%s" % (bucket, key),
-                         t0, dt.datetime.now()])
+            client.upload_fileobj(buf, bucket, key)
+            up = (dt.datetime.now() - u0).total_seconds()
+
+            return [name, "OK", len(df), df.shape[1], qt,
+                    round(ser, 2), round(up, 2),
+                    "%.1f MB  s3://%s/%s" % (size_mb, bucket, key),
+                    t0, dt.datetime.now()]
         except Exception as e:
-            rows.append([name, "FAIL", len(df), df.shape[1], qt,
-                         "%s: %s" % (type(e).__name__, e), t0, dt.datetime.now()])
+            return [name, "FAIL", len(df), df.shape[1], qt, 0.0, 0.0,
+                    "%s: %s" % (type(e).__name__, e), t0, dt.datetime.now()]
+
+    if WORKERS > 1 and len(jobs) > 1:
+        with ThreadPoolExecutor(max_workers=WORKERS) as ex:
+            rows.extend(ex.map(work, jobs))
+    else:
+        rows.extend(work(j) for j in jobs)
 
     # 8개를 다 올린 뒤 마지막에 매니페스트를 쓴다.
     #   업로드는 순차라 중간에 읽히면 서로 다른 시점의 파일이 섞인다.
@@ -234,15 +268,20 @@ try:
     buf = io.BytesIO(json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8"))
     client.upload_fileobj(buf, bucket, "%s_manifest.json" % prefix)
     rows.append(["_manifest.json", "OK", len(ok), 0, manifest["query_time"],
-                 "완결 표시. 읽는 쪽은 이 파일로 최신 여부를 판단한다.",
+                 0.0, 0.0, "완결 표시. 읽는 쪽은 이 파일로 최신 여부를 판단한다.",
                  started, dt.datetime.now()])
 
 except Exception as e:
-    rows.append(["(전체)", "FAIL", 0, 0, "", "%s: %s" % (type(e).__name__, e),
-                 started, dt.datetime.now()])
+    rows.append(["(전체)", "FAIL", 0, 0, "", 0.0, 0.0,
+                 "%s: %s" % (type(e).__name__, e), started, dt.datetime.now()])
 
 upload_log = pd.DataFrame(
-    rows, columns=["table", "status", "rows", "cols", "query_time", "detail",
-                   "start", "end"])
+    rows, columns=["table", "status", "rows", "cols", "query_time",
+                   "serialize_sec", "upload_sec", "detail", "start", "end"])
 upload_log["elapsed_sec"] = (
     upload_log["end"] - upload_log["start"]).dt.total_seconds().round(2)
+
+# 스크립트 전체 소요. 이 값이 작은데 Spotfire 체감이 길면, 병목은 이 스크립트가
+# 아니라 Spotfire -> python 데이터 전달(입력 마샬링) 이다.
+upload_log["script_total_sec"] = round(
+    (dt.datetime.now() - started).total_seconds(), 2)
