@@ -53,6 +53,20 @@ TABLES = [
 EXT = "pkl"
 DB_PREFIX = "raw_"          # MySQL 에 적재될 테이블명 접두 (raw_pfr1_kfr7_lot ...)
 
+# Oracle 이 대문자로 주는 컬럼명을 소문자로 통일한다(기존 전처리가 소문자 기준).
+LOWER_COLUMNS = True
+
+# DB 적재 대상. STEP_PATH / TIP 은 수백 MB 라 DB 에 넣을 이유가 없다.
+# build_f3.py 가 메모리에서 바로 쓰면 되므로 기본은 제외한다.
+DB_LOAD_TABLES = [
+    "PFR1_KFR7_LOT",
+    "PFR1_KFR7_MATERIALWORKSTATUS",
+    "PFR1_KFR7_EQUIPMENT",
+    "PFR1_KFR7_EQP_GROUP",
+    "PFR1_KFR7_HOLD",
+    "PFR1_KFR7_MOVE",
+]
+
 
 # ---------------------------------------------------------------------------
 # S3
@@ -127,6 +141,10 @@ def read_table(name, bucket=None, prefix=None):
         df = pickle.load(buf)
     if not isinstance(df, pd.DataFrame):
         df = pd.DataFrame(df)
+    if LOWER_COLUMNS:
+        # Oracle 은 컬럼을 대문자로 돌려준다. 기존 python 전처리가 전부
+        # 소문자 기준이라 여기서 한 번에 맞춘다.
+        df.columns = [str(c).strip().lower() for c in df.columns]
     return df
 
 
@@ -185,6 +203,8 @@ def main():
     ap.add_argument("--peek", metavar="NAME",
                     help="한 테이블만 읽어 미리보기(적재 안 함). 부분 이름 가능")
     ap.add_argument("--only", default="", help="쉼표구분. 부분 이름 가능")
+    ap.add_argument("--all", action="store_true",
+                    help="STEP_PATH / TIP 포함 전부 적재(수백 MB 라 느림)")
     args = ap.parse_args()
 
     if args.list:
@@ -208,12 +228,18 @@ def main():
         print(df.head(10).to_string())
         return
 
-    names = None
+    names = list(DB_LOAD_TABLES)
+    if args.all:
+        names = list(TABLES)
     if args.only:
         names = [n for tok in args.only.split(",") for n in resolve(tok)]
         if not names:
             print(f"--only 에 해당하는 테이블이 없습니다. {TABLES}")
             return
+    skipped = [n for n in TABLES if n not in names]
+    if skipped:
+        print(f"[DB] 적재 제외: {', '.join(skipped)}  "
+              f"(--all 또는 --only 로 포함 가능)", flush=True)
 
     frames = read_all(names)
     if not frames:
