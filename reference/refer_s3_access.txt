@@ -1,0 +1,983 @@
+<boto3 guide>
+
+인증 Key 확인
+boto3 설치
+Object 관리
+client 생성
+list_objects_v2
+upload_file
+download_file
+인증 Key 확인
+Python(boto3)을 사용하여 AI Platform에서 제공하는 Object Storage에 접근하기 위해선 Access Key와 Secret Key가 필요합니다.
+
+Access Key와 Secret Key를 확인하기 위해선 aipcli가 필요하므로, 먼저 pip을 통해 aipcli를 설치해줍니다. (이미 설치가 되어있다면 추가로 설치하지 않으셔도 됩니다.)
+
+
+
+# aipcli(2.04 이상), awscli, groff or mandoc(awscli help 문서 보기 위해서) 설치
+pip uninstall --yes aws
+pip install --upgrade aipcli awscli
+sudo apt update
+sudo apt install groff
+aipcli가 설치되었다면 configure 명령어를 통해 인증을 진행합니다. 인증은 AD 계정을 통해 진행합니다.
+
+인증이 성공적으로 진행되면 아래와 같은 메시지가 출력됩니다.
+
+
+
+~$ aipcli configure
+Ad username: your_ad_id
+Ad password: your_ad_pwd
+Region name [KOR-HS]: 
+Authenticating the user.
+Login Succeeded
+추가적으로 HOME 디렉토리 아래에 .aws/credentials 파일이 생성되며, Key값이 저장됩니다.
+
+해당 파일에 Key값이 저장되어 있는지 확인합니다.
+
+
+
+~$ cat ~/.aws/credentials  
+[aiplatform]
+aws_access_key_id = your_access_key_id
+aws_secret_access_key = your_secret_access_key
+
+[aip-smoke-testing]
+aws_access_key_id = your_access_key_id
+aws_secret_access_key = your_secret_access_key
+
+[aiplatform-system]
+aws_access_key_id = your_access_key_id
+aws_secret_access_key = your_secret_access_key
+
+[aiplatform-prod]
+aws_access_key_id = your_access_key_id
+aws_secret_access_key = your_secret_access_key
+
+[aip-ai-expert]
+aws_access_key_id = your_access_key_id
+aws_secret_access_key = your_secret_access_key
+→ 본인이 권한을 가진 namespace 별로 인증 정보를 확인할 수 있습니다. 사용하고자 하는 namespace의 인증 정보를 사용하시면 됩니다.
+
+상세한 aipcli 가이드는 아래 메뉴얼 참고 바랍니다.
+
+※ S3Drive CLI 가이드
+
+
+
+웹 브라우저 GUI환경인 S3Drive를 통해서도 확인이 가능합니다. S3Drive 접속 링크 및 가이드는 아래와 같으니, 업무에 참고 바랍니다.
+
+※ S3Drive
+
+※ S3Drive 가이드 → 기타 → Access Info 확인
+
+
+
+boto3 설치
+Python을 통해 Object Storage에 접근하기 위해서는 boto3 패키지가 필요합니다. 
+
+pip을 통해 boto3를 설치해줍니다. (마찬가지로 이미 설치가 되어있다면 추가로 설치하지 않으셔도 됩니다.)
+
+
+
+pip install --upgrade boto3
+Object 관리
+현재 boto3를 통해서는 사용자 본인이 접근 가능한 Bucket 리스트의 확인이 불가능합니다.
+
+AI Platform 포탈을 통해 본인이 접근 가능한 프로젝트 확인 한 후에 사용 부탁드립니다.
+
+client 생성
+위에서 확인된 Key값을 사용하여 client를 생성합니다.
+
+endpoint는 아래와 같이 설정합니다.
+
+
+
+import boto3
+
+client = boto3.client(
+    service_name='s3',
+    aws_access_key_id="your_access_key_id",
+    aws_secret_access_key="your_secret_access_key",
+    endpoint_url='http://s3.dataplatform.samsungds.net:9020'
+) 
+
+
+list_objects_v2
+https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/list_objects_v2.html
+
+Bucket 내에 존재하는 object들을 확인할 수 있습니다.
+
+pprint를 사용하시면 좀 더 가독성이 좋은 형태로 output을 출력할 수 있습니다.
+
+
+
+import pprint
+
+res = client.list_objects_v2(Bucket="your-bucket-name")
+
+pprint.pprint(res)
+
+
+{'Contents': [{'ETag': '"d41d8cd98f00b204e9800998ecf8427e"',
+               'Key': 'file.csv',
+               'LastModified': datetime.datetime(2023, 3, 21, 5, 37, 21, 634000, tzinfo=tzutc()),
+               'Size': 0,
+               'StorageClass': 'STANDARD'}],
+ 'EncodingType': 'url',
+ 'IsTruncated': False,
+ 'KeyCount': 1,
+ 'MaxKeys': 1000,
+ 'Name': 'aip-your-project',
+ 'Prefix': '',
+ 'ResponseMetadata': {'HTTPHeaders': {'content-length': '588',
+                                      'content-type': 'application/xml',
+                                      'date': 'Tue, 21 Mar 2023 05:37:21 GMT',
+                                      'server': 'ViPR/1.0',
+                                      'x-amz-id-2': '386febabadf0376211392e2309b44e13979bc5a1c23a01e3b4fec98af75cdd57',
+                                      'x-amz-request-id': '0aa68264:17ac8920a13:110567:c9',
+                                      'x-emc-retention-period': '0'},
+                      'HTTPStatusCode': 200,
+                      'HostId': '386febabadf0376211392e2309b44e13979bc5a1c23a01e3b4fec98af75cdd57',
+                      'RequestId': '0aa68264:17ac8920a13:110567:c9',
+                      'RetryAttempts': 0}}
+upload_file
+https://boto3.amazonaws.com/v1/documentation/api/latest/guide/s3-uploading-files.html
+
+Bucket으로 파일을 업로드합니다. (test_local.csv를 test_s3.csv로 your-bucket-name Bucket에 업로드 )
+
+
+
+import pprint
+
+client.upload_file(Filename="test_local.csv", Bucket="your-bucket-name", Key="test_s3.csv")
+res = client.list_objects_v2(Bucket="your-bucket-name")
+
+pprint.pprint(res)
+
+
+{'Contents': [{'ETag': '"d41d8cd98f00b204e9800998ecf8427e"',
+               'Key': 'file.csv',
+               'LastModified': datetime.datetime(2023, 3, 21, 5, 37, 21, 634000, tzinfo=tzutc()),
+               'Size': 0,
+               'StorageClass': 'STANDARD'},
+              {'ETag': '"d41d8cd98f00b204e9800998ecf8427e"',
+               'Key': 'test_s3.csv',
+               'LastModified': datetime.datetime(2023, 3, 21, 5, 38, 38, 309000, tzinfo=tzutc()),
+               'Size': 0,
+               'StorageClass': 'STANDARD'}],
+ 'EncodingType': 'url',
+ 'IsTruncated': False,
+ 'KeyCount': 2,
+ 'MaxKeys': 1000,
+ 'Name': 'aip-your-project',
+ 'Prefix': '',
+ 'ResponseMetadata': {'HTTPHeaders': {'content-length': '820',
+                                      'content-type': 'application/xml',
+                                      'date': 'Tue, 21 Mar 2023 05:38:38 GMT',
+                                      'server': 'ViPR/1.0',
+                                      'x-amz-id-2': '386febabadf0376211392e2309b44e13979bc5a1c23a01e3b4fec98af75cdd57',
+                                      'x-amz-request-id': '0aa6825e:185c9889e0c:37aeb:5',
+                                      'x-emc-retention-period': '0'},
+                      'HTTPStatusCode': 200,
+                      'HostId': '386febabadf0376211392e2309b44e13979bc5a1c23a01e3b4fec98af75cdd57',
+                      'RequestId': '0aa6825e:185c9889e0c:37aeb:5',
+                      'RetryAttempts': 0}}
+download_file
+https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/download_file.html
+
+Bucket에서 파일을 다운로드합니다. (your-bucket-name Bucket에서 test_s3.csv를 download.csv로 다운로드 )
+
+
+
+import pprint
+
+client.download_file(Bucket="your-bucket-name", Key="test_s3.csv", Filename="download.csv")
+
+
+~$ ls -al download.csv
+-rw-r--r-- 1 jovyan users 0 Mar 21 14:43 download.csv
+
+
+<S3.Client.list_objects_v2()>
+list_objects_v2
+S3.Client.list_objects_v2(**kwargs)
+Returns some or all (up to 1,000) of the objects in a bucket with each request. You can use the request parameters as selection criteria to return a subset of the objects in a bucket. A 200 OK response can contain valid or invalid XML. Make sure to design your application to parse the contents of the response and handle it appropriately. For more information about listing objects, see Listing object keys programmatically in the Amazon S3 User Guide. To get a list of your buckets, see ListBuckets.
+
+Note
+General purpose bucket - For general purpose buckets, ListObjectsV2 doesn’t return prefixes that are related only to in-progress multipart uploads.
+
+Directory buckets - For directory buckets, ListObjectsV2 response includes the prefixes that are related only to in-progress multipart uploads.
+
+Directory buckets - For directory buckets, you must make requests for this API operation to the Zonal endpoint. These endpoints support virtual-hosted-style requests in the format ``https://amzn-s3-demo-bucket.s3express-zone-id.region-code.amazonaws.com/key-name ``. Path-style requests are not supported. For more information about endpoints in Availability Zones, see Regional and Zonal endpoints for directory buckets in Availability Zones in the Amazon S3 User Guide. For more information about endpoints in Local Zones, see Concepts for directory buckets in Local Zones in the Amazon S3 User Guide.
+
+Permissions
+
+General purpose bucket permissions - To use this operation, you must have READ access to the bucket. You must have permission to perform the s3:ListBucket action. The bucket owner has this permission by default and can grant this permission to others. For more information about permissions, see Permissions Related to Bucket Subresource Operations and Managing Access Permissions to Your Amazon S3 Resources in the Amazon S3 User Guide.
+
+Directory bucket permissions - To grant access to this API operation on a directory bucket, we recommend that you use the CreateSession API operation for session-based authorization. Specifically, you grant the s3express:CreateSession permission to the directory bucket in a bucket policy or an IAM identity-based policy. Then, you make the CreateSession API call on the bucket to obtain a session token. With the session token in your request header, you can make API requests to this operation. After the session token expires, you make another CreateSession API call to generate a new session token for use. Amazon Web Services CLI or SDKs create session and refresh the session token automatically to avoid service interruptions when a session expires. For more information about authorization, see CreateSession.
+
+Sorting order of returned objects
+
+General purpose bucket - For general purpose buckets, ListObjectsV2 returns objects in lexicographical order based on their key names.
+
+Directory bucket - For directory buckets, ListObjectsV2 does not return objects in lexicographical order.
+
+HTTP Host header syntax
+
+Directory buckets - The HTTP Host header syntax is Bucket-name.s3express-zone-id.region-code.amazonaws.com.
+
+Warning
+This section describes the latest revision of this action. We recommend that you use this revised API operation for application development. For backward compatibility, Amazon S3 continues to support the prior version of this API operation, ListObjects.
+
+The following operations are related to ListObjectsV2:
+
+GetObject
+
+PutObject
+
+CreateBucket
+
+Warning
+You must URL encode any signed header values that contain spaces. For example, if your header value is my file.txt, containing two spaces after my, you must URL encode this value to my%20%20file.txt.
+
+See also: AWS API Documentation
+
+Request Syntax
+response = client.list_objects_v2(
+    Bucket='string',
+    Delimiter='string',
+    EncodingType='url',
+    MaxKeys=123,
+    Prefix='string',
+    ContinuationToken='string',
+    FetchOwner=True|False,
+    StartAfter='string',
+    RequestPayer='requester',
+    ExpectedBucketOwner='string',
+    OptionalObjectAttributes=[
+        'RestoreStatus',
+    ]
+)
+Parameters:
+Bucket (string) –
+
+[REQUIRED]
+
+Directory buckets - When you use this operation with a directory bucket, you must use virtual-hosted-style requests in the format Bucket-name.s3express-zone-id.region-code.amazonaws.com. Path-style requests are not supported. Directory bucket names must be unique in the chosen Zone (Availability Zone or Local Zone). Bucket names must follow the format bucket-base-name--zone-id--x-s3 (for example, amzn-s3-demo-bucket--usw2-az1--x-s3). For information about bucket naming restrictions, see Directory bucket naming rules in the Amazon S3 User Guide.
+
+Access points - When you use this action with an access point for general purpose buckets, you must provide the alias of the access point in place of the bucket name or specify the access point ARN. When you use this action with an access point for directory buckets, you must provide the access point name in place of the bucket name. When using the access point ARN, you must direct requests to the access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.*Region*.amazonaws.com. When using this action with an access point through the Amazon Web Services SDKs, you provide the access point ARN in place of the bucket name. For more information about access point ARNs, see Using access points in the Amazon S3 User Guide.
+
+Note
+Object Lambda access points are not supported by directory buckets.
+
+S3 on Outposts - When you use this action with S3 on Outposts, you must direct requests to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When you use this action with S3 on Outposts, the destination bucket must be the Outposts access point ARN or the access point alias. For more information about S3 on Outposts, see What is S3 on Outposts? in the Amazon S3 User Guide.
+
+Delimiter (string) –
+
+A delimiter is a character that you use to group keys.
+
+CommonPrefixes is filtered out from results if it is not lexicographically greater than the StartAfter value.
+
+Note
+Directory buckets - For directory buckets, / is the only supported delimiter.
+
+Directory buckets - When you query ListObjectsV2 with a delimiter during in-progress multipart uploads, the CommonPrefixes response parameter contains the prefixes that are associated with the in-progress multipart uploads. For more information about multipart uploads, see Multipart Upload Overview in the Amazon S3 User Guide.
+
+EncodingType (string) –
+
+Encoding type used by Amazon S3 to encode the object keys in the response. Responses are encoded only in UTF-8. An object key can contain any Unicode character. However, the XML 1.0 parser can’t parse certain characters, such as characters with an ASCII value from 0 to 10. For characters that aren’t supported in XML 1.0, you can add this parameter to request that Amazon S3 encode the keys in the response. For more information about characters to avoid in object key names, see Object key naming guidelines.
+
+Note
+When using the URL encoding type, non-ASCII characters that are used in an object’s key name will be percent-encoded according to UTF-8 code values. For example, the object test_file(3).png will appear as test_file%283%29.png.
+
+MaxKeys (integer) – Sets the maximum number of keys returned in the response. By default, the action returns up to 1,000 key names. The response might contain fewer keys but will never contain more.
+
+Prefix (string) –
+
+Limits the response to keys that begin with the specified prefix.
+
+Note
+Directory buckets - For directory buckets, only prefixes that end in a delimiter ( /) are supported.
+
+ContinuationToken (string) – ContinuationToken indicates to Amazon S3 that the list is being continued on this bucket with a token. ContinuationToken is obfuscated and is not a real key. You can use this ContinuationToken for pagination of the list results.
+
+FetchOwner (boolean) –
+
+The owner field is not present in ListObjectsV2 by default. If you want to return the owner field with each key in the result, then set the FetchOwner field to true.
+
+Note
+Directory buckets - For directory buckets, the bucket owner is returned as the object owner for all objects.
+
+StartAfter (string) –
+
+StartAfter is where you want Amazon S3 to start listing from. Amazon S3 starts listing after this specified key. StartAfter can be any key in the bucket.
+
+Note
+This functionality is not supported for directory buckets.
+
+RequestPayer (string) –
+
+Confirms that the requester knows that she or he will be charged for the list objects request in V2 style. Bucket owners need not specify this parameter in their requests.
+
+Note
+This functionality is not supported for directory buckets.
+
+ExpectedBucketOwner (string) – The account ID of the expected bucket owner. If the account ID that you provide does not match the actual owner of the bucket, the request fails with the HTTP status code 403 Forbidden (access denied).
+
+OptionalObjectAttributes (list) –
+
+Specifies the optional fields that you want returned in the response. Fields that you do not specify are not returned.
+
+Note
+This functionality is not supported for directory buckets.
+
+(string) –
+
+Return type:
+dict
+
+Returns:
+Response Syntax
+{
+    'IsTruncated': True|False,
+    'Contents': [
+        {
+            'Key': 'string',
+            'LastModified': datetime(2015, 1, 1),
+            'ETag': 'string',
+            'ChecksumAlgorithm': [
+                'CRC32'|'CRC32C'|'SHA1'|'SHA256'|'CRC64NVME'|'SHA512'|'MD5'|'XXHASH64'|'XXHASH3'|'XXHASH128',
+            ],
+            'ChecksumType': 'COMPOSITE'|'FULL_OBJECT',
+            'Size': 123,
+            'StorageClass': 'STANDARD'|'REDUCED_REDUNDANCY'|'GLACIER'|'STANDARD_IA'|'ONEZONE_IA'|'INTELLIGENT_TIERING'|'DEEP_ARCHIVE'|'OUTPOSTS'|'GLACIER_IR'|'SNOW'|'EXPRESS_ONEZONE'|'FSX_OPENZFS'|'FSX_ONTAP'|'AWS_BACKUP_WARM'|'AWS_BACKUP_LOW_COST_WARM',
+            'Owner': {
+                'DisplayName': 'string',
+                'ID': 'string'
+            },
+            'RestoreStatus': {
+                'IsRestoreInProgress': True|False,
+                'RestoreExpiryDate': datetime(2015, 1, 1)
+            }
+        },
+    ],
+    'Name': 'string',
+    'Prefix': 'string',
+    'Delimiter': 'string',
+    'MaxKeys': 123,
+    'CommonPrefixes': [
+        {
+            'Prefix': 'string'
+        },
+    ],
+    'EncodingType': 'url',
+    'KeyCount': 123,
+    'ContinuationToken': 'string',
+    'NextContinuationToken': 'string',
+    'StartAfter': 'string',
+    'RequestCharged': 'requester'
+}
+Response Structure
+(dict) –
+
+IsTruncated (boolean) –
+
+Set to false if all of the results were returned. Set to true if more keys are available to return. If the number of results exceeds that specified by MaxKeys, all of the results might not be returned.
+
+Contents (list) –
+
+Metadata about each object returned.
+
+(dict) –
+
+An object consists of data and its descriptive metadata.
+
+Key (string) –
+
+The name that you assign to an object. You use the object key to retrieve the object.
+
+LastModified (datetime) –
+
+Creation date of the object.
+
+ETag (string) –
+
+The entity tag is a hash of the object. The ETag reflects changes only to the contents of an object, not its metadata. The ETag may or may not be an MD5 digest of the object data. Whether or not it is depends on how the object was created and how it is encrypted as described below:
+
+Objects created by the PUT Object, POST Object, or Copy operation, or through the Amazon Web Services Management Console, and are encrypted by SSE-S3 or plaintext, have ETags that are an MD5 digest of their object data.
+
+Objects created by the PUT Object, POST Object, or Copy operation, or through the Amazon Web Services Management Console, and are encrypted by SSE-C or SSE-KMS, have ETags that are not an MD5 digest of their object data.
+
+If an object is created by either the Multipart Upload or Part Copy operation, the ETag is not an MD5 digest, regardless of the method of encryption. If an object is larger than 16 MB, the Amazon Web Services Management Console will upload or copy that object as a Multipart Upload, and therefore the ETag will not be an MD5 digest.
+
+Note
+Directory buckets - MD5 is not supported by directory buckets.
+
+ChecksumAlgorithm (list) –
+
+The algorithm that was used to create a checksum of the object.
+
+(string) –
+
+ChecksumType (string) –
+
+The checksum type that is used to calculate the object’s checksum value. For more information, see Checking object integrity in the Amazon S3 User Guide.
+
+Size (integer) –
+
+Size in bytes of the object
+
+StorageClass (string) –
+
+The class of storage used to store the object.
+
+Note
+Directory buckets - Directory buckets only support EXPRESS_ONEZONE (the S3 Express One Zone storage class) in Availability Zones and ONEZONE_IA (the S3 One Zone-Infrequent Access storage class) in Dedicated Local Zones.
+
+Owner (dict) –
+
+The owner of the object
+
+Note
+Directory buckets - The bucket owner is returned as the object owner.
+
+DisplayName (string) –
+
+ID (string) –
+
+Container for the ID of the owner.
+
+RestoreStatus (dict) –
+
+Specifies the restoration status of an object. Objects in certain storage classes must be restored before they can be retrieved. For more information about these storage classes and how to work with archived objects, see Working with archived objects in the Amazon S3 User Guide.
+
+Note
+This functionality is not supported for directory buckets. Directory buckets only support EXPRESS_ONEZONE (the S3 Express One Zone storage class) in Availability Zones and ONEZONE_IA (the S3 One Zone-Infrequent Access storage class) in Dedicated Local Zones.
+
+IsRestoreInProgress (boolean) –
+
+Specifies whether the object is currently being restored. If the object restoration is in progress, the header returns the value TRUE. For example:
+
+x-amz-optional-object-attributes: IsRestoreInProgress="true"
+
+If the object restoration has completed, the header returns the value FALSE. For example:
+
+x-amz-optional-object-attributes: IsRestoreInProgress="false", RestoreExpiryDate="2012-12-21T00:00:00.000Z"
+
+If the object hasn’t been restored, there is no header response.
+
+RestoreExpiryDate (datetime) –
+
+Indicates when the restored copy will expire. This value is populated only if the object has already been restored. For example:
+
+x-amz-optional-object-attributes: IsRestoreInProgress="false", RestoreExpiryDate="2012-12-21T00:00:00.000Z"
+
+Name (string) –
+
+The bucket name.
+
+Prefix (string) –
+
+Keys that begin with the indicated prefix.
+
+Note
+Directory buckets - For directory buckets, only prefixes that end in a delimiter ( /) are supported.
+
+Delimiter (string) –
+
+Causes keys that contain the same string between the prefix and the first occurrence of the delimiter to be rolled up into a single result element in the CommonPrefixes collection. These rolled-up keys are not returned elsewhere in the response. Each rolled-up result counts as only one return against the MaxKeys value.
+
+Note
+Directory buckets - For directory buckets, / is the only supported delimiter.
+
+MaxKeys (integer) –
+
+Sets the maximum number of keys returned in the response. By default, the action returns up to 1,000 key names. The response might contain fewer keys but will never contain more.
+
+CommonPrefixes (list) –
+
+All of the keys (up to 1,000) that share the same prefix are grouped together. When counting the total numbers of returns by this API operation, this group of keys is considered as one item.
+
+A response can contain CommonPrefixes only if you specify a delimiter.
+
+CommonPrefixes contains all (if there are any) keys between Prefix and the next occurrence of the string specified by a delimiter.
+
+CommonPrefixes lists keys that act like subdirectories in the directory specified by Prefix.
+
+For example, if the prefix is notes/ and the delimiter is a slash ( /) as in notes/summer/july, the common prefix is notes/summer/. All of the keys that roll up into a common prefix count as a single return when calculating the number of returns.
+
+Note
+Directory buckets - For directory buckets, only prefixes that end in a delimiter ( /) are supported.
+
+Directory buckets - When you query ListObjectsV2 with a delimiter during in-progress multipart uploads, the CommonPrefixes response parameter contains the prefixes that are associated with the in-progress multipart uploads. For more information about multipart uploads, see Multipart Upload Overview in the Amazon S3 User Guide.
+
+(dict) –
+
+Container for all (if there are any) keys between Prefix and the next occurrence of the string specified by a delimiter. CommonPrefixes lists keys that act like subdirectories in the directory specified by Prefix. For example, if the prefix is notes/ and the delimiter is a slash (/) as in notes/summer/july, the common prefix is notes/summer/.
+
+Prefix (string) –
+
+Container for the specified common prefix.
+
+EncodingType (string) –
+
+Encoding type used by Amazon S3 to encode object key names in the XML response.
+
+If you specify the encoding-type request parameter, Amazon S3 includes this element in the response, and returns encoded key name values in the following response elements:
+
+Delimiter, Prefix, Key, and StartAfter.
+
+KeyCount (integer) –
+
+KeyCount is the number of keys returned with this request. KeyCount will always be less than or equal to the MaxKeys field. For example, if you ask for 50 keys, your result will include 50 keys or fewer.
+
+ContinuationToken (string) –
+
+If ContinuationToken was sent with the request, it is included in the response. You can use the returned ContinuationToken for pagination of the list response.
+
+NextContinuationToken (string) –
+
+NextContinuationToken is sent when isTruncated is true, which means there are more keys in the bucket that can be listed. The next list requests to Amazon S3 can be continued with this NextContinuationToken. NextContinuationToken is obfuscated and is not a real key
+
+StartAfter (string) –
+
+If StartAfter was sent with the request, it is included in the response.
+
+Note
+This functionality is not supported for directory buckets.
+
+RequestCharged (string) –
+
+If present, indicates that the requester was successfully charged for the request. For more information, see Using Requester Pays buckets for storage transfers and usage in the Amazon Simple Storage Service user guide.
+
+Note
+This functionality is not supported for directory buckets.
+
+Exceptions
+S3.Client.exceptions.NoSuchBucket
+
+Examples
+The following example retrieves object list. The request specifies max keys to limit response to include only 2 object keys.
+
+response = client.list_objects_v2(
+    Bucket='examplebucket',
+    MaxKeys='2',
+)
+
+print(response)
+Expected Output:
+
+{
+    'Contents': [
+        {
+            'ETag': '"70ee1738b6b21e2c8a43f3a5ab0eee71"',
+            'Key': 'happyface.jpg',
+            'LastModified': datetime(2014, 11, 21, 19, 40, 5, 4, 325, 0),
+            'Size': 11,
+            'StorageClass': 'STANDARD',
+        },
+        {
+            'ETag': '"becf17f89c30367a9a44495d62ed521a-1"',
+            'Key': 'test.jpg',
+            'LastModified': datetime(2014, 5, 2, 4, 51, 50, 4, 122, 0),
+            'Size': 4192256,
+            'StorageClass': 'STANDARD',
+        },
+    ],
+    'IsTruncated': True,
+    'KeyCount': '2',
+    'MaxKeys': '2',
+    'Name': 'examplebucket',
+    'NextContinuationToken': '1w41l63U0xa8q7smH50vCxyTQqdxo69O3EmK28Bi5PcROI4wI/EyIJg==',
+    'Prefix': '',
+    'ResponseMetadata': {
+        '...': '...',
+    },
+}
+
+
+<사용자 질문 및 답변>
+                   hgjin  
+S3에 있는 pkl 파일을 데이터프레임으로 불러오는 방법은 없을까요?
+
+ 3 개월 전
+|  추천 수: 0   
+댓글번역
+레누  
+일반적으로 boto와 io.BytesIO를 사용합니다.
+
+python
+Copy
+import io
+import pickle
+import boto3
+import pandas as pd
+from botocore.config import Config
+
+s3 = boto3.client(
+    's3',
+    endpoint_url='...',
+    aws_access_key_id='...',
+    aws_secret_access_key='...',
+)
+
+# pkl 파일을 메모리로 받아서 역직렬화
+obj = s3.get_object(Bucket='reports', Key='models/sales_df.pkl')
+df = pickle.load(io.BytesIO(obj['Body'].read()))
+
+print(type(df))  # <class 'pandas.core.frame.DataFrame'>
+print(df.head()
+ 3 개월 전
+|  추천 수: 0   
+번역
+댓글 쓰기▼
+3 개월 전 게시됨
+ 번역
+목적은 low yield lot_wf 리스트 뽑으시려는거 같은데 맞을까요?
+혹시 eds.m_eds_wf_tracking 대신에 eds.m_eds_bin 테이블보시는 이유가 궁금합니다.
+
+저는 피클 대신 파케이로 기간별 데이터 저장후 S3 UPLOAD 하는식으로 쓰고 있고, DUCKDB로 그때그때 S3 Query하는식으로 쓰려고 하고 있습니다.
+
+하기 코드 수정해서 사용하시면 될 것 같아요.
+
+import boto3
+from pathlib import Path, PurePosixPath
+from typing import List, Optional
+
+import concurrent.futures
+from boto3.s3.transfer import TransferConfig
+from dataclasses import dataclass
+import configparser
+
+transfer_cfg = TransferConfig(
+    multipart_threshold=8 * 1024 * 1024,   # 8 MiB 이상이면 multipart
+    max_concurrency=8,                  # 스레드 수
+    multipart_chunksize=8 * 1024 * 1024,
+    use_threads=True,
+)
+
+# ──────────────────────────────────────────────────────────────────────
+# ① AWS 프로파일 정보를 담는 dataclass
+# ──────────────────────────────────────────────────────────────────────
+
+@dataclass
+class AwsProfile:
+    """
+    사용자가 직접 작성하는 프로파일 정보.
+    - service         : 보통 "s3"
+    - region          : e.g. "KOR-HS"
+    - endpoint_url    : 커스텀 엔드포인트 (필수인 경우)
+    - access_key_id   : AWS access key
+    - secret_access_key : AWS secret key
+    """
+    service: str
+    region: str
+    endpoint_url: Optional[str] = None
+    access_key_id: Optional[str] = None
+    secret_access_key: Optional[str] = None
+
+# ──────────────────────────────────────────────────────────────────────
+# ② 설정을 한 번에 전달하는 dataclass
+# ──────────────────────────────────────────────────────────────────────
+@dataclass
+class S3Settings:
+    bucket_name: str
+    s3_prefix: PurePosixPath = PurePosixPath(".")         # ← POSIX only 경로
+    local_root: Path = Path(".")    # 업/다운로드 모두 동일 루트 사용
+    profile: AwsProfile | None = None   # 새 필드
+    transfer_cfg: Optional[TransferConfig] = None
+    # 런타임에 만든 boto3 client 를 보관 (외부에 노출되지 않음)
+    _client: Optional[boto3.client] = None
+
+    def __post_init__(self) -> None:
+        if self.profile is None:
+            raise ValueError("`profile` must be provided in S3Settings.")
+        # transfer_cfg 가 없으면 최소 1 스레드 기본값 사용
+        if self.transfer_cfg is None:
+            self.transfer_cfg = TransferConfig(max_concurrency=1)
+
+        # client 를 lazy하게 만든다 → __post_init__ 에서는 아직 만들지 않아도 된다.
+        # 필요 시 self.client 프로퍼티가 자동 생성한다.
+
+    @property
+    def client(self) -> boto3.client:
+        """profile 로부터 만든 client 를 캐시한다."""
+        if self._client is None:
+            self._client = get_client_from_profile(self.profile)
+        return self._client
+
+def load_aws_profile(profile_name: str) -> AwsProfile:
+    """
+    ~/.aws/config 와 ~/.aws/credentials 를 읽어
+    *profile_name* 에 해당하는 AwsProfile 객체를 반환한다.
+    파일이 없거나 항목이 부족하면 ValueError 를 발생시킨다.
+    """
+    # ① config (service, region, endpoint_url)
+    cfg_path = Path.home() / ".aws" / "config"
+    cfg_parser = configparser.ConfigParser()
+    cfg_parser.read(cfg_path)
+
+    # config 파일은 [profile <name>] 형식
+    section_cfg = f"profile {profile_name}"
+    if not cfg_parser.has_section(section_cfg):
+        raise ValueError(f"Config section '{section_cfg}' not found in {cfg_path}")
+
+    service = cfg_parser.get(section_cfg, "service")
+    region = cfg_parser.get(section_cfg, "region", fallback=None)
+    endpoint = cfg_parser.get(section_cfg, "endpoint_url", fallback=None)
+
+    # ② credentials (access_key, secret_key)
+    cred_path = Path.home() / ".aws" / "credentials"
+    cred_parser = configparser.ConfigParser()
+    cred_parser.read(cred_path)
+
+    if not cred_parser.has_section(profile_name):
+        raise ValueError(f"Credentials section '{profile_name}' not found in {cred_path}")
+
+    access_key = cred_parser.get(profile_name, "aws_access_key_id")
+    secret_key = cred_parser.get(profile_name, "aws_secret_access_key")
+
+    return AwsProfile(
+        service=service,
+        region=region,
+        endpoint_url=endpoint,
+        access_key_id=access_key,
+        secret_access_key=secret_key,
+    )
+
+def get_client_from_profile(profile: AwsProfile) -> boto3.client:
+    """
+    AwsProfile 객체를 받아 boto3 S3 client 를 만든다.
+    profile.service 가 "s3" 로 고정돼 있어도 일반화해서 사용 가능.
+    """
+    session_kwargs: dict = {}
+    if profile.region:
+        session_kwargs["region_name"] = profile.region
+
+    client_kwargs: dict = {}
+    if profile.endpoint_url:
+        client_kwargs["endpoint_url"] = profile.endpoint_url
+    if profile.access_key_id and profile.secret_access_key:
+        client_kwargs["aws_access_key_id"] = profile.access_key_id
+        client_kwargs["aws_secret_access_key"] = profile.secret_access_key
+
+    session = boto3.session.Session(**session_kwargs)
+    client = session.client(profile.service, **client_kwargs)
+    return client
+
+# ----------------------------------------------------------------------
+# 1️⃣ 파일 경로 수집 (재귀) – Path 기반
+# ----------------------------------------------------------------------
+def walk_files(root: Path, s3_prefix: PurePosixPath,):
+    """
+    `root` 아래 모든 파일을 재귀 탐색하고 (local_path, s3_key) 튜플을 반환합니다.
+    - local_path : pathlib.Path 객체
+    - s3_key    : PurePosixPath 형식 문자열 (S3 에 저장될 키)
+    """
+    for p in root.rglob("*"):
+        if p.is_file():
+            rel_path = p.relative_to(root)                  # Path 객체
+            s3_key = str((s3_prefix / rel_path).as_posix())  # 문자열, 슬래시 보장
+            yield p, s3_key
+
+# ----------------------------------------------------------------------
+# 2️⃣ 단일 파일 업로드 – TransferConfig 적용
+# ----------------------------------------------------------------------
+import hashlib
+
+def _calc_sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open('rb') as f:
+        for chunk in iter(lambda: f.read(8 * 1024 * 1024), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+# ------------------------------------------------------------
+# 0️⃣ SHA 256 메타데이터를 읽어오는 헬퍼
+# ------------------------------------------------------------
+def _get_sha256_from_metadata(s3_key: str, settings: S3Settings) -> str | None:
+    """
+    S3 객체의 메타데이터에 저장된 `sha256` 값을 반환한다.
+    - 메타데이터가 없거나 해당 키가 없으면 None 반환
+    - `head_object` 호출만 사용하므로 실제 파일 다운로드가 필요 없다.
+    """
+    bucket=settings.bucket_name
+    try:
+        resp = settings.client.head_object(Bucket=bucket, Key=s3_key)
+        # S3 메타데이터 키는 모두 소문자로 반환된다
+        # print(resp.get("Metadata", {}).get("sha256"))
+        return resp.get("Metadata", {}).get("sha256")
+    except settings.client.exceptions.NoSuchKey:
+        # print(f"❌  {s3_key} 가 {bucket} 에 존재하지 않습니다.")
+        return None
+    except Exception as e:
+        # print(f"❌  head_object 오류: {e}")
+        return None
+
+def upload_one(local_path: Path, s3_key: str, settings: S3Settings) -> None:
+    """한 파일을 S3 로 업로드합니다."""
+    local_sha256 = _calc_sha256(local_path)
+    remote_sha256 = _get_sha256_from_metadata(s3_key, settings)
+    # ③ 해시가 동일하면 업로드를 스킵하고 종료
+    if remote_sha256 is not None and remote_sha256 == local_sha256:
+        print(f"⏭️  스킵: {local_path} → s3://{settings.bucket_name}/{s3_key} ")
+        return
+    
+    try:
+        settings.client.upload_file(
+            Filename=str(local_path),
+            Bucket=settings.bucket_name,
+            Key=s3_key,
+            Config=settings.transfer_cfg,
+            ExtraArgs={"Metadata": {"sha256": local_sha256}},
+        )
+        print(f"✅  {local_path} → s3://{settings.bucket_name}/{s3_key} ")
+    except Exception as e:
+        print(f"❌  {local_path} 업로드 실패: {e}")
+
+# ----------------------------------------------------------------------
+# 3️⃣ 멀티스레드 업로드 실행
+# ----------------------------------------------------------------------
+
+def upload_all(settings: S3Settings) -> None:
+    """
+    전체 업로드 파이프라인.
+    - settings.local_root   : 로컬 파일들이 있는 디렉터리
+    - settings.s3_prefix    : S3 에 저장될 prefix (Path)
+    - settings.transfer_cfg : TransferConfig 인스턴스
+    """
+    files = list(walk_files(settings.local_root, settings.s3_prefix))
+    max_c = settings.transfer_cfg.max_concurrency
+    print(f"🗂️  총 {len(files)}개의 파일을 업로드합니다 (max_concurrency={max_c})")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_c) as executor:
+        futures = [
+            executor.submit(upload_one, lp, sk, settings)
+            for lp, sk in files
+        ]
+        for f in concurrent.futures.as_completed(futures):
+            f.result()
+
+# ----------------------------------------------------------------------
+# 4️⃣ S3 객체 리스트 수집 (prefix 기준)
+# ----------------------------------------------------------------------
+
+def list_s3_keys(bucket: str, prefix: str, client: boto3.client):
+    """
+    List **file** keys under ``prefix`` in ``bucket``.
+    Folder placeholder objects (keys ending with '/') are filtered out.
+    """
+    paginator = client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            # Skip S3 "folder" placeholders (keys ending with '/')
+            if not key.endswith("/"):
+                yield key
+
+# ----------------------------------------------------------------------
+# 5️⃣ 단일 파일 다운로드 – Path 기반
+# ----------------------------------------------------------------------
+
+def download_one(s3_key: str, settings: S3Settings) -> None:
+    """
+    주어진 S3 키를 `settings.local_root` 아래에 같은 디렉터리 구조로 저장합니다.
+    """
+    # 1️⃣ S3 키를 POSIX Path 로 변환 → prefix 기준으로 상대 경로 구함
+    rel_path = PurePosixPath(s3_key).relative_to(settings.s3_prefix)
+    # 2️⃣ 로컬 저장 경로 (Path 객체) 구성
+    local_path = settings.local_root /  Path(rel_path)
+
+    # 대상 디렉터리 사전 생성
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+
+    local_sha256 = _calc_sha256(local_path)
+    remote_sha256 = _get_sha256_from_metadata(s3_key, settings)
+    # ③ 해시가 동일하면 업로드를 스킵하고 종료
+    if remote_sha256 is not None and remote_sha256 == local_sha256:
+        print(f"⏭️  스킵: {local_path} → s3://{settings.bucket_name}/{s3_key} ")
+        return
+
+    try:
+        settings.client.download_file(
+            Bucket=settings.bucket_name,
+            Key=s3_key,
+            Filename=str(local_path),
+        )
+        print(f"✅  s3://{settings.bucket_name}/{s3_key} → {local_path}")
+    except Exception as e:
+        print(f"❌  s3://{settings.bucket_name}/{s3_key} 다운로드 실패: {e}")
+
+
+# ----------------------------------------------------------------------
+# 6️⃣ 멀티스레드 다운로드 실행
+# ----------------------------------------------------------------------
+
+def download_all(settings: S3Settings) -> None:
+    """
+    전체 다운로드 파이프라인.
+    - settings.s3_prefix    : 다운로드 대상 prefix (Path)
+    - settings.local_root: 로컬에 저장될 루트 디렉터리 (Path)
+    """
+    # ① POSIX 형식의 prefix 문자열을 만든다.
+    posix_prefix = settings.s3_prefix.as_posix()
+    if not posix_prefix.endswith("/"):
+        posix_prefix += "/"
+    
+    files = list(
+        list_s3_keys(
+            bucket=settings.bucket_name,
+            prefix=posix_prefix,  # paginator 에는 문자열이 필요
+            client=settings.client,
+        )
+    )
+    print(files, settings.s3_prefix.as_posix())
+    max_c = settings.transfer_cfg.max_concurrency
+    print(f"🗂️  총 {len(files)}개의 파일을 다운로드합니다 (max_concurrency={max_c})")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_c) as executor:
+        futures = [
+            executor.submit(download_one, key, settings)
+            for key in files
+        ]
+        for f in concurrent.futures.as_completed(futures):
+            f.result()
+
+# ----------------------------------------------------------------------
+# 7️⃣ 실행부 – 예시 설정 (직접 실행 시 수정 가능)
+# ----------------------------------------------------------------------
+if __name__ == "__main__":
+
+    # ----- TransferConfig 생성 -----
+    transfer_cfg = TransferConfig(
+        multipart_threshold=8 * 1024 * 1024,   # 8 MiB 이상이면 multipart
+        max_concurrency=8,                  # 스레드 수
+        multipart_chunksize=8 * 1024 * 1024,
+        use_threads=True,
+    )
+
+    profile = AwsProfile(
+        service="s3",
+        region="KOR-HS",
+        endpoint_url="http://s3.dataplatform.samsungds.net:9020",
+    )
+    # profile = load_aws_profile("module")
+
+    settings = S3Settings(
+        bucket_name="bucket_name",
+        profile=profile,
+        transfer_cfg=transfer_cfg,
+    )
+
+    # # S3 drive ID/PW 입력
+    profile.access_key_id = "access_key_id"
+    profile.secret_access_key = "secret_access_key"
+    # # 다운/업로드 폴더 경로 입력
+    settings.s3_prefix = Path("alpha/테스트 /test")
+    settings.local_root = Path(r"C:\test")
+
+    # ----- 원하는 동작 선택 -----
+    # 1) 업로드
+    upload_all(settings)
+
+    # # 2) 다운로드 (주석 해제하여 사용)
+    # download_all(settings)
