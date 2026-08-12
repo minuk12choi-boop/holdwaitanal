@@ -368,7 +368,7 @@ SELECT sys_line_id,
        tkin_date,
        process_start_date,
        process_finish_date,
-       to_date(substr(lot_tarnsn_time, 1, 15), 'yyyymmdd hh24:mi:ss')    AS tkout_date
+       to_date(substr(lot_transn_time, 1, 15), 'yyyymmdd hh24:mi:ss')    AS tkout_date
 FROM   SMIMES.MI_LOT_TRANSN_HIST
 WHERE  line_id     IN ('KFR7', 'PFR1')
   AND  sys_line_id IN ('KFR7', 'PFR1')
