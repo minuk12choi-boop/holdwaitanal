@@ -681,12 +681,12 @@ HOLD_ITEM_TYPES = {
 SUMMARY_OUTPUT_COLUMNS = [
     "lot_inform", "line", "현재위치", "전산라인", "투입라인", "lot_id", "carr_id",
     "grade", "lot_type", "lot_level", "qty", "bay", "sendfab",
-    "투입경과_일", "마지막이벤트경과_일", "스텝도착경과_일",
+    "투입경과_일", "마지막이벤트경과_일", "스텝도착경과_일", "마지막작업경과_일",
     "lot_status", "step_status", "proc_id", "de_rank", "연속", "AREA", "layer_id",
     "현스텝", "order_seq", "step_seq", "step_desc", "recipe_id", "eqp_type",
     "batch_kind", "eqpline", "eqpgroup", "eqpgroup_cham",
     "tip", "down", "hold", "hold_reason", "exception", "exception_reason",
-    "ftp", "ftp_reason",
+    "ftp", "ftp_reason", "fa_object4",
 ]
 
 # hold 는 생테이블 조회에 4분이 걸리는데, 실제로 쓰이는 건 현재 재공(mc_lot)에
@@ -1036,7 +1036,8 @@ def build_f3(con):
             m.lot_inform, m.line, m.cur_line_id, m.sys_line_id, m.origin_line_id,
             m.lot_id, m.carr_id, m.grade, m.lot_type, m.lot_level, m.cur_qty,
             m.bay_name, m.sendfab,
-            m.start_date, m.last_event_date, m.step_arrive_date,
+            m.start_date, m.last_event_date, m.step_arrive_date, m.last_tkout_date,
+            m.fa_object4,
             m.status, m.order_seq AS m_order_seq,
             s.proc_id, s.order_seq, s.de_rank, s."연속", s.AREA,
             s.layer_id, s.step_level, s.ein, s.step_seq, s.step_desc,
@@ -1227,6 +1228,7 @@ def build_f3(con):
             {elapsed_days_num('fsb.start_date')}       AS "투입경과_일",
             {elapsed_days_num('fsb.last_event_date')}  AS "마지막이벤트경과_일",
             {elapsed_days_num('fsb.step_arrive_date')} AS "스텝도착경과_일",
+            {elapsed_days_num('fsb.last_tkout_date')}   AS "마지막작업경과_일",
             fc.current_de_rank, fc.current_continuous,
             fg.eqpgroup, fg.batch_kind_agg,
             COALESCE(NULLIF(TRIM(CAST(fg.eqpgroup_cham_raw AS VARCHAR)), ''), fg.eqpgroup)
@@ -1313,6 +1315,7 @@ def build_f3(con):
             f.lot_id, f.carr_id, f.grade, f.lot_type, f.lot_level,
             f.cur_qty AS qty, f.bay_name AS bay, f.sendfab,
             f."투입경과_일", f."마지막이벤트경과_일", f."스텝도착경과_일",
+            f."마지막작업경과_일", f.fa_object4,
             f.lot_status, f.step_status, f.proc_id, f.de_rank, f."연속",
             f.AREA, f.layer_id, f."현스텝", f.order_seq, f.step_seq, f.step_desc,
             f.recipe_id, f.eqp_type, {'f.batch_kind_agg' if AGGREGATE_BATCH_KIND else 'CAST(f.batch_kind AS VARCHAR)'} AS batch_kind,

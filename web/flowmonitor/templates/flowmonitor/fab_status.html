@@ -384,7 +384,8 @@ function renderCause() {
 }
 
 /* --- 드릴다운 --- */
-const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝도착경과_일"]);
+const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝도착경과_일",
+                          "마지막작업경과_일"]);
 
 function closeDrill() {
   document.getElementById("drill").innerHTML =
