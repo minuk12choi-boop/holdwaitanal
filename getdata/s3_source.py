@@ -57,8 +57,12 @@ LOWER_COLUMNS = True
 
 MANIFEST = "_manifest.json"     # Spotfire 가 업로드 완료 후 마지막에 쓰는 파일
 
-# 로컬 캐시. S3 오브젝트의 LastModified 가 캐시보다 새로울 때만 내려받는다.
-# STEP_PATH / TIP 이 1.7GB 라 매번 받으면 30분 주기를 맞출 수 없다.
+# 로컬 캐시.
+#   LastModified 로 판별하면 안 된다. Spotfire 가 30분마다 8개를 전부 재업로드하므로
+#   내용이 같아도 시각은 매번 바뀌어 캐시가 무력화된다.
+#   ETag(=업로드 내용의 MD5)를 쓴다. head_object 로 헤더만 받아 비교하므로
+#   본문을 내려받지 않고 판별된다. pandas.to_pickle 은 같은 DataFrame 에 대해
+#   바이트가 재현되므로, 내용이 안 바뀌면 ETag 도 같다.
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "s3cache")
 USE_CACHE = True
 
@@ -141,26 +145,39 @@ def _cache_path(key):
 
 
 def _fetch_bytes(bucket, key):
-    """LastModified 를 보고 바뀐 것만 내려받는다."""
+    """ETag(내용 해시)를 보고 바뀐 것만 내려받는다.
+
+    head_object 는 헤더만 받으므로 1.7GB 파일이라도 판별 비용이 거의 없다.
+    ETag 가 같으면 본문을 아예 요청하지 않는다.
+    """
     cli = client()
     if not USE_CACHE:
         return cli.get_object(Bucket=bucket, Key=key)["Body"].read(), False
 
     path = _cache_path(key)
     meta = path + ".meta"
-    remote = str(cli.head_object(Bucket=bucket, Key=key)["LastModified"])
 
-    if os.path.exists(path) and os.path.exists(meta):
+    try:
+        head = cli.head_object(Bucket=bucket, Key=key)
+        # multipart 업로드면 '<md5>-<파트수>' 형태. 그대로 비교하면 된다.
+        tag = str(head.get("ETag", "")).strip('"')
+        size = str(head.get("ContentLength", ""))
+        remote = f"{tag}|{size}"
+    except Exception:
+        remote = ""          # head 실패 시엔 캐시를 믿지 않고 받는다
+
+    if remote and os.path.exists(path) and os.path.exists(meta):
         with open(meta, encoding="utf-8") as f:
             if f.read().strip() == remote:
                 with open(path, "rb") as fh:
-                    return fh.read(), True          # 캐시 적중
+                    return fh.read(), True          # 캐시 적중 (본문 미요청)
 
     data = cli.get_object(Bucket=bucket, Key=key)["Body"].read()
-    with open(path, "wb") as fh:
-        fh.write(data)
-    with open(meta, "w", encoding="utf-8") as f:
-        f.write(remote)
+    if remote:
+        with open(path, "wb") as fh:
+            fh.write(data)
+        with open(meta, "w", encoding="utf-8") as f:
+            f.write(remote)
     return data, False
 
 

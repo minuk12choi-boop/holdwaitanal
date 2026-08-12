@@ -49,17 +49,36 @@ build_f3 는 매니페스트의 `finished_at` 을 직전 처리분과 비교한�
 
 무시하고 강제 실행하려면 `--force` 를 준다.
 
-### 데이터 크기 대응 — 로컬 캐시
+### 데이터 크기 대응 — 로컬 캐시 (ETag 기준)
 
-30분마다 1.8 GB 를 내려받으면 86 GB/일이다. `s3_source.py` 가 S3 오브젝트의
-`LastModified` 를 보고 **바뀐 것만** 내려받는다.
+30분마다 1.8 GB 를 내려받으면 86 GB/일이다.
+
+**LastModified 로 판별하면 안 된다.** Spotfire 가 30분마다 8개를 전부
+재업로드하므로 내용이 같아도 시각은 매번 바뀐다. 그러면 캐시가 무력화되어
+결국 매번 다 받게 된다.
+
+그래서 **ETag(업로드 내용의 MD5)** 를 쓴다.
 
 ```
-[S3] PFR1_KFR7_STEP_PATH 캐시 사용
+head_object  ->  ETag / ContentLength 만 받아 비교   (본문 미전송)
+  같으면  ->  로컬 캐시 사용, get_object 아예 호출 안 함
+  다르면  ->  get_object 로 본문 수신 후 캐시 갱신
 ```
 
-STEP_PATH / TIP 을 Spotfire 에서 덜 자주 갱신하면(하루 2~4회) 그만큼
-다운로드가 사라진다. 캐시는 `getdata/s3cache/` 에 쌓이고 git 에는 올라가지 않는다.
+`pandas.to_pickle` 은 같은 DataFrame 에 대해 바이트가 재현되므로,
+**내용이 안 바뀌었으면 재업로드해도 ETag 가 같다.** 검증 완료.
+
+| 상황 | 본문 전송 |
+|---|---|
+| 최초 | O |
+| 내용 동일한 재업로드 | **X** (캐시) |
+| 내용 변경 | O |
+
+STEP_PATH / TIP 은 공정 경로·규칙이라 실제로 바뀌는 빈도가 낮다. 대부분의
+회차에서 1.7 GB 전송이 사라진다.
+
+캐시는 `getdata/s3cache/` 에 쌓이고 git 에는 올라가지 않는다.
+끄려면 `s3_source.USE_CACHE = False`.
 
 ## 방안 A. Spotfire 를 상주시키고 자동 새로고침 (권장)
 
