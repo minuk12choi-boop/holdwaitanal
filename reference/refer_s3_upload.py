@@ -1,8 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-s3_upload.py — S3 Drive 적재
+refer_s3_upload.py — [참고용] DB 의 전처리 결과를 S3 로 올리는 코드
 
-참고 코드와 동일한 방식(boto3 + endpoint_url + pickle 업로드)이되,
+현재 파이프라인에서는 쓰지 않는다.
+  - Spotfire -> S3 업로드는 getdata/spotfire_s3_export.py 가 담당
+  - S3 -> python 읽기는 getdata/s3_source.py 가 담당
+  - 전처리 결과(f3, move)는 DB 에만 적재하고 S3 로 내보내지 않는다
+
+나중에 f3 결과를 다른 팀/시스템에 S3 로 넘길 일이 생기면 이 코드를 참고한다.
+방식은 boto3 + endpoint_url + pickle 업로드로 동일하고,
 자격증명은 코드에 박지 않고 .env 에서 읽는다.
 
 .env 에 아래를 넣는다.

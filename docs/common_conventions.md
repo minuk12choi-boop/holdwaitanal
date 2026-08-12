@@ -214,29 +214,19 @@ S3 경로에서 달라지는 점 세 가지:
 - `STEP_PATH` / `TIP` 은 두 라인이 한 파일이라 `line` 으로 나눠 쓴다(파일은 1회만 읽음)
 - `hold` 는 Oracle 쿼리에서 최신 `version_desc` 선별까지 끝나 별도 조회가 없다
 
-## 5-1. S3 Drive 적재
+## 5-1. 파일별 역할
 
-`getdata/s3_upload.py` 가 DB 의 최신 스냅샷/집계를 S3 로 올린다.
-자격증명은 **코드에 박지 않고 `.env`** 에서 읽는다(`.env` 는 git 에 올리지 않는다).
+| 파일 | 방향 | 역할 | 실행 주체 |
+|---|---|---|---|
+| `getdata/spotfire_s3_export.py` | 로컬 → S3 | Spotfire 테이블 8개를 S3 에 업로드 | **Spotfire 데이터 함수** |
+| `getdata/s3_source.py` | S3 → 메모리 | pkl 을 읽어 DataFrame 반환 | build_f3 / get_move 가 import |
+| `getdata/build_f3.py` | 전처리 | f3 생성 → `f3_live` / `f3_history` 적재 | 스케줄러 |
+| `getdata/get_move.py` | 전처리 | MOVE 집계 → `move_*` 적재 | 스케줄러 (bat 안에서 연속 실행) |
+| `getdata/db_common.py` | 공용 | 접속 / 스키마 / 적재 헬퍼 | 라이브러리 (등록 안 함) |
+| `reference/refer_s3_upload.py` | DB → S3 | **미사용.** 결과를 S3 로 내보낼 때 참고용 | — |
 
-```
-S3_ACCESS_KEY_ID=
-S3_SECRET_ACCESS_KEY=
-S3_ENDPOINT_URL=http://s3.dataplatform.samsungds.net:9020
-S3_BUCKET=RND_FABMODELING
-S3_PREFIX=multi_report/
-```
-
-```
-python getdata/s3_upload.py          # f3_live / move_* 를 pkl 로 업로드
-```
-
-다른 코드에서 임의의 DataFrame 을 올릴 때:
-
-```python
-import s3_upload
-s3_upload.upload_frames({"f3": df_f3, "move_daily": df_move})   # fmt="parquet" 도 가능
-```
+`spotfire_s3_export.py` 는 Spotfire 안에만 등록한다. VS Code 나 작업 스케줄러로
+직접 실행하는 파일이 아니다.
 
 ## 6. 적재 주기
 
