@@ -1594,10 +1594,21 @@ def main():
             else:
                 df = s3_source.read_table(s3name)
                 s3_cache[s3name] = df
-            # 한 파일에 두 라인이 들어 있으면 해당 라인만 남긴다
+            # 한 파일에 두 라인이 들어 있으면 해당 라인만 남긴다.
+            # 라인 구분 컬럼명이 테이블마다 다르다(line / line_id).
+            # 못 찾으면 조용히 통과해 다른 라인이 섞이므로 반드시 확인한다.
             line = name.split("_")[0]
-            if line in ("KFR7", "PFR1") and "line" in df.columns:
-                df = df[df["line"].astype(str).str.upper() == line]
+            if line in ("KFR7", "PFR1"):
+                lcol = next((c for c in ("line", "line_id", "sys_line_id")
+                             if c in df.columns), None)
+                if lcol is None:
+                    raise KeyError(
+                        f"{s3name} 에 라인 구분 컬럼이 없습니다 "
+                        f"(line / line_id / sys_line_id). 컬럼: {list(df.columns)[:8]}")
+                before = len(df)
+                df = df[df[lcol].astype(str).str.upper() == line]
+                print(f"[QUERY] {name} 라인분리({lcol}) {before:,} -> {len(df):,}",
+                      flush=True)
 
         end = dt.datetime.now()
         secs = perf_counter() - t0

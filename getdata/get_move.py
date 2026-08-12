@@ -122,7 +122,20 @@ def aggregate(df, ts_from, ts_to):
     """이벤트 단위 -> (업무일, shift, sys_line_id) 집계."""
     d = df.copy()
     d.columns = [str(c).lower() for c in d.columns]
-    d["tkout_date"] = pd.to_datetime(d["tkout_date"], errors="coerce")
+
+    # TrackOut 시각 컬럼명이 원천에 따라 다르다.
+    #   bdq(Impala) : tkout_date 로 별칭 처리해 내려옴
+    #   S3(Oracle)  : lot_transn_time 원문 그대로
+    if "tkout_date" not in d.columns:
+        if "lot_transn_time" not in d.columns:
+            raise KeyError("TrackOut 시각 컬럼이 없습니다 "
+                           f"(tkout_date / lot_transn_time). 컬럼: {list(d.columns)[:10]}")
+        # 'YYYYMMDD HH24MISS' 문자열 -> datetime
+        t = d["lot_transn_time"].astype("string").str.replace(
+            r"[^0-9]", "", regex=True).str.slice(0, 14)
+        d["tkout_date"] = pd.to_datetime(t, format="%Y%m%d%H%M%S", errors="coerce")
+    else:
+        d["tkout_date"] = pd.to_datetime(d["tkout_date"], errors="coerce")
     d = d.dropna(subset=["tkout_date"])
     # line_id 는 cur_line_id / sys_line_id 의 합집합이라 다른 라인이 섞여 온다.
     # MOVE 의 Line 기준은 sys_line_id 이므로 여기서 한 번 더 거른다.
