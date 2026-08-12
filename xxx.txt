@@ -1,1 +1,12 @@
-<SpotfireControl id="ed287e84b3004b02927b7f05846183f6" />
+Could not perform action 'DataReload'.
+
+Could not execute script 'DataReload': 'DataManager' object has no attribute 'Reload'
+
+   at Spotfire.Dxp.Application.Scripting.ScriptService.Execute(ScriptDefinition script, Dictionary`2 scope, InternalLibraryManager internalLibraryManager, NotificationService notificationService)
+   at Spotfire.Dxp.Application.Scripting.ScriptManager.<>c__DisplayClass8_0.<ExecuteScript>b__0()
+   at Spotfire.Dxp.Framework.Commands.CommandHistory.Transaction(Executor executor, Boolean visible, Boolean sticky, Guid stickyGuid, Boolean isHighlight)
+   at Spotfire.Dxp.Framework.Commands.CommandHistory.Transaction(String displayName, Executor executor)
+   at Spotfire.Dxp.Application.Scripting.ManagedScript.Execute(Dictionary`2 environment)
+   at Spotfire.Dxp.Application.HtmlTextAreaControls.ActionControl.ModifyCore(Object value)
+   at Spotfire.Dxp.Application.Visuals.HtmlTextArea.InteractWithControl(String id, Action`1 interaction)
+
