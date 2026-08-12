@@ -182,19 +182,37 @@ Spotfire 쪽 Oracle 쿼리 8개는 `reference/raw_of_raw_table.txt` 에 있고,
 **주의**: 클라우드(웹) Spotfire 는 서버 Python 을 쓰므로 로컬에 설치한 boto3 가
 잡히지 않는다. Spotfire Analyst(설치형)에서 실행해야 한다.
 
-### S3 -> 로컬 DB
+### S3 -> python
 
-`getdata/s3_to_db.py` 가 S3 의 pkl 을 읽어 `raw_*` 테이블로 적재한다.
+`getdata/s3_source.py` 가 S3 의 pkl 을 읽어 DataFrame 으로 돌려준다.
 파일로 내려받지 않고 `get_object` + `io.BytesIO` 로 메모리에서 바로 읽는다.
+**raw 자체는 DB 에 넣지 않는다.** bdq 로 받던 자리를 그대로 대체할 뿐이고,
+DB 에 적재되는 것은 전처리 결과(f3, move)뿐이다.
 
 ```
-python getdata/s3_to_db.py --list            S3 오브젝트 목록만 확인
-python getdata/s3_to_db.py --peek LOT        한 테이블 미리보기(적재 안 함)
-python getdata/s3_to_db.py                   8개 전부 raw_* 로 적재
+python getdata/s3_source.py --list      S3 오브젝트 목록
+python getdata/s3_source.py --peek LOT  한 테이블 미리보기
+python getdata/s3_source.py --check     8개 전부 읽어 행수/컬럼 점검
 ```
 
-`raw_*` 는 전 컬럼 TEXT 로 원본을 그대로 보관한다. 타입 변환과 전처리는
-`build_f3.py` 가 담당한다(기존 Impala 결과를 받던 것과 같은 위치).
+Oracle 은 컬럼을 대문자로 주므로 읽는 즉시 소문자로 통일한다
+(`LOWER_COLUMNS`). 이후 전처리는 기존 코드 그대로다.
+
+### 원천 전환 스위치
+
+`build_f3.py` / `get_move.py` 상단의 `SOURCE` 한 줄로 바꾼다.
+
+```python
+SOURCE = "s3"      # Spotfire 가 올린 raw (현행)
+SOURCE = "bdq"     # 기존 bigdataquery 로 Impala 직접 조회 (폴백)
+```
+
+전처리·적재·웹은 양쪽이 완전히 동일하다. 바뀌는 것은 원천을 어디서 받느냐뿐이다.
+
+S3 경로에서 달라지는 점 세 가지:
+- `fa_object4` 는 datasource 가 달라 별도 파일로 오므로 `(line, lot_id)` 로 붙인다
+- `STEP_PATH` / `TIP` 은 두 라인이 한 파일이라 `line` 으로 나눠 쓴다(파일은 1회만 읽음)
+- `hold` 는 Oracle 쿼리에서 최신 `version_desc` 선별까지 끝나 별도 조회가 없다
 
 ## 5-1. S3 Drive 적재
 

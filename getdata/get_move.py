@@ -32,6 +32,12 @@ import pandas as pd
 
 import db_common as DB
 
+# 원천 조달 경로. build_f3.py 와 동일한 규칙.
+#   "s3"  : Spotfire 가 올린 PFR1_KFR7_MOVE 를 읽는다
+#   "bdq" : 기존 bigdataquery 로 Impala 조회
+SOURCE = "s3"
+S3_TABLE = "PFR1_KFR7_MOVE"
+
 INIT_MONTHS = 3
 
 # 2시간 주기 실행 기준 증분 조회 폭(시간).
@@ -165,7 +171,10 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    from bigdataquery import getData
+    if SOURCE == "bdq":
+        from bigdataquery import getData
+    else:
+        import s3_source
 
     conn = DB.connect()
     DB.ensure_move_schema(conn)
@@ -174,7 +183,18 @@ def main():
     print(f"[MOVE] 조회구간 {ts_from:%Y-%m-%d %H:%M} ~ {ts_to:%Y-%m-%d %H:%M}", flush=True)
 
     t0 = perf_counter()
-    df = getData(param=move_query(ts_from, ts_to), convert_type=True, verbose=True)
+    if SOURCE == "bdq":
+        df = getData(param=move_query(ts_from, ts_to), convert_type=True, verbose=True)
+    else:
+        # S3 raw 는 Oracle 쿼리에서 이미 기간이 잘려 있다. 여기서는 조회 구간에
+        # 맞춰 한 번 더 거른다(구간을 좁혀 돌릴 때 대비).
+        df = s3_source.read_table(S3_TABLE)
+        if "lot_transn_time" in df.columns:
+            t = df["lot_transn_time"].astype("string").str.replace(
+                r"[^0-9]", "", regex=True).str.slice(0, 14)
+            keep = (t >= ts_from.strftime("%Y%m%d%H%M%S")) & \
+                   (t < ts_to.strftime("%Y%m%d%H%M%S"))
+            df = df[keep.fillna(False)]
     print(f"[MOVE] 원천 {len(df):,}행 {perf_counter() - t0:.1f}s", flush=True)
 
     df_shift, df_daily, df_lot = aggregate(df, ts_from, ts_to)

@@ -618,6 +618,25 @@ AGGREGATE_BATCH_KIND = True
 # 결과를 DB(f3_live / f3_history)에 적재할지.
 LOAD_TO_DB = True
 
+# 원천 조달 경로.
+#   "s3"  : Spotfire 가 S3 에 올린 raw 를 읽는다(현행)
+#   "bdq" : 기존 bigdataquery 로 Impala 를 직접 조회한다(폴백)
+SOURCE = "s3"
+
+# S3 테이블명 -> 기존 fetch() 이름 매핑.
+# 이름만 바꿔 끼우면 이후 전처리는 손댈 필요가 없다.
+S3_MAP = {
+    "lot": "PFR1_KFR7_LOT",
+    "materialworkstatus": "PFR1_KFR7_MATERIALWORKSTATUS",
+    "equipment": "PFR1_KFR7_EQUIPMENT",
+    "eqp_group": "PFR1_KFR7_EQP_GROUP",
+    "hold": "PFR1_KFR7_HOLD",
+    "KFR7_step_path": "PFR1_KFR7_STEP_PATH",
+    "PFR1_step_path": "PFR1_KFR7_STEP_PATH",
+    "KFR7_tip": "PFR1_KFR7_TIP",
+    "PFR1_tip": "PFR1_KFR7_TIP",
+}
+
 # 엑셀 파일 저장 여부. 2시간마다 적재하므로 평상시엔 끈다.
 #   웹의 [다운로드] 메뉴에서 '재공Raw' 를 받으면 되고,
 #   손으로 확인하고 싶을 때만 True 로 바꿔 실행한다.
@@ -1490,9 +1509,13 @@ def save_raw_workbook(path, raw_samples, extra_sheets):
 
 # ---------------------------------------------------------------------------
 def main():
-    from bigdataquery import getData
+    if SOURCE == "bdq":
+        from bigdataquery import getData
+    else:
+        import s3_source
 
     load_log = []
+    s3_cache = {}          # STEP_PATH / TIP 은 두 라인이 한 파일이라 재사용
     raw_samples = {}
 
     @contextmanager
@@ -1517,10 +1540,32 @@ def main():
         print(f"[STAGE] {name} {secs:.1f}s", flush=True)
 
     def fetch(name, sql, keep_sample=True):
+        """원천 1건을 가져온다.
+
+        SOURCE 에 따라 bdq(Impala 직접) 또는 S3(Spotfire 적재분) 를 읽는다.
+        어느 쪽이든 컬럼은 소문자로 통일되므로 이후 전처리는 동일하다.
+        """
         start = dt.datetime.now()
         t0 = perf_counter()
         print(f"[QUERY] {name} 조회 시작 {start:%Y-%m-%d %H:%M:%S}", flush=True)
-        df = getData(param=sql, convert_type=True, verbose=True)
+
+        if SOURCE == "bdq":
+            df = getData(param=sql, convert_type=True, verbose=True)
+        else:
+            s3name = S3_MAP.get(name)
+            if not s3name:
+                raise KeyError(f"S3_MAP 에 '{name}' 이 없습니다.")
+            if s3name in s3_cache:
+                df = s3_cache[s3name]
+                print(f"[QUERY] {name} <- 캐시({s3name})", flush=True)
+            else:
+                df = s3_source.read_table(s3name)
+                s3_cache[s3name] = df
+            # 한 파일에 두 라인이 들어 있으면 해당 라인만 남긴다
+            line = name.split("_")[0]
+            if line in ("KFR7", "PFR1") and "line" in df.columns:
+                df = df[df["line"].astype(str).str.upper() == line]
+
         end = dt.datetime.now()
         secs = perf_counter() - t0
         n = len(df)
@@ -1550,6 +1595,14 @@ def main():
 
     with timer("소형 원천 조회"):
         df_lot = fetch("lot", lot_query)
+        if SOURCE != "bdq":
+            # Oracle 은 datasource 가 달라 fa_object4 를 분리해 받는다.
+            # 기존 Impala lot_query 는 이 컬럼을 포함했으므로 여기서 붙여준다.
+            df_mws = fetch("materialworkstatus", None)
+            with stage("fa_object4 결합"):
+                m = _lower_cols(df_mws)[["line", "lot_id", "fa_object4"]].drop_duplicates(
+                    subset=["line", "lot_id"])
+                df_lot = _lower_cols(df_lot).merge(m, on=["line", "lot_id"], how="left")
         df_eqp = fetch("equipment", eqp_query)
         # 설비그룹은 하루에 한 번만 바뀌면 충분하다. 업무일(22시 기준) 단위로
         # 캐시해 두고, 'OFF' 제외까지 마친 상태로 저장해 재사용한다.
@@ -1575,7 +1628,11 @@ def main():
             })
             raw_samples["eqp_group"] = df_eqp_group.copy()
 
-        if HOLD_SERVER_SIDE_FILTER:
+        if SOURCE != "bdq":
+            # S3 raw 는 Oracle 쿼리에서 이미 최신 version_desc + status_seq
+            # 필터까지 끝난 상태로 온다. 여기서 다시 조회할 것이 없다.
+            df_hold = fetch("hold", None)
+        elif HOLD_SERVER_SIDE_FILTER:
             # MAX(version_desc) 는 100만행 전수 스캔이라 느릴 수 있다.
             # version_desc 가 'YYYYMMDD-HHMMSS' 형태이므로 최근 며칠로 한정해
             # 먼저 시도하고, 값이 안 나오면 전체 범위로 되돌린다.
