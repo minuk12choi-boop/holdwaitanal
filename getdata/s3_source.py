@@ -51,22 +51,12 @@ TABLES = [
     "PFR1_KFR7_MOVE",
 ]
 
-EXT = "pkl"
+# Spotfire 쪽 FMT 와 맞춘다. parquet 권장(pkl 대비 약 6% 크기).
+EXT = "parquet"
 # Oracle 이 대문자로 주는 컬럼명을 소문자로 통일한다(기존 전처리가 소문자 기준).
 LOWER_COLUMNS = True
 
 MANIFEST = "_manifest.json"     # Spotfire 가 업로드 완료 후 마지막에 쓰는 파일
-
-# 로컬 캐시.
-#   LastModified 로 판별하면 안 된다. Spotfire 가 30분마다 8개를 전부 재업로드하므로
-#   내용이 같아도 시각은 매번 바뀌어 캐시가 무력화된다.
-#   ETag(=업로드 내용의 MD5)를 쓴다. head_object 로 헤더만 받아 비교하므로
-#   본문을 내려받지 않고 판별된다. pandas.to_pickle 은 같은 DataFrame 에 대해
-#   바이트가 재현되므로, 내용이 안 바뀌면 ETag 도 같다.
-CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "s3cache")
-USE_CACHE = True
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -139,65 +129,30 @@ def read_manifest():
         return None
 
 
-def _cache_path(key):
-    os.makedirs(CACHE_DIR, exist_ok=True)
-    return os.path.join(CACHE_DIR, key.replace("/", "_"))
-
-
-def _fetch_bytes(bucket, key):
-    """ETag(내용 해시)를 보고 바뀐 것만 내려받는다.
-
-    head_object 는 헤더만 받으므로 1.7GB 파일이라도 판별 비용이 거의 없다.
-    ETag 가 같으면 본문을 아예 요청하지 않는다.
-    """
-    cli = client()
-    if not USE_CACHE:
-        return cli.get_object(Bucket=bucket, Key=key)["Body"].read(), False
-
-    path = _cache_path(key)
-    meta = path + ".meta"
-
-    try:
-        head = cli.head_object(Bucket=bucket, Key=key)
-        # multipart 업로드면 '<md5>-<파트수>' 형태. 그대로 비교하면 된다.
-        tag = str(head.get("ETag", "")).strip('"')
-        size = str(head.get("ContentLength", ""))
-        remote = f"{tag}|{size}"
-    except Exception:
-        remote = ""          # head 실패 시엔 캐시를 믿지 않고 받는다
-
-    if remote and os.path.exists(path) and os.path.exists(meta):
-        with open(meta, encoding="utf-8") as f:
-            if f.read().strip() == remote:
-                with open(path, "rb") as fh:
-                    return fh.read(), True          # 캐시 적중 (본문 미요청)
-
-    data = cli.get_object(Bucket=bucket, Key=key)["Body"].read()
-    if remote:
-        with open(path, "wb") as fh:
-            fh.write(data)
-        with open(meta, "w", encoding="utf-8") as f:
-            f.write(remote)
-    return data, False
-
-
 def read_table(name, bucket=None, prefix=None):
-    """S3 의 pkl 을 DataFrame 으로. 바뀌지 않았으면 로컬 캐시를 쓴다."""
+    """S3 의 pkl 을 매번 새로 읽어 DataFrame 으로.
+
+    캐시하지 않는다. 라인 데이터는 매 순간 바뀌므로 낡은 값을 재사용하면
+    실시간 전환의 의미가 없다. 전송량은 압축(FMT)으로 줄인다.
+    """
     b, p = _bucket_prefix()
     bucket = bucket or b
     prefix = prefix if prefix is not None else p
     key = f"{prefix}{name}.{EXT}"
 
-    data, cached = _fetch_bytes(bucket, key)
-    if cached:
-        print(f"[S3] {name} 캐시 사용", flush=True)
+    data = client().get_object(Bucket=bucket, Key=key)["Body"].read()
     buf = io.BytesIO(data)
-    try:
-        df = pd.read_pickle(buf)
-    except Exception:
-        # pandas 버전 차이로 read_pickle 이 실패하면 표준 pickle 로 재시도
-        buf.seek(0)
-        df = pickle.load(buf)
+    if EXT == "parquet":
+        df = pd.read_parquet(buf)
+    elif EXT == "csv":
+        df = pd.read_csv(buf)
+    else:
+        try:
+            df = pd.read_pickle(buf)
+        except Exception:
+            # pandas 버전 차이로 read_pickle 이 실패하면 표준 pickle 로 재시도
+            buf.seek(0)
+            df = pickle.load(buf)
     if not isinstance(df, pd.DataFrame):
         df = pd.DataFrame(df)
     if LOWER_COLUMNS:
