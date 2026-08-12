@@ -123,11 +123,11 @@ def aggregate(df, ts_from, ts_to):
     d = df.copy()
     d.columns = [str(c).lower() for c in d.columns]
 
-    # tkout_date 는 'YYYYMMDD HH24MISS...' 문자열이다(bdq/Oracle 동일).
-    # 숫자만 뽑아 앞 14자리로 파싱한다.
-    t = d["tkout_date"].astype("string").str.replace(r"[^0-9]", "", regex=True)
-    d["tkout_date"] = pd.to_datetime(t.str.slice(0, 14),
-                                     format="%Y%m%d%H%M%S", errors="coerce")
+    # tkout_date 는 원천에 따라 타입이 다르다.
+    #   Oracle : TO_DATE 로 변환돼 datetime 으로 옴
+    #   bdq    : FROM_UNIXTIME 결과가 문자열로 올 수 있음
+    # DB.to_datetime 이 양쪽을 모두 받는다.
+    d["tkout_date"] = DB.to_datetime(d["tkout_date"])
     d = d.dropna(subset=["tkout_date"])
     # line_id 는 cur_line_id / sys_line_id 의 합집합이라 다른 라인이 섞여 온다.
     # MOVE 의 Line 기준은 sys_line_id 이므로 여기서 한 번 더 거른다.
@@ -195,10 +195,8 @@ def main():
         # 맞춰 한 번 더 거른다(구간을 좁혀 돌릴 때 대비).
         df = s3_source.read_table(S3_TABLE)
         if "tkout_date" in df.columns:
-            t = df["tkout_date"].astype("string").str.replace(
-                r"[^0-9]", "", regex=True).str.slice(0, 14)
-            keep = (t >= ts_from.strftime("%Y%m%d%H%M%S")) & \
-                   (t < ts_to.strftime("%Y%m%d%H%M%S"))
+            t = DB.to_datetime(df["tkout_date"])
+            keep = (t >= ts_from) & (t < ts_to)
             df = df[keep.fillna(False)]
     print(f"[MOVE] 원천 {len(df):,}행 {perf_counter() - t0:.1f}s", flush=True)
 

@@ -17,6 +17,30 @@ MOVE_LOT_TYPES = ("PP", "PB", "PG")
 
 
 # ---------------------------------------------------------------------------
+# 공용 변환
+# ---------------------------------------------------------------------------
+def to_datetime(series):
+    """어떤 형태로 와도 datetime 으로.
+
+    원천에 따라 타입이 다르다.
+      - Oracle 이 DATE 로 변환해 준 컬럼   -> 이미 datetime64
+      - 문자열 그대로인 컬럼               -> 'YYYYMMDD HHMMSS...' 계열
+    이미 datetime 이면 그대로 두고, 문자열이면 숫자만 뽑아 14자리로 파싱한다.
+    """
+    import pandas as pd
+
+    if pd.api.types.is_datetime64_any_dtype(series):
+        return series
+    s = series.astype("string").str.replace(r"[^0-9]", "", regex=True).str.slice(0, 14)
+    s = s.where(s.str.len() >= 8).str.pad(14, side="right", fillchar="0")
+    out = pd.to_datetime(s, format="%Y%m%d%H%M%S", errors="coerce")
+    if out.notna().sum() == 0 and len(series):
+        # 숫자 추출로 안 되면 일반 파서로 한 번 더 (ISO 문자열 등)
+        out = pd.to_datetime(series, errors="coerce")
+    return out
+
+
+# ---------------------------------------------------------------------------
 # 업무일 / shift
 # ---------------------------------------------------------------------------
 def biz_date(ts: dt.datetime) -> dt.date:

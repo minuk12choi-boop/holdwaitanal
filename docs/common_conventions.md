@@ -345,6 +345,21 @@ python getdata/db_common.py --init
 기존 데이터는 그대로 두고 없는 컬럼만 추가된다(기존 행은 NULL).
 수동으로 하려면 `getdata/migrate_add_columns.sql` 참조.
 
+### 날짜 컬럼 타입
+
+원천마다 타입이 다르다. Oracle 쿼리에서 `TO_DATE` 로 변환한 컬럼은 datetime 으로,
+변환하지 않은 컬럼은 `'YYYYMMDD HHMMSS...'` 문자열로 온다.
+
+python 은 **`db_common.to_datetime()`** 하나로 받는다. 이미 datetime 이면 그대로
+두고, 문자열이면 숫자만 뽑아 14자리로 파싱한다(ISO 문자열도 폴백 처리).
+
+```python
+d["tkout_date"] = DB.to_datetime(d["tkout_date"])
+```
+
+DuckDB 쪽 `parsed_ts()` 도 `TRY_STRPTIME` + `TRY_CAST` 조합이라 양쪽을 받는다.
+따라서 Oracle 쿼리에서 날짜 변환을 추가하거나 빼도 python 을 고칠 필요가 없다.
+
 ### 경과일 컬럼
 
 f3 는 네 가지 경과일을 담는다. 모두 `현재시각 - 기준시각` 을 일 단위 소수 1자리로.

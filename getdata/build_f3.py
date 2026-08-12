@@ -339,10 +339,13 @@ def _lower_cols(df):
 
 
 def _to_datetime(series):
-    """'yyyymmdd hh24:mi:ss' 계열 문자열 → datetime. 구분자 유무에 관계없이 파싱."""
-    s = series.astype('string').str.replace(r'[^0-9]', '', regex=True).str.slice(0, 14)
-    s = s.where(s.str.len() >= 8).str.pad(14, side='right', fillchar='0')
-    return pd.to_datetime(s, format='%Y%m%d%H%M%S', errors='coerce')
+    """문자열이든 datetime 이든 datetime 으로. (db_common.to_datetime 위임)
+
+    Oracle 쿼리에서 TO_DATE 로 변환해 주는 컬럼이 늘어나고 있어, 문자열만
+    가정하면 깨진다. 두 경우를 모두 받는다.
+    """
+    import db_common as _DB
+    return _DB.to_datetime(series)
 
 
 def expand_group_name(name):  # noqa: C901
