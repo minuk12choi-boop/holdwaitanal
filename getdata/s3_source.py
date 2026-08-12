@@ -211,8 +211,21 @@ def main():
 
     if args.manifest:
         m = read_manifest()
-        print(json.dumps(m, ensure_ascii=False, indent=2) if m
-              else "(매니페스트 없음 - Spotfire 가 아직 새 버전으로 올리지 않음)")
+        if not m:
+            print("(매니페스트 없음 - Spotfire 가 아직 새 버전으로 올리지 않음)")
+            return
+        print(f"원천 조회(SYSDATE) : {m.get('query_time', '(없음)')}")
+        print(f"업로드 시작        : {m.get('run_at', '')}")
+        print(f"업로드 완료        : {m.get('finished_at', '')}")
+        print(f"형식 / 테이블      : {m.get('fmt', '')} / "
+              f"{m.get('ok', 0)}of{m.get('total', 0)}")
+        qs = m.get("query_time_all") or []
+        if len(qs) > 1:
+            print(f"[주의] 테이블마다 조회 시각이 다릅니다: {qs}")
+        print()
+        for k, v in (m.get("tables") or {}).items():
+            print(f"  {k:30s} {v.get('rows', 0):>10,}행 "
+                  f"{v.get('cols', 0):>3}컬럼  {v.get('query_time', '')}")
         return
 
     if args.check:

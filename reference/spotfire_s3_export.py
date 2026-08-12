@@ -171,7 +171,8 @@ try:
         # 등록하지 않은 테이블이 있어도 전체가 멈추지 않게 개별 처리한다.
         df = globals().get(name)
         if df is None:
-            rows.append([name, "SKIP", 0, 0, "입력 파라미터 미등록", t0, dt.datetime.now()])
+            rows.append([name, "SKIP", 0, 0, "", "입력 파라미터 미등록",
+                         t0, dt.datetime.now()])
             continue
         if not isinstance(df, pd.DataFrame):
             df = pd.DataFrame(df)
@@ -182,25 +183,35 @@ try:
         dup = seen.get(sig)
         seen.setdefault(sig, name)
 
+        # 원천 조회 시각. Oracle 쿼리의 query_time 컬럼(SYSDATE)에서 읽는다.
+        # 업로드 시각만 보면 '같은 데이터를 다시 올린 것' 과 구분되지 않는다.
+        qt = ""
+        for c in df.columns:
+            if str(c).lower() == "query_time":
+                try:
+                    qt = str(df[c].iloc[0]) if len(df) else ""
+                except Exception:
+                    qt = ""
+                break
+
         cols_preview = ", ".join(map(str, df.columns[:6]))
         if len(df.columns) > 6:
             cols_preview += ", ..."
 
         if dup:
-            rows.append([name, "DUP", len(df), df.shape[1],
-                         "'%s' 과(와) 내용이 같습니다. 데이터 함수의 Input Parameter "
-                         "매핑을 확인하세요. | %s" % (dup, cols_preview),
-                         t0, dt.datetime.now()])
+            rows.append([name, "DUP", len(df), df.shape[1], qt,
+                         "'%s' 과(와) 내용이 같습니다. Input Parameter 매핑 확인. | %s"
+                         % (dup, cols_preview), t0, dt.datetime.now()])
             continue
 
         try:
             key = "%s%s.%s" % (prefix, name, FMT)
             client.upload_fileobj(to_buffer(df, FMT), bucket, key)
-            rows.append([name, "OK", len(df), df.shape[1],
-                         "s3://%s/%s  |  %s" % (bucket, key, cols_preview),
+            rows.append([name, "OK", len(df), df.shape[1], qt,
+                         "s3://%s/%s" % (bucket, key),
                          t0, dt.datetime.now()])
         except Exception as e:
-            rows.append([name, "FAIL", len(df), df.shape[1],
+            rows.append([name, "FAIL", len(df), df.shape[1], qt,
                          "%s: %s" % (type(e).__name__, e), t0, dt.datetime.now()])
 
     # 8개를 다 올린 뒤 마지막에 매니페스트를 쓴다.
@@ -208,25 +219,30 @@ try:
     #   매니페스트가 '마지막에' 생기므로, 읽는 쪽은 이것만 보면
     #   '이번 회차가 완결됐는지' 를 알 수 있다.
     ok = [r for r in rows if r[1] == "OK"]
+    qts = sorted({r[4] for r in ok if r[4]})
     manifest = {
         "run_at": started.strftime("%Y-%m-%d %H:%M:%S"),
         "finished_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "query_time": qts[-1] if qts else "",       # 원천 조회 시각(SYSDATE)
+        "query_time_all": qts,                      # 테이블별로 다르면 여기서 드러난다
         "fmt": FMT,
-        "tables": {r[0]: {"rows": int(r[2]), "cols": int(r[3])} for r in ok},
+        "tables": {r[0]: {"rows": int(r[2]), "cols": int(r[3]), "query_time": r[4]}
+                   for r in ok},
         "ok": len(ok),
         "total": len(TABLE_NAMES),
     }
     buf = io.BytesIO(json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8"))
     client.upload_fileobj(buf, bucket, "%s_manifest.json" % prefix)
-    rows.append(["_manifest.json", "OK", len(ok), 0,
-                 "완결 표시. 읽는 쪽은 이 파일을 기준으로 최신 여부를 판단한다.",
+    rows.append(["_manifest.json", "OK", len(ok), 0, manifest["query_time"],
+                 "완결 표시. 읽는 쪽은 이 파일로 최신 여부를 판단한다.",
                  started, dt.datetime.now()])
 
 except Exception as e:
-    rows.append(["(전체)", "FAIL", 0, 0, "%s: %s" % (type(e).__name__, e),
+    rows.append(["(전체)", "FAIL", 0, 0, "", "%s: %s" % (type(e).__name__, e),
                  started, dt.datetime.now()])
 
 upload_log = pd.DataFrame(
-    rows, columns=["table", "status", "rows", "cols", "detail", "start", "end"])
+    rows, columns=["table", "status", "rows", "cols", "query_time", "detail",
+                   "start", "end"])
 upload_log["elapsed_sec"] = (
     upload_log["end"] - upload_log["start"]).dt.total_seconds().round(2)
