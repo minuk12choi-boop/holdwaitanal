@@ -22,3 +22,46 @@
 처리	hold 전처리	2026-08-12 15:47:25	2026-08-12 15:47:25	0.024	None	None
 처리	f3 생성	2026-08-12 15:47:25	2026-08-12 15:47:27	1.68	None	None
 계	2026-08-12 15:47:04	2026-08-12 15:47:27	22.639 (경과 23.0)	30166569	
+
+
+
+Could not execute function call 'RefreshSlow'
+
+
+Error executing Python script:
+
+NameError: name 'Document' is not defined
+
+Traceback (most recent call last):
+  File "data_function.py", line 364, in _execute_script
+    exec(compiled_script, self.globals)
+  File "<data_function>", line 2, in <module>
+
+
+
+   at Spotfire.Dxp.Data.DataFunctions.Executors.LocalPythonFunctionClient.<RunFunction>d__8.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.Executors.PythonScriptExecutor.<ExecuteFunction>d__11.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
+
+
+
+Could not execute function call 'RefreshFast'
+
+
+Error executing Python script:
+
+NameError: name 'Document' is not defined
+
+Traceback (most recent call last):
+  File "data_function.py", line 364, in _execute_script
+    exec(compiled_script, self.globals)
+  File "<data_function>", line 4, in <module>
+
+
+
+   at Spotfire.Dxp.Data.DataFunctions.Executors.LocalPythonFunctionClient.<RunFunction>d__8.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.Executors.PythonScriptExecutor.<ExecuteFunction>d__11.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
+
+
+
