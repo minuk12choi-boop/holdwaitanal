@@ -342,6 +342,19 @@ HOLD율(Lot수) = HOLD 상태 Lot 수      ÷ 전체 재공 Lot 수
 
 MOVE / W/T / 재공은 정의상 매수 기준이므로 토글의 영향을 받지 않는다.
 
+### 출력 컬럼이 늘어났을 때
+
+`SUMMARY_OUTPUT_COLUMNS` 에 컬럼을 추가하면 `f3_live` / `f3_history` 스키마도
+따라가야 한다. `CREATE TABLE IF NOT EXISTS` 는 기존 테이블을 건드리지 않으므로
+`db_common.add_missing_columns()` 가 `ALTER TABLE` 로 보강한다.
+
+```
+python getdata/db_common.py --init
+```
+
+기존 데이터는 그대로 두고 없는 컬럼만 추가된다(기존 행은 NULL).
+수동으로 하려면 `getdata/migrate_add_columns.sql` 참조.
+
 ### 경과일 컬럼
 
 f3 는 네 가지 경과일을 담는다. 모두 `현재시각 - 기준시각` 을 일 단위 소수 1자리로.

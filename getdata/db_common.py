@@ -191,6 +191,41 @@ def ensure_f3_schema(conn, columns):
             cur.execute(sql)
     conn.commit()
 
+    # CREATE TABLE IF NOT EXISTS 는 이미 있는 테이블에 컬럼을 늘려주지 않는다.
+    # SUMMARY_OUTPUT_COLUMNS 가 바뀌면 기존 데이터를 유지한 채 컬럼만 추가한다.
+    for table in ("f3_live", "f3_history"):
+        add_missing_columns(conn, table, columns)
+
+
+def add_missing_columns(conn, table, columns):
+    """테이블에 없는 컬럼을 ALTER TABLE 로 추가한다(기존 행은 NULL).
+
+    반환: 추가한 컬럼 목록
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = DATABASE() AND table_name = %s", (table,))
+        have = {r[0].lower() for r in cur.fetchall()}
+        if not have:
+            return []                      # 테이블 자체가 없음
+
+        added = []
+        prev = None
+        for c in columns:
+            if c.lower() in have:
+                prev = c
+                continue
+            typ = "TEXT" if c in TEXT_COLUMNS else f"VARCHAR({SHORT_LEN})"
+            after = f" AFTER `{prev}`" if prev else ""
+            cur.execute(f"ALTER TABLE `{table}` ADD COLUMN `{c}` {typ} NULL{after}")
+            added.append(c)
+            prev = c
+    conn.commit()
+    if added:
+        print(f"[DDL] {table} 컬럼 추가: {', '.join(added)}", flush=True)
+    return added
+
 
 def ensure_standard_schema(conn):
     """기준정보: 원인 소분류 규칙.
@@ -449,7 +484,7 @@ def _init_schema():
     from build_f3 import SUMMARY_OUTPUT_COLUMNS
 
     conn = connect()
-    ensure_f3_schema(conn, SUMMARY_OUTPUT_COLUMNS)
+    ensure_f3_schema(conn, SUMMARY_OUTPUT_COLUMNS)   # 없으면 생성, 있으면 컬럼 보강
     ensure_load_log_schema(conn)
     ensure_move_schema(conn)
     ensure_standard_schema(conn)
