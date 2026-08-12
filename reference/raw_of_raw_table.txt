@@ -346,6 +346,11 @@ WHERE  h.line_id IN ('KFR7', 'PFR1')
 --     MOVE = TrackOut 매수. lot_type 은 PP/PB/PG 만.
 --     line_id 는 cur/sys 합집합이라 sys_line_id 조건을 함께 건다.
 --     기간은 Spotfire 파라미터로 바꿔 쓴다(아래는 최근 3일).
+--     컬럼명은 기존 Impala 버전과 동일하게 맞춘다(python 전처리를 그대로 쓰기 위함).
+--       lot_transn_time   -> tkout_date          'YYYYMMDD HH24MISS...' 문자열
+--       recent_tkout_time -> recent_tkout_date
+--       current_line_id   -> cur_line_id
+--       component_qty     -> move
 --------------------------------------------------------------------------------
 SELECT sys_line_id,
        line_id,
@@ -359,11 +364,11 @@ SELECT sys_line_id,
        step_seq,
        step_desc,
        eqp_type,
-       recent_tkout_time,
+       recent_tkout_time  AS recent_tkout_date,
        tkin_date,
        process_start_date,
        process_finish_date,
-       lot_transn_time
+       lot_transn_time    AS tkout_date
 FROM   SMIMES.MI_LOT_TRANSN_HIST
 WHERE  line_id     IN ('KFR7', 'PFR1')
   AND  sys_line_id IN ('KFR7', 'PFR1')

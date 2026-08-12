@@ -123,19 +123,11 @@ def aggregate(df, ts_from, ts_to):
     d = df.copy()
     d.columns = [str(c).lower() for c in d.columns]
 
-    # TrackOut 시각 컬럼명이 원천에 따라 다르다.
-    #   bdq(Impala) : tkout_date 로 별칭 처리해 내려옴
-    #   S3(Oracle)  : lot_transn_time 원문 그대로
-    if "tkout_date" not in d.columns:
-        if "lot_transn_time" not in d.columns:
-            raise KeyError("TrackOut 시각 컬럼이 없습니다 "
-                           f"(tkout_date / lot_transn_time). 컬럼: {list(d.columns)[:10]}")
-        # 'YYYYMMDD HH24MISS' 문자열 -> datetime
-        t = d["lot_transn_time"].astype("string").str.replace(
-            r"[^0-9]", "", regex=True).str.slice(0, 14)
-        d["tkout_date"] = pd.to_datetime(t, format="%Y%m%d%H%M%S", errors="coerce")
-    else:
-        d["tkout_date"] = pd.to_datetime(d["tkout_date"], errors="coerce")
+    # tkout_date 는 'YYYYMMDD HH24MISS...' 문자열이다(bdq/Oracle 동일).
+    # 숫자만 뽑아 앞 14자리로 파싱한다.
+    t = d["tkout_date"].astype("string").str.replace(r"[^0-9]", "", regex=True)
+    d["tkout_date"] = pd.to_datetime(t.str.slice(0, 14),
+                                     format="%Y%m%d%H%M%S", errors="coerce")
     d = d.dropna(subset=["tkout_date"])
     # line_id 는 cur_line_id / sys_line_id 의 합집합이라 다른 라인이 섞여 온다.
     # MOVE 의 Line 기준은 sys_line_id 이므로 여기서 한 번 더 거른다.
@@ -202,8 +194,8 @@ def main():
         # S3 raw 는 Oracle 쿼리에서 이미 기간이 잘려 있다. 여기서는 조회 구간에
         # 맞춰 한 번 더 거른다(구간을 좁혀 돌릴 때 대비).
         df = s3_source.read_table(S3_TABLE)
-        if "lot_transn_time" in df.columns:
-            t = df["lot_transn_time"].astype("string").str.replace(
+        if "tkout_date" in df.columns:
+            t = df["tkout_date"].astype("string").str.replace(
                 r"[^0-9]", "", regex=True).str.slice(0, 14)
             keep = (t >= ts_from.strftime("%Y%m%d%H%M%S")) & \
                    (t < ts_to.strftime("%Y%m%d%H%M%S"))
