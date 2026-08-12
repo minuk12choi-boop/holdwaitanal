@@ -179,6 +179,23 @@ Spotfire 쪽 Oracle 쿼리 8개는 `reference/raw_of_raw_table.txt` 에 있고,
 (Tools > Register Data Functions, Refresh = Automatic). 분석 파일이 열려 데이터가
 새로 로딩될 때마다 자동으로 올라간다.
 
+**주의**: 클라우드(웹) Spotfire 는 서버 Python 을 쓰므로 로컬에 설치한 boto3 가
+잡히지 않는다. Spotfire Analyst(설치형)에서 실행해야 한다.
+
+### S3 -> 로컬 DB
+
+`getdata/s3_to_db.py` 가 S3 의 pkl 을 읽어 `raw_*` 테이블로 적재한다.
+파일로 내려받지 않고 `get_object` + `io.BytesIO` 로 메모리에서 바로 읽는다.
+
+```
+python getdata/s3_to_db.py --list            S3 오브젝트 목록만 확인
+python getdata/s3_to_db.py --peek LOT        한 테이블 미리보기(적재 안 함)
+python getdata/s3_to_db.py                   8개 전부 raw_* 로 적재
+```
+
+`raw_*` 는 전 컬럼 TEXT 로 원본을 그대로 보관한다. 타입 변환과 전처리는
+`build_f3.py` 가 담당한다(기존 Impala 결과를 받던 것과 같은 위치).
+
 ## 5-1. S3 Drive 적재
 
 `getdata/s3_upload.py` 가 DB 의 최신 스냅샷/집계를 S3 로 올린다.
