@@ -1,20 +1,18 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\s3_to_db.py --list
-                                          key  size_mb                         modified
-         multi_report/PFR1_KFR7_EQP_GROUP.pkl     0.40 2026-08-12 00:42:57.147000+00:00
-         multi_report/PFR1_KFR7_EQUIPMENT.pkl     1.38 2026-08-12 00:42:57.097000+00:00
-              multi_report/PFR1_KFR7_HOLD.pkl     1.38 2026-08-12 00:42:57.262000+00:00
-               multi_report/PFR1_KFR7_LOT.pkl     1.99 2026-08-12 00:41:53.325000+00:00
-multi_report/PFR1_KFR7_MATERIALWORKSTATUS.pkl     2.84 2026-08-12 00:41:53.480000+00:00
-              multi_report/PFR1_KFR7_MOVE.pkl    13.89 2026-08-12 00:42:57.967000+00:00
-         multi_report/PFR1_KFR7_STEP_PATH.pkl   751.12 2026-08-12 00:42:14.748000+00:00
-               multi_report/PFR1_KFR7_TIP.pkl  1029.61 2026-08-12 00:42:56.951000+00:00
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python getdata/s3_source.py --check
+[S3] PFR1_KFR7_LOT                      9,012행  21컬럼    2.6s
+[S3] PFR1_KFR7_MATERIALWORKSTATUS     144,505행   3컬럼    0.1s
+[S3] PFR1_KFR7_STEP_PATH            5,097,967행  16컬럼    4.9s
+[S3] PFR1_KFR7_TIP                  9,881,938행  11컬럼    4.9s
+[S3] PFR1_KFR7_EQUIPMENT               19,335행   7컬럼    0.1s
+[S3] PFR1_KFR7_EQP_GROUP               13,102행   3컬럼    0.1s
+[S3] PFR1_KFR7_HOLD                     7,354행   9컬럼    0.1s
+[S3] PFR1_KFR7_MOVE                    63,723행  17컬럼    0.3s
 
-
-
-
-> python D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\s3_to_db.py --peek LOT
-
-PFR1_KFR7_LOT  8,920행 21컬럼
-컬럼: ['LINE', 'CUR_LINE_ID', 'SYS_LINE_ID', 'ORIGIN_LINE_ID', 'LOT_ID', 'CARR_ID', 'LOT_TYPE', 'GRADE', 'LOT_LEVEL', 'CUR_QTY', 'BAY_NAME', 'STATUS', 'PROC_ID', 'ORDER_SEQ', 'STEP_SEQ', 'START_DATE', 'LAST_TKOUT_DATE', 'STEP_ARRIVE_DATE', 'LAST_EVENT_DATE', 'SENDFAB', 'LOT_INFORM']
-그 외 실제값은 보안 상 제외.
-
+  PFR1_KFR7_LOT                      9,012행  21컬럼  line, cur_line_id, sys_line_id, origin_line_id, lot_id, carr_id...
+  PFR1_KFR7_MATERIALWORKSTATUS     144,505행   3컬럼  line, lot_id, fa_object4...
+  PFR1_KFR7_STEP_PATH            5,097,967행  16컬럼  line_id, lot_id, order_seq, proc_id, step_seq, step_desc...
+  PFR1_KFR7_TIP                  9,881,938행  11컬럼  line_id, process, step, ppid, eqpid, chamberid...
+  PFR1_KFR7_EQUIPMENT               19,335행   7컬럼  line_id, origin_line_id, batch_kind, eqp_id, eqp_status, tool_kind...
+  PFR1_KFR7_EQP_GROUP               13,102행   3컬럼  line_id, eqp_group_name, eqp_id...
+  PFR1_KFR7_HOLD                     7,354행   9컬럼  line_id, item_type, status_seq, lot_id, step_seq, hold_user_name...
+  PFR1_KFR7_MOVE                    63,723행  17컬럼  sys_line_id, line_id, cur_line_id, lot_id, lot_type, move...
