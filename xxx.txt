@@ -65,3 +65,18 @@ Traceback (most recent call last):
 
 
 
+
+<edit text area에 이렇게 들어가는게 맞나?>
+<SPAN id=tick style="FONT-SIZE: 11px; COLOR: #6b7280"></SPAN><SpotfireControl id="813c332a764441f08da3a1bcaef96b8f" />
+
+<span id="tick" style="color:#6B7280;font-size:11px"></span>
+<script>
+  // 15분마다 버튼을 눌러 데이터 테이블을 새로고침한다.
+  // data function 의 Refresh 를 Automatic 으로 두면 업로드까지 연쇄된다.
+  setInterval(function () {
+    var b = document.getElementById("btnFast");
+    if (b) { b.click(); }
+    document.getElementById("tick").innerText =
+      "last: " + new Date().toLocaleTimeString();
+  }, 15 * 60 * 1000);
+</script>
