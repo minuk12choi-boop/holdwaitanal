@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import sys
 from contextlib import contextmanager
 from time import perf_counter
 
@@ -625,6 +626,14 @@ SOURCE = "s3"
 
 # S3 테이블명 -> 기존 fetch() 이름 매핑.
 # 이름만 바꿔 끼우면 이후 전처리는 손댈 필요가 없다.
+# 같은 회차를 두 번 처리하지 않는다.
+#   Spotfire 30분 주기 + build_f3 30분 주기가 엇갈리면, 아직 갱신 안 된 S3 를
+#   다시 읽어 같은 스냅샷을 중복 적재하게 된다. 매니페스트의 finished_at 을
+#   직전 처리분과 비교해 새 회차일 때만 진행한다.
+SKIP_IF_NOT_FRESH = True
+_FRESH_MARK = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "cache", "last_manifest.txt")
+
 S3_MAP = {
     "lot": "PFR1_KFR7_LOT",
     "materialworkstatus": "PFR1_KFR7_MATERIALWORKSTATUS",
@@ -1516,6 +1525,27 @@ def main():
         from bigdataquery import getData
     else:
         import s3_source
+
+        if SKIP_IF_NOT_FRESH and "--force" not in sys.argv:
+            man = s3_source.read_manifest()
+            if not man:
+                print("[SKIP] S3 매니페스트가 없습니다. Spotfire 업로드를 먼저 "
+                      "확인하세요. (--force 로 무시 가능)", flush=True)
+                return
+            fin = str(man.get("finished_at", ""))
+            prev = ""
+            if os.path.exists(_FRESH_MARK):
+                with open(_FRESH_MARK, encoding="utf-8") as f:
+                    prev = f.read().strip()
+            if fin and fin == prev:
+                print(f"[SKIP] 이미 처리한 회차입니다 (finished_at={fin}). "
+                      f"Spotfire 가 아직 새로 올리지 않았습니다.", flush=True)
+                return
+            print(f"[S3] 새 회차 감지 finished_at={fin} "
+                  f"(이전 {prev or '없음'})", flush=True)
+            os.makedirs(os.path.dirname(_FRESH_MARK), exist_ok=True)
+            with open(_FRESH_MARK, "w", encoding="utf-8") as f:
+                f.write(fin)
 
     load_log = []
     s3_cache = {}          # STEP_PATH / TIP 은 두 라인이 한 파일이라 재사용

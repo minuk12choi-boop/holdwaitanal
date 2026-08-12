@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import os
 import pickle
 from time import perf_counter
@@ -53,6 +54,13 @@ TABLES = [
 EXT = "pkl"
 # Oracle 이 대문자로 주는 컬럼명을 소문자로 통일한다(기존 전처리가 소문자 기준).
 LOWER_COLUMNS = True
+
+MANIFEST = "_manifest.json"     # Spotfire 가 업로드 완료 후 마지막에 쓰는 파일
+
+# 로컬 캐시. S3 오브젝트의 LastModified 가 캐시보다 새로울 때만 내려받는다.
+# STEP_PATH / TIP 이 1.7GB 라 매번 받으면 30분 주기를 맞출 수 없다.
+CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "s3cache")
+USE_CACHE = True
 
 
 
@@ -113,15 +121,60 @@ def list_objects():
     return pd.DataFrame(out)
 
 
+def read_manifest():
+    """마지막 업로드 회차 정보. 없으면 None.
+
+    Spotfire 가 8개를 다 올린 뒤 마지막에 쓰므로, 이 파일이 있으면
+    그 회차는 완결된 것이다(중간에 읽어 서로 다른 시점이 섞이는 것을 막는다).
+    """
+    bucket, prefix = _bucket_prefix()
+    try:
+        obj = client().get_object(Bucket=bucket, Key=f"{prefix}{MANIFEST}")
+        return json.loads(obj["Body"].read().decode("utf-8"))
+    except Exception:
+        return None
+
+
+def _cache_path(key):
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    return os.path.join(CACHE_DIR, key.replace("/", "_"))
+
+
+def _fetch_bytes(bucket, key):
+    """LastModified 를 보고 바뀐 것만 내려받는다."""
+    cli = client()
+    if not USE_CACHE:
+        return cli.get_object(Bucket=bucket, Key=key)["Body"].read(), False
+
+    path = _cache_path(key)
+    meta = path + ".meta"
+    remote = str(cli.head_object(Bucket=bucket, Key=key)["LastModified"])
+
+    if os.path.exists(path) and os.path.exists(meta):
+        with open(meta, encoding="utf-8") as f:
+            if f.read().strip() == remote:
+                with open(path, "rb") as fh:
+                    return fh.read(), True          # 캐시 적중
+
+    data = cli.get_object(Bucket=bucket, Key=key)["Body"].read()
+    with open(path, "wb") as fh:
+        fh.write(data)
+    with open(meta, "w", encoding="utf-8") as f:
+        f.write(remote)
+    return data, False
+
+
 def read_table(name, bucket=None, prefix=None):
-    """S3 의 pkl 을 파일로 내려받지 않고 메모리에서 바로 DataFrame 으로."""
+    """S3 의 pkl 을 DataFrame 으로. 바뀌지 않았으면 로컬 캐시를 쓴다."""
     b, p = _bucket_prefix()
     bucket = bucket or b
     prefix = prefix if prefix is not None else p
     key = f"{prefix}{name}.{EXT}"
 
-    obj = client().get_object(Bucket=bucket, Key=key)
-    buf = io.BytesIO(obj["Body"].read())
+    data, cached = _fetch_bytes(bucket, key)
+    if cached:
+        print(f"[S3] {name} 캐시 사용", flush=True)
+    buf = io.BytesIO(data)
     try:
         df = pd.read_pickle(buf)
     except Exception:
@@ -159,6 +212,8 @@ def main():
                     help="한 테이블만 읽어 미리보기(적재 안 함). 부분 이름 가능")
     ap.add_argument("--check", action="store_true",
                     help="8개 전부 읽어 행수/컬럼 점검")
+    ap.add_argument("--manifest", action="store_true",
+                    help="마지막 업로드 회차 정보만 출력")
     args = ap.parse_args()
 
     if args.list:
@@ -180,6 +235,12 @@ def main():
         print(f"\n{names[0]}  {len(df):,}행 {df.shape[1]}컬럼")
         print("컬럼:", list(df.columns))
         print(df.head(10).to_string())
+        return
+
+    if args.manifest:
+        m = read_manifest()
+        print(json.dumps(m, ensure_ascii=False, indent=2) if m
+              else "(매니페스트 없음 - Spotfire 가 아직 새 버전으로 올리지 않음)")
         return
 
     if args.check:

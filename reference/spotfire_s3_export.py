@@ -55,6 +55,7 @@ spotfire_s3_export.py — Spotfire 데이터 함수용 S3 자동 적재
 """
 
 import io
+import json
 import sys
 import datetime as dt
 
@@ -195,6 +196,25 @@ try:
         except Exception as e:
             rows.append([name, "FAIL", len(df), df.shape[1],
                          "%s: %s" % (type(e).__name__, e), t0, dt.datetime.now()])
+
+    # 8개를 다 올린 뒤 마지막에 매니페스트를 쓴다.
+    #   업로드는 순차라 중간에 읽히면 서로 다른 시점의 파일이 섞인다.
+    #   매니페스트가 '마지막에' 생기므로, 읽는 쪽은 이것만 보면
+    #   '이번 회차가 완결됐는지' 를 알 수 있다.
+    ok = [r for r in rows if r[1] == "OK"]
+    manifest = {
+        "run_at": started.strftime("%Y-%m-%d %H:%M:%S"),
+        "finished_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "fmt": FMT,
+        "tables": {r[0]: {"rows": int(r[2]), "cols": int(r[3])} for r in ok},
+        "ok": len(ok),
+        "total": len(TABLE_NAMES),
+    }
+    buf = io.BytesIO(json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8"))
+    client.upload_fileobj(buf, bucket, "%s_manifest.json" % prefix)
+    rows.append(["_manifest.json", "OK", len(ok), 0,
+                 "완결 표시. 읽는 쪽은 이 파일을 기준으로 최신 여부를 판단한다.",
+                 started, dt.datetime.now()])
 
 except Exception as e:
     rows.append(["(전체)", "FAIL", 0, 0, "%s: %s" % (type(e).__name__, e),

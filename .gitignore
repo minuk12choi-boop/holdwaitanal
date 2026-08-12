@@ -11,3 +11,4 @@ __pycache__/
 *.pyc
 .venv/
 getdata/cache/
+getdata/s3cache/
