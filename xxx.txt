@@ -1,18 +1,24 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python getdata/s3_source.py --check
-[S3] PFR1_KFR7_LOT                      9,012행  21컬럼    2.6s
-[S3] PFR1_KFR7_MATERIALWORKSTATUS     144,505행   3컬럼    0.1s
-[S3] PFR1_KFR7_STEP_PATH            5,097,967행  16컬럼    4.9s
-[S3] PFR1_KFR7_TIP                  9,881,938행  11컬럼    4.9s
-[S3] PFR1_KFR7_EQUIPMENT               19,335행   7컬럼    0.1s
-[S3] PFR1_KFR7_EQP_GROUP               13,102행   3컬럼    0.1s
-[S3] PFR1_KFR7_HOLD                     7,354행   9컬럼    0.1s
-[S3] PFR1_KFR7_MOVE                    63,723행  17컬럼    0.3s
-
-  PFR1_KFR7_LOT                      9,012행  21컬럼  line, cur_line_id, sys_line_id, origin_line_id, lot_id, carr_id...
-  PFR1_KFR7_MATERIALWORKSTATUS     144,505행   3컬럼  line, lot_id, fa_object4...
-  PFR1_KFR7_STEP_PATH            5,097,967행  16컬럼  line_id, lot_id, order_seq, proc_id, step_seq, step_desc...
-  PFR1_KFR7_TIP                  9,881,938행  11컬럼  line_id, process, step, ppid, eqpid, chamberid...
-  PFR1_KFR7_EQUIPMENT               19,335행   7컬럼  line_id, origin_line_id, batch_kind, eqp_id, eqp_status, tool_kind...
-  PFR1_KFR7_EQP_GROUP               13,102행   3컬럼  line_id, eqp_group_name, eqp_id...
-  PFR1_KFR7_HOLD                     7,354행   9컬럼  line_id, item_type, status_seq, lot_id, step_seq, hold_user_name...
-  PFR1_KFR7_MOVE                    63,723행  17컬럼  sys_line_id, line_id, cur_line_id, lot_id, lot_type, move...
+적재 시각
+원천 조회와 로컬 처리 구간을 모두 기록합니다. 소요합과 경과가 크게 벌어지면 기록되지 않은 구간이 있다는 뜻입니다.
+구분	단계	시작	종료	소요(초)	행수	컬럼수
+조회	lot	2026-08-12 15:47:04	2026-08-12 15:47:05	0.146	9021	21
+조회	materialworkstatus	2026-08-12 15:47:05	2026-08-12 15:47:05	0.092	144589	3
+처리	fa_object4 결합	2026-08-12 15:47:05	2026-08-12 15:47:05	0.046	None	None
+조회	equipment	2026-08-12 15:47:05	2026-08-12 15:47:05	0.079	19335	7
+조회	eqp_group			0.0	12887	3
+조회	hold	2026-08-12 15:47:05	2026-08-12 15:47:05	0.048	7231	9
+조회	KFR7_step_path	2026-08-12 15:47:05	2026-08-12 15:47:09	4.209	5103429	16
+처리	KFR7 범위축약	2026-08-12 15:47:09	2026-08-12 15:47:13	3.69	None	None
+처리	KFR7 설비그룹전개	2026-08-12 15:47:13	2026-08-12 15:47:13	0.081	None	None
+조회	PFR1_step_path	2026-08-12 15:47:13	2026-08-12 15:47:13	0.0	5103429	16
+처리	PFR1 범위축약	2026-08-12 15:47:13	2026-08-12 15:47:14	0.679	None	None
+처리	PFR1 설비그룹전개	2026-08-12 15:47:14	2026-08-12 15:47:14	0.032	None	None
+조회	KFR7_tip	2026-08-12 15:47:14	2026-08-12 15:47:20	6.639	9883324	11
+처리	KFR7 tip 선필터	2026-08-12 15:47:20	2026-08-12 15:47:22	2.279	None	None
+처리	KFR7 tip 전처리	2026-08-12 15:47:22	2026-08-12 15:47:23	0.45	None	None
+조회	PFR1_tip	2026-08-12 15:47:23	2026-08-12 15:47:23	0.0	9883324	11
+처리	PFR1 tip 선필터	2026-08-12 15:47:23	2026-08-12 15:47:25	2.341	None	None
+처리	PFR1 tip 전처리	2026-08-12 15:47:25	2026-08-12 15:47:25	0.124	None	None
+처리	hold 전처리	2026-08-12 15:47:25	2026-08-12 15:47:25	0.024	None	None
+처리	f3 생성	2026-08-12 15:47:25	2026-08-12 15:47:27	1.68	None	None
+계	2026-08-12 15:47:04	2026-08-12 15:47:27	22.639 (경과 23.0)	30166569	
