@@ -1,9 +1,20 @@
-table	status	rows	cols	detail	start	end	elapsed_sec
-PFR1_KFR7_LOT	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_LOT.pkl	2026-08-11 오후 8:35:25	2026-08-11 오후 8:35:25	0.18
-PFR1_KFR7_MATERIALWORKSTATUS	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_MATERIALWORKSTATUS.pkl	2026-08-11 오후 8:35:25	2026-08-11 오후 8:35:25	0.14
-PFR1_KFR7_STEP_PATH	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_STEP_PATH.pkl	2026-08-11 오후 8:35:25	2026-08-11 오후 8:35:25	0.13
-PFR1_KFR7_TIP	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_TIP.pkl	2026-08-11 오후 8:35:25	2026-08-11 오후 8:35:25	0.14
-PFR1_KFR7_EQUIPMENT	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQUIPMENT.pkl	2026-08-11 오후 8:35:25	2026-08-11 오후 8:35:26	0.16
-PFR1_KFR7_EQP_GROUP	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQP_GROUP.pkl	2026-08-11 오후 8:35:26	2026-08-11 오후 8:35:26	0.14
-PFR1_KFR7_HOLD	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_HOLD.pkl	2026-08-11 오후 8:35:26	2026-08-11 오후 8:35:26	0.13
-PFR1_KFR7_MOVE	OK	8915	21	s3://RND_FABMODELING/multi_report/PFR1_KFR7_MOVE.pkl	2026-08-11 오후 8:35:26	2026-08-11 오후 8:35:26	0.18
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\s3_to_db.py --list
+                                          key  size_mb                         modified
+         multi_report/PFR1_KFR7_EQP_GROUP.pkl     0.40 2026-08-12 00:42:57.147000+00:00
+         multi_report/PFR1_KFR7_EQUIPMENT.pkl     1.38 2026-08-12 00:42:57.097000+00:00
+              multi_report/PFR1_KFR7_HOLD.pkl     1.38 2026-08-12 00:42:57.262000+00:00
+               multi_report/PFR1_KFR7_LOT.pkl     1.99 2026-08-12 00:41:53.325000+00:00
+multi_report/PFR1_KFR7_MATERIALWORKSTATUS.pkl     2.84 2026-08-12 00:41:53.480000+00:00
+              multi_report/PFR1_KFR7_MOVE.pkl    13.89 2026-08-12 00:42:57.967000+00:00
+         multi_report/PFR1_KFR7_STEP_PATH.pkl   751.12 2026-08-12 00:42:14.748000+00:00
+               multi_report/PFR1_KFR7_TIP.pkl  1029.61 2026-08-12 00:42:56.951000+00:00
+
+
+
+
+> python D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\s3_to_db.py --peek LOT
+
+PFR1_KFR7_LOT  8,920행 21컬럼
+컬럼: ['LINE', 'CUR_LINE_ID', 'SYS_LINE_ID', 'ORIGIN_LINE_ID', 'LOT_ID', 'CARR_ID', 'LOT_TYPE', 'GRADE', 'LOT_LEVEL', 'CUR_QTY', 'BAY_NAME', 'STATUS', 'PROC_ID', 'ORDER_SEQ', 'STEP_SEQ', 'START_DATE', 'LAST_TKOUT_DATE', 'STEP_ARRIVE_DATE', 'LAST_EVENT_DATE', 'SENDFAB', 'LOT_INFORM']
+그 외 실제값은 보안 상 제외.
+
