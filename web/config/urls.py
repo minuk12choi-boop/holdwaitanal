@@ -1,11 +1,13 @@
 from django.contrib.staticfiles.views import serve as static_serve
 from django.http import HttpResponse
 from django.urls import path, re_path
+from django.views.generic import RedirectView
 
 from flowmonitor import views
 
 urlpatterns = [
-    path("", views.fab_status, name="fab_status"),
+    path("", RedirectView.as_view(url="/main/", permanent=False)),
+    path("main/", views.fab_status, name="fab_status"),
     path("metrics/", views.fab_metrics, name="fab_metrics"),   # 메뉴 미노출
     path("standards/", views.standards, name="standards"),
     path("downloads/", views.downloads, name="downloads"),

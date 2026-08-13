@@ -265,25 +265,28 @@ def _load_log(snapshot_at):
         try:
             cur.execute(
                 "SELECT table_name, load_start, load_end, elapsed_sec, row_count,"
-                " col_count, kind FROM f3_load_log WHERE snapshot_at = %s ORDER BY id",
-                [snapshot_at])
+                " col_count, kind, query_time FROM f3_load_log "
+                "WHERE snapshot_at = %s ORDER BY id", [snapshot_at])
             rows = [{"table": r[0], "start": r[1], "end": r[2], "sec": r[3],
-                     "rows": r[4], "cols": r[5], "kind": r[6]} for r in cur.fetchall()]
-        except Exception:          # kind 컬럼 추가 이전 스냅샷
+                     "rows": r[4], "cols": r[5], "kind": r[6], "qt": r[7]}
+                    for r in cur.fetchall()]
+        except Exception:          # kind / query_time 추가 이전 스냅샷
             cur.execute(
                 "SELECT table_name, load_start, load_end, elapsed_sec, row_count,"
                 " col_count FROM f3_load_log WHERE snapshot_at = %s ORDER BY id",
                 [snapshot_at])
             rows = [{"table": r[0], "start": r[1], "end": r[2], "sec": r[3],
-                     "rows": r[4], "cols": r[5], "kind": "조회"} for r in cur.fetchall()]
+                     "rows": r[4], "cols": r[5], "kind": "조회", "qt": None}
+                    for r in cur.fetchall()]
 
     if not rows:
         return rows, None
 
     starts = [r["start"] for r in rows if r["start"]]
     ends = [r["end"] for r in rows if r["end"]]
+    qts = sorted({r["qt"] for r in rows if r.get("qt")})
     total = {
-        "table": "계", "kind": "",
+        "table": "계", "kind": "", "qt": (qts[-1] if qts else None),
         "start": min(starts) if starts else None,
         "end": max(ends) if ends else None,
         "sec": round(sum(r["sec"] or 0 for r in rows), 3),
@@ -330,11 +333,12 @@ def download_wip_raw(request):
     log_rows, log_total = _load_log(snap)
     if log_total:
         log_rows = log_rows + [{k: log_total.get(k) for k in
-                                ("table", "kind", "start", "end", "sec", "rows", "cols")}]
+                                ("table", "kind", "qt", "start", "end", "sec",
+                                 "rows", "cols")}]
     log = pd.DataFrame(log_rows)
     if len(log):
         log.columns = ["테이블", "로딩_시작시각", "로딩_종료시각", "소요_초",
-                       "행수", "컬럼수", "구분"]
+                       "행수", "컬럼수", "구분", "원천조회시각"]
 
     buf = io.BytesIO()
     try:
@@ -1087,7 +1091,8 @@ def api_summary(request):
 # ---------------------------------------------------------------------------
 # 페이지
 # ---------------------------------------------------------------------------
-MENU = [("FAB현황", "/"), ("기준정보", "/standards/"), ("다운로드", "/downloads/")]
+MENU = [("FAB현황", "/main/"), ("기준정보", "/standards/"),
+        ("다운로드", "/downloads/")]
 DEFAULT_LINE = "KFR7"          # NRD-K
 
 

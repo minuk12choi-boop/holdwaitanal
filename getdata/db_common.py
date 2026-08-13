@@ -20,23 +20,44 @@ MOVE_LOT_TYPES = ("PP", "PB", "PG")
 # 공용 변환
 # ---------------------------------------------------------------------------
 def to_datetime(series):
-    """어떤 형태로 와도 datetime 으로.
+    """어떤 표기로 와도 datetime 으로.
 
-    원천에 따라 타입이 다르다.
-      - Oracle 이 DATE 로 변환해 준 컬럼   -> 이미 datetime64
-      - 문자열 그대로인 컬럼               -> 'YYYYMMDD HHMMSS...' 계열
-    이미 datetime 이면 그대로 두고, 문자열이면 숫자만 뽑아 14자리로 파싱한다.
+        2026-08-12 13:14:22        ISO
+        2026-08-12 오후 1:14:22     한글 오전/오후
+        20260812 131422            숫자 + 공백
+        20260812131422 / ...0      숫자만 / 밀리초
+        (datetime64)               Oracle TO_DATE 결과
+
+    DuckDB 쪽 build_f3.parsed_ts() 와 같은 규칙이다.
     """
     import pandas as pd
 
     if pd.api.types.is_datetime64_any_dtype(series):
         return series
-    s = series.astype("string").str.replace(r"[^0-9]", "", regex=True).str.slice(0, 14)
-    s = s.where(s.str.len() >= 8).str.pad(14, side="right", fillchar="0")
-    out = pd.to_datetime(s, format="%Y%m%d%H%M%S", errors="coerce")
-    if out.notna().sum() == 0 and len(series):
-        # 숫자 추출로 안 되면 일반 파서로 한 번 더 (ISO 문자열 등)
-        out = pd.to_datetime(series, errors="coerce")
+
+    s = series.astype("string")
+    out = pd.Series(pd.NaT, index=series.index, dtype="datetime64[ns]")
+
+    # 1) 한글 오전/오후 -> 숫자 추출로는 못 푼다. 먼저 처리.
+    ko = s.str.contains("오전|오후", na=False)
+    if ko.any():
+        t = (s[ko].str.replace(r"(오전|오후)\s*0?0:", r"\1 12:", regex=True)
+                  .str.replace("오전", "AM", regex=False)
+                  .str.replace("오후", "PM", regex=False))
+        out.loc[ko] = pd.to_datetime(t, format="%Y-%m-%d %p %I:%M:%S",
+                                     errors="coerce")
+
+    # 2) 숫자만 뽑아 14자리
+    rest = ~ko
+    if rest.any():
+        d = s[rest].str.replace(r"[^0-9]", "", regex=True).str.slice(0, 14)
+        d = d.where(d.str.len() >= 8).str.pad(14, side="right", fillchar="0")
+        out.loc[rest] = pd.to_datetime(d, format="%Y%m%d%H%M%S", errors="coerce")
+
+    # 3) 남은 것은 일반 파서로
+    miss = out.isna() & s.notna() & (s.str.strip() != "")
+    if miss.any():
+        out.loc[miss] = pd.to_datetime(s[miss], errors="coerce")
     return out
 
 
@@ -286,15 +307,19 @@ def ensure_load_log_schema(conn):
           row_count BIGINT NULL,
           col_count INT NULL,
           kind VARCHAR(8) NOT NULL DEFAULT '조회',
+          query_time VARCHAR(32) NULL,
           KEY ix_ll_snap (snapshot_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
         # 기존 테이블에 kind 컬럼 보강
-        try:
-            cur.execute("ALTER TABLE f3_load_log "
-                        "ADD COLUMN kind VARCHAR(8) NOT NULL DEFAULT '조회'")
-        except Exception:
-            pass
+        for ddl in (
+                "ALTER TABLE f3_load_log ADD COLUMN kind VARCHAR(8) "
+                "NOT NULL DEFAULT '조회'",
+                "ALTER TABLE f3_load_log ADD COLUMN query_time VARCHAR(32) NULL"):
+            try:
+                cur.execute(ddl)
+            except Exception:
+                pass
     conn.commit()
 
 
@@ -304,11 +329,11 @@ def load_f3_load_log(conn, snapshot_at, load_log, keep=2):
         cur.execute("DELETE FROM f3_load_log WHERE snapshot_at = %s", (snapshot_at,))
         cur.executemany(
             "INSERT INTO f3_load_log (snapshot_at, table_name, load_start, load_end,"
-            " elapsed_sec, row_count, col_count, kind)"
-            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            " elapsed_sec, row_count, col_count, kind, query_time)"
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             [(snapshot_at, r.get("테이블"), r.get("로딩_시작시각"), r.get("로딩_종료시각"),
               r.get("소요_초"), r.get("행수"), r.get("컬럼수"),
-              r.get("구분", "조회")) for r in load_log])
+              r.get("구분", "조회"), r.get("원천조회시각")) for r in load_log])
         cur.execute(
             "DELETE FROM f3_load_log WHERE snapshot_at NOT IN "
             "(SELECT * FROM (SELECT DISTINCT snapshot_at FROM f3_load_log "

@@ -1,45 +1,6 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<title>다운로드 · Multi Line Fab Monitor</title>
-<style>
-  :root { --bd:#E5E7EB; --fg:#111827; --mut:#6B7280; }
-  * { box-sizing:border-box; }
-  body { margin:0; font-family:"Malgun Gothic","Segoe UI",sans-serif; color:var(--fg);
-         font-size:14px; }
-  header { border-bottom:1px solid var(--bd); padding:0 20px; display:flex;
-           align-items:center; gap:28px; height:52px; }
-  header .brand { font-weight:700; letter-spacing:-.02em; }
-  header nav a { color:var(--mut); text-decoration:none; margin-right:20px;
-                 font-size:14px; padding:6px 0; }
-  header nav a.on { color:var(--fg); border-bottom:2px solid var(--fg); }
-  main { padding:20px; max-width:980px; }
-  h1 { font-size:17px; margin:0 0 4px; }
-  .sub { color:var(--mut); font-size:12px; margin-bottom:16px; }
-  .row { display:flex; gap:10px; align-items:center; margin-bottom:18px; }
-  select { padding:6px 8px; border:1px solid var(--bd); border-radius:5px;
-           font-size:13px; min-width:340px; }
-  .btn { background:var(--fg); color:#fff; border:0; border-radius:5px;
-         padding:7px 14px; font-size:13px; cursor:pointer; text-decoration:none; }
-  table { border-collapse:collapse; width:100%; font-size:13px; }
-  th, td { border-bottom:1px solid var(--bd); padding:7px 8px; text-align:left; }
-  th { color:var(--mut); font-weight:600; font-size:12px; }
-  td.num { text-align:right; font-variant-numeric:tabular-nums; }
-  .empty { color:var(--mut); padding:20px 0; }
-</style>
-</head>
-<body>
-<header>
-  <div class="brand">Multi Line Fab Monitor</div>
-  <nav>
-    {% for name, url in menu %}
-      <a href="{{ url }}" {% if name == "다운로드" %}class="on"{% endif %}>{{ name }}</a>
-    {% endfor %}
-  </nav>
-</header>
-
-<main>
+{% extends "flowmonitor/base.html" %}
+{% block body %}
+<div class="std">
   <h1>재공Raw 다운로드</h1>
 
   {% if snapshots %}
@@ -60,12 +21,13 @@
   </form>
 
   <h1 style="font-size:15px">적재 시각</h1>
-  <div class="sub">원천 조회와 로컬 처리 구간을 모두 기록합니다.
-    소요합과 경과가 크게 벌어지면 기록되지 않은 구간이 있다는 뜻입니다.</div>
+  <div class="sub"><b>원천조회(SYSDATE)</b> = Oracle 이 데이터를 만든 시각.
+    <b>S3적재</b> = 그 데이터를 읽어 처리한 시각.
+    둘의 차이가 크면 Spotfire 적재가 늦어진 것입니다.</div>
   {% if load_log %}
   <table>
     <thead><tr>
-      <th>구분</th><th>단계</th><th>시작</th><th>종료</th>
+      <th>구분</th><th>단계</th><th>원천조회(SYSDATE)</th><th>S3적재 시작</th><th>종료</th>
       <th style="text-align:right">소요(초)</th>
       <th style="text-align:right">행수</th><th style="text-align:right">컬럼수</th>
     </tr></thead>
@@ -74,6 +36,7 @@
       <tr>
         <td style="color:var(--mut)">{{ r.kind }}</td>
         <td>{{ r.table }}</td>
+        <td>{{ r.qt|default:"-" }}</td>
         <td>{{ r.start|date:'Y-m-d H:i:s' }}</td>
         <td>{{ r.end|date:'Y-m-d H:i:s' }}</td>
         <td class="num">{{ r.sec }}</td>
@@ -87,6 +50,7 @@
       <tr style="font-weight:600; background:#F9FAFB">
         <td></td>
         <td>{{ load_total.table }}</td>
+        <td>{{ load_total.qt|default:"-" }}</td>
         <td>{{ load_total.start|date:'Y-m-d H:i:s' }}</td>
         <td>{{ load_total.end|date:'Y-m-d H:i:s' }}</td>
         <td class="num">{{ load_total.sec }}{% if load_total.wall %}
@@ -110,6 +74,5 @@
     <code>python getdata/build_f3.py</code> 를 실행하세요.
   </div>
   {% endif %}
-</main>
-</body>
-</html>
+</div>
+{% endblock %}

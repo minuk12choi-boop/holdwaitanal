@@ -8,6 +8,8 @@ Oracle 전환 후 f3 결과가 Impala 시절과 크게 달라졌을 때, 어느 
     python getdata/diag.py hold      HOLD 분포 (status_seq / item_type / 중복)
     python getdata/diag.py lot       LOT 분포 (lot_type / status / 라인)
     python getdata/diag.py tip       TIP.process <-> STEP_PATH.proc_id 겹침
+    python getdata/diag.py wt        W/T=0 이 많은 이유 (move_lot <-> f3 lot 매칭)
+    python getdata/diag.py dates     날짜 컬럼 원본 표기 확인
     python getdata/diag.py all
 """
 
@@ -77,6 +79,10 @@ def main():
         diag_lot()
     if what in ("tip", "all"):
         diag_tip()
+    if what in ("wt", "all"):
+        diag_wt()
+    if what in ("dates", "all"):
+        diag_dates()
 
 
 if __name__ == "__main__":
@@ -118,3 +124,68 @@ def diag_tip():
             print("      -> 겹치는 값이 없다. 조인 키가 잘못됐거나 값 형식이 다르다.")
             print(f"      TIP 예시  : {sorted(tp)[:5]}")
             print(f"      STEP 예시 : {sorted(spp)[:5]}")
+
+
+def diag_dates():
+    """날짜 계열 컬럼이 실제로 어떤 표기로 오는지 본다.
+
+    표기가 바뀌면 파싱이 조용히 실패해 경과일이 NULL 이 된다.
+    """
+    targets = {
+        "PFR1_KFR7_LOT": ["start_date", "last_tkout_date", "step_arrive_date",
+                          "last_event_date", "query_time"],
+        "PFR1_KFR7_EQUIPMENT": ["eqp_status_change_time"],
+        "PFR1_KFR7_TIP": ["updated", "eventtime"],
+        "PFR1_KFR7_MOVE": ["tkout_date", "recent_tkout_date"],
+        "PFR1_KFR7_HOLD": ["issue_date"],
+    }
+    for name, cols in targets.items():
+        try:
+            df = s3_source.read_table(name)
+        except Exception as e:
+            print(f"  {name}: 읽기 실패 {e}")
+            continue
+        _head(f"{name}  {len(df):,}행")
+        for c in cols:
+            if c not in df.columns:
+                print(f"  {c:24s} (컬럼 없음)")
+                continue
+            v = df[c].dropna().astype(str)
+            ex = list(v.head(3))
+            print(f"  {c:24s} dtype={str(df[c].dtype):16s} 예시={ex}")
+
+
+def diag_wt():
+    """W/T = 0 이 많은 원인 추적.
+
+    W/T = move_lot 의 lot 별 MOVE / 재공 매수.
+    lot_id 가 매칭되지 않으면 MOVE 가 0 으로 잡혀 전부 WT=0 이 된다.
+    """
+    import db_common as DB
+
+    conn = DB.connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT MAX(snapshot_at) FROM f3_live")
+            snap = cur.fetchone()[0]
+            cur.execute("SELECT DISTINCT lot_id FROM f3_live WHERE snapshot_at=%s",
+                        [snap])
+            f3lots = {r[0] for r in cur.fetchall()}
+            cur.execute("SELECT MAX(biz_date) FROM move_lot")
+            bd = cur.fetchone()[0]
+            cur.execute("SELECT lot_id, SUM(move_qty) FROM move_lot "
+                        "WHERE biz_date=%s GROUP BY lot_id", [bd])
+            mv = {r[0]: float(r[1] or 0) for r in cur.fetchall()}
+    finally:
+        conn.close()
+
+    _head("W/T 진단")
+    print(f"f3_live 스냅샷      : {snap}   lot {len(f3lots):,}개")
+    print(f"move_lot 업무일     : {bd}      lot {len(mv):,}개")
+    hit = f3lots & set(mv)
+    print(f"두 쪽 모두 있는 lot : {len(hit):,}")
+    print(f"MOVE 가 없는 lot    : {len(f3lots - set(mv)):,}  -> 이들이 WT=0 이 된다")
+    if f3lots and not hit:
+        print("\n  겹치는 lot_id 가 하나도 없다. lot_id 형식이 다를 수 있다.")
+        print("  f3_live  예시:", sorted(f3lots)[:5])
+        print("  move_lot 예시:", sorted(mv)[:5])

@@ -844,14 +844,36 @@ def col_list(alias: str | None = None, indent: str = "            ") -> str:
 
 
 def parsed_ts(column: str) -> str:
-    """'오전/오후' 표기를 포함한 문자열을 TIMESTAMP 로. (참조 코드와 동일)"""
-    norm = (
-        "REPLACE(REPLACE(REGEXP_REPLACE(TRIM(CAST(" + column + " AS VARCHAR)), "
+    """어떤 표기로 와도 TIMESTAMP 로.
+
+    원천/쿼리 변경에 따라 같은 컬럼이 여러 형태로 온다. 전부 받아야 한다.
+        2026-08-12 13:14:22        ISO
+        2026-08-12 오후 1:14:22     한글 오전/오후
+        20260812 131422            숫자 + 공백
+        20260812131422             숫자만
+        202608121314220            숫자 + 밀리초
+        (TIMESTAMP 타입)            Oracle TO_DATE 결과
+
+    방식: 숫자만 뽑아 14자리로 맞춰 파싱하는 경로를 먼저 시도하고,
+    안 되면 문자열 파서 -> TRY_CAST 순으로 폴백한다.
+    """
+    txt = f"TRIM(CAST({column} AS VARCHAR))"
+    # 숫자만 추출 -> 8자리 이상이면 14자리로 우측 0 채움
+    digits = f"REGEXP_REPLACE({txt}, '[^0-9]', '', 'g')"
+    d14 = (f"CASE WHEN LENGTH({digits}) >= 8 "
+           f"THEN RPAD(SUBSTR({digits}, 1, 14), 14, '0') END")
+    ampm = (
+        "REPLACE(REPLACE(REGEXP_REPLACE(" + txt + ", "
         "'(오전|오후) 0?0:', '\\1 12:'), '오전', 'AM'), '오후', 'PM')"
     )
+    # 순서 주의: 한글 오전/오후를 먼저 본다. 숫자 추출이 먼저 걸리면
+    # '2026-08-12 오후 1:14:22' 가 20260812114220 으로 뭉개진다.
     return (
-        f"COALESCE(TRY_STRPTIME({norm}, '%Y-%m-%d %p %I:%M:%S'), "
-        f"TRY_CAST({column} AS TIMESTAMP))"
+        f"COALESCE("
+        f"  CASE WHEN {txt} LIKE '%오전%' OR {txt} LIKE '%오후%'"
+        f"       THEN TRY_STRPTIME({ampm}, '%Y-%m-%d %p %I:%M:%S') END,"
+        f"  TRY_STRPTIME({d14}, '%Y%m%d%H%M%S'),"
+        f"  TRY_CAST({column} AS TIMESTAMP))"
     )
 
 
@@ -1616,6 +1638,16 @@ def main():
         end = dt.datetime.now()
         secs = perf_counter() - t0
         n = len(df)
+
+        # Oracle 이 언제 조회했는지. S3 적재 시각과 구분해서 보여준다.
+        qt = None
+        for c in df.columns:
+            if str(c).lower() == "query_time":
+                try:
+                    qt = str(df[c].iloc[0]) if n else None
+                except Exception:
+                    qt = None
+                break
         cap = RAW_SHEET_MAX_ROWS.get(name)
         sample_rows = (n if cap is None else min(n, cap)) if keep_sample else 0
         load_log.append({
@@ -1627,7 +1659,7 @@ def main():
             "컬럼수": df.shape[1],
             "시트_기록행수": sample_rows,
             "시트_잘림여부": "Y" if sample_rows < n else "N",
-            "구분": "조회",
+            "구분": "조회", "원천조회시각": qt,
         })
         print(f"[QUERY] {name} rows={n:,} cols={df.shape[1]} {secs:.1f}s", flush=True)
         if keep_sample:
