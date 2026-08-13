@@ -1,3 +1,2 @@
-<span id="tick" style="color:#6B7280;font-size:11px"></span><BR>
-<SpotfireControl id="11fc0bc15e5149edbe27bbed453378b5" /><BR>
-<SpotfireControl id="9d4e9915fbae403ab44a5b7bb6dba540" />
+<P><SpotfireControl id="52faf3cca9ee415592e8200a9bd3e79f" /></P>
+<P><SpotfireControl id="ce92106737414158b92e5ed263a2ae8b" /><BR><SpotfireControl id="0963b0fd531a4c3caaf159001748e373" /></P><SPOTFIRECONTROL id=9d4e9915fbae403ab44a5b7bb6dba540 />
