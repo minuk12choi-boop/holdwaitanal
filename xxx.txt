@@ -1,2 +1,76 @@
+<span id="tick" style="color:#6B7280;font-size:11px"></span>
 <P><SpotfireControl id="52faf3cca9ee415592e8200a9bd3e79f" /></P>
-<P><SpotfireControl id="ce92106737414158b92e5ed263a2ae8b" /><BR><SpotfireControl id="0963b0fd531a4c3caaf159001748e373" /></P><SPOTFIRECONTROL id=9d4e9915fbae403ab44a5b7bb6dba540 />
+<P><SpotfireControl id="ce92106737414158b92e5ed263a2ae8b" /><BR>
+<SpotfireControl id="0963b0fd531a4c3caaf159001748e373" /></P>
+
+<script>
+(function () {
+  var BTN_LABEL = "Refresh";        // 버튼에 표시된 글자 (일부만 일치해도 됨)
+  var PERIOD = 15 * 60 * 1000;      // 15분
+  var MAX_WAIT = 20 * 60 * 1000;
+
+  var busy = false;
+  var startedAt = 0;
+
+  function now() { return new Date().toLocaleTimeString(); }
+
+  // id 는 편집할 때마다 바뀐다. 표시 문구로 찾는다.
+  function findBtn() {
+    var els = document.querySelectorAll(
+      "input[type='button'], input[type='submit'], button, a");
+    for (var i = 0; i < els.length; i++) {
+      var txt = (els[i].value || els[i].innerText || "").trim();
+      if (txt && txt.indexOf(BTN_LABEL) >= 0) { return els[i]; }
+    }
+    return null;
+  }
+
+  function labels() {               // 못 찾았을 때 무엇이 있는지 보여준다
+    var els = document.querySelectorAll(
+      "input[type='button'], input[type='submit'], button, a");
+    var out = [];
+    for (var i = 0; i < els.length; i++) {
+      var t = (els[i].value || els[i].innerText || "").trim();
+      if (t) { out.push("'" + t + "'"); }
+    }
+    return out.join(", ") || "(없음)";
+  }
+
+  function fire() {
+    var t = document.getElementById("tick");
+    var b = findBtn();
+
+    if (!b) {
+      if (t) {
+        t.innerText = "✕ '" + BTN_LABEL + "' 버튼 없음 " + now()
+                    + " · 찾은 것: " + labels();
+      }
+      return;
+    }
+    if (busy && Date.now() - startedAt < MAX_WAIT) {
+      if (t) { t.innerText += " · " + now() + " 건너뜀"; }
+      return;
+    }
+
+    busy = true;
+    startedAt = Date.now();
+    var began = now();
+    if (t) { t.innerText = "▶ 시작 " + began + " · 실행 중…"; }
+    setTimeout(function () { b.click(); }, 50);
+
+    var watch = setInterval(function () {
+      var log = document.body.innerText || "";
+      if (log.indexOf("완료 (테이블") >= 0 && Date.now() - startedAt > 10000) {
+        busy = false; clearInterval(watch);
+        if (t) { t.innerText = "▶ 시작 " + began + " · 완료 " + now(); }
+      } else if (Date.now() - startedAt > MAX_WAIT) {
+        busy = false; clearInterval(watch);
+        if (t) { t.innerText = "▶ 시작 " + began + " · 시간초과"; }
+      }
+    }, 5000);
+  }
+
+  setTimeout(fire, 60000);
+  setInterval(fire, PERIOD);
+})();
+</script>
