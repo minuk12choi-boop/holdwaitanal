@@ -1,5 +1,13 @@
-try:
-    n = Document.Data.DataFunctions.Count
-    Document.Properties["dbg"] = "DataFunctions OK, count=%d" % n
-except Exception as e:
-    Document.Properties["dbg"] = "FAIL: %s" % e
+# 1) 원천 재조회
+for t in Document.Data.Tables:
+    try:
+        t.Refresh()
+    except:
+        pass
+
+# 2) 데이터 함수 강제 실행 (자동 갱신 판정에 기대지 않는다)
+for f in Document.Data.DataFunctions:
+    try:
+        f.Execute()
+    except:
+        pass
