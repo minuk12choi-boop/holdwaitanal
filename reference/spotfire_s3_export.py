@@ -87,11 +87,11 @@ except ImportError as _e:          # Spotfire 환경에 없을 수 있다
 # ---------------------------------------------------------------------------
 # ─── S3 설정 ────────────────────────────────────────────────────────────────
 # Spotfire 에 붙여넣기 전에 아래 5개를 채운다.
-S3_ACCESS_KEY_ID     = ""
-S3_SECRET_ACCESS_KEY = ""
+S3_ACCESS_KEY_ID     = "AKIA2DBBF18BDEA535F3"
+S3_SECRET_ACCESS_KEY = "vyyKvOA5PJIN8BJTMM3brzIL0oRbNVSzjrLg+vLr"
 S3_ENDPOINT_URL      = "http://s3.dataplatform.samsungds.net:9020"
-S3_BUCKET            = ""
-S3_PREFIX            = ""          # 예) "multi_report/"  (끝 '/' 는 자동 보정)
+S3_BUCKET            = "RND_FABMODELING"
+S3_PREFIX            = "multi_report/"          # 예) "multi_report/"  (끝 '/' 는 자동 보정)
 
 # boto3 설치 전 점검용. False 로 두면 업로드하지 않고 환경 정보만 upload_log 에
 # 남긴다(파이썬 경로 / 설치 명령).
