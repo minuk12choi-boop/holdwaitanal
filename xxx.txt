@@ -1,23 +1,7 @@
-from System import DateTime
+Could not execute function call 's3drive' (2)
 
-def log(msg):
-    Document.Properties["runlog"] = DateTime.Now.ToString("HH:mm:ss") + "  " + msg
+Could not calculate inputs to 's3drive'.
 
-log("1/3 시작 - 테이블 재조회")
-n = 0
-for t in Document.Data.Tables:
-    try:
-        t.Refresh()
-        n += 1
-        log("2/3 재조회 %d개째: %s" % (n, t.Name))
-    except:
-        pass
+Missing non-optional input argument 'PFR1_KFR7_TIP'.
+Missing non-optional input argument 'PFR1_KFR7_STEP_PATH'.
 
-log("3/3 데이터 함수 실행 중...")
-for f in Document.Data.DataFunctions:
-    try:
-        f.Execute()
-    except:
-        pass
-
-log("완료 (테이블 %d개)" % n)
