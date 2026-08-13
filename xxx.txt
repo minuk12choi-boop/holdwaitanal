@@ -1,7 +1,12 @@
+<span id="tick" style="color:#6B7280;font-size:11px"></span><BR>
+<SpotfireControl id="11fc0bc15e5149edbe27bbed453378b5" /><BR>
+<SpotfireControl id="9d4e9915fbae403ab44a5b7bb6dba540" />
+
+<script>
 (function () {
   var BTN = "9d4e9915fbae403ab44a5b7bb6dba540";
   var PERIOD = 30 * 60 * 1000;
-  var MAX_WAIT = 20 * 60 * 1000;    // 이 시간 넘으면 멈춘 것으로 보고 해제
+  var MAX_WAIT = 20 * 60 * 1000;
 
   var busy = false;
   var startedAt = 0;
@@ -9,7 +14,6 @@
   function now() { return new Date().toLocaleTimeString(); }
 
   function fire() {
-    // click 이 즉시 반환하므로, 완료는 runlog 라벨에서 읽는다.
     if (busy && Date.now() - startedAt < MAX_WAIT) {
       var t0 = document.getElementById("tick");
       if (t0) { t0.innerText += " · " + now() + " 건너뜀(이전 회차 진행 중)"; }
@@ -27,7 +31,6 @@
       if (b) { b.click(); }
     }, 50);
 
-    // runlog 가 '완료' 로 바뀌면 그때 busy 해제
     var watch = setInterval(function () {
       var log = document.body.innerText || "";
       if (log.indexOf("완료 (테이블") >= 0 && Date.now() - startedAt > 10000) {
@@ -45,3 +48,4 @@
   setTimeout(fire, 60000);
   setInterval(fire, PERIOD);
 })();
+</script>
