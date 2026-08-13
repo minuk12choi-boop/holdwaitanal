@@ -1,13 +1,10 @@
-# 1) 원천 재조회
-for t in Document.Data.Tables:
-    try:
-        t.Refresh()
-    except:
-        pass
-
-# 2) 데이터 함수 강제 실행 (자동 갱신 판정에 기대지 않는다)
-for f in Document.Data.DataFunctions:
-    try:
-        f.Execute()
-    except:
-        pass
+table	status	rows	cols	query_time	serialize_sec	upload_sec	detail	start	end	elapsed_sec	script_total_sec
+PFR1_KFR7_LOT	OK	9057	22	2026-08-13 10:35:40	0.05	0.11	0.7 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_LOT.parquet	2026-08-13 오전 10:45:28	2026-08-13 오전 10:45:28	0.15	18.29
+PFR1_KFR7_MOVE	OK	64893	18	2026-08-13 10:35:50	0.13	0.48	3.4 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MOVE.parquet	2026-08-13 오전 10:45:45	2026-08-13 오전 10:45:46	0.61	18.29
+PFR1_KFR7_HOLD	OK	7400	10	2026-08-13 10:36:03	0.02	0.04	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_HOLD.parquet	2026-08-13 오전 10:45:45	2026-08-13 오전 10:45:45	0.05	18.29
+PFR1_KFR7_EQP_GROUP	OK	13105	4	2026-08-13 10:36:22	0.01	0.02	0.1 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQP_GROUP.parquet	2026-08-13 오전 10:45:45	2026-08-13 오전 10:45:45	0.04	18.29
+PFR1_KFR7_STEP_PATH	OK	5110734	17	2026-08-13 10:36:29	5.83	0.88	61.7 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_STEP_PATH.parquet	2026-08-13 오전 10:45:29	2026-08-13 오전 10:45:35	6.72	18.29
+PFR1_KFR7_TIP	OK	9894827	12	2026-08-13 10:37:35	8.37	1.03	67.9 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_TIP.parquet	2026-08-13 오전 10:45:35	2026-08-13 오전 10:45:45	9.4	18.29
+PFR1_KFR7_MATERIALWORKSTATUS	OK	150331	4	2026-08-13 10:38:20	0.05	0.09	0.9 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MATERIALWORKSTATUS.parquet	2026-08-13 오전 10:45:28	2026-08-13 오전 10:45:29	0.14	18.29
+PFR1_KFR7_EQUIPMENT	OK	19368	8	2026-08-13 10:38:27	0.06	0.03	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQUIPMENT.parquet	2026-08-13 오전 10:45:45	2026-08-13 오전 10:45:45	0.1	18.29
+_manifest.json	OK	8	0	2026-08-13 10:38:27	0	0	완결 표시. 읽는 쪽은 이 파일로 최신 여부를 판단한다.	2026-08-13 오전 10:45:27	2026-08-13 오전 10:45:46	18.29	18.29
