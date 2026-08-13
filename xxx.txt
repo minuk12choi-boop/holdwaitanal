@@ -1,31 +1,14 @@
-Multi Line Fab Monitor
-FAB현황 다운로드
-문의: minuk12.choi / 적재시각: -
-재공Raw 다운로드
-
-2026-08-13 20:14 · 실시간 · 14146행
- 재공Raw 받기
-적재 시각
-원천조회(SYSDATE) = Oracle 이 데이터를 만든 시각. S3적재 = 그 데이터를 읽어 처리한 시각. 둘의 차이가 크면 Spotfire 적재가 늦어진 것입니다.
-구분	단계	원천조회(SYSDATE)	S3적재 시작	종료	소요(초)	행수	컬럼수
-조회	lot	2026-08-13 20:05:24	2026-08-13 20:14:33	2026-08-13 20:14:35	1.875	9065	22
-조회	materialworkstatus	2026-08-13 20:08:22	2026-08-13 20:14:35	2026-08-13 20:14:35	0.1	150204	4
-처리	fa_object4 결합	-	2026-08-13 20:14:35	2026-08-13 20:14:35	0.046	None	None
-조회	equipment	2026-08-13 20:08:30	2026-08-13 20:14:35	2026-08-13 20:14:36	0.064	19372	8
-조회	eqp_group	-			0.0	12870	4
-조회	hold	2026-08-13 20:05:43	2026-08-13 20:14:36	2026-08-13 20:14:36	0.055	7072	10
-조회	KFR7_step_path	2026-08-13 20:06:06	2026-08-13 20:14:36	2026-08-13 20:14:41	5.639	5339931	17
-처리	KFR7 범위축약	-	2026-08-13 20:14:41	2026-08-13 20:14:46	5.141	None	None
-처리	KFR7 설비그룹전개	-	2026-08-13 20:14:46	2026-08-13 20:14:47	0.083	None	None
-조회	PFR1_step_path	2026-08-13 20:06:06	2026-08-13 20:14:47	2026-08-13 20:14:47	0.803	402622	17
-처리	PFR1 범위축약	-	2026-08-13 20:14:47	2026-08-13 20:14:48	0.311	None	None
-처리	PFR1 설비그룹전개	-	2026-08-13 20:14:48	2026-08-13 20:14:48	0.047	None	None
-조회	KFR7_tip	2026-08-13 20:07:39	2026-08-13 20:14:48	2026-08-13 20:14:54	6.494	6845180	12
-처리	KFR7 tip 선필터	-	2026-08-13 20:14:54	2026-08-13 20:14:56	1.75	None	None
-처리	KFR7 tip 전처리	-	2026-08-13 20:14:56	2026-08-13 20:14:57	0.557	None	None
-조회	PFR1_tip	2026-08-13 20:07:39	2026-08-13 20:14:57	2026-08-13 20:14:58	1.439	2973600	12
-처리	PFR1 tip 선필터	-	2026-08-13 20:14:58	2026-08-13 20:14:59	0.753	None	None
-처리	PFR1 tip 전처리	-	2026-08-13 20:14:59	2026-08-13 20:14:59	0.143	None	None
-처리	hold 전처리	-	2026-08-13 20:14:59	2026-08-13 20:14:59	0.025	None	None
-처리	f3 생성	-	2026-08-13 20:14:59	2026-08-13 20:15:01	1.851	None	None
-계	2026-08-13 20:08:30	2026-08-13 20:14:33	2026-08-13 20:15:01	27.176 (경과 28.0)	15759916	
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\diag.py wt
+Traceback (most recent call last):
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\diag.py", line 89, in <module>
+    main()
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\diag.py", line 83, in main
+    diag_wt()
+NameError: name 'diag_wt' is not defined. Did you mean: 'diag_lot'?
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\diag.py wt dates
+Traceback (most recent call last):
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\diag.py", line 89, in <module>
+    main()
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\diag.py", line 83, in main
+    diag_wt()
+NameError: name 'diag_wt' is not defined. Did you mean: 'diag_lot'?
