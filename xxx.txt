@@ -1,24 +1,10 @@
-import clr
-from System import DateTime
-
-def log(msg):
-    Document.Properties["runlog"] = DateTime.Now.ToString("HH:mm:ss") + "  " + msg
-
-log("1/3 시작 - 테이블 재조회")
-n = 0
-for t in Document.Data.Tables:
-    try:
-        t.Refresh()
-        n += 1
-        log("2/3 재조회 %d개째: %s" % (n, t.Name))
-    except:
-        pass
-
-log("3/3 데이터 함수 실행 중...")
-for f in Document.Data.DataFunctions:
-    try:
-        f.Execute()
-    except:
-        pass
-
-log("완료 (테이블 %d개)" % n)
+table	status	rows	cols	query_time	serialize_sec	upload_sec	detail	start	end	elapsed_sec	script_total_sec
+PFR1_KFR7_LOT	OK	9060	22	2026-08-13 10:55:35	0.04	0.12	0.7 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_LOT.parquet	2026-08-13 오전 11:02:55	2026-08-13 오전 11:02:55	0.16	18.36
+PFR1_KFR7_MOVE	OK	64897	18	2026-08-13 10:55:45	0.14	0.43	3.4 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MOVE.parquet	2026-08-13 오전 11:03:12	2026-08-13 오전 11:03:13	0.57	18.36
+PFR1_KFR7_HOLD	OK	7384	10	2026-08-13 10:55:57	0.01	0.04	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_HOLD.parquet	2026-08-13 오전 11:03:12	2026-08-13 오전 11:03:12	0.05	18.36
+PFR1_KFR7_EQP_GROUP	OK	13105	4	2026-08-13 10:56:14	0.01	0.03	0.1 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQP_GROUP.parquet	2026-08-13 오전 11:03:12	2026-08-13 오전 11:03:12	0.04	18.36
+PFR1_KFR7_STEP_PATH	OK	5105843	17	2026-08-13 10:56:20	5.95	0.87	61.6 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_STEP_PATH.parquet	2026-08-13 오전 11:02:56	2026-08-13 오전 11:03:02	6.82	18.36
+PFR1_KFR7_TIP	OK	9895478	12	2026-08-13 10:57:18	8.43	0.97	68.0 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_TIP.parquet	2026-08-13 오전 11:03:02	2026-08-13 오전 11:03:12	9.41	18.36
+PFR1_KFR7_MATERIALWORKSTATUS	OK	150129	4	2026-08-13 10:58:03	0.06	0.08	0.9 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MATERIALWORKSTATUS.parquet	2026-08-13 오전 11:02:55	2026-08-13 오전 11:02:56	0.14	18.36
+PFR1_KFR7_EQUIPMENT	OK	19370	8	2026-08-13 10:58:10	0.06	0.04	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQUIPMENT.parquet	2026-08-13 오전 11:03:12	2026-08-13 오전 11:03:12	0.1	18.36
+_manifest.json	OK	8	0	2026-08-13 10:58:10	0	0	완결 표시. 읽는 쪽은 이 파일로 최신 여부를 판단한다.	2026-08-13 오전 11:02:54	2026-08-13 오전 11:03:13	18.36	18.36
