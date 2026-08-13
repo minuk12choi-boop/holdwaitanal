@@ -1,25 +1,27 @@
-<span id="tick" style="color:#6B7280;font-size:11px"></span><BR>
-<SpotfireControl id="11fc0bc15e5149edbe27bbed453378b5" /><BR>
-<SpotfireControl id="9d4e9915fbae403ab44a5b7bb6dba540" />
+from System import DateTime
 
-<script>
-(function () {
-  var BTN = "9d4e9915fbae403ab44a5b7bb6dba540";
-  var PERIOD = 30 * 60 * 1000;
+def log(msg):
+    Document.Properties["runlog"] = DateTime.Now.ToString("HH:mm:ss") + "  " + msg
 
-  function now() { return new Date().toLocaleTimeString(); }
-  function fire() {
-    var t = document.getElementById("tick");
-    var began = now();
-    if (t) { t.innerText = "▶ 시작 " + began + " · 실행 중…"; }
-    setTimeout(function () {
-      var b = document.getElementById(BTN);
-      if (b) { b.click(); }
-      if (t) { t.innerText = "▶ 시작 " + began + " · 완료 " + now(); }
-    }, 50);
-  }
+# 데이터 함수 출력 테이블은 건드리지 않는다. 건드리면 함수가 중복 실행된다.
+SKIP = ["upload_log"]
 
-  setTimeout(fire, 5000);        // 열고 5초 뒤 1회 → "켜기만 하면" 해결
-  setInterval(fire, PERIOD);     // 이후 30분마다
-})();
-</script>
+log("1/2 원천 재조회")
+n = 0
+for t in Document.Data.Tables:
+    if t.Name in SKIP:
+        continue
+    try:
+        t.Refresh()
+        n += 1
+    except:
+        pass
+
+log("2/2 데이터 함수 실행 (%d개 테이블 재조회 완료)" % n)
+for f in Document.Data.DataFunctions:
+    try:
+        f.Execute()
+    except:
+        pass
+
+log("완료 (테이블 %d개)" % n)
