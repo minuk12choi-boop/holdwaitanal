@@ -1,10 +1,28 @@
-table	status	rows	cols	query_time	serialize_sec	upload_sec	detail	start	end	elapsed_sec	script_total_sec
-PFR1_KFR7_STEP_PATH	SKIP	0	0		0	0	입력 파라미터 미등록	2026-08-13 오후 1:38:52	2026-08-13 오후 1:38:52	0	2.04
-PFR1_KFR7_TIP	SKIP	0	0		0	0	입력 파라미터 미등록	2026-08-13 오후 1:38:52	2026-08-13 오후 1:38:52	0	2.04
-PFR1_KFR7_LOT	OK	9073	22	2026-08-13 13:35:47	0.18	0.1	0.7 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_LOT.parquet	2026-08-13 오후 1:38:52	2026-08-13 오후 1:38:53	0.28	2.04
-PFR1_KFR7_MOVE	OK	64627	18	2026-08-13 13:36:00	0.14	0.24	3.4 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MOVE.parquet	2026-08-13 오후 1:38:53	2026-08-13 오후 1:38:53	0.39	2.04
-PFR1_KFR7_HOLD	OK	7335	10	2026-08-13 13:36:12	0.01	0.05	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_HOLD.parquet	2026-08-13 오후 1:38:53	2026-08-13 오후 1:38:53	0.06	2.04
-PFR1_KFR7_EQP_GROUP	OK	13105	4	2026-08-13 13:36:29	0.01	0.02	0.1 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQP_GROUP.parquet	2026-08-13 오후 1:38:53	2026-08-13 오후 1:38:53	0.03	2.04
-PFR1_KFR7_MATERIALWORKSTATUS	OK	149747	4	2026-08-13 13:38:34	0.06	0.08	0.9 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MATERIALWORKSTATUS.parquet	2026-08-13 오후 1:38:53	2026-08-13 오후 1:38:53	0.14	2.04
-PFR1_KFR7_EQUIPMENT	OK	19371	8	2026-08-13 13:38:42	0.02	0.03	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQUIPMENT.parquet	2026-08-13 오후 1:38:53	2026-08-13 오후 1:38:53	0.05	2.04
-_manifest.json	OK	6	0	2026-08-13 13:38:42	0	0	완결 표시. 읽는 쪽은 이 파일로 최신 여부를 판단한다.	2026-08-13 오후 1:38:51	2026-08-13 오후 1:38:53	2.04	2.04
+<span id="tick" style="color:#6B7280;font-size:11px"></span>
+<SpotfireControl id="ed287e84b3004b02927b7f05846183f6" />
+
+<script>
+(function () {
+  var BTN = "ed287e84b3004b02927b7f05846183f6";
+  var PERIOD = 30 * 60 * 1000;
+
+  function now() { return new Date().toLocaleTimeString(); }
+
+  function fire() {
+    var t = document.getElementById("tick");
+    var began = now();
+    if (t) { t.innerText = "시작 " + began + " · 실행 중…"; }
+
+    // click 이 동기 실행이라 그 줄에서 멈춘다.
+    // 위 문구가 화면에 반영된 뒤 누르도록 한 틱 미룬다.
+    setTimeout(function () {
+      var b = document.getElementById(BTN);
+      if (b) { b.click(); }
+      if (t) { t.innerText = "시작 " + began + " · 완료 " + now(); }
+    }, 50);
+  }
+
+  setTimeout(fire, 5000);
+  setInterval(fire, PERIOD);
+})();
+</script>
