@@ -1,92 +1,31 @@
-▶ 시작 오후 7:36:19 · 완료 오후 7:36:29
- 
+Multi Line Fab Monitor
+FAB현황 다운로드
+문의: minuk12.choi / 적재시각: -
+재공Raw 다운로드
 
-19:39:09 완료 (테이블 8개)
-
-table	status	rows	cols	query_time	serialize_sec	upload_sec	detail	start	end	elapsed_sec	script_total_sec
-PFR1_KFR7_LOT	OK	9062	22	2026-08-13 19:36:24	0.07	0.09	0.7 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_LOT.parquet	2026-08-13 오후 7:41:42	2026-08-13 오후 7:41:42	0.16	14.32
-PFR1_KFR7_MOVE	OK	64515	18	2026-08-13 19:36:33	0.14	0.3	3.4 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MOVE.parquet	2026-08-13 오후 7:41:55	2026-08-13 오후 7:41:55	0.44	14.32
-PFR1_KFR7_HOLD	OK	7016	10	2026-08-13 19:36:42	0.02	0.04	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_HOLD.parquet	2026-08-13 오후 7:41:55	2026-08-13 오후 7:41:55	0.06	14.32
-PFR1_KFR7_EQP_GROUP	OK	13113	4	2026-08-13 19:36:57	0.01	0.02	0.1 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQP_GROUP.parquet	2026-08-13 오후 7:41:54	2026-08-13 오후 7:41:55	0.03	14.32
-PFR1_KFR7_STEP_PATH	OK	5752042	17	2026-08-13 19:37:04	6.91	1.49	74.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_STEP_PATH.parquet	2026-08-13 오후 7:41:42	2026-08-13 오후 7:41:51	8.4	14.32
-PFR1_KFR7_TIP	OK	2978554	12	2026-08-13 19:38:42	2.73	0.86	21.1 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_TIP.parquet	2026-08-13 오후 7:41:51	2026-08-13 오후 7:41:54	3.59	14.32
-PFR1_KFR7_MATERIALWORKSTATUS	OK	150185	4	2026-08-13 19:39:00	0.08	0.07	0.9 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MATERIALWORKSTATUS.parquet	2026-08-13 오후 7:41:42	2026-08-13 오후 7:41:42	0.15	14.32
-PFR1_KFR7_EQUIPMENT	OK	19372	8	2026-08-13 19:39:07	0.02	0.04	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQUIPMENT.parquet	2026-08-13 오후 7:41:54	2026-08-13 오후 7:41:54	0.06	14.32
-_manifest.json	OK	8	0	2026-08-13 19:39:07	0	0	완결 표시. 읽는 쪽은 이 파일로 최신 여부를 판단한다.	2026-08-13 오후 7:41:41	2026-08-13 오후 7:41:55	14.32	14.32
-
-
-S3DRIVE에도 실제 적재 확인됨.
-
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python getdata/build_f3.py --manifest
-[S3] 새 회차 감지 finished_at=2026-08-13 19:41:55 (이전 2026-08-13 19:09:07)
-[TIMER] 소형 원천 조회 start
-[QUERY] lot 조회 시작 2026-08-13 19:44:12
-[QUERY] lot rows=9,062 cols=22 0.2s
-[QUERY] materialworkstatus 조회 시작 2026-08-13 19:44:13
-[QUERY] materialworkstatus rows=150,185 cols=4 0.1s
-[STAGE] fa_object4 결합 시작
-[STAGE] fa_object4 결합 0.0s
-[QUERY] equipment 조회 시작 2026-08-13 19:44:13
-[QUERY] equipment rows=19,372 cols=8 0.1s
-[CACHE] eqp_group 재사용 (eqp_group_20260813.csv) rows=12,870
-[QUERY] hold 조회 시작 2026-08-13 19:44:13
-[QUERY] hold rows=7,016 cols=10 0.1s
-[TIMER] 소형 원천 조회 elapsed=0.451s
-[QUERY] KFR7_step_path 조회 시작 2026-08-13 19:44:13
-[QUERY] KFR7_step_path 라인분리(line_id) 5,752,042 -> 5,349,686
-[QUERY] KFR7_step_path rows=5,349,686 cols=17 5.9s
-[STAGE] KFR7 범위축약 시작
-[STAGE] KFR7 범위축약 4.6s
-[ROWS] KFR7 scope(step) = 11,928
-[STAGE] KFR7 설비그룹전개 시작
-[STAGE] KFR7 설비그룹전개 0.1s
-[QUERY] PFR1_step_path 조회 시작 2026-08-13 19:44:23
-[QUERY] PFR1_step_path <- 캐시(PFR1_KFR7_STEP_PATH)
-[QUERY] PFR1_step_path 라인분리(line_id) 5,752,042 -> 402,356
-[QUERY] PFR1_step_path rows=402,356 cols=17 0.8s
-[STAGE] PFR1 범위축약 시작
-[STAGE] PFR1 범위축약 0.3s
-[ROWS] PFR1 scope(step) = 2,285
-[STAGE] PFR1 설비그룹전개 시작
-[STAGE] PFR1 설비그룹전개 0.0s
-[ROWS] s = 40,978
-[QUERY] KFR7_tip 조회 시작 2026-08-13 19:44:25
-[QUERY] KFR7_tip 라인분리(line_id) 2,978,554 -> 5,080
-[QUERY] KFR7_tip rows=5,080 cols=12 1.8s
-[STAGE] KFR7 tip 선필터 시작
-[STAGE] KFR7 tip 선필터 0.0s
-[FILTER] KFR7 tip 5,080 -> 973
-[STAGE] KFR7 tip 전처리 시작
-[STAGE] KFR7 tip 전처리 0.1s
-[QUERY] PFR1_tip 조회 시작 2026-08-13 19:44:27
-[QUERY] PFR1_tip <- 캐시(PFR1_KFR7_TIP)
-[QUERY] PFR1_tip 라인분리(line_id) 2,978,554 -> 2,973,474
-[QUERY] PFR1_tip rows=2,973,474 cols=12 0.5s
-[STAGE] PFR1 tip 선필터 시작
-[STAGE] PFR1 tip 선필터 0.8s
-[FILTER] PFR1 tip 2,973,474 -> 18,165
-[STAGE] PFR1 tip 전처리 시작
-[STAGE] PFR1 tip 전처리 0.1s
-[ROWS] t = 15,998
-[STAGE] hold 전처리 시작
-[HOLD] 최신 version_desc=20260813-140000 적용: 7,016 -> 7,016행
-[HOLD] 재공 lot 한정: 7,016 -> 4,860행
-[STAGE] hold 전처리 0.0s
-[ROWS] h1 = 3,455
-[ROWS] h2 = 618
-[ROWS] h3 = 261
-[STAGE] f3 생성 시작
-[TIP] wc_mask=01 rules=15,916 wildcard=['lot_type']
-[TIP] wc_mask=05 rules=15 wildcard=['lot_type', 'step']
-[TIP] wc_mask=07 rules=20 wildcard=['lot_type', 'process', 'step']
-[TIP] wc_mask=13 rules=47 wildcard=['lot_type', 'step', 'ppid']
-[TIP] 매칭 후보 = 4,536행
-[STAGE] f3 생성 1.5s
-[TIP] f3 tip 값 있는 행 = 132 / 14,213
-[ROWS] f3 = 14,213  (lot 9,043개)
-[DUP] lot/step 중복 없음
-[MIX] f3 사용 설비그룹 1,249개 중 batch/single 혼재 2개 (equipment 미매칭 설비 2건)
-[TIMER] DB 적재 start
-[DB] f3_live 갱신 snapshot_at=2026-08-13 19:44:12 rows=14,213
-[DB] f3_history 갱신 없음 (이미 더 가까운 스냅샷이 적재돼 있음)
-[TIMER] DB 적재 elapsed=1.695s
+2026-08-13 20:14 · 실시간 · 14146행
+ 재공Raw 받기
+적재 시각
+원천조회(SYSDATE) = Oracle 이 데이터를 만든 시각. S3적재 = 그 데이터를 읽어 처리한 시각. 둘의 차이가 크면 Spotfire 적재가 늦어진 것입니다.
+구분	단계	원천조회(SYSDATE)	S3적재 시작	종료	소요(초)	행수	컬럼수
+조회	lot	2026-08-13 20:05:24	2026-08-13 20:14:33	2026-08-13 20:14:35	1.875	9065	22
+조회	materialworkstatus	2026-08-13 20:08:22	2026-08-13 20:14:35	2026-08-13 20:14:35	0.1	150204	4
+처리	fa_object4 결합	-	2026-08-13 20:14:35	2026-08-13 20:14:35	0.046	None	None
+조회	equipment	2026-08-13 20:08:30	2026-08-13 20:14:35	2026-08-13 20:14:36	0.064	19372	8
+조회	eqp_group	-			0.0	12870	4
+조회	hold	2026-08-13 20:05:43	2026-08-13 20:14:36	2026-08-13 20:14:36	0.055	7072	10
+조회	KFR7_step_path	2026-08-13 20:06:06	2026-08-13 20:14:36	2026-08-13 20:14:41	5.639	5339931	17
+처리	KFR7 범위축약	-	2026-08-13 20:14:41	2026-08-13 20:14:46	5.141	None	None
+처리	KFR7 설비그룹전개	-	2026-08-13 20:14:46	2026-08-13 20:14:47	0.083	None	None
+조회	PFR1_step_path	2026-08-13 20:06:06	2026-08-13 20:14:47	2026-08-13 20:14:47	0.803	402622	17
+처리	PFR1 범위축약	-	2026-08-13 20:14:47	2026-08-13 20:14:48	0.311	None	None
+처리	PFR1 설비그룹전개	-	2026-08-13 20:14:48	2026-08-13 20:14:48	0.047	None	None
+조회	KFR7_tip	2026-08-13 20:07:39	2026-08-13 20:14:48	2026-08-13 20:14:54	6.494	6845180	12
+처리	KFR7 tip 선필터	-	2026-08-13 20:14:54	2026-08-13 20:14:56	1.75	None	None
+처리	KFR7 tip 전처리	-	2026-08-13 20:14:56	2026-08-13 20:14:57	0.557	None	None
+조회	PFR1_tip	2026-08-13 20:07:39	2026-08-13 20:14:57	2026-08-13 20:14:58	1.439	2973600	12
+처리	PFR1 tip 선필터	-	2026-08-13 20:14:58	2026-08-13 20:14:59	0.753	None	None
+처리	PFR1 tip 전처리	-	2026-08-13 20:14:59	2026-08-13 20:14:59	0.143	None	None
+처리	hold 전처리	-	2026-08-13 20:14:59	2026-08-13 20:14:59	0.025	None	None
+처리	f3 생성	-	2026-08-13 20:14:59	2026-08-13 20:15:01	1.851	None	None
+계	2026-08-13 20:08:30	2026-08-13 20:14:33	2026-08-13 20:15:01	27.176 (경과 28.0)	15759916	
