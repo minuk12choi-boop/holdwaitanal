@@ -1,17 +1,10 @@
-import pandas as pd
-
-msgs = []
-try:
-    import boto3
-    msgs.append("boto3 OK")
-except Exception as e:
-    msgs.append("boto3 FAIL: %s" % e)
-
-names = ["PFR1_KFR7_LOT", "PFR1_KFR7_MATERIALWORKSTATUS", "PFR1_KFR7_STEP_PATH",
-         "PFR1_KFR7_TIP", "PFR1_KFR7_EQUIPMENT", "PFR1_KFR7_EQP_GROUP",
-         "PFR1_KFR7_HOLD", "PFR1_KFR7_MOVE"]
-for n in names:
-    df = globals().get(n)
-    msgs.append("%s: %s" % (n, "없음" if df is None else "%d행" % len(df)))
-
-upload_log = pd.DataFrame({"check": msgs})
+table	status	rows	cols	query_time	serialize_sec	upload_sec	detail	start	end	elapsed_sec	script_total_sec
+PFR1_KFR7_LOT	OK	9000	22	2026-08-13 09:48:48	0.25	0.1	0.7 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_LOT.parquet	2026-08-13 오전 10:10:10	2026-08-13 오전 10:10:10	0.35	21.25
+PFR1_KFR7_MATERIALWORKSTATUS	OK	145205	4	2026-08-13 09:51:58	0.1	0.07	0.8 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MATERIALWORKSTATUS.parquet	2026-08-13 오전 10:10:10	2026-08-13 오전 10:10:10	0.16	21.25
+PFR1_KFR7_STEP_PATH	OK	5098892	17	2026-08-13 09:49:49	7.02	0.85	57.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_STEP_PATH.parquet	2026-08-13 오전 10:10:10	2026-08-13 오전 10:10:18	7.88	21.25
+PFR1_KFR7_TIP	OK	9892580	12	2026-08-13 09:51:12	9.38	1.03	67.9 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_TIP.parquet	2026-08-13 오전 10:10:18	2026-08-13 오전 10:10:28	10.4	21.25
+PFR1_KFR7_EQUIPMENT	OK	19365	8	2026-08-13 09:52:06	0.07	0.04	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQUIPMENT.parquet	2026-08-13 오전 10:10:28	2026-08-13 오전 10:10:28	0.11	21.25
+PFR1_KFR7_EQP_GROUP	OK	13104	4	2026-08-13 09:49:42	0.01	0.03	0.1 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQP_GROUP.parquet	2026-08-13 오전 10:10:28	2026-08-13 오전 10:10:29	0.04	21.25
+PFR1_KFR7_HOLD	OK	7527	10	2026-08-13 09:49:23	0.01	0.04	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_HOLD.parquet	2026-08-13 오전 10:10:29	2026-08-13 오전 10:10:29	0.05	21.25
+PFR1_KFR7_MOVE	OK	64856	18	2026-08-13 09:49:12	0.15	0.62	3.4 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MOVE.parquet	2026-08-13 오전 10:10:29	2026-08-13 오전 10:10:29	0.77	21.25
+_manifest.json	OK	8	0	2026-08-13 09:52:06	0	0	완결 표시. 읽는 쪽은 이 파일로 최신 여부를 판단한다.	2026-08-13 오전 10:10:08	2026-08-13 오전 10:10:29	21.25	21.25
