@@ -1,1 +1,5 @@
-Document.Properties["dbg"] = ", ".join(sorted(dir(Document.Data)))
+try:
+    n = Document.Data.DataFunctions.Count
+    Document.Properties["dbg"] = "DataFunctions OK, count=%d" % n
+except Exception as e:
+    Document.Properties["dbg"] = "FAIL: %s" % e
