@@ -1,29 +1,23 @@
-<span id="tick" style="color:#6B7280;font-size:11px"></span><BR>
-<SpotfireControl id="11fc0bc15e5149edbe27bbed453378b5" /><BR>
-<SpotfireControl id="9d4e9915fbae403ab44a5b7bb6dba540" />
+from System import DateTime
 
-<script>
-(function () {
-  var BTN = "9d4e9915fbae403ab44a5b7bb6dba540";
-  var PERIOD = 30 * 60 * 1000;
+def log(msg):
+    Document.Properties["runlog"] = DateTime.Now.ToString("HH:mm:ss") + "  " + msg
 
-  function now() { return new Date().toLocaleTimeString(); }
+log("1/3 시작 - 테이블 재조회")
+n = 0
+for t in Document.Data.Tables:
+    try:
+        t.Refresh()
+        n += 1
+        log("2/3 재조회 %d개째: %s" % (n, t.Name))
+    except:
+        pass
 
-  function fire() {
-    var t = document.getElementById("tick");
-    var began = now();
-    if (t) { t.innerText = "▶ 시작 " + began + " · 실행 중…"; }
+log("3/3 데이터 함수 실행 중...")
+for f in Document.Data.DataFunctions:
+    try:
+        f.Execute()
+    except:
+        pass
 
-    // click 은 동기 실행이라 그 줄에서 멈춘다.
-    // 위 문구가 화면에 반영된 뒤 누르도록 한 틱 미룬다.
-    setTimeout(function () {
-      var b = document.getElementById(BTN);
-      if (b) { b.click(); }
-      if (t) { t.innerText = "▶ 시작 " + began + " · 완료 " + now(); }
-    }, 50);
-  }
-
-  setTimeout(fire, 5000);        // 파일 열고 5초 뒤 1회
-  setInterval(fire, PERIOD);     // 이후 30분마다
-})();
-</script>
+log("완료 (테이블 %d개)" % n)
