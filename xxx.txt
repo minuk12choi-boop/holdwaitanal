@@ -5,35 +5,26 @@
 
 <script>
 (function () {
-  var BTN_LABEL = "Refresh";        // 버튼에 표시된 글자 (일부만 일치해도 됨)
-  var PERIOD = 15 * 60 * 1000;      // 15분
-  var MAX_WAIT = 20 * 60 * 1000;
+  var PERIOD   = 15 * 60 * 1000;    // 15분 주기
+  var MAX_WAIT = 12 * 60 * 1000;    // busy 최대 유지. PERIOD 보다 작아야 한다.
 
   var busy = false;
   var startedAt = 0;
 
   function now() { return new Date().toLocaleTimeString(); }
 
-  // id 는 편집할 때마다 바뀐다. 표시 문구로 찾는다.
+  // 이 텍스트 영역 안의 버튼을 찾는다. id 나 이름에 의존하지 않는다.
   function findBtn() {
-    var els = document.querySelectorAll(
-      "input[type='button'], input[type='submit'], button, a");
-    for (var i = 0; i < els.length; i++) {
-      var txt = (els[i].value || els[i].innerText || "").trim();
-      if (txt && txt.indexOf(BTN_LABEL) >= 0) { return els[i]; }
+    var tick = document.getElementById("tick");
+    if (!tick) { return null; }
+    var box = tick.parentNode;                 // 텍스트 영역 컨테이너
+    for (var i = 0; i < 5 && box; i++) {
+      var b = box.querySelectorAll(
+        "input[type='button'], input[type='submit'], button");
+      if (b.length) { return b[0]; }           // 버튼은 하나뿐
+      box = box.parentNode;                    // 없으면 한 단계 위로
     }
     return null;
-  }
-
-  function labels() {               // 못 찾았을 때 무엇이 있는지 보여준다
-    var els = document.querySelectorAll(
-      "input[type='button'], input[type='submit'], button, a");
-    var out = [];
-    for (var i = 0; i < els.length; i++) {
-      var t = (els[i].value || els[i].innerText || "").trim();
-      if (t) { out.push("'" + t + "'"); }
-    }
-    return out.join(", ") || "(없음)";
   }
 
   function fire() {
@@ -41,10 +32,7 @@
     var b = findBtn();
 
     if (!b) {
-      if (t) {
-        t.innerText = "✕ '" + BTN_LABEL + "' 버튼 없음 " + now()
-                    + " · 찾은 것: " + labels();
-      }
+      if (t) { t.innerText = "✕ 버튼을 찾지 못함 " + now(); }
       return;
     }
     if (busy && Date.now() - startedAt < MAX_WAIT) {
