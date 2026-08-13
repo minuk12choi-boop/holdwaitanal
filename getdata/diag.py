@@ -7,6 +7,7 @@ Oracle 전환 후 f3 결과가 Impala 시절과 크게 달라졌을 때, 어느 
 
     python getdata/diag.py hold      HOLD 분포 (status_seq / item_type / 중복)
     python getdata/diag.py lot       LOT 분포 (lot_type / status / 라인)
+    python getdata/diag.py tip       TIP.process <-> STEP_PATH.proc_id 겹침
     python getdata/diag.py all
 """
 
@@ -74,7 +75,46 @@ def main():
         diag_hold()
     if what in ("lot", "all"):
         diag_lot()
+    if what in ("tip", "all"):
+        diag_tip()
 
 
 if __name__ == "__main__":
     main()
+
+
+def diag_tip():
+    """TIP.process 와 STEP_PATH.proc_id 가 라인별로 겹치는지 확인.
+
+    Spotfire 에서 두 테이블을 조인해 TIP 을 줄일 때, 이 겹침이 없으면
+    필요한 규칙이 통째로 사라진다.
+    """
+    tip = s3_source.read_table("PFR1_KFR7_TIP")
+    sp = s3_source.read_table("PFR1_KFR7_STEP_PATH")
+    _head(f"TIP {len(tip):,}행  vs  STEP_PATH {len(sp):,}행")
+
+    lt = "line_id" if "line_id" in tip.columns else "line"
+    ls = "line_id" if "line_id" in sp.columns else "line"
+
+    print(f"\n[TIP.{lt}] 분포")
+    print(tip[lt].astype(str).value_counts().to_string())
+    print(f"\n[STEP_PATH.{ls}] 분포")
+    print(sp[ls].astype(str).value_counts().to_string())
+
+    print("\n[TIP process 값 유형]")
+    for ln in sorted(tip[lt].astype(str).unique()):
+        t = tip[tip[lt].astype(str) == ln]
+        wild = int((t["process"].astype(str) == "-").sum())
+        print(f"  {ln}: 전체 {len(t):,}  와일드카드('-') {wild:,}  실값 {len(t)-wild:,}")
+
+    print("\n[process <-> proc_id 겹침]")
+    for ln in sorted(set(tip[lt].astype(str)) | set(sp[ls].astype(str))):
+        tp = set(tip.loc[tip[lt].astype(str) == ln, "process"].astype(str)) - {"-"}
+        spp = set(sp.loc[sp[ls].astype(str) == ln, "proc_id"].astype(str))
+        both = tp & spp
+        print(f"  {ln}: TIP 고유 process {len(tp):,} / "
+              f"STEP_PATH 고유 proc_id {len(spp):,} / 겹침 {len(both):,}")
+        if tp and not both:
+            print("      -> 겹치는 값이 없다. 조인 키가 잘못됐거나 값 형식이 다르다.")
+            print(f"      TIP 예시  : {sorted(tp)[:5]}")
+            print(f"      STEP 예시 : {sorted(spp)[:5]}")
