@@ -1,85 +1,17 @@
-table	status	rows	cols	query_time	serialize_sec	upload_sec	detail	start	end	elapsed_sec	script_total_sec
-PFR1_KFR7_LOT	OK	9070	22	2026-08-13 17:56:19	0.05	0.1	0.7 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_LOT.parquet	2026-08-13 오후 6:02:03	2026-08-13 오후 6:02:03	0.15	13.65
-PFR1_KFR7_MOVE	OK	64576	18	2026-08-13 17:56:27	0.16	0.26	3.4 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MOVE.parquet	2026-08-13 오후 6:02:15	2026-08-13 오후 6:02:15	0.42	13.65
-PFR1_KFR7_HOLD	OK	7005	10	2026-08-13 17:56:36	0.01	0.03	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_HOLD.parquet	2026-08-13 오후 6:02:15	2026-08-13 오후 6:02:15	0.04	13.65
-PFR1_KFR7_EQP_GROUP	OK	13108	4	2026-08-13 17:56:51	0.01	0.02	0.1 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQP_GROUP.parquet	2026-08-13 오후 6:02:15	2026-08-13 오후 6:02:15	0.03	13.65
-PFR1_KFR7_STEP_PATH	OK	5742180	17	2026-08-13 17:56:57	7.05	1.29	71.5 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_STEP_PATH.parquet	2026-08-13 오후 6:02:03	2026-08-13 오후 6:02:12	8.34	13.65
-PFR1_KFR7_TIP	OK	2698500	12	2026-08-13 17:58:50	2.82	0.49	17.1 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_TIP.parquet	2026-08-13 오후 6:02:12	2026-08-13 오후 6:02:15	3.31	13.65
-PFR1_KFR7_MATERIALWORKSTATUS	OK	150085	4	2026-08-13 17:59:10	0.07	0.07	0.9 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MATERIALWORKSTATUS.parquet	2026-08-13 오후 6:02:03	2026-08-13 오후 6:02:03	0.14	13.65
-PFR1_KFR7_EQUIPMENT	OK	19372	8	2026-08-13 17:59:17	0.02	0.03	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQUIPMENT.parquet	2026-08-13 오후 6:02:15	2026-08-13 오후 6:02:15	0.05	13.65
-_manifest.json	OK	8	0	2026-08-13 17:59:17	0	0	완결 표시. 읽는 쪽은 이 파일로 최신 여부를 판단한다.	2026-08-13 오후 6:02:02	2026-08-13 오후 6:02:15	13.64	13.65
+<조인된 tip 테이블에 대한 수치>
+LINE_ID	Min(QUERY_TIME)	(Row Count)	UniqueCount(PROCESS)
+KFR7	2026-08-13 오후 5:58:50	3532	78
+PFR1	2026-08-13 오후 5:58:50	2694968	83
+
+<조인 해제한 tip 테이블에 대한 수치>
+LINE_ID	Min(QUERY_TIME)	(Row Count)	UniqueCount(PROCESS)
+KFR7	2026-08-13 오후 5:58:50	3552	81
+PFR1	2026-08-13 오후 5:58:50	2972905	282
+
+<steppath 테이블에 대한 수치>
+LINE_ID	Min(QUERY_TIME)	(Row Count)	UniqueCount(PROC_ID)
+KFR7	2026-08-13 오후 5:56:57	5339725	317
+PFR1	2026-08-13 오후 5:56:57	402455	84
 
 
-> python getdata/build_f3.py
-[S3] 새 회차 감지 finished_at=2026-08-13 18:02:15 (이전 2026-08-13 17:24:45)
-[TIMER] 소형 원천 조회 start
-[QUERY] lot 조회 시작 2026-08-13 18:03:11
-[QUERY] lot rows=9,070 cols=22 0.2s
-[QUERY] materialworkstatus 조회 시작 2026-08-13 18:03:11
-[QUERY] materialworkstatus rows=150,085 cols=4 0.1s
-[STAGE] fa_object4 결합 시작
-[STAGE] fa_object4 결합 0.1s
-[QUERY] equipment 조회 시작 2026-08-13 18:03:11
-[QUERY] equipment rows=19,372 cols=8 0.1s
-[CACHE] eqp_group 재사용 (eqp_group_20260813.csv) rows=12,870
-[QUERY] hold 조회 시작 2026-08-13 18:03:11
-[QUERY] hold rows=7,005 cols=10 0.1s
-[TIMER] 소형 원천 조회 elapsed=0.486s
-[QUERY] KFR7_step_path 조회 시작 2026-08-13 18:03:11
-[QUERY] KFR7_step_path 라인분리(line_id) 5,742,180 -> 5,339,725
-[QUERY] KFR7_step_path rows=5,339,725 cols=17 6.6s
-[STAGE] KFR7 범위축약 시작
-[STAGE] KFR7 범위축약 4.4s
-[ROWS] KFR7 scope(step) = 11,987
-[STAGE] KFR7 설비그룹전개 시작
-[STAGE] KFR7 설비그룹전개 0.1s
-[QUERY] PFR1_step_path 조회 시작 2026-08-13 18:03:22
-[QUERY] PFR1_step_path <- 캐시(PFR1_KFR7_STEP_PATH)
-[QUERY] PFR1_step_path 라인분리(line_id) 5,742,180 -> 402,455
-[QUERY] PFR1_step_path rows=402,455 cols=17 0.8s
-[STAGE] PFR1 범위축약 시작
-[STAGE] PFR1 범위축약 0.3s
-[ROWS] PFR1 scope(step) = 2,305
-[STAGE] PFR1 설비그룹전개 시작
-[STAGE] PFR1 설비그룹전개 0.0s
-[ROWS] s = 41,007
-[QUERY] KFR7_tip 조회 시작 2026-08-13 18:03:23
-[QUERY] KFR7_tip 라인분리(line_id) 2,698,500 -> 3,532
-[QUERY] KFR7_tip rows=3,532 cols=12 5.1s
-[STAGE] KFR7 tip 선필터 시작
-[STAGE] KFR7 tip 선필터 0.0s
-[FILTER] KFR7 tip 3,532 -> 669
-[STAGE] KFR7 tip 전처리 시작
-[STAGE] KFR7 tip 전처리 0.1s
-[QUERY] PFR1_tip 조회 시작 2026-08-13 18:03:29
-[QUERY] PFR1_tip <- 캐시(PFR1_KFR7_TIP)
-[QUERY] PFR1_tip 라인분리(line_id) 2,698,500 -> 2,694,968
-[QUERY] PFR1_tip rows=2,694,968 cols=12 0.5s
-[STAGE] PFR1 tip 선필터 시작
-[STAGE] PFR1 tip 선필터 0.6s
-[FILTER] PFR1 tip 2,694,968 -> 19,458
-[STAGE] PFR1 tip 전처리 시작
-[STAGE] PFR1 tip 전처리 0.1s
-[ROWS] t = 17,020
-[STAGE] hold 전처리 시작
-[HOLD] 최신 version_desc=20260813-140000 적용: 7,005 -> 7,005행
-[HOLD] 재공 lot 한정: 7,005 -> 4,875행
-[STAGE] hold 전처리 0.0s
-[ROWS] h1 = 3,465
-[ROWS] h2 = 617
-[ROWS] h3 = 253
-[STAGE] f3 생성 시작
-[TIP] wc_mask=01 rules=16,943 wildcard=['lot_type']
-[TIP] wc_mask=05 rules=13 wildcard=['lot_type', 'step']
-[TIP] wc_mask=07 rules=17 wildcard=['lot_type', 'process', 'step']
-[TIP] wc_mask=13 rules=47 wildcard=['lot_type', 'step', 'ppid']
-[TIP] 매칭 후보 = 4,406행
-[STAGE] f3 생성 1.5s
-[TIP] f3 tip 값 있는 행 = 135 / 14,291
-[ROWS] f3 = 14,291  (lot 9,052개)
-[DUP] lot/step 중복 없음
-[MIX] f3 사용 설비그룹 1,266개 중 batch/single 혼재 2개 (equipment 미매칭 설비 2건)
-[TIMER] DB 적재 start
-[DB] f3_live 갱신 snapshot_at=2026-08-13 18:03:11 rows=14,291
-[DB] f3_history 갱신 없음 (이미 더 가까운 스냅샷이 적재돼 있음)
-[TIMER] DB 적재 elapsed=1.452s
+kfr7의 tip자체가 전수적으로 등록이 안되어보임. 아마 와일드카드를 많이 활용하기 때문일까?
