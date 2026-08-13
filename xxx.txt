@@ -1,87 +1,47 @@
-▶ 시작 오후 7:03:01 · 완료 오후 7:03:01
-19:06:03 완료 (테이블 8개)
+(function () {
+  var BTN = "9d4e9915fbae403ab44a5b7bb6dba540";
+  var PERIOD = 30 * 60 * 1000;
+  var MAX_WAIT = 20 * 60 * 1000;    // 이 시간 넘으면 멈춘 것으로 보고 해제
 
-table	status	rows	cols	query_time	serialize_sec	upload_sec	detail	start	end	elapsed_sec	script_total_sec
-PFR1_KFR7_LOT	OK	9066	22	2026-08-13 19:03:07	0.05	0.1	0.7 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_LOT.parquet	2026-08-13 오후 7:08:53	2026-08-13 오후 7:08:53	0.15	15.1
-PFR1_KFR7_MOVE	OK	64649	18	2026-08-13 19:03:16	0.21	0.27	3.4 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MOVE.parquet	2026-08-13 오후 7:09:06	2026-08-13 오후 7:09:07	0.48	15.1
-PFR1_KFR7_HOLD	OK	1946	10	2026-08-13 19:03:27	0.01	0.03	0.1 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_HOLD.parquet	2026-08-13 오후 7:09:06	2026-08-13 오후 7:09:06	0.04	15.1
-PFR1_KFR7_EQP_GROUP	OK	13113	4	2026-08-13 19:03:44	0.01	0.02	0.1 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQP_GROUP.parquet	2026-08-13 오후 7:09:06	2026-08-13 오후 7:09:06	0.03	15.1
-PFR1_KFR7_STEP_PATH	OK	5749375	17	2026-08-13 19:03:50	7.39	1.47	73.0 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_STEP_PATH.parquet	2026-08-13 오후 7:08:53	2026-08-13 오후 7:09:02	8.86	15.1
-PFR1_KFR7_TIP	OK	2978012	12	2026-08-13 19:05:36	3.35	0.62	21.1 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_TIP.parquet	2026-08-13 오후 7:09:02	2026-08-13 오후 7:09:06	3.96	15.1
-PFR1_KFR7_MATERIALWORKSTATUS	OK	150145	4	2026-08-13 19:05:54	0.08	0.07	0.9 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MATERIALWORKSTATUS.parquet	2026-08-13 오후 7:08:53	2026-08-13 오후 7:08:53	0.15	15.1
-PFR1_KFR7_EQUIPMENT	OK	19372	8	2026-08-13 19:06:01	0.05	0.05	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQUIPMENT.parquet	2026-08-13 오후 7:09:06	2026-08-13 오후 7:09:06	0.11	15.1
-_manifest.json	OK	8	0	2026-08-13 19:06:01	0	0	완결 표시. 읽는 쪽은 이 파일로 최신 여부를 판단한다.	2026-08-13 오후 7:08:52	2026-08-13 오후 7:09:07	15.09	15.1
+  var busy = false;
+  var startedAt = 0;
 
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python getdata/build_f3.py --manifest
-[S3] 새 회차 감지 finished_at=2026-08-13 19:09:07 (이전 2026-08-13 18:44:40)
-[TIMER] 소형 원천 조회 start
-[QUERY] lot 조회 시작 2026-08-13 19:09:24
-[QUERY] lot rows=9,066 cols=22 0.2s
-[QUERY] materialworkstatus 조회 시작 2026-08-13 19:09:24
-[QUERY] materialworkstatus rows=150,145 cols=4 0.1s
-[STAGE] fa_object4 결합 시작
-[STAGE] fa_object4 결합 0.1s
-[QUERY] equipment 조회 시작 2026-08-13 19:09:24
-[QUERY] equipment rows=19,372 cols=8 0.1s
-[CACHE] eqp_group 재사용 (eqp_group_20260813.csv) rows=12,870
-[QUERY] hold 조회 시작 2026-08-13 19:09:24
-[QUERY] hold rows=1,946 cols=10 0.0s
-[TIMER] 소형 원천 조회 elapsed=0.532s
-[QUERY] KFR7_step_path 조회 시작 2026-08-13 19:09:24
-[QUERY] KFR7_step_path 라인분리(line_id) 5,749,375 -> 5,346,697
-[QUERY] KFR7_step_path rows=5,346,697 cols=17 5.8s
-[STAGE] KFR7 범위축약 시작
-[STAGE] KFR7 범위축약 5.1s
-[ROWS] KFR7 scope(step) = 11,945
-[STAGE] KFR7 설비그룹전개 시작
-[STAGE] KFR7 설비그룹전개 0.1s
-[QUERY] PFR1_step_path 조회 시작 2026-08-13 19:09:35
-[QUERY] PFR1_step_path <- 캐시(PFR1_KFR7_STEP_PATH)
-[QUERY] PFR1_step_path 라인분리(line_id) 5,749,375 -> 402,678
-[QUERY] PFR1_step_path rows=402,678 cols=17 0.9s
-[STAGE] PFR1 범위축약 시작
-[STAGE] PFR1 범위축약 0.3s
-[ROWS] PFR1 scope(step) = 2,296
-[STAGE] PFR1 설비그룹전개 시작
-[STAGE] PFR1 설비그룹전개 0.0s
-[ROWS] s = 40,990
-[QUERY] KFR7_tip 조회 시작 2026-08-13 19:09:37
-[QUERY] KFR7_tip 라인분리(line_id) 2,978,012 -> 4,585
-[QUERY] KFR7_tip rows=4,585 cols=12 2.0s
-[STAGE] KFR7 tip 선필터 시작
-[STAGE] KFR7 tip 선필터 0.0s
-[FILTER] KFR7 tip 4,585 -> 953
-[STAGE] KFR7 tip 전처리 시작
-[STAGE] KFR7 tip 전처리 0.1s
-[QUERY] PFR1_tip 조회 시작 2026-08-13 19:09:39
-[QUERY] PFR1_tip <- 캐시(PFR1_KFR7_TIP)
-[QUERY] PFR1_tip 라인분리(line_id) 2,978,012 -> 2,973,427
-[QUERY] PFR1_tip rows=2,973,427 cols=12 0.7s
-[STAGE] PFR1 tip 선필터 시작
-[STAGE] PFR1 tip 선필터 0.9s
-[FILTER] PFR1 tip 2,973,427 -> 18,364
-[STAGE] PFR1 tip 전처리 시작
-[STAGE] PFR1 tip 전처리 0.1s
-[ROWS] t = 16,105
-[STAGE] hold 전처리 시작
-[HOLD] 최신 version_desc=20260813-140000 적용: 1,946 -> 1,946행
-[HOLD] 재공 lot 한정: 1,946 -> 587행
-[STAGE] hold 전처리 0.0s
-[ROWS] h1 = 456
-[ROWS] h2 = 74
-[ROWS] h3 = 40
-[STAGE] f3 생성 시작
-[TIP] wc_mask=01 rules=16,023 wildcard=['lot_type']
-[TIP] wc_mask=05 rules=15 wildcard=['lot_type', 'step']
-[TIP] wc_mask=07 rules=20 wildcard=['lot_type', 'process', 'step']
-[TIP] wc_mask=13 rules=47 wildcard=['lot_type', 'step', 'ppid']
-[TIP] 매칭 후보 = 4,533행
-[STAGE] f3 생성 1.6s
-[TIP] f3 tip 값 있는 행 = 135 / 14,240
-[ROWS] f3 = 14,240  (lot 9,052개)
-[DUP] lot/step 중복 없음
-[MIX] f3 사용 설비그룹 1,244개 중 batch/single 혼재 2개 (equipment 미매칭 설비 2건)
-[TIMER] DB 적재 start
-[DB] f3_live 갱신 snapshot_at=2026-08-13 19:09:24 rows=14,240
-[DB] f3_history 갱신 없음 (이미 더 가까운 스냅샷이 적재돼 있음)
-[TIMER] DB 적재 elapsed=1.658s
+  function now() { return new Date().toLocaleTimeString(); }
+
+  function fire() {
+    // click 이 즉시 반환하므로, 완료는 runlog 라벨에서 읽는다.
+    if (busy && Date.now() - startedAt < MAX_WAIT) {
+      var t0 = document.getElementById("tick");
+      if (t0) { t0.innerText += " · " + now() + " 건너뜀(이전 회차 진행 중)"; }
+      return;
+    }
+
+    busy = true;
+    startedAt = Date.now();
+    var began = now();
+    var t = document.getElementById("tick");
+    if (t) { t.innerText = "▶ 시작 " + began + " · 실행 중…"; }
+
+    setTimeout(function () {
+      var b = document.getElementById(BTN);
+      if (b) { b.click(); }
+    }, 50);
+
+    // runlog 가 '완료' 로 바뀌면 그때 busy 해제
+    var watch = setInterval(function () {
+      var log = document.body.innerText || "";
+      if (log.indexOf("완료 (테이블") >= 0 && Date.now() - startedAt > 10000) {
+        busy = false;
+        clearInterval(watch);
+        if (t) { t.innerText = "▶ 시작 " + began + " · 완료 " + now(); }
+      } else if (Date.now() - startedAt > MAX_WAIT) {
+        busy = false;
+        clearInterval(watch);
+        if (t) { t.innerText = "▶ 시작 " + began + " · 시간초과"; }
+      }
+    }, 5000);
+  }
+
+  setTimeout(fire, 60000);
+  setInterval(fire, PERIOD);
+})();
