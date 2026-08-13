@@ -1101,18 +1101,18 @@ def build_f3(con):
         SELECT *, ({wc_expr}) AS wc_mask FROM t
     """)
 
-    tm_cols = """ms.ms_row_id, t0.wc_mask,
+    tm_cols = f"""ms.ms_row_id, t0.wc_mask,
                  t0.lot_type AS rule_lot_type, t0.process AS rule_process,
                  t0.step AS rule_step, t0.ppid AS rule_ppid,
                  CAST(t0.eqpid AS VARCHAR) AS eqpid, CAST(t0.eqpcham AS VARCHAR) AS eqpcham,
                  CAST(t0.prevent AS VARCHAR) AS prevent,
                  CAST(t0.type_body AS VARCHAR) AS type_body,
                  CAST(t0.type_cham AS VARCHAR) AS type_cham,
-                 CAST(t0.tip_eventtime AS TIMESTAMP) AS tip_eventtime,
+                 {parsed_ts('t0.tip_eventtime')} AS tip_eventtime,
                  CAST(t0.eqpissue AS VARCHAR) AS eqpissue,
                  CAST(t0.body_eqp_status AS VARCHAR) AS body_eqp_status,
                  CAST(t0.cham_eqp_status AS VARCHAR) AS cham_eqp_status,
-                 CAST(t0.eqpissuetime AS TIMESTAMP) AS eqpissuetime,
+                 {parsed_ts('t0.eqpissuetime')} AS eqpissuetime,
                  CASE WHEN t0.wc_mask = 0 THEN '정확' ELSE 'wildcard' END AS match_type"""
 
     con.execute(f"CREATE OR REPLACE TABLE t_matches_raw AS {' '.join(['SELECT', tm_cols, 'FROM ms_joined ms JOIN t0 ON FALSE'])}")
@@ -1157,15 +1157,15 @@ def build_f3(con):
         SELECT
             ms.*,
             CAST(tm.prevent AS VARCHAR) AS prevent, CAST(tm.type_body AS VARCHAR) AS type_body,
-            CAST(tm.type_cham AS VARCHAR) AS type_cham, CAST(tm.tip_eventtime AS TIMESTAMP) AS tip_eventtime,
+            CAST(tm.type_cham AS VARCHAR) AS type_cham, {parsed_ts('tm.tip_eventtime')} AS tip_eventtime,
             COALESCE(CAST(tm.eqpissue AS VARCHAR),
                      CASE WHEN ms.body_status IN ('LOCAL','PM','DOWN')
                           THEN CAST(ms.body_status AS VARCHAR) END)    AS eqpissue,
             COALESCE(CAST(tm.body_eqp_status AS VARCHAR),
                      CAST(ms.body_status AS VARCHAR))                  AS body_eqp_status,
             CAST(tm.cham_eqp_status AS VARCHAR)                        AS cham_eqp_status,
-            COALESCE(CAST(tm.eqpissuetime AS TIMESTAMP),
-                     CAST(ms.s_eqp_status_change_time AS TIMESTAMP))   AS eqpissuetime,
+            COALESCE({parsed_ts('tm.eqpissuetime')},
+                     {parsed_ts('ms.s_eqp_status_change_time')})   AS eqpissuetime,
             COALESCE(CAST(ms.eqp_id AS VARCHAR), CAST(tm.eqpid AS VARCHAR))   AS eqpid,
             COALESCE(CAST(tm.eqpcham AS VARCHAR), CAST(ms.eqp_id AS VARCHAR)) AS eqpcham2,
             h1.hold_user AS hold, h1.hold_reason AS hold_reason, h1.hold_date AS hold_date,
@@ -1679,9 +1679,19 @@ def main():
             # 기존 Impala lot_query 는 이 컬럼을 포함했으므로 여기서 붙여준다.
             df_mws = fetch("materialworkstatus", None)
             with stage("fa_object4 결합"):
-                m = _lower_cols(df_mws)[["line", "lot_id", "fa_object4"]].drop_duplicates(
-                    subset=["line", "lot_id"])
+                # lot 당 여러 행이 온다(15만행 / 9천 lot). 임의로 첫 행을 남기면
+                # 값이 빈 행이 뽑혀 fa_object4 가 통째로 NULL 이 된다.
+                # 값이 있는 행을 우선한다.
+                m = _lower_cols(df_mws)[["line", "lot_id", "fa_object4"]].copy()
+                m["fa_object4"] = m["fa_object4"].replace("", pd.NA)
+                m["_has"] = m["fa_object4"].notna()
+                m = (m.sort_values("_has", ascending=False)
+                       .drop_duplicates(subset=["line", "lot_id"], keep="first")
+                       .drop(columns="_has"))
+                before = len(df_lot)
                 df_lot = _lower_cols(df_lot).merge(m, on=["line", "lot_id"], how="left")
+                got = int(df_lot["fa_object4"].notna().sum())
+                print(f"[JOIN] fa_object4 {got:,}/{before:,} lot 매칭", flush=True)
         df_eqp = fetch("equipment", eqp_query)
         # 설비그룹은 하루에 한 번만 바뀌면 충분하다. 업무일(22시 기준) 단위로
         # 캐시해 두고, 'OFF' 제외까지 마친 상태로 저장해 재사용한다.

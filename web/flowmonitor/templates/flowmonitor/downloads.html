@@ -1,78 +1,149 @@
 {% extends "flowmonitor/base.html" %}
 {% block body %}
-<div class="std">
-  <h1>재공Raw 다운로드</h1>
+<style>
+  .dl { padding:16px; }
+  .dl .card { border:1px solid var(--bd); border-radius:8px; background:#fff;
+              margin-bottom:14px; overflow:hidden; }
+  .dl .card > .hd { padding:12px 16px; border-bottom:1px solid var(--bd);
+                    display:flex; align-items:center; justify-content:space-between;
+                    gap:12px; flex-wrap:wrap; }
+  .dl .card > .hd h2 { margin:0; font-size:15px; color:var(--accent); }
+  .dl .card > .bd { padding:14px 16px; }
+  .dl .sub { color:var(--mut); font-size:12px; margin-top:3px; }
 
+  .dl .btn { display:inline-flex; align-items:center; gap:6px; background:var(--brand);
+             color:#fff; border:0; border-radius:6px; padding:9px 16px; font-size:13px;
+             font-weight:600; text-decoration:none; cursor:pointer; white-space:nowrap; }
+  .dl .btn:hover { background:var(--brand-on); }
+  .dl select { padding:8px 10px; border:1px solid var(--bd); border-radius:6px;
+               font-size:13px; min-width:320px; background:#fff; }
+
+  .dl .split { display:flex; gap:14px; align-items:flex-start; }
+  .dl .split > .left  { flex:0 0 42%; }
+  .dl .split > .right { flex:1; min-width:0; }
+  .dl .ttl { font-family:var(--f-title); font-size:13px; font-weight:700;
+             margin-bottom:7px; }
+
+  .dl table { border-collapse:collapse; width:100%; font-size:12px; }
+  .dl th, .dl td { border-bottom:1px solid var(--bd); padding:6px 8px;
+                   text-align:left; white-space:nowrap; }
+  .dl thead th { color:var(--mut); font-size:11px; font-weight:600;
+                 background:#F9FAFB; position:sticky; top:0; }
+  .dl td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .dl .scroll { max-height:460px; overflow:auto; border:1px solid var(--bd);
+                border-radius:6px; }
+  .dl tr.tot td { font-weight:700; background:#F9FAFB; border-top:2px solid var(--bd); }
+  .dl .kind { color:var(--mut); }
+  .dl .empty { color:var(--mut); padding:24px 4px; font-size:13px; }
+</style>
+
+<div class="dl">
   {% if snapshots %}
-  <form class="row" method="get" action="/downloads/">
-    <select name="snapshot" onchange="this.form.submit()">
-      {% for s in snapshots %}
-        <option value="{{ s.snapshot_at|date:'Y-m-d H:i:s' }}"
-          {% if s.snapshot_at|date:'Y-m-d H:i:s' == selected %}selected{% endif %}>
-          {{ s.snapshot_at|date:'Y-m-d H:i' }}
-          · {% if s.biz_date %}{{ s.biz_date }} {{ s.shift }}{% else %}{{ s.shift }}{% endif %}
-          · {{ s.rows }}행
-        </option>
-      {% endfor %}
-    </select>
-    <a class="btn" href="/downloads/wip-raw/?snapshot={{ selected|urlencode }}">
-      재공Raw 받기
-    </a>
-  </form>
+  <div class="card">
+    <div class="hd">
+      <div>
+        <h2>재공Raw 다운로드</h2>
+        <div class="sub">스냅샷을 고르고 내려받습니다. 목록은 S3 적재 시각 기준입니다.</div>
+      </div>
+      <form method="get" action="/downloads/"
+            style="display:flex;gap:8px;align-items:center;margin:0">
+        <select name="snapshot" onchange="this.form.submit()">
+          {% for s in snapshots %}
+            <option value="{{ s.snapshot_at|date:'Y-m-d H:i:s' }}"
+              {% if s.snapshot_at|date:'Y-m-d H:i:s' == selected %}selected{% endif %}>
+              {{ s.snapshot_at|date:'Y-m-d H:i' }}
+              · {% if s.biz_date %}{{ s.biz_date }} {{ s.shift }}
+                {% else %}{{ s.shift }}{% endif %}
+              · {{ s.rows }}행
+            </option>
+          {% endfor %}
+        </select>
+        <a class="btn" href="/downloads/wip-raw/?snapshot={{ selected|urlencode }}">
+          재공Raw 받기
+        </a>
+      </form>
+    </div>
 
-  <h1 style="font-size:15px">적재 시각</h1>
-  <div class="sub"><b>원천조회(SYSDATE)</b> = Oracle 이 데이터를 만든 시각.
-    <b>S3적재</b> = 그 데이터를 읽어 처리한 시각.
-    둘의 차이가 크면 Spotfire 적재가 늦어진 것입니다.</div>
-  {% if load_log %}
-  <table>
-    <thead><tr>
-      <th>구분</th><th>단계</th><th>원천조회(SYSDATE)</th><th>S3적재 시작</th><th>종료</th>
-      <th style="text-align:right">소요(초)</th>
-      <th style="text-align:right">행수</th><th style="text-align:right">컬럼수</th>
-    </tr></thead>
-    <tbody>
-      {% for r in load_log %}
-      <tr>
-        <td style="color:var(--mut)">{{ r.kind }}</td>
-        <td>{{ r.table }}</td>
-        <td>{{ r.qt|default:"-" }}</td>
-        <td>{{ r.start|date:'Y-m-d H:i:s' }}</td>
-        <td>{{ r.end|date:'Y-m-d H:i:s' }}</td>
-        <td class="num">{{ r.sec }}</td>
-        <td class="num">{{ r.rows }}</td>
-        <td class="num">{{ r.cols }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-    {% if load_total %}
-    <tfoot>
-      <tr style="font-weight:600; background:#F9FAFB">
-        <td></td>
-        <td>{{ load_total.table }}</td>
-        <td>{{ load_total.qt|default:"-" }}</td>
-        <td>{{ load_total.start|date:'Y-m-d H:i:s' }}</td>
-        <td>{{ load_total.end|date:'Y-m-d H:i:s' }}</td>
-        <td class="num">{{ load_total.sec }}{% if load_total.wall %}
-          <span style="color:var(--mut); font-weight:400">
-            (경과 {{ load_total.wall }})</span>{% endif %}</td>
-        <td class="num">{{ load_total.rows }}</td>
-        <td></td>
-      </tr>
-    </tfoot>
-    {% endif %}
-  </table>
-  {% else %}
-  <div class="empty">이 스냅샷의 적재 시각 기록이 없습니다.
-    (f3_load_log 추가 이전에 적재된 스냅샷)</div>
-  {% endif %}
+    <div class="bd">
+      <div class="split">
+        <div class="left">
+          <div class="ttl">원천 테이블</div>
+          <div class="sub" style="margin-bottom:7px">
+            Oracle 이 데이터를 만든 시각 순</div>
+          <div class="scroll">
+            <table>
+              <thead><tr>
+                <th>테이블</th><th>원천조회(SYSDATE)</th><th>S3적재</th>
+              </tr></thead>
+              <tbody>
+                {% for r in sources %}
+                <tr>
+                  <td>{{ r.table }}</td>
+                  <td>{{ r.qt|default:"-" }}</td>
+                  <td>{{ r.start|date:'H:i:s'|default:"-" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3" class="kind">기록 없음</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-  {% else %}
-  <div class="empty">
-    적재된 스냅샷이 없습니다.<br><br>
-    <code>python getdata/db_common.py --init</code> 로 테이블을 만들고,<br>
-    <code>python getdata/build_f3.py</code> 를 실행하세요.
+        <div class="right">
+          <div class="ttl">처리 구간</div>
+          <div class="sub" style="margin-bottom:7px">
+            소요합과 경과가 크게 벌어지면 기록되지 않은 구간이 있다는 뜻입니다.</div>
+          <div class="scroll">
+            <table>
+              <thead><tr>
+                <th>구분</th><th>단계</th><th>시작</th><th>종료</th>
+                <th style="text-align:right">소요(초)</th>
+                <th style="text-align:right">행수</th>
+                <th style="text-align:right">컬럼</th>
+              </tr></thead>
+              <tbody>
+                {% for r in load_log %}
+                <tr>
+                  <td class="kind">{{ r.kind }}</td>
+                  <td>{{ r.table }}</td>
+                  <td>{{ r.start|date:'H:i:s'|default:"-" }}</td>
+                  <td>{{ r.end|date:'H:i:s'|default:"-" }}</td>
+                  <td class="num">{{ r.sec }}</td>
+                  <td class="num">{{ r.rows|default:"" }}</td>
+                  <td class="num">{{ r.cols|default:"" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="kind">기록 없음</td></tr>
+                {% endfor %}
+                {% if load_total %}
+                <tr class="tot">
+                  <td></td><td>계</td>
+                  <td>{{ load_total.start|date:'H:i:s' }}</td>
+                  <td>{{ load_total.end|date:'H:i:s' }}</td>
+                  <td class="num">{{ load_total.sec }}{% if load_total.wall %}
+                    <span style="color:var(--mut);font-weight:400">
+                      / {{ load_total.wall }}</span>{% endif %}</td>
+                  <td class="num">{{ load_total.rows }}</td>
+                  <td></td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
+
+  {% else %}
+  <div class="card"><div class="bd">
+    <div class="empty">
+      적재된 스냅샷이 없습니다.<br><br>
+      <code>python getdata/db_common.py --init</code> 로 테이블을 만들고,<br>
+      <code>python getdata/build_f3.py</code> 를 실행하세요.
+    </div>
+  </div></div>
   {% endif %}
 </div>
 {% endblock %}

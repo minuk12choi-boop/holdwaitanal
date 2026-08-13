@@ -71,24 +71,6 @@ def diag_lot():
         print(f"lot_id 중복 = {d:,}행" + ("  → 라인 간 중복이 남아 있다." if d else ""))
 
 
-def main():
-    what = (sys.argv[1] if len(sys.argv) > 1 else "all").lower()
-    if what in ("hold", "all"):
-        diag_hold()
-    if what in ("lot", "all"):
-        diag_lot()
-    if what in ("tip", "all"):
-        diag_tip()
-    if what in ("wt", "all"):
-        diag_wt()
-    if what in ("dates", "all"):
-        diag_dates()
-
-
-if __name__ == "__main__":
-    main()
-
-
 def diag_tip():
     """TIP.process 와 STEP_PATH.proc_id 가 라인별로 겹치는지 확인.
 
@@ -189,3 +171,21 @@ def diag_wt():
         print("\n  겹치는 lot_id 가 하나도 없다. lot_id 형식이 다를 수 있다.")
         print("  f3_live  예시:", sorted(f3lots)[:5])
         print("  move_lot 예시:", sorted(mv)[:5])
+
+
+def main():
+    what = (sys.argv[1] if len(sys.argv) > 1 else "all").lower()
+    if what in ("hold", "all"):
+        diag_hold()
+    if what in ("lot", "all"):
+        diag_lot()
+    if what in ("tip", "all"):
+        diag_tip()
+    if what in ("wt", "all"):
+        diag_wt()
+    if what in ("dates", "all"):
+        diag_dates()
+
+
+if __name__ == "__main__":
+    main()

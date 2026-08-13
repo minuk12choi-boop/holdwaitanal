@@ -20,6 +20,11 @@ LINE_TONES = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#A9C8E8"]
 
 MOVE_LOT_TYPES = ("PP", "PB", "PG")
 
+# 상단 메뉴는 모든 페이지가 공유한다.
+MENU = [("FAB현황", "/main/"), ("기준정보", "/standards/"),
+        ("다운로드", "/downloads/")]
+DEFAULT_LINE = "KFR7"          # NRD-K
+
 # 상단 현황 카드. 좌측부터 고정 순서.
 #   label = 화면 표기, line = f3/move 의 실제 라인 코드
 LINE_CARDS = [
@@ -303,8 +308,12 @@ def downloads(request):
     sel = request.GET.get("snapshot") or (snaps[0]["snapshot_at"].strftime(
         "%Y-%m-%d %H:%M:%S") if snaps else "")
     log, total = _load_log(sel) if sel else ([], None)
+    # 좌: 원천 테이블 목록(원천조회 기준 오름차순) / 우: 조회+처리 구간
+    src = sorted([r for r in log if r.get("kind") != "처리"],
+                 key=lambda r: (r.get("qt") or "9999"))
     return render(request, "flowmonitor/downloads.html", {
-        "menu": [("FAB현황", "/"), ("다운로드", "/downloads/")],
+        "sources": src,
+        "menu": MENU,
         "snapshots": snaps, "selected": sel, "load_log": log, "load_total": total,
     })
 
@@ -1091,9 +1100,6 @@ def api_summary(request):
 # ---------------------------------------------------------------------------
 # 페이지
 # ---------------------------------------------------------------------------
-MENU = [("FAB현황", "/main/"), ("기준정보", "/standards/"),
-        ("다운로드", "/downloads/")]
-DEFAULT_LINE = "KFR7"          # NRD-K
 
 
 def fab_status(request):
