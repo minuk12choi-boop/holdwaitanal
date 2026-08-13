@@ -27,11 +27,8 @@ spotfire_s3_export.py — Spotfire 데이터 함수용 S3 자동 적재
         (저장소의 파일은 빈 값으로 유지한다)
 
 [키 관리]
-  이 파일은 저장소에도 있으므로 **빈 값 그대로 커밋**한다.
-  값을 채운 사본은 Spotfire 데이터 함수 안에만 둔다.
-  실수 방지용 pre-commit 훅이 있다. 한 번만 켜두면 된다.
-
-      git config core.hooksPath .githooks
+  이 저장소는 사내 전용이라 자격증명을 파일에 둔 채로 관리한다.
+  외부에 공개할 일이 생기면 반드시 값을 지우고 재발급할 것.
 
 [느릴 때 어디를 볼 것인가]
   upload_log 에 구간이 나뉘어 찍힌다.
@@ -70,7 +67,6 @@ import io
 import json
 import sys
 import datetime as dt
-from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 
@@ -122,10 +118,6 @@ TABLE_NAMES = [
 # 전송량은 주기를 늦추는 대신 압축으로 줄인다.
 FMT = "parquet"
 
-# 업로드 동시 실행 수. 전송은 네트워크 대기라 겹치면 이득이 있다.
-# (직렬화 자체는 실측 6.5초라 병목이 아니다. 1 로 두면 순차 실행)
-WORKERS = 4
-
 
 # ---------------------------------------------------------------------------
 def env_report():
@@ -164,6 +156,24 @@ def to_buffer(df, fmt):
 # ---------------------------------------------------------------------------
 # 실행
 # ---------------------------------------------------------------------------
+# 진행 로그. Spotfire 가 print 를 보여주지 않아 파일로 남긴다.
+# 함수가 도는지, 어디서 멈추는지 확인하는 유일한 수단이다.
+TRACE_FILE = r"D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\logs\spotfire_export.log"
+
+
+def trace(msg):
+    try:
+        import os
+        os.makedirs(os.path.dirname(TRACE_FILE), exist_ok=True)
+        with open(TRACE_FILE, "a", encoding="utf-8") as f:
+            f.write("%s  %s\n" % (dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), msg))
+    except Exception:
+        pass
+
+
+trace("=" * 60)
+trace("script start")
+
 bucket = S3_BUCKET
 prefix = S3_PREFIX
 if prefix and not prefix.endswith("/"):
@@ -181,6 +191,7 @@ try:
     if not bucket:
         raise RuntimeError("스크립트 상단 [S3 설정] 의 S3_BUCKET 을 채우세요.")
     client = make_client()
+    trace("client ok  bucket=%s prefix=%s" % (bucket, prefix))
 
     # ── 1) 입력 점검 (전역 변수 -> DataFrame) ────────────────────────────
     jobs = []
@@ -218,6 +229,7 @@ try:
             continue
 
         jobs.append((name, df, qt))
+        trace("input  %-30s %9d rows  qt=%s" % (name, len(df), qt))
 
     # ── 2) 직렬화 + 업로드 (병렬) ────────────────────────────────────────
     def work(job):
@@ -242,11 +254,12 @@ try:
             return [name, "FAIL", len(df), df.shape[1], qt, 0.0, 0.0,
                     "%s: %s" % (type(e).__name__, e), t0, dt.datetime.now()]
 
-    if WORKERS > 1 and len(jobs) > 1:
-        with ThreadPoolExecutor(max_workers=WORKERS) as ex:
-            rows.extend(ex.map(work, jobs))
-    else:
-        rows.extend(work(j) for j in jobs)
+    # 순차 실행. 병렬은 실측상 이득이 없고(직렬화 6.5초), Spotfire 임베디드
+    # python 에서 boto3 클라이언트를 스레드로 공유하면 멈출 수 있다.
+    for j in jobs:
+        r = work(j)
+        rows.append(r)
+        trace("upload %-30s %s  ser=%.1fs up=%.1fs" % (r[0], r[1], r[5], r[6]))
 
     # 8개를 다 올린 뒤 마지막에 매니페스트를 쓴다.
     #   업로드는 순차라 중간에 읽히면 서로 다른 시점의 파일이 섞인다.
@@ -267,11 +280,15 @@ try:
     }
     buf = io.BytesIO(json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8"))
     client.upload_fileobj(buf, bucket, "%s_manifest.json" % prefix)
+    trace("manifest ok  ok=%d/%d" % (len(ok), len(TABLE_NAMES)))
     rows.append(["_manifest.json", "OK", len(ok), 0, manifest["query_time"],
                  0.0, 0.0, "완결 표시. 읽는 쪽은 이 파일로 최신 여부를 판단한다.",
                  started, dt.datetime.now()])
 
 except Exception as e:
+    import traceback
+    trace("FAILED %s: %s" % (type(e).__name__, e))
+    trace(traceback.format_exc())
     rows.append(["(전체)", "FAIL", 0, 0, "", 0.0, 0.0,
                  "%s: %s" % (type(e).__name__, e), started, dt.datetime.now()])
 
@@ -285,3 +302,5 @@ upload_log["elapsed_sec"] = (
 # 아니라 Spotfire -> python 데이터 전달(입력 마샬링) 이다.
 upload_log["script_total_sec"] = round(
     (dt.datetime.now() - started).total_seconds(), 2)
+trace("script end  rows=%d  total=%.1fs"
+      % (len(upload_log), (dt.datetime.now() - started).total_seconds()))
