@@ -272,7 +272,7 @@ WHERE  p.lot_id = c.lot_id
 -- 4) PFR1_KFR7_TIP : smicdc_p3nrd.trackinprevent, smicdc_nrdk.trackinprevent *호출시간: 60초
 --     lot_type 컬럼은 없다. python 이 '-'(와일드카드)로 채운다.
 --------------------------------------------------------------------------------
-SELECT 
+SELECT sysdate as query_time,
 'PFR1' as line_id,
 process,
        step,
@@ -284,13 +284,13 @@ process,
        tkin_count,
        updated,
        eventtime
-FROM   smicdc_p3nrd.trackinprevent
+FROM   smicdc_p3nrd.trackinprevent t
 WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
+
 
 union all 
 
-SELECT 
-       TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') AS query_time,
+SELECT sysdate as query_time,
 'KFR7' as line_id,
 process,
        step,
@@ -302,9 +302,8 @@ process,
        tkin_count,
        updated,
        eventtime
-FROM   smicdc_nrdk.trackinprevent
+FROM   smicdc_nrdk.trackinprevent t
 WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
-;
 
 --------------------------------------------------------------------------------
 -- 5) PFR1_KFR7_EQUIPMENT : smimes.mi_equipment *호출시간: 8초
