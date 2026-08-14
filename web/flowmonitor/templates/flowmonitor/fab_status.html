@@ -662,10 +662,11 @@ const SEL_COLOR = "#FFD700";
 // rgba(...) 는 알파를 1 로, 그 외(hex 등)는 그대로 쓴다.
 function strongest(c) {
   if (typeof c !== "string") { return c; }
-  const m = c.match(/^rgba?\(([^)]+)\)$/);
-  if (m) {
-    const p = m[1].split(",").map(x => x.trim());
-    return `rgb(${p[0]}, ${p[1]}, ${p[2]})`;
+  const i = c.indexOf("(");
+  const j = c.lastIndexOf(")");
+  if (i > 0 && j > i && c.slice(0, i).trim().toLowerCase().indexOf("rgb") === 0) {
+    const p = c.slice(i + 1, j).split(",").map(x => x.trim());
+    if (p.length >= 3) { return "rgb(" + p[0] + ", " + p[1] + ", " + p[2] + ")"; }
   }
   return c;
 }
