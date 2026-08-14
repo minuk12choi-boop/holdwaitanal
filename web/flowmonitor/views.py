@@ -743,19 +743,18 @@ def api_lowwt(request):
 #   f3_history 에 실제로 있는 컬럼만 내보낸다(없는 컬럼을 만들지 않는다).
 # ---------------------------------------------------------------------------
 LOT_DETAIL_COLS = [
-    ("lot_id", "LOT"), ("lot_type", "TYPE"), ("qty", "매"),
-    ("wt", "WT"), ("lot_status", "상태"),
-    ("proc_id", "PROC"), ("step_seq", "STEP"), ("step_desc", "STEP명"),
-    ("eqpgroup", "설비그룹"), ("cause", "원인"),
-    ("hold", "HOLD"), ("hold_reason", "HOLD사유"),
-    ("exception", "EXC"), ("exception_reason", "EXC사유"),
-    ("ftp", "FTP"), ("ftp_reason", "FTP사유"),
+    ("prod1", "제품군"), ("prod2", "제품"),
+    ("lot_id", "LOT"), ("lot_type", "TYPE"), ("qty", "매"), ("wt", "WT"),
+    ("lot_status", "상태"), ("proc_id", "PROC"), ("step_seq", "STEP"),
+    ("step_desc", "STEP명"), ("eqpgroup", "설비그룹"), ("cause", "원인"),
+    ("hold", "HOLD_일"), ("hold_reason", "HOLD사유"),
+    ("exception", "예약제외_일"), ("exception_reason", "예약제외사유"),
+    ("ftp", "FTP_일"), ("ftp_reason", "FTP사유"),
     ("down", "설비상태"), ("tip", "TIP"),
     ("마지막이벤트경과_일", "마지막이벤트경과(일)"),
     ("스텝도착경과_일", "스텝도착경과(일)"),
     ("마지막작업경과_일", "마지막작업경과(일)"),
-    ("fa_object4", "FA_OBJECT4"),
-    ("prod1", "PROD1"), ("prod2", "PROD2"), ("dept", "DEPT"),
+    ("fa_object4", "FA_OBJECT4"), ("dept", "DEPT"),
 ]
 
 
@@ -1013,10 +1012,13 @@ def _lot_move_map(line):
         return {r[0]: float(r[1] or 0) for r in cur.fetchall()}
 
 
-def _bucket(d, key, qty):
-    c = d.setdefault(key, {"lots": 0, "qty": 0})
+def _bucket(d, key, qty, eld=None):
+    c = d.setdefault(key, {"lots": 0, "qty": 0, "eld": 0.0, "eln": 0})
     c["lots"] += 1
     c["qty"] += qty
+    if eld is not None:
+        c["eld"] += eld          # 경과일 합
+        c["eln"] += 1            # 값이 있는 lot 수
 
 
 def classify_lot(r, rules):
@@ -1060,9 +1062,12 @@ def classify_lot(r, rules):
     return (None, None, [])
 
 
-def _add(node, lots, qty):
+def _add(node, lots, qty, eld=None):
     node["lots"] += lots
     node["qty"] += qty
+    if eld is not None:
+        node["eld"] = node.get("eld", 0.0) + eld
+        node["eln"] = node.get("eln", 0) + 1
 
 
 def api_summary(request):
@@ -1119,18 +1124,25 @@ def api_summary(request):
         big, mid, subs = classify_lot(r, rules)
         if not big:
             continue
+        eld = num_f(r.get("마지막이벤트경과_일"))
         w = 1.0 / len(subs) if subs else 0.0      # 설비 여러 개면 지분으로 나눔
-        g = tree.setdefault(big, {"lots": 0.0, "qty": 0.0, "mid": {}})
-        _add(g, 1, q)
+        g = tree.setdefault(big, {"lots": 0.0, "qty": 0.0, "eld": 0.0, "eln": 0,
+                                  "mid": {}})
+        _add(g, 1, q, eld)
         mkey = mid or "_"
-        m = g["mid"].setdefault(mkey, {"lots": 0.0, "qty": 0.0, "sub": {}})
-        _add(m, 1, q)
+        m = g["mid"].setdefault(mkey, {"lots": 0.0, "qty": 0.0, "eld": 0.0,
+                                       "eln": 0, "sub": {}})
+        _add(m, 1, q, eld)
         for sname in subs:
-            sc = m["sub"].setdefault(sname, {"lots": 0.0, "qty": 0.0})
-            _add(sc, w, q * w)
+            sc = m["sub"].setdefault(sname, {"lots": 0.0, "qty": 0.0,
+                                             "eld": 0.0, "eln": 0})
+            _add(sc, w, q * w, eld)
 
     def node(name, v, extra=None):
-        d = {"name": name, "lots": round(v["lots"], 1), "qty": int(round(v["qty"]))}
+        n = v.get("eln") or 0
+        d = {"name": name, "lots": round(v["lots"], 1), "qty": int(round(v["qty"])),
+             # 경과일 평균 -> 시간 단위(hr/lot). 라인차트에 쓴다.
+             "elapsed_hr": (round(v.get("eld", 0.0) / n * 24, 1) if n else None)}
         if extra:
             d.update(extra)
         return d

@@ -147,8 +147,10 @@ function smoothTo(el) {
 function toggleDd() {
   document.getElementById("dd").classList.toggle("open");
 }
+// 바깥을 누르면 열려 있는 드롭다운을 모두 닫는다(.dd 전체 대상)
 document.addEventListener("click", e => {
-  if (!e.target.closest(".dd")) document.getElementById("dd").classList.remove("open");
+  if (e.target.closest(".dd")) { return; }
+  document.querySelectorAll(".dd.open").forEach(d => d.classList.remove("open"));
 });
 
 function selectedTypes() {
@@ -201,6 +203,16 @@ function prodPicked(which, isAll) {
   loadSummary();
 }
 
+// 검색: 대소문자 무시 부분일치. 'dd' 로 *dd / dd* / *dd* 가 모두 걸린다.
+function prodSearch(which) {
+  const q = (document.getElementById("p" + which + "q").value || "")
+    .trim().toLowerCase();
+  document.querySelectorAll("#p" + which + "m label[data-opt]").forEach(el => {
+    const v = (el.getAttribute("data-opt") || "").toLowerCase();
+    el.style.display = (!q || v.indexOf(q) >= 0) ? "" : "none";
+  });
+}
+
 function renderProd(d) {
   const fill = (which, opts, cur) => {
     opts = opts || [];
@@ -208,11 +220,13 @@ function renderProd(d) {
     const isAll = (cur.length === 0);          // 선택 없음 = 전체
     const set = new Set(cur);
     box.innerHTML =
-      `<label style="border-bottom:1px solid var(--bd);font-weight:600">`
+      `<input class="ddq" id="p${which}q" type="text" placeholder="검색"`
+      + ` oninput="prodSearch(${which})" onclick="event.stopPropagation()">`
+      + `<label style="border-bottom:1px solid var(--bd);font-weight:600">`
       + `<input type="checkbox" data-all ${isAll ? "checked" : ""}`
       + ` onchange="prodPicked(${which}, true)">ALL</label>`
       + (opts.map(o =>
-          `<label><input type="checkbox" value="${o}"`
+          `<label data-opt="${o}"><input type="checkbox" value="${o}"`
           + ` ${isAll || set.has(o) ? "checked" : ""}`
           + ` onchange="prodPicked(${which}, false)">${o}</label>`).join("")
          || `<label style="color:var(--mut)">값 없음</label>`);
@@ -567,20 +581,35 @@ const CZ_SCALE_X = {
 function czBarChart(canvasId, onPick, pluginId) {
   return new Chart(document.getElementById(canvasId), {
     type: "bar",
-    data: { labels: [], datasets: [{ data: [], borderRadius: 3 }] },
+    data: { labels: [], datasets: [
+      { data: [], borderRadius: 3, order: 2, yAxisID: "y" },
+      // 경과일 평균(hr/lot). 막대 위에 겹치지 않게 별도 축을 쓴다.
+      { type: "line", data: [], order: 1, yAxisID: "y2",
+        borderColor: "#7FA0D4", backgroundColor: "#7FA0D4",
+        borderWidth: 2, pointRadius: 3, pointHoverRadius: 4,
+        tension: 0.25, spanGaps: true }
+    ] },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       layout: { padding: { top: 16 } },
       plugins: { legend: { display: false },
                  tooltip: { callbacks: {
-                   title: (t) => t[0].chart.$nodes[t[0].dataIndex].name,
+                   title: (t) => (t[0].chart.$nodes[t[0].dataIndex] || {}).name,
                    label: (t) => {
                      const x = t.chart.$nodes[t.dataIndex] || {};
+                     if (t.datasetIndex === 1) {
+                       return "경과 평균 " + (x.elapsed_hr == null ? "-"
+                              : x.elapsed_hr.toFixed(1) + " hr/lot");
+                     }
                      return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
                    } } } },
       scales: { x: CZ_SCALE_X,
-                y: { display: false, beginAtZero: true, grace: "20%" } },
-      onClick: (e, els) => { if (els.length) { onPick(els[0].index); } }
+                y:  { display: false, beginAtZero: true, grace: "20%" },
+                // 라인이 막대 위쪽에 오도록 축 범위를 눌러 둔다
+                y2: { display: false, beginAtZero: true, grace: "180%",
+                      position: "right" } },
+      onClick: (e, els) => { if (els.length) { onPick(els[0].index); } },
+      interaction: { mode: "index", intersect: false }
     },
     plugins: [{
       id: pluginId,
@@ -591,6 +620,12 @@ function czBarChart(canvasId, onPick, pluginId) {
         ctx.fillStyle = "#374151";
         ch.getDatasetMeta(0).data.forEach((el, k) => {
           ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x, el.y - 4);
+        });
+        ctx.fillStyle = "#5C7FB8";
+        ch.getDatasetMeta(1).data.forEach((el, k) => {
+          const v = ch.data.datasets[1].data[k];
+          if (v === null || v === undefined) { return; }
+          ctx.fillText(v.toFixed(1) + " hr/lot", el.x, el.y - 6);
         });
         ctx.restore();
       }
@@ -652,6 +687,8 @@ function czApply(ch, nodes, u, selName) {
   ch.data.labels = nodes.map(x => x.name);
   ch.data.datasets[0].data = vals;
   ch.data.datasets[0].backgroundColor = nodes.map(() => BRAND);
+  ch.data.datasets[1].data = nodes.map(x =>
+    (x.elapsed_hr === null || x.elapsed_hr === undefined) ? null : x.elapsed_hr);
   markSelected(ch, nodes.findIndex(x => x.name === selName));
   ch.update();
 }
@@ -725,7 +762,7 @@ const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝�
                           "마지막작업경과_일"]);
 
 function closeDrill() {
-  DRILL_SRC = "";
+  DRILL_SRC = ""; DRILL_DATA = null; SORT_KEYS = [];
   document.getElementById("drill").innerHTML =
     `<div class="empty">좌측 <b>재공</b>·<b>status</b>·<b>W/T 분포</b>·
       <b>W/T 0 재공 분포</b> 또는 위 <b>원인 분석</b> 항목을 클릭하면
@@ -752,6 +789,70 @@ function clearOtherSelections(src) {
   if (src !== "cause")  { renderCause(); }
 }
 
+let DRILL_DATA = null;      // 현재 표에 뿌린 원자료
+let SORT_KEYS = [];         // [{k, dir}] 순서가 곧 정렬 우선순위
+
+function drillSort(k) {
+  const i = SORT_KEYS.findIndex(x => x.k === k);
+  if (i < 0) { SORT_KEYS.push({ k: k, dir: 1 }); }        // 1) 오름차순
+  else if (SORT_KEYS[i].dir === 1) { SORT_KEYS[i].dir = -1; }  // 2) 내림차순
+  else { SORT_KEYS.splice(i, 1); }                        // 3) 해제
+  renderDrillTable();
+}
+
+function sortedRows() {
+  const rows = (DRILL_DATA && DRILL_DATA.rows) ? DRILL_DATA.rows.slice() : [];
+  if (!SORT_KEYS.length) { return rows; }
+  const num = (v) => {
+    const n = parseFloat(v);
+    return isNaN(n) ? null : n;
+  };
+  rows.sort((a, b) => {
+    for (const s of SORT_KEYS) {
+      let x = a[s.k], y = b[s.k];
+      if (x === undefined || x === null || x === "") { x = null; }
+      if (y === undefined || y === null || y === "") { y = null; }
+      if (x === null && y === null) { continue; }
+      if (x === null) { return 1; }        // 빈 값은 항상 뒤로
+      if (y === null) { return -1; }
+      const nx = num(x), ny = num(y);
+      let c;
+      if (nx !== null && ny !== null) { c = nx - ny; }
+      else { c = String(x).localeCompare(String(y), "ko"); }
+      if (c) { return c * s.dir; }
+    }
+    return 0;
+  });
+  return rows;
+}
+
+function renderDrillTable() {
+  const d = DRILL_DATA;
+  if (!d) { return; }
+  const cols = d.cols || [], rows = sortedRows();
+
+  const head = cols.map(c => {
+    const i = SORT_KEYS.findIndex(x => x.k === c.k);
+    const mark = i < 0 ? ""
+      : `<sup class="so">${i + 1}${SORT_KEYS[i].dir === 1 ? "▲" : "▼"}</sup>`;
+    return `<th class="${NUM_COLS.has(c.k) ? "num " : ""}sortable"`
+         + ` onclick="drillSort('${c.k}')">${c.t}${mark}</th>`;
+  }).join("");
+
+  const body = rows.map(r => "<tr>" + cols.map(c => {
+    var raw = r[c.k];
+    var v = (raw === null || raw === undefined) ? ""
+          : (c.k === "wt" ? Number(raw).toFixed(1) : String(raw));
+    return `<td class="${NUM_COLS.has(c.k) ? "num" : ""}">`
+         + `<span class="c">${v}</span></td>`;
+  }).join("") + "</tr>").join("");
+
+  document.getElementById("drillBody").innerHTML =
+    `<table class="grid"><thead><tr>${head}</tr></thead><tbody>${body
+      || `<tr><td colspan="${cols.length}" style="color:#6B7280">`
+         + `해당 조건의 LOT 이 없습니다.</td></tr>`}</tbody></table>`;
+}
+
 function openDrill(filt, label, src) {
   clearOtherSelections(src || "");
   const el = document.getElementById("drill");
@@ -764,27 +865,19 @@ function openDrill(filt, label, src) {
     .map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
 
   fetch("/api/lots-live/?" + q).then(r => r.json()).then(d => {
-    const cols = d.cols || [], rows = d.rows || [];
-    const head = cols.map(c =>
-      `<th class="${NUM_COLS.has(c.k) ? "num" : ""}">${c.t}</th>`).join("");
-    const body = rows.map(r => "<tr>" + cols.map(c => {
-      var raw = r[c.k];
-      var v = (raw === null || raw === undefined) ? ""
-            : (c.k === "wt" ? Number(raw).toFixed(1) : String(raw));
-      return `<td class="${NUM_COLS.has(c.k) ? "num" : ""}">`
-           + `<span class="c">${v}</span></td>`;
-    }).join("") + "</tr>").join("");
-
+    DRILL_DATA = d;
+    SORT_KEYS = [];                       // 새 조건이면 정렬은 초기화
     const ttl = [SRC_TITLE[src] || "LOT 상세", LINE, label]
       .filter(Boolean).join(" · ");
     el.innerHTML = `<div class="cellttl"><span>${ttl}</span></div>
       <div class="bar">
-        <div><b>${nf(d.lots || rows.length)} LOT</b>
-          <b style="margin-left:8px">${nf(d.qty || 0)} 매</b></div>
+        <div><b>${nf(d.lots || (d.rows || []).length)} LOT</b>
+          <b style="margin-left:8px">${nf(d.qty || 0)} 매</b>
+          <span class="path">컬럼명을 누르면 정렬 (1회 오름 · 2회 내림 · 3회 해제)</span>
+        </div>
         <button onclick="closeDrill()">닫기</button></div>
-      <div class="gridwrap"><table class="grid"><thead><tr>${head}</tr></thead>
-        <tbody>${body || `<tr><td colspan="${cols.length}" style="color:#6B7280">`
-           + `해당 조건의 LOT 이 없습니다.</td></tr>`}</tbody></table></div>`;
+      <div class="gridwrap" id="drillBody"></div>`;
+    renderDrillTable();
   });
 }
 

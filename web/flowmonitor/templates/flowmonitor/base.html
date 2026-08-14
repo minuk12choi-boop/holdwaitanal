@@ -206,8 +206,10 @@
       align-items:center; gap:6px; }
   .gfilter .prodf .dd > button.on { background:var(--brand); color:#fff;
                                     border-color:var(--brand); }
-  .gfilter .prodf .menu { left:0; right:auto; top:34px; max-height:280px;
+  .gfilter .prodf .menu { left:0; right:auto; top:34px; max-height:300px;
                           overflow:auto; min-width:100%; }
+  .ddq { width:100%; box-sizing:border-box; margin-bottom:5px; padding:4px 6px;
+         border:1px solid var(--bd); border-radius:4px; font-size:12px; }
 
   .lineseg { display:flex; gap:0; border:1px solid var(--bd); border-radius:6px;
              overflow:hidden; margin-bottom:12px; }
@@ -258,6 +260,9 @@
           table-layout:auto; }
   .grid th, .grid td { border:1px solid var(--bd); padding:5px 8px;
                        white-space:nowrap; vertical-align:middle; }
+  .grid thead th.sortable { cursor:pointer; user-select:none; }
+  .grid thead th.sortable:hover { background:#E9EBEF; }
+  .grid thead th .so { color:#DC143C; font-size:9px; margin-left:2px; }
   .grid thead th { text-align:center; background:#F3F4F6; color:var(--mut);
                    font-size:11px; font-weight:600; position:sticky; top:0; z-index:1; }
   .grid tbody td { text-align:left; }
