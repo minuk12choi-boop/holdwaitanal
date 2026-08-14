@@ -877,8 +877,21 @@ def parsed_ts(column: str) -> str:
     )
 
 
+# 경과일 계산 기준 시각. DuckDB 의 CURRENT_TIMESTAMP 는 UTC 라서,
+# KST 로 기록된 원천 시각과 비교하면 최근 9시간 이내 값이 미래로 보여
+# 경과일이 음수가 된다. 파이프라인 시작 시각(로컬)을 리터럴로 박아 쓴다.
+NOW_SQL = "CAST(now() AS TIMESTAMP)"
+
+
+def set_now(ts):
+    """경과일 기준 시각을 고정한다(=snapshot_at). 실행 중 값이 흔들리지 않는다."""
+    global NOW_SQL
+    NOW_SQL = "TIMESTAMP '" + ts.strftime("%Y-%m-%d %H:%M:%S") + "'"
+
+
 def elapsed_days_num(column: str) -> str:
-    return f"ROUND((EPOCH(CURRENT_TIMESTAMP) - EPOCH({parsed_ts(column)})) / 86400.0, 1)"
+    return (f"ROUND(GREATEST((EPOCH({NOW_SQL}) - EPOCH({parsed_ts(column)}))"
+            f" / 86400.0, 0), 1)")
 
 
 def elapsed_days_text(column: str) -> str:
@@ -1684,6 +1697,7 @@ def main():
     # 스냅샷 시각은 '원천을 조회하기 시작한 시점' 이다. 파이프라인이 3분쯤
     # 걸리므로 적재 시점을 쓰면 그만큼 뒤로 밀려 shift 기준시각 판정이 어긋난다.
     run_at = dt.datetime.now().replace(microsecond=0)
+    set_now(run_at)          # 경과일 기준 시각 고정 (UTC/로컬 혼선 방지)
     stamp = f"{run_at:%Y%m%d_%H%M%S}"
 
     with timer("소형 원천 조회"):

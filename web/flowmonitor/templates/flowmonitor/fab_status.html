@@ -529,7 +529,9 @@ function czBarChart(canvasId, onPick, pluginId) {
   });
 }
 
-/* 선택된 요소를 입체(그림자로 떠오른 것처럼)로 표시한다.
+/* 선택된 요소를 입체로 표시한다.
+   el.draw() 재호출은 Chart 버전에 따라 아무것도 그리지 않는 경우가 있어,
+   좌표를 직접 받아 그림자 + 밝은 윗면 + 어두운 옆면을 손으로 그린다.
    Chart.register 로 전역 등록하므로 앞으로 만드는 차트도 자동 적용된다.
    각 차트는 ch.$sel 에 선택 인덱스(없으면 -1)만 넣으면 된다. */
 const popSelected = {
@@ -540,19 +542,54 @@ const popSelected = {
     const el = (chart.getDatasetMeta(0).data || [])[sel];
     if (!el) { return; }
     const ctx = chart.ctx;
+    const color = chart.data.datasets[0].backgroundColor;
+    const fill = Array.isArray(color) ? color[sel] : color;
+
+    // 원차트(도넛)는 조각을 바깥으로 밀어 표현한다
+    if (el.outerRadius !== undefined) {
+      const a = (el.startAngle + el.endAngle) / 2;
+      ctx.save();
+      ctx.translate(Math.cos(a) * 9, Math.sin(a) * 9);
+      ctx.shadowColor = "rgba(17,24,39,0.5)";
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(el.x, el.y, el.outerRadius, el.startAngle, el.endAngle);
+      ctx.arc(el.x, el.y, el.innerRadius, el.endAngle, el.startAngle, true);
+      ctx.closePath();
+      ctx.fillStyle = fill || "#999";
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+
+    // 막대: 그림자로 띄우고 윗면/옆면을 덧그려 입체로
+    const p = el.getProps(["x", "y", "base", "width", "height"], true);
+    const w = p.width || 0;
+    const x0 = p.x - w / 2;
+    const y0 = Math.min(p.y, p.base);
+    const h = Math.abs((p.base === undefined ? p.y + (p.height || 0) : p.base) - p.y);
+    const d = Math.max(3, Math.min(7, w * 0.22));      // 입체 깊이
+
     ctx.save();
     ctx.shadowColor = "rgba(17,24,39,0.45)";
-    ctx.shadowBlur = 9;
-    ctx.shadowOffsetX = 3;
-    ctx.shadowOffsetY = -3;
-    el.draw(ctx);                       // 그림자와 함께 다시 그려 떠오르게
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = fill || "#2F4B7C";
+    ctx.fillRect(x0, y0, w, h);
     ctx.restore();
-    ctx.save();                         // 위쪽 밝은 모서리로 입체감 보강
-    ctx.globalCompositeOperation = "source-atop";
-    ctx.fillStyle = "rgba(255,255,255,0.28)";
-    if (el.width !== undefined) {
-      ctx.fillRect(el.x - el.width / 2, el.y, el.width, Math.min(6, el.height || 6));
-    }
+
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,0.40)";          // 윗면
+    ctx.beginPath();
+    ctx.moveTo(x0, y0); ctx.lineTo(x0 + d, y0 - d);
+    ctx.lineTo(x0 + w + d, y0 - d); ctx.lineTo(x0 + w, y0);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "rgba(17,24,39,0.28)";             // 옆면
+    ctx.beginPath();
+    ctx.moveTo(x0 + w, y0); ctx.lineTo(x0 + w + d, y0 - d);
+    ctx.lineTo(x0 + w + d, y0 + h - d); ctx.lineTo(x0 + w, y0 + h);
+    ctx.closePath(); ctx.fill();
     ctx.restore();
   }
 };
@@ -685,14 +722,16 @@ function openDrill(filt, label, src) {
     const head = cols.map(c =>
       `<th class="${NUM_COLS.has(c.k) ? "num" : ""}">${c.t}</th>`).join("");
     const body = rows.map(r => "<tr>" + cols.map(c => {
-      var v = (r[c.k] === null || r[c.k] === undefined) ? "" : String(r[c.k]);
+      var raw = r[c.k];
+      var v = (raw === null || raw === undefined) ? ""
+            : (c.k === "wt" ? Number(raw).toFixed(1) : String(raw));
       return `<td class="${NUM_COLS.has(c.k) ? "num" : ""}">`
            + `<span class="c">${v}</span></td>`;
     }).join("") + "</tr>").join("");
 
     const ttl = [SRC_TITLE[src] || "LOT 상세", LINE, label]
       .filter(Boolean).join(" · ");
-    el.innerHTML = `<div class="subttl"><span>${ttl}</span></div>
+    el.innerHTML = `<div class="cellttl"><span>${ttl}</span></div>
       <div class="bar">
         <div><b>${nf(d.lots || rows.length)} LOT</b>
           <b style="margin-left:8px">${nf(d.qty || 0)} 매</b></div>

@@ -386,6 +386,21 @@ python getdata/get_move.py --from 2026-08-01 --to 2026-08-10
 python getdata/get_move.py --full
 ```
 
+### 경과일 기준 시각 (중요)
+
+DuckDB 의 `CURRENT_TIMESTAMP` 는 **UTC** 를 돌려준다. 원천 시각은 KST 라
+그대로 빼면 최근 9시간 이내 값이 미래로 보여 **경과일이 음수**가 된다.
+
+그래서 파이프라인 시작 시각(로컬, `snapshot_at` 과 동일)을 리터럴로 박아 쓴다.
+
+```python
+set_now(run_at)      # NOW_SQL = TIMESTAMP '2026-08-14 10:15:00'
+```
+
+원천에 미래 시각이 들어와도 음수가 나오지 않도록 `GREATEST(..., 0)` 도 건다.
+새로 경과일 계산을 추가할 때는 `elapsed_days_num()` 을 쓰고
+`CURRENT_TIMESTAMP` 를 직접 쓰지 않는다.
+
 ### 경과일 컬럼
 
 f3 는 네 가지 경과일을 담는다. 모두 `현재시각 - 기준시각` 을 일 단위 소수 1자리로.
