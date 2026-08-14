@@ -11,6 +11,17 @@
       {% endfor %}
     </div>
 
+    <div class="prodf">
+      <div class="dd" id="dp1">
+        <button onclick="toggleProd('dp1')" id="p1b">제품군 전체 &#9662;</button>
+        <div class="menu" id="p1m"></div>
+      </div>
+      <div class="dd" id="dp2">
+        <button onclick="toggleProd('dp2')" id="p2b">제품 전체 &#9662;</button>
+        <div class="menu" id="p2m"></div>
+      </div>
+    </div>
+
     <div id="err" class="err"></div>
 
     <!-- 재공 뷰 -->
@@ -28,22 +39,6 @@
         </div>
         <div class="stack" id="ws"></div>
         <div class="stleg" id="wg"></div>
-      </div>
-    </div>
-
-    <!-- 제품구분 필터 -->
-    <div class="cell">
-      <div class="cellttl"><span>제품구분</span>
-        <span class="v" id="prodsum" style="font-size:11px;color:var(--mut)"></span></div>
-      <div class="prodf">
-        <div class="dd" id="dp1">
-          <button onclick="toggleProd('dp1')" id="p1b">PROD1 전체 &#9662;</button>
-          <div class="menu" id="p1m"></div>
-        </div>
-        <div class="dd" id="dp2">
-          <button onclick="toggleProd('dp2')" id="p2b">PROD2 전체 &#9662;</button>
-          <div class="menu" id="p2m"></div>
-        </div>
       </div>
     </div>
 
@@ -183,29 +178,50 @@ function toggleProd(id) {
   if (!open) { el.classList.add("open"); }
 }
 
-function prodPicked(which) {
-  const sel = [...document.querySelectorAll("#p" + which + "m input:checked")]
-    .map(x => x.value);
-  if (which === 1) { PROD1 = sel; PROD2 = []; } else { PROD2 = sel; }
+const PROD_LABEL = { 1: "제품군", 2: "제품" };
+
+// ALL 은 목록 맨 위의 전체 선택 스위치다.
+// 내부적으로는 "선택 없음 = 전체" 로 다루므로, ALL 이 켜지면 빈 배열로 둔다.
+function prodPicked(which, isAll) {
+  const box = document.getElementById("p" + which + "m");
+  const all = box.querySelector("input[data-all]");
+
+  if (isAll) {
+    const on = all.checked;
+    box.querySelectorAll("input:not([data-all])").forEach(x => { x.checked = on; });
+  }
+  const opts = [...box.querySelectorAll("input:not([data-all])")];
+  const sel = opts.filter(x => x.checked).map(x => x.value);
+  if (all) { all.checked = (sel.length === opts.length && opts.length > 0); }
+
+  // 전부 선택 == 전체. 서버에는 빈 값으로 보내 필터를 걸지 않는다.
+  const eff = (sel.length === opts.length) ? [] : sel;
+  if (which === 1) { PROD1 = eff; PROD2 = []; } else { PROD2 = eff; }
   loadSummary();
 }
 
 function renderProd(d) {
   const fill = (which, opts, cur) => {
+    opts = opts || [];
     const box = document.getElementById("p" + which + "m");
+    const isAll = (cur.length === 0);          // 선택 없음 = 전체
     const set = new Set(cur);
-    box.innerHTML = (opts || []).map(o =>
-      `<label><input type="checkbox" value="${o}" ${set.has(o) ? "checked" : ""}`
-      + ` onchange="prodPicked(${which})">${o}</label>`).join("")
-      || `<label style="color:var(--mut)">값 없음</label>`;
+    box.innerHTML =
+      `<label style="border-bottom:1px solid var(--bd);font-weight:600">`
+      + `<input type="checkbox" data-all ${isAll ? "checked" : ""}`
+      + ` onchange="prodPicked(${which}, true)">ALL</label>`
+      + (opts.map(o =>
+          `<label><input type="checkbox" value="${o}"`
+          + ` ${isAll || set.has(o) ? "checked" : ""}`
+          + ` onchange="prodPicked(${which}, false)">${o}</label>`).join("")
+         || `<label style="color:var(--mut)">값 없음</label>`);
     document.getElementById("p" + which + "b").innerHTML =
-      `PROD${which} ` + (cur.length ? (cur.length <= 2 ? cur.join(",")
-                                       : cur.length + "개") : "전체") + " &#9662;";
+      PROD_LABEL[which] + " "
+      + (isAll ? "전체" : (cur.length <= 2 ? cur.join(",") : cur.length + "개"))
+      + " &#9662;";
   };
   fill(1, d.prod1_options, PROD1);
   fill(2, d.prod2_options, PROD2);
-  document.getElementById("prodsum").textContent =
-    `${(d.prod1_options || []).length} / ${(d.prod2_options || []).length}종`;
 }
 
 function pickLine(line) {
