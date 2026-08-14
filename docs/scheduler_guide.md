@@ -1,197 +1,90 @@
-# Windows 작업 스케줄러 설정 가이드
+# 작업 스케줄러 설정
 
-## 먼저 알아둘 것
+## 등록할 작업은 1개뿐
 
-**`.bat` 파일은 스케줄러에 등록해야 동작한다.** 파일을 만들어 둔 것만으로는
-아무 일도 일어나지 않는다. `.bat` 은 "무엇을 어떻게 실행할지" 를 적어둔 것이고,
-"언제 실행할지" 를 정하는 것은 작업 스케줄러다.
-
-**등록할 것은 `run_build_f3.bat` 하나뿐이다.**
-
-| 파일 | 스케줄러 등록 | 역할 |
-|---|---|---|
-| `scripts\run_build_f3.bat` | **등록함** | build_f3 + get_move 를 매 실행마다 |
-| `scripts\run_get_move.bat` | 등록 안 함 | 손으로 백필·재적재할 때만 |
-| `getdata\db_common.py` | 등록 안 함 | 공용 라이브러리 (`--init` 으로 한 번만) |
-
-`get_move` 도 **2시간마다 자동 실행된다.** 별도 작업으로 등록하지 않는 것뿐이지
-수동이 아니다. `run_build_f3.bat` 이 build_f3 뒤에 이어서 돌린다.
-증분 조회가 최근 20시간이라 실행이 밀려도 공백이 생기지 않는다.
-
----
-
-## 0. 준비
-
-`git pull` 후 파일 확인. 탐색기에서 안 보이면 "보기 → 파일 확장명" 을 켠다.
-
-```
-D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\scripts\run_build_f3.bat
-```
-
-테이블이 없다면 한 번만 손으로 만든다.
-
-```
-python getdata\db_common.py --init
-```
-
-**등록 전에 `run_build_f3.bat` 을 더블클릭해서 정상 동작하는지 확인한다.**
-창이 바로 닫히면 `logs\build_f3.log` 를 열어 오류를 본다.
-
----
-
-## 1. 작업 등록
-
-작업 스케줄러 실행 → 오른쪽 **작업 만들기**
-(※ "기본 작업 만들기" 는 반복 간격 설정이 없으니 쓰지 않는다)
-
-### [일반] 탭
-- 이름: `holdwaitanal`
-- **사용자가 로그온했는지 여부에 관계없이 실행** 선택
-- **가장 높은 수준의 권한으로 실행** 체크
-
-### [트리거] 탭 → 새로 만들기
-- 작업 시작: `일정에 따라` → `매일`
-- 시작: **오늘 날짜**, 시간 **`22:00:00`**
-- 고급 설정
-  - `작업 반복 간격` 체크 → 목록에 없으면 직접 **`2시간`** 입력
-  - `기간` → **`1일`**
-
-22:00 시작 + 2시간 간격이면 22, 00, 02, 04, **06**, 08, 10, 12, **14**, 16, 18,
-20 으로 떨어진다. shift 기준시각 06 / 14 / 22 에 모두 걸린다.
-
-### [동작] 탭 → 새로 만들기
-- 동작: `프로그램 시작`
-- 프로그램/스크립트:
-  `D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\scripts\run_build_f3.bat`
-- **시작 위치(옵션)**:
-  `D:\PERSONAL_SPACE\SW\python\7_holdwaitanal`
-
-시작 위치를 비우면 `C:\Windows\System32` 에서 실행돼 `.env` 를 못 찾는다.
-
-### [설정] 탭
-- `작업이 이미 실행 중이면` → **`새 인스턴스 시작 안 함`**
-- `작업이 실패하는 경우 다시 시작 간격` → `10분`, `3회`
-
-확인을 누르면 등록된다. 오늘 밤 22시부터 자동으로 돈다.
-
----
-
-## 2. 실행되는 모습
-
-| 시각 | build_f3 | get_move | f3_history |
-|---|---|---|---|
-| 22:00 | ○ | ○ | `GY` 로 누적 |
-| 00:00 | ○ | | |
-| 02:00 | ○ | | |
-| 04:00 | ○ | | |
-| 06:00 | ○ | ○ | `DAY` 로 누적 |
-| 08:00 ~ 12:00 | ○ | | |
-| 14:00 | ○ | ○ | `SW` 로 누적 |
-| 16:00 ~ 20:00 | ○ | | |
-
-shift 시각이 아닌 실행은 `f3_live`(실시간 화면)만 갱신한다.
-
----
-
-## 3. 수동 실행
-
-```
-scripts\run_get_move.bat              최근 2일치 재적재
-scripts\run_get_move.bat --full       3개월치 백필
-```
-
-get_move 는 해당 업무일 구간을 지우고 다시 넣는 교체 적재라 몇 번을 돌려도
-결과가 같다.
-
----
-
-## 4. 확인
-
-| 확인 대상 | 방법 |
+| 항목 | 값 |
 |---|---|
-| 실행 여부 | 작업 스케줄러 → `마지막 실행 결과` 가 `0x0` |
-| 로그 | `logs\build_f3.log`, `logs\get_move.log` |
-| 적재 여부 | 웹 `/api/health/` 행수 |
-| 스냅샷 이력 | 웹 `다운로드` 페이지 |
+| 프로그램/스크립트 | `D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\scripts\run_pipeline.bat` |
+| 인수 추가 | (비워둠) |
+| 시작 위치 | `D:\PERSONAL_SPACE\SW\python\7_holdwaitanal` |
 
-`0x1` 이면 파이썬 오류다. 로그 마지막 부분을 본다.
-
----
-
-## 5. 작업은 성공인데 데이터가 안 쌓일 때
-
-작업 기록에 **`동작이 완료되었습니다 (2)`** 가 뜨고 시작~완료가 **2초 안에** 끝났다면
-파이썬이 실행조차 되지 않은 것이다. 반환값 2 = "파일을 찾을 수 없음".
-
-스케줄러는 로그온 사용자와 다른 계정/환경으로 돌기 때문에 **PATH 에 python 이
-없을 수 있다.** `logs\build_f3.log` 에 아래가 남는다.
+**트리거**
 
 ```
-[ERROR] python 실행기를 찾지 못했습니다.
+매일  시작 22:00
+고급 설정 > 작업 반복 간격 : 30분,  기간 : 1일
 ```
 
-### 해결 (둘 중 하나)
-
-**① 시스템 환경변수 지정 (권장)**
+**설정 탭**
 
 ```
-변수 이름 : HOLDWAITANAL_PYTHON
-변수 값   : C:\Users\minuk12.choi\AppData\Local\aipforge\python.exe
+[v] 작업이 이미 실행 중이면 다음 규칙 적용 : 새 인스턴스 시작 안 함
 ```
 
-시스템 환경변수로 등록해야 스케줄러 계정에서도 보인다. 등록 후 작업 스케줄러를
-재시작하거나 PC 를 재부팅한다.
+겹침 방지용이다. 한 회차가 20~30초라 보통 겹치지 않지만 안전장치로 둔다.
 
-### 창이 바로 닫히고 로그 파일조차 안 생길 때
-
-`.bat` 이 파싱 단계에서 깨진 것이다. 원인은 둘 다 파일 형식 문제였다.
-
-- **줄바꿈이 LF** (Git 저장소 기본). cmd 는 CRLF 를 기대한다
-- **한글 주석이 UTF-8**. cmd 는 CP949 로 읽어 파싱이 어긋난다
-
-현재 `scripts/*.bat` 은 **ASCII + CRLF** 로 고정했고, `.gitattributes` 에
-`*.bat text eol=crlf` 를 넣어 체크아웃 시에도 유지된다.
-
-기존 파일이 남아 있다면 다시 받는다.
+## run_pipeline.bat 이 하는 일
 
 ```
-git rm --cached scripts\*.bat
-git checkout -- scripts
+1) getdata\build_f3.py    f3_live / f3_history
+2) getdata\get_move.py    move_shift / move_daily / move_lot
 ```
 
-또는 그냥 `git pull` 후 메모장에서 열어 첫 줄이 `@echo off` 로 정상인지 본다.
+**두 개를 한 파일에서 순서대로 돌린다.** 스케줄러에 따로 등록하지 않는다.
 
-**오류 메시지를 보려면** 창이 닫히지 않게 실행한다.
-
-```
-cmd /k scripts\run_build_f3.bat
-```
-
-### 로그에 `'3.py'은(는) 내부 또는 외부 명령...` 이 나올 때
-
-`py -3` 같은 **여러 토큰을 변수 하나에 담아** 실행하면서 `-3` 과 스크립트 경로가
-붙어 `3.py` 로 해석된 것이다. 현재 래퍼는 실행파일 경로 **하나만** 변수에 담고
-따옴표로 감싸 실행하므로 이 문제가 없다. `git pull` 로 최신 `scripts/` 를 받으면
-해결된다.
+로그는 `logs\pipeline.log` 한 곳에 쌓인다.
 
 ```
-"%PYEXE%" "getdata\build_f3.py"
-```
-
-**② 작업의 [동작]을 python.exe 로 직접 지정**
-
-- 프로그램: `C:\...\python.exe`
-- 인수: `getdata\build_f3.py`
-- 시작 위치: 프로젝트 루트
-
-이 경우 06/14/22 시 get_move 연동이 빠지므로 `run_get_move.bat` 을 별도
-작업으로 등록해야 한다. ① 방식을 권한다.
-
-정상 실행 시 로그에 아래가 남는다.
-
-```
-[ENV] cwd=D:\PERSONAL_SPACE\SW\python\7_holdwaitanal
-[ENV] python="C:\...\python.exe"
+===== 2026-08-14 10:15:01 =====
+[ENV] python=C:\Users\...\aipforge\python.exe
+--- build_f3 ---
 ...
 [EXIT] build_f3 =0
+--- get_move ---
+...
+[EXIT] get_move =0
+```
+
+`[EXIT] ... =0` 이 아니면 그 단계가 실패한 것이다.
+
+## 수동 실행
+
+같은 파일에 인수를 붙이면 된다.
+
+```
+scripts\run_pipeline.bat --force              새 회차가 아니어도 build_f3 강제 실행
+scripts\run_pipeline.bat --move-only --full   MOVE 만 3개월 재적재
+scripts\run_pipeline.bat --move-only --hours 6
+scripts\run_pipeline.bat --f3-only
+```
+
+## 기존 작업 정리
+
+이전에 `run_build_f3.bat` 을 등록해 두었다면 **그 작업의 프로그램 경로만
+`run_pipeline.bat` 으로 바꾸면 된다.** 트리거는 30분 간격으로 맞춘다.
+
+아래 파일들은 삭제했다. 스케줄러에 남아 있으면 지운다.
+
+```
+scripts\run_build_f3.bat        -> run_pipeline.bat 으로 통합
+scripts\run_get_move.bat        -> run_pipeline.bat --move-only
+scripts\_find_python.bat        -> run_pipeline.bat 안에 흡수
+scripts\run_spotfire_refresh.bat-> 미사용. Spotfire 는 텍스트영역 JS 가 자동 실행
+```
+
+## 파일 규칙
+
+`.bat` 은 **ASCII + CRLF** 로만 저장한다. UTF-8 이나 LF 로 저장하면 cmd 가
+파싱에 실패해 로그조차 남지 않는다.
+
+python 실행기는 이 순서로 찾는다.
+
+```
+HOLDWAITANAL_PYTHON 환경변수  ->  PATH 의 python  ->  py -3
+```
+
+`[ERROR] python not found` 가 뜨면 환경변수를 지정한다.
+
+```
+setx HOLDWAITANAL_PYTHON "C:\Users\minuk12.choi\AppData\Local\aipforge\python.exe"
 ```

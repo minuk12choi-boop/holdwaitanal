@@ -160,52 +160,14 @@ Windows 절전에 들어가면 Spotfire 도 멈춘다.
 
 ---
 
-## 방안 B. 작업 스케줄러가 열고 닫기
-
-15분마다 Spotfire 를 새로 띄우고, 업로드가 끝나면 스스로 종료시킨다.
-
-**단점이 크다.** Spotfire 기동에만 30초~1분이 걸리고, 라이선스 체크·로그인
-세션 문제가 생길 수 있으며, 뜨는 창이 화면을 계속 가로챈다.
-**A 가 가능하면 A 를 쓴다.**
-
-### 구현
-
-**① 분석 파일에 종료 스크립트 등록**
-
-data function 실행 후 문서를 닫는 IronPython 을 마지막에 태운다.
-
-```python
-from Spotfire.Dxp.Application import Application
-Application.Current.Close()
-```
-
-**② 배치 파일** (`scripts/run_spotfire_refresh.bat`)
-
-```bat
-@echo off
-setlocal
-set DXP="C:\Program Files (x86)\TIBCO\Spotfire\12.0.4\Spotfire.Dxp.exe"
-set FILE="D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\MFM.dxp"
-start "" /wait %DXP% %FILE%
-endlocal
-```
-
-**③ 작업 스케줄러**
-
-- 트리거: 매일 00:00 시작, **15분 간격** 반복, 기간 1일
-- 설정: `새 인스턴스 시작 안 함` (겹침 방지)
-- **사용자가 로그온할 때만 실행** (GUI 앱이라 세션이 필요하다)
-
----
-
 ## 정리
 
 | 방안 | 난이도 | 안정성 | 권장 |
 |---|---|---|---|
-| A. Spotfire 상주 + 자동 새로고침 | 중 | 상 | **이것** |
-| B. 스케줄러가 열고 닫기 | 중 | 하 | A 가 안 될 때만 |
+| A. Spotfire 상주 + 텍스트영역 JS 자동 실행 | 중 | 상 | **채택** |
 
-(Oracle 직접 접속은 권한이 없어 불가.)
+Oracle 직접 접속은 사내 정책상 불가. 스케줄러가 Spotfire 를 열고 닫는 방식(B)은
+분석 파일을 닫을 API 가 없어 폐기했다.
 
 
 ### 함께 조정할 것

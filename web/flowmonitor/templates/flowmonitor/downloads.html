@@ -1,4 +1,5 @@
 {% extends "flowmonitor/base.html" %}
+{% load humanize %}
 {% block body %}
 <style>
   .dl { padding:16px; }
@@ -72,14 +73,14 @@
                   <td><span class="c">계 ({{ src_total.n }}개)</span></td>
                   <td><span class="c">{{ src_total.qt_min|default:"-" }}
                     ~ {{ src_total.qt_max|default:"-" }}</span></td>
-                  <td class="num">{{ src_total.rows }}</td>
+                  <td class="num">{{ src_total.rows|floatformat:0|intcomma }}</td>
                 </tr>
                 {% endif %}
                 {% for r in sources %}
                 <tr>
                   <td><span class="c">{{ r.table }}</span></td>
                   <td><span class="c">{{ r.qt|default:"-" }}</span></td>
-                  <td class="num">{{ r.rows|default:"" }}</td>
+                  <td class="num">{{ r.rows|intcomma }}</td>
                 </tr>
                 {% empty %}
                 <tr><td colspan="3" class="kind">기록 없음</td></tr>
@@ -108,7 +109,7 @@
                   <td class="num">{{ load_total.sec }}{% if load_total.wall %}
                     <span style="color:var(--mut);font-weight:400">
                       / {{ load_total.wall }}</span>{% endif %}</td>
-                  <td class="num">{{ load_total.rows }}</td>
+                  <td class="num">{{ load_total.rows|intcomma }}</td>
                   <td></td>
                 </tr>
                 {% endif %}
@@ -119,7 +120,7 @@
                   <td><span class="c">{{ r.start|date:'H:i:s'|default:"-" }}</span></td>
                   <td><span class="c">{{ r.end|date:'H:i:s'|default:"-" }}</span></td>
                   <td class="num">{{ r.sec }}</td>
-                  <td class="num">{{ r.rows|default:"" }}</td>
+                  <td class="num">{{ r.rows|intcomma }}</td>
                   <td class="num">{{ r.cols|default:"" }}</td>
                 </tr>
                 {% empty %}

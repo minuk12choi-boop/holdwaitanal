@@ -1263,6 +1263,8 @@ def api_lots_live(request):
              else list(DEFAULT_LOT_TYPES))
     wt_range = request.GET.get("wt_range", "")
     wt0 = request.GET.get("wt0", "")
+    lot_type = request.GET.get("lot_type", "")     # 재공 구성 막대에서
+    status = request.GET.get("status", "")         # status 원차트에서
     big = request.GET.get("big", "")
     mid = request.GET.get("mid", "")
     sub = request.GET.get("sub", "")
@@ -1275,8 +1277,13 @@ def api_lots_live(request):
     rules = _cause_rules()
 
     out = []
+    tot_qty = 0
     for r in rows:
         q = num(r.get("qty"))
+        if lot_type and (r.get("lot_type") or "-") != lot_type:
+            continue
+        if status and (r.get("lot_status") or "-") != status:
+            continue
         wt = (mv.get(r["lot_id"], 0.0) / q) if q else 0.0
         if wt_range and _wt_range_key(wt) != wt_range:
             continue
@@ -1294,9 +1301,11 @@ def api_lots_live(request):
         rec["wt"] = round(wt, 2)
         rec["cause"] = " / ".join(x for x in (b2, m2) if x)
         out.append({c: rec.get(c) for c, _ in LOT_DETAIL_COLS})
+        tot_qty += q
 
     out.sort(key=lambda x: (x["wt"], str(x["lot_id"])))
     return JsonResponse({
         "rows": out, "cols": [{"k": c, "t": t} for c, t in LOT_DETAIL_COLS],
+        "lots": len(out), "qty": tot_qty,
         "line": line, "snapshot_at": str(snap) if snap else "",
     }, json_dumps_params={"ensure_ascii": False})

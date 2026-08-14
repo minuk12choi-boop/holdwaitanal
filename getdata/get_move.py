@@ -198,6 +198,12 @@ def aggregate(df, ts_from, ts_to):
 
 def main():
     ap = argparse.ArgumentParser(description="MOVE 조회/적재")
+    # run_pipeline.bat 이 걸러내지 못한 경우를 대비해 무해하게 흡수한다.
+    ap.add_argument("--force", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--f3-only", dest="f3_only", action="store_true",
+                    help=argparse.SUPPRESS)
+    ap.add_argument("--move-only", dest="move_only", action="store_true",
+                    help=argparse.SUPPRESS)
     ap.add_argument("--full", action="store_true", help=f"{INIT_MONTHS}개월치 재적재")
     ap.add_argument("--hours", type=int, default=0,
                     help="최근 N시간 (shift 시작으로 정렬). 예: --hours 6")

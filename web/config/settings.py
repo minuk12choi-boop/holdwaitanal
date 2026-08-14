@@ -19,6 +19,7 @@ ALLOWED_HOSTS = [h.strip() for h in
                  if h.strip()]
 
 INSTALLED_APPS = [
+    "django.contrib.humanize",
     "django.contrib.staticfiles",
     "flowmonitor",
 ]

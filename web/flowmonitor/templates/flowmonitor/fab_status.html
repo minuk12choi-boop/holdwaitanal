@@ -397,6 +397,7 @@ function renderWt0() {
 const czCharts = [null, null, null];
 let czDrill = null;
 let CZ_SEL = { i: -1, path: [] };          // 한 번에 하나만 파고든다
+let DRILL_KEY = { node: null };            // 표가 어느 막대에서 나왔는지
 
 function czGroup(i) { return (DATA.causes || [])[i] || { name: "", children: [] }; }
 
@@ -422,25 +423,45 @@ function czLabel(v, max) {
   return v.length > max ? v.slice(0, max - 1) + "…" : v;
 }
 
-function czReset() { CZ_SEL = { i: -1, path: [] }; renderCause(); }
+function czReset() {
+  CZ_SEL = { i: -1, path: [] };
+  DRILL_KEY = { node: null };
+  closeDrill();
+  renderCause();
+}
 function czGo(depth) { CZ_SEL.path = CZ_SEL.path.slice(0, depth); renderCause(); }
 
 function czPick(i, node) {
-  if (CZ_SEL.i !== i) { CZ_SEL = { i: i, path: [] }; }
-  CZ_SEL.path.push({ name: node.name, kind: node.kind || "sub" });
-  renderCause();
-  if (!(node.children && node.children.length)) {
-    openDrill(czFilter(), [czGroup(i).name]
-      .concat(CZ_SEL.path.map(p => p.name)).join(" › "));
+  if (!node) { return; }
+  const leaf = !(node.children && node.children.length);
+
+  if (leaf) {
+    // 말단: 차트는 그대로 두고 아래 표만 바꾼다. 선택 표시를 위해 이름만 기억.
+    const path = (CZ_SEL.i === i) ? CZ_SEL.path.slice() : [];
+    const keep = path.filter(p => p.kind !== "all");
+    const f = { big: czGroup(i).name };
+    for (const p of keep) { f[p.kind === "mid" ? "mid" : "sub"] = p.name; }
+    f[node.kind === "mid" ? "mid" : "sub"] = node.name;
+    DRILL_KEY = { node: node.name };
+    renderCause();
+    openDrill(f, [czGroup(i).name].concat(keep.map(p => p.name))
+                 .concat([node.name]).join(" › "), "원인 분석");
+    return;
   }
+
+  if (CZ_SEL.i !== i) { CZ_SEL = { i: i, path: [] }; }
+  CZ_SEL.path = CZ_SEL.path.filter(p => p.kind !== "all");
+  CZ_SEL.path.push({ name: node.name, kind: node.kind || "sub" });
+  DRILL_KEY = { node: null };
+  closeDrill();                 // 상위 단계로 옮겨가면 이전 표는 무효다
+  renderCause();
 }
 
 // x축 라벨을 세로(시계방향 90도)로 세우고 길면 줄인다.
 const CZ_SCALE_X = {
   grid: { display: false },
-  ticks: { font: { size: 9 }, autoSkip: false,
-           maxRotation: 90, minRotation: 90,
-           callback: function (v) { return czLabel(this.getLabelForValue(v), 14); } }
+  ticks: { font: { size: 9 }, autoSkip: false, maxRotation: 0, minRotation: 0,
+           callback: function (v) { return czLabel(this.getLabelForValue(v), 10); } }
 };
 
 function czBarChart(canvasId, onPick, pluginId) {
@@ -477,7 +498,18 @@ function czBarChart(canvasId, onPick, pluginId) {
   });
 }
 
-function czApply(ch, nodes, u) {
+// 선택된 막대에 테두리를 준다. 사이트 내 모든 드릴다운 차트가 같은 방식을 쓴다.
+const SEL_BORDER = "#DC143C";
+
+function markSelected(ch, selIdx) {
+  const n = ch.data.datasets[0].data.length;
+  ch.data.datasets[0].borderColor =
+    Array.from({ length: n }, (_, k) => k === selIdx ? SEL_BORDER : "transparent");
+  ch.data.datasets[0].borderWidth =
+    Array.from({ length: n }, (_, k) => k === selIdx ? 2 : 0);
+}
+
+function czApply(ch, nodes, u, selName) {
   const vals = nodes.map(x => u === "lots" ? x.lots : x.qty);
   const mx = Math.max.apply(null, vals.concat([1]));
   ch.$nodes = nodes;
@@ -485,14 +517,21 @@ function czApply(ch, nodes, u) {
   ch.data.datasets[0].data = vals;
   ch.data.datasets[0].backgroundColor = vals.map(v =>
     `rgba(47,75,124,${(0.3 + 0.7 * v / mx).toFixed(2)})`);
+  markSelected(ch, nodes.findIndex(x => x.name === selName));
   ch.update();
 }
 
 const CZ_TOP = 5;        // 상단 요약 차트
 const CZ_DEEP = 15;      // 드릴다운 차트
 
+function czShowAll(i) {          // 제목 클릭 = 전체를 차트로 펼친다
+  CZ_SEL = { i: i, path: [{ name: "__ALL__", kind: "all" }] };
+  renderCause();
+}
+
 function renderCause() {
   const u = CAUSE_UNIT;
+  const unit = (u === "lots") ? " LOT" : " 매";
 
   for (let i = 0; i < 3; i++) {
     const g = czGroup(i);
@@ -502,19 +541,20 @@ function renderCause() {
 
     const hd = document.getElementById("czh" + i);
     hd.innerHTML = `<span>${g.name || "-"}</span>`
-      + `<span class="v">${nf(u === "lots" ? g.lots : g.qty)}`
-      + `${u === "lots" ? " LOT" : " 매"}`
-      + `${more > 0 ? " · 상위" + nodes.length : ""}</span>`;
-    hd.onclick = function () { openDrill({ big: g.name }, g.name + " 전체"); };
+      + `<span class="v">전체 ${nf(u === "lots" ? g.lots : g.qty)}${unit}</span>`;
+    hd.onclick = function () { czShowAll(i); };
 
     document.getElementById("czp" + i).innerHTML = more > 0
-      ? `<span style="color:var(--mut)">그 외 ${more}개는 제목 클릭</span>` : "";
+      ? `<span class="minittl">차트는 상위 ${nodes.length}개 · `
+        + `<a onclick="czShowAll(${i})">그 외 ${more}개 보기</a></span>`
+      : `<span class="minittl">${all.length}개</span>`;
 
     if (!czCharts[i]) {
       czCharts[i] = czBarChart("czc" + i,
         (idx) => czPick(i, (czCharts[i].$nodes || [])[idx]), "czVal" + i);
     }
-    czApply(czCharts[i], nodes, u);
+    const sel = (CZ_SEL.i === i && CZ_SEL.path.length) ? CZ_SEL.path[0].name : null;
+    czApply(czCharts[i], nodes, u, sel);
   }
 
   // ── 드릴다운 차트 ──────────────────────────────────────────────────
@@ -522,29 +562,27 @@ function renderCause() {
   if (CZ_SEL.i < 0 || !CZ_SEL.path.length) { box.style.display = "none"; return; }
 
   const g = czGroup(CZ_SEL.i);
-  const nodes = czNodesAt(CZ_SEL.i, CZ_SEL.path).slice(0, CZ_DEEP);
-  const cur = CZ_SEL.path[CZ_SEL.path.length - 1];
+  const isAll = CZ_SEL.path[0].kind === "all";
+  const nodes = (isAll ? (g.children || [])
+                       : czNodesAt(CZ_SEL.i, CZ_SEL.path)).slice(0, CZ_DEEP);
 
-  if (!nodes.length) {            // 말단이면 차트가 없다. 표만 남는다.
-    box.style.display = "none";
-    return;
-  }
+  if (!nodes.length) { box.style.display = "none"; return; }
   box.style.display = "block";
+
+  const names = CZ_SEL.path.filter(p => p.kind !== "all").map(p => p.name);
   document.getElementById("czdttl").textContent =
-    g.name + " › " + cur.name;
-  document.getElementById("czdcnt").textContent =
-    nodes.length + "개 표시" + (nodes.length >= CZ_DEEP ? " (상위 15)" : "");
+    [g.name].concat(names).join(" › ") + (isAll ? " 전체" : "");
+  document.getElementById("czdcnt").textContent = nodes.length + "개";
   document.getElementById("czdpath").innerHTML =
-    `<span class="czback" onclick="czGo(${CZ_SEL.path.length - 1})">◀ 뒤로</span>`
-    + `<a onclick="czReset()">닫기</a>`
-    + CZ_SEL.path.map((p, k) =>
-        ` &rsaquo; <a onclick="czGo(${k + 1})">${p.name}</a>`).join("");
+    `<span class="czback" onclick="czGo(${Math.max(CZ_SEL.path.length - 1, 0)})">`
+    + `◀ 뒤로</span><a onclick="czReset()">닫기</a>`
+    + names.map((n, k) => ` &rsaquo; <a onclick="czGo(${k + 1})">${n}</a>`).join("");
 
   if (!czDrill) {
     czDrill = czBarChart("czdc",
       (idx) => czPick(CZ_SEL.i, (czDrill.$nodes || [])[idx]), "czdVal");
   }
-  czApply(czDrill, nodes, u);
+  czApply(czDrill, nodes, u, DRILL_KEY.node);
 }
 
 /* --- 드릴다운 --- */
