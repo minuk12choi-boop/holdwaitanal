@@ -1,35 +1,123 @@
-mysql> mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
-ERROR:
-Unknown command '\b'.
-ERROR:
-Unknown command '\a'.
-    -> mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
-ERROR:
-Unknown command '\b'.
-ERROR:
-Unknown command '\a'.
-    -> exit
-    ->
-    -> ;
-ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
-mysqldump -u m' at line 1
-mysql> mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
-ERROR:
-Unknown command '\b'.
-ERROR:
-Unknown command '\a'.
-    -> exit
-    -> ;
-ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
-exit' at line 1
-mysql> mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql;
-ERROR:
-Unknown command '\b'.
-ERROR:
-Unknown command '\a'.
-ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql' at line 1
-mysql> exit
-Bye
+C:\Users\minuk12.choi>mkdir D:\backup
 
-C:\Users\minuk12.choi>mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
-지정된 경로를 찾을 수 없습니다.
+C:\Users\minuk12.choi>mysql> mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
+Enter password: ******
+ERROR 1045 (28000): Access denied for user 'minuk12.choi'@'localhost' (using password: YES)
+
+C:\Users\minuk12.choi>Unknown command '\b'.
+'Unknown'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>ERROR:
+'ERROR:'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>Unknown command '\a'.
+'Unknown'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>    -> mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
+'-'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>ERROR:
+'ERROR:'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>Unknown command '\b'.
+'Unknown'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>ERROR:
+'ERROR:'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>Unknown command '\a'.
+'Unknown'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>    -> exit
+'-'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>    ->
+명령 구문이 올바르지 않습니다.
+
+C:\Users\minuk12.choi>    -> ;
+명령 구문이 올바르지 않습니다.
+
+C:\Users\minuk12.choi>ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
+'ERROR'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>mysqldump -u m' at line 1
+mysqldump: Got error: 1045: Access denied for user 'm''@'localhost' (using password: NO) when trying to connect
+
+C:\Users\minuk12.choi>mysql> mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
+Enter password: ******
+ERROR 1045 (28000): Access denied for user 'minuk12.choi'@'localhost' (using password: YES)
+
+C:\Users\minuk12.choi>Unknown command '\b'.
+'Unknown'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>ERROR:
+'ERROR:'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>Unknown command '\a'.
+'Unknown'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>    -> exit
+'-'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>    -> ;
+명령 구문이 올바르지 않습니다.
+
+C:\Users\minuk12.choi>ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
+'ERROR'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>exit' at line 1
+'exit''은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>mysql> mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql;
+
+C:\Users\minuk12.choi>ERROR:
+'ERROR:'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>Unknown command '\b'.
+'Unknown'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>ERROR:
+'ERROR:'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>Unknown command '\a'.
+'Unknown'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql' at line 1
+'ERROR'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>mysql> exit
+ERROR 1045 (28000): Access denied for user 'ODBC'@'localhost' (using password: NO)
+
+C:\Users\minuk12.choi>Bye
+'Bye'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>
+C:\Users\minuk12.choi>C:\Users\minuk12.choi>mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
+'C:\Users\minuk12.choi'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는
+배치 파일이 아닙니다.
+
+C:\Users\minuk12.choi>지정된 경로를 찾을 수 없습니다.
+
+
