@@ -1,130 +1,18 @@
-C:\Users\minuk12.choi>mysql -u minuk12.choi -p app_db
-Enter password: **********
-Welcome to the MySQL monitor.  Commands end with ; or \g.
-Your MySQL connection id is 8
-Server version: 8.0.45 MySQL Community Server - GPL
+<RUNLOG 레이블>
+14:39:14 완료 (테이블 9개)
 
-Copyright (c) 2000, 2026, Oracle and/or its affiliates.
+<tick>
+2시30분에 시작해서 2시30분 10초에 끝남.
 
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
-
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
-
-mysql> USE app_db;
-Database changed
-mysql> SHOW TABLES;
-+------------------------------------+
-| Tables_in_app_db                   |
-+------------------------------------+
-| auth_group                         |
-| auth_group_permissions             |
-| auth_permission                    |
-| auth_user                          |
-| auth_user_groups                   |
-| auth_user_user_permissions         |
-| cause_rules                        |
-| django_admin_log                   |
-| django_content_type                |
-| django_migrations                  |
-| django_session                     |
-| f3_history                         |
-| f3_history_meta                    |
-| f3_live                            |
-| f3_load_log                        |
-| facts_access_history               |
-| facts_audit_log                    |
-| facts_capa_capa                    |
-| facts_capa_cln_info                |
-| facts_capa_compat_group            |
-| facts_capa_eqp_info                |
-| facts_capa_input_plan              |
-| facts_capa_lp_sb                   |
-| facts_capa_peanut                  |
-| facts_capa_survival_rate           |
-| facts_capa_version_history         |
-| facts_compat_plan                  |
-| facts_dashboard_config             |
-| facts_dashboard_graph_cache        |
-| facts_dashboard_metric_daily       |
-| facts_department_master            |
-| facts_dept_access_rule             |
-| facts_edit_history                 |
-| facts_eqp_model                    |
-| facts_eval_stage_master            |
-| facts_filter_cache                 |
-| facts_filter_option_cache          |
-| facts_goal                         |
-| facts_guide_document               |
-| facts_guide_page                   |
-| facts_history_summary_cache        |
-| facts_kpi_target                   |
-| facts_line_master                  |
-| facts_oee_raw                      |
-| facts_ppid_eqp_history             |
-| facts_ppid_recommend_summary       |
-| facts_prevent_line_baseline        |
-| facts_prevent_rule_master          |
-| facts_prevent_tip_rule             |
-| facts_step_feedback                |
-| facts_step_path_override           |
-| facts_step_plan                    |
-| facts_tip_missing_compat_path      |
-| facts_voc_answer_status_master     |
-| facts_voc_comment                  |
-| facts_voc_post                     |
-| facts_wip_source                   |
-| hold_type_definition               |
-| lot_product_match                  |
-| main_equipment_setting             |
-| main_product_setting               |
-| move_daily                         |
-| move_lot                           |
-| move_shift                         |
-| multiwip_bottleneck_threshold_rule |
-| multiwip_f2_current                |
-| multiwip_f3_current                |
-| multiwip_f3_snapshot               |
-| multiwip_filter_cache              |
-| multiwip_grade_capa_rule           |
-| multiwip_hold_type_rule            |
-| multiwip_hot_comment               |
-| multiwip_hot_lot_daily             |
-| multiwip_hot_move_history          |
-| multiwip_hot_rule                  |
-| multiwip_hot_schedule_snapshot     |
-| multiwip_line_code                 |
-| multiwip_load_log                  |
-| multiwip_lot_transn_hist           |
-| multiwip_module_rule               |
-| multiwip_move_daily                |
-| multiwip_move_time_rule            |
-| multiwip_product_rule              |
-| multiwip_prtime                    |
-| multiwip_summary_pivot_rule        |
-| multiwip_wait_time_weight_rule     |
-| product_identifier_rule            |
-| wip_history_nrdp                   |
-| wip_move                           |
-| wip_move_group                     |
-| wip_ref_exclusion_type_rule        |
-| wip_ref_hot_lot_rule               |
-| wip_ref_line_code_rule             |
-| wip_ref_module_rule                |
-| wip_ref_product_rule               |
-| wip_report_lotpath                 |
-+------------------------------------+
-96 rows in set (0.01 sec)
-
-mysql> SELECT table_name, table_rows FROM information_schema.TABLES WHERE table_schema='app_db' LIMIT 5;
-+------------------------+------------+
-| TABLE_NAME             | TABLE_ROWS |
-+------------------------+------------+
-| auth_group             |          0 |
-| auth_group_permissions |          0 |
-| auth_permission        |        260 |
-| auth_user              |         67 |
-| auth_user_groups       |          0 |
-+------------------------+------------+
-5 rows in set (0.00 sec)
+<upload_log>
+table	status	rows	cols	query_time	serialize_sec	upload_sec	detail	start	end	elapsed_sec	script_total_sec
+PFR1_KFR7_SSPS_PROD_NAME	SKIP	0	0		0	0	입력 파라미터 미등록	2026-08-14 오후 2:44:07	2026-08-14 오후 2:44:07	0	39.12
+PFR1_KFR7_LOT	OK	9131	22	2026-08-14 14:34:55	0.05	0.11	0.7 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_LOT.parquet	2026-08-14 오후 2:44:07	2026-08-14 오후 2:44:07	0.16	39.12
+PFR1_KFR7_MOVE	OK	64698	18	2026-08-14 14:35:05	0.24	0.38	3.4 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MOVE.parquet	2026-08-14 오후 2:44:45	2026-08-14 오후 2:44:45	0.62	39.12
+PFR1_KFR7_HOLD	OK	7288	10	2026-08-14 14:35:18	0.02	0.04	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_HOLD.parquet	2026-08-14 오후 2:44:45	2026-08-14 오후 2:44:45	0.06	39.12
+PFR1_KFR7_EQP_GROUP	OK	13115	4	2026-08-14 14:35:38	0.01	0.02	0.1 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQP_GROUP.parquet	2026-08-14 오후 2:44:45	2026-08-14 오후 2:44:45	0.04	39.12
+PFR1_KFR7_STEP_PATH	OK	5779273	17	2026-08-14 14:35:46	7.81	1.46	70.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_STEP_PATH.parquet	2026-08-14 오후 2:44:08	2026-08-14 오후 2:44:17	9.28	39.12
+PFR1_KFR7_TIP	OK	9913695	12	2026-08-14 14:38:09	26.17	1.32	68.4 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_TIP.parquet	2026-08-14 오후 2:44:17	2026-08-14 오후 2:44:44	27.49	39.12
+PFR1_KFR7_MATERIALWORKSTATUS	OK	150747	4	2026-08-14 14:38:57	0.1	0.07	0.9 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MATERIALWORKSTATUS.parquet	2026-08-14 오후 2:44:07	2026-08-14 오후 2:44:08	0.17	39.12
+PFR1_KFR7_EQUIPMENT	OK	19373	8	2026-08-14 14:39:05	0.08	0.04	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQUIPMENT.parquet	2026-08-14 오후 2:44:44	2026-08-14 오후 2:44:45	0.12	39.12
+_manifest.json	OK	8	0	2026-08-14 14:39:05	0	0	완결 표시. 읽는 쪽은 이 파일로 최신 여부를 판단한다.	2026-08-14 오후 2:44:06	2026-08-14 오후 2:44:45	39.11	39.12
