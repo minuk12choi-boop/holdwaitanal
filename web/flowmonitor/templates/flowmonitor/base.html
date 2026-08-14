@@ -150,9 +150,10 @@
   /* 본문 */
   main { display:flex; gap:16px; padding:16px; align-items:flex-start; }
   .left { flex:0 0 32%; min-width:400px; }
-  .detail { flex:1; border:1px solid var(--bd); border-radius:6px; padding:0;
+  .detail { flex:1; border:1px solid var(--bd); border-radius:6px;
+            padding:11px 12px; background:#fff;
             overflow:hidden; scroll-margin-top:16px; }
-  .detail .empty { padding:22px 16px; color:var(--mut); font-size:13px; }
+  .detail .empty { padding:14px 4px; color:var(--mut); font-size:13px; }
   .panel { border:1px solid var(--bd); border-radius:6px; padding:10px 12px 6px;
            margin-bottom:10px; }
   .panel h2 { margin:0; font-size:14px; display:flex;
@@ -285,6 +286,9 @@
   .cz3 > .czcol { padding:0 10px; border-right:1px solid var(--bd); }
   .cz3 > .czcol:first-child { padding-left:0; }
   .cz3 > .czcol:last-child { border-right:0; padding-right:0; }
+  /* 재공 구성 막대 등 canvas 가 아닌 요소의 선택 표시(차트의 3D 팝업과 동일 개념) */
+  .stack i.pop { box-shadow:3px -3px 9px rgba(17,24,39,0.45); position:relative;
+                 z-index:2; filter:brightness(1.12); }
   .czh { cursor:pointer; }
   .czh:hover span:first-child { text-decoration:underline; }
   .czpath { font-size:11px; color:var(--mut); margin-bottom:4px; min-height:16px; }

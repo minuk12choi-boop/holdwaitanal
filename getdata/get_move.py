@@ -102,26 +102,27 @@ def shift_start_at_or_before(ts):
                                                second=0, microsecond=0)
 
 
-def _append_load_log(conn, started, ended, src_rows, lot_rows):
-    """f3_load_log 에 MOVE 처리 구간을 덧붙인다.
+def _append_load_log(conn, rows):
+    """f3_load_log 에 MOVE 구간을 덧붙인다.
 
-    build_f3 가 이미 그 스냅샷 행을 다 써 둔 뒤라 DELETE 없이 INSERT 만 한다.
+    build_f3 가 이미 그 스냅샷 행을 써 둔 뒤라 자기 행만 지우고 INSERT 한다.
     """
     with conn.cursor() as cur:
         cur.execute("SELECT MAX(snapshot_at) FROM f3_live")
-        row = cur.fetchone()
-        snap = row[0] if row else None
+        r = cur.fetchone()
+        snap = r[0] if r else None
         if not snap:
             return
-        cur.execute("DELETE FROM f3_load_log WHERE snapshot_at=%s AND table_name=%s",
-                    (snap, "move 적재"))
-        cur.execute(
+        names = tuple(x[0] for x in rows)
+        ph = ",".join(["%s"] * len(names))
+        cur.execute(f"DELETE FROM f3_load_log WHERE snapshot_at=%s "
+                    f"AND table_name IN ({ph})", (snap,) + names)
+        cur.executemany(
             "INSERT INTO f3_load_log (snapshot_at, table_name, load_start, load_end,"
             " elapsed_sec, row_count, col_count, kind, query_time)"
             " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NULL)",
-            (snap, "move 적재", started, ended,
-             round((ended - started).total_seconds(), 2),
-             int(src_rows), int(lot_rows), "처리"))
+            [(snap, n, st, en, round((en - st).total_seconds(), 2), rc, cc, kind)
+             for n, st, en, rc, cc, kind in rows])
     conn.commit()
 
 
@@ -236,6 +237,7 @@ def main():
             t = DB.to_datetime(df["tkout_date"])
             keep = (t >= ts_from) & (t < ts_to)
             df = df[keep.fillna(False)]
+    t_fetched = dt.datetime.now()
     print(f"[MOVE] 원천 {len(df):,}행 {perf_counter() - t0:.1f}s", flush=True)
 
     df_shift, df_daily, df_lot = aggregate(df, ts_from, ts_to)
@@ -258,7 +260,11 @@ def main():
     # 다운로드 화면의 '처리 구간' 에 MOVE 도 보이게 한다.
     # build_f3 와 다른 프로세스라 f3_live 의 최신 스냅샷에 붙인다.
     try:
-        _append_load_log(conn, t_start, dt.datetime.now(), len(df), len(df_lot))
+        _append_load_log(conn, [
+            ("move 조회", t_start, t_fetched, len(df), df.shape[1], "조회"),
+            ("move 적재", t_fetched, dt.datetime.now(),
+             len(df_lot), len(df_shift), "처리"),
+        ])
     except Exception as e:
         print(f"[MOVE] load_log 기록 실패(무시): {e}", flush=True)
 
