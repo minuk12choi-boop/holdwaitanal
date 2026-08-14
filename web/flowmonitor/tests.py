@@ -37,17 +37,33 @@ class TemplateJsTest(SimpleTestCase):
                 self.assertEqual(html.count(key), 1,
                                  f"{name}: {key} 가 {html.count(key)}회")
 
+    @staticmethod
+    def _strip_literals(js):
+        """문자열/템플릿/주석을 걷어낸다.
+
+        괄호 세기는 코드 구조만 봐야 한다. 안내 문구에 '(1회)' 같은 괄호가
+        들어가면 짝이 안 맞는 것처럼 보여 오탐이 난다.
+        """
+        js = re.sub(r"/\*.*?\*/", " ", js, flags=re.S)        # /* */
+        js = re.sub(r"(?m)//.*$", " ", js)                      # //
+        js = re.sub(r"`(?:\\.|[^`\\])*`", "``", js)             # 템플릿
+        js = re.sub(r"'(?:\\.|[^'\\\n])*'", "''", js)           # '...'
+        js = re.sub(r'"(?:\\.|[^"\\\n])*"', '""', js)           # "..."
+        return js
+
     def test_braces_balanced(self):
         for name in PAGES:
             _, js = self._js(name)
+            code = self._strip_literals(js)
             for a, b in (("{", "}"), ("(", ")"), ("[", "]")):
-                self.assertEqual(js.count(a), js.count(b),
+                self.assertEqual(code.count(a), code.count(b),
                                  f"{name}: {a}{b} 개수 불일치")
 
     def test_no_unclosed_top_level_block(self):
         for name in PAGES:
             _, js = self._js(name)
+            code = self._strip_literals(js)
             depth = 0
-            for line in js.splitlines():
+            for line in code.splitlines():
                 depth += line.count("{") - line.count("}")
             self.assertEqual(depth, 0, f"{name}: 닫히지 않은 블록")
