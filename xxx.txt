@@ -1,3 +1,85 @@
-mysql> SHOW GRANTS FOR 'minuk12.choi'@'localhost';
-ERROR 1141 (42000): There is no such grant defined for user 'minuk12.choi' on host 'localhost'
-mysql>
+<P><BR><SpotfireControl id="0963b0fd531a4c3caaf159001748e373" /></P>
+<SCRIPT>
+(function () {
+  var PERIOD_MIN  = 30;
+  var MIN_GAP_MIN = 15;
+  var FIRST_DELAY = 60000;
+  var MAX_WAIT    = 15 * 60 * 1000;
+
+  // 상태는 window 에 둔다. 텍스트영역이 다시 렌더링돼도 살아남아야
+  // 중복 실행을 막을 수 있다. (runlog 가 바뀔 때마다 재렌더링된다)
+  var S = window.__MFM = window.__MFM || { to: [], iv: [], busy: false,
+                                           startedAt: 0, lastEnd: 0 };
+
+  S.to.forEach(function (t) { clearTimeout(t); });   // 이전 인스턴스 정리
+  S.iv.forEach(function (t) { clearInterval(t); });  // 인터벌은 clearInterval
+  S.to = []; S.iv = [];
+
+  function later(fn, ms) { S.to.push(setTimeout(fn, ms)); }
+  function every(fn, ms) { var id = setInterval(fn, ms); S.iv.push(id); return id; }
+  function now() { return new Date().toLocaleTimeString(); }
+
+  function findBtn() {
+    var tick = document.getElementById("tick");
+    if (!tick) { return null; }
+    var box = tick.parentNode;
+    for (var i = 0; i < 5 && box; i++) {
+      var b = box.querySelectorAll(
+        "input[type='button'], input[type='submit'], button");
+      if (b.length) { return b[0]; }
+      box = box.parentNode;
+    }
+    return null;
+  }
+
+  function fire() {
+    var t = document.getElementById("tick");
+    var b = findBtn();
+    if (!b) { if (t) { t.innerText = "✕ 버튼을 찾지 못함 " + now(); } return; }
+
+    if (S.busy && Date.now() - S.startedAt < MAX_WAIT) {
+      if (t) { t.innerText += " · " + now() + " 건너뜀(실행 중)"; }
+      return;
+    }
+    if (MIN_GAP_MIN && S.lastEnd &&
+        Date.now() - S.lastEnd < MIN_GAP_MIN * 60 * 1000) {
+      var left = Math.ceil(
+        (MIN_GAP_MIN * 60 * 1000 - (Date.now() - S.lastEnd)) / 60000);
+      if (t) { t.innerText += " · " + now() + " 건너뜀(" + left + "분 더)"; }
+      return;
+    }
+
+    S.busy = true;
+    S.startedAt = Date.now();
+    var began = now();
+    if (t) { t.innerText = "▶ 시작 " + began + " · 실행 중…"; }
+    later(function () { b.click(); }, 50);
+
+    var watch = every(function () {
+      var log = document.body.innerText || "";
+      if (log.indexOf("완료 (테이블") >= 0 && Date.now() - S.startedAt > 10000) {
+        S.busy = false; S.lastEnd = Date.now(); clearInterval(watch);
+        var tt = document.getElementById("tick");
+        if (tt) { tt.innerText = "▶ 시작 " + began + " · 완료 " + now(); }
+      } else if (Date.now() - S.startedAt > MAX_WAIT) {
+        S.busy = false; S.lastEnd = Date.now(); clearInterval(watch);
+      }
+    }, 5000);
+  }
+
+  function msToNextSlot() {
+    var d = new Date();
+    var next = (Math.floor(d.getMinutes() / PERIOD_MIN) + 1) * PERIOD_MIN;
+    var t = new Date(d);
+    t.setMinutes(next, 0, 0);
+    return t - d;
+  }
+  function scheduleNext() {
+    later(function () { fire(); scheduleNext(); }, msToNextSlot());
+  }
+
+  // 재렌더링 직후의 첫 실행은 건너뛴다. 최초 1회만 예약.
+  if (!S.armed) { S.armed = true; later(fire, FIRST_DELAY); }
+  scheduleNext();
+})();
+</SCRIPT>
