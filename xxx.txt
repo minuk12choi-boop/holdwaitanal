@@ -1,96 +1,43 @@
-<span id="tick" style="color:#6B7280;font-size:11px"></span>
-<P><SpotfireControl id="52faf3cca9ee415592e8200a9bd3e79f" /></P>
-<P><SpotfireControl id="ce92106737414158b92e5ed263a2ae8b" /><BR>
-<SpotfireControl id="0963b0fd531a4c3caaf159001748e373" /></P>
+Could not execute function call 's3drive'
 
-<script>
-(function () {
-  // ── 설정 ──────────────────────────────────────────────────────────────
-  var PERIOD_MIN  = 30;             // 30 이면 벽시계 :00, :30 에 실행
-  var MIN_GAP_MIN = 15;             // 직전 완료 후 이만큼 안 지났으면 건너뜀 (0=끔)
-  var FIRST_DELAY = 60000;          // 문서를 연 뒤 첫 실행까지 (편집 여유)
-  var MAX_WAIT    = 12 * 60 * 1000; // 이 시간 넘으면 멈춘 것으로 보고 busy 해제
 
-  // ── 타이머 정리 ───────────────────────────────────────────────────────
-  // 텍스트영역을 저장할 때마다 이 스크립트가 다시 실행된다.
-  // 이전 타이머를 지우지 않으면 계속 쌓여 주기가 짧아진 것처럼 보인다.
-  if (window.__MFM_TIMERS) {
-    window.__MFM_TIMERS.forEach(function (t) { clearTimeout(t); });
-  }
-  window.__MFM_TIMERS = [];
-  function later(fn, ms) { window.__MFM_TIMERS.push(setTimeout(fn, ms)); }
+Error executing Python script:
 
-  var busy = false, startedAt = 0, lastEnd = 0;
-  function now() { return new Date().toLocaleTimeString(); }
+numpy.core._exceptions._ArrayMemoryError: Unable to allocate 756. MiB for an array with shape (10, 9914639) and data type object
 
-  // ── 이 텍스트영역 안의 버튼 찾기 (id 가 바뀌어도 동작) ─────────────────
-  function findBtn() {
-    var tick = document.getElementById("tick");
-    if (!tick) { return null; }
-    var box = tick.parentNode;
-    for (var i = 0; i < 5 && box; i++) {
-      var b = box.querySelectorAll(
-        "input[type='button'], input[type='submit'], button");
-      if (b.length) { return b[0]; }
-      box = box.parentNode;
-    }
-    return null;
-  }
+Traceback (most recent call last):
+  File "data_function.py", line 289, in evaluate
+    self._read_inputs(result)
+  File "data_function.py", line 343, in _read_inputs
+    input_.read(self.globals, self.debug)
+  File "data_function.py", line 97, in read
+    dataframe = sbdf.import_data(self.file)
+  File "sbdf.py", line 85, in import_data
+    dataframe = pd.concat(columns, axis=1)
+  File "_decorators.py", line 331, in wrapper
+    return func(*args, **kwargs)
+  File "concat.py", line 381, in concat
+    return op.get_result()
+  File "concat.py", line 592, in get_result
+    df = cons(data, index=index, copy=self.copy)
+  File "frame.py", line 664, in __init__
+    mgr = dict_to_mgr(data, index, columns, dtype=dtype, copy=copy, typ=manager)
+  File "construction.py", line 493, in dict_to_mgr
+    return arrays_to_mgr(arrays, columns, index, dtype=dtype, typ=typ, consolidate=copy)
+  File "construction.py", line 154, in arrays_to_mgr
+    return create_block_manager_from_column_arrays(
+  File "managers.py", line 2204, in create_block_manager_from_column_arrays
+    mgr._consolidate_inplace()
+  File "managers.py", line 1871, in _consolidate_inplace
+    self.blocks = _consolidate(self.blocks)
+  File "managers.py", line 2329, in _consolidate
+    merged_blocks, _ = _merge_blocks(
+  File "managers.py", line 2388, in _merge_blocks
+    new_values = new_values[argsort]
 
-  // ── 실행 ──────────────────────────────────────────────────────────────
-  function fire() {
-    var t = document.getElementById("tick");
-    var b = findBtn();
-    if (!b) { if (t) { t.innerText = "✕ 버튼을 찾지 못함 " + now(); } return; }
 
-    // ① 이전 회차가 아직 돌고 있으면 이번 주기는 건너뛴다
-    if (busy && Date.now() - startedAt < MAX_WAIT) {
-      if (t) { t.innerText += " · " + now() + " 건너뜀(실행 중)"; }
-      return;
-    }
-    // ② 끝난 지 얼마 안 됐으면 건너뛴다 (수동 클릭이 끼어든 경우)
-    if (MIN_GAP_MIN && lastEnd &&
-        Date.now() - lastEnd < MIN_GAP_MIN * 60 * 1000) {
-      var left = Math.ceil(
-        (MIN_GAP_MIN * 60 * 1000 - (Date.now() - lastEnd)) / 60000);
-      if (t) { t.innerText += " · " + now() + " 건너뜀(" + left + "분 더)"; }
-      return;
-    }
 
-    busy = true;
-    startedAt = Date.now();
-    var began = now();
-    if (t) { t.innerText = "▶ 시작 " + began + " · 실행 중…"; }
-    later(function () { b.click(); }, 50);
+   at Spotfire.Dxp.Data.DataFunctions.Executors.LocalPythonFunctionClient.<RunFunction>d__8.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.Executors.PythonScriptExecutor.<ExecuteFunction>d__11.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
 
-    // click 은 즉시 반환한다. 완료는 runlog 라벨의 문구로 판정한다.
-    var watch = setInterval(function () {
-      var log = document.body.innerText || "";
-      if (log.indexOf("완료 (테이블") >= 0 && Date.now() - startedAt > 10000) {
-        busy = false; lastEnd = Date.now(); clearInterval(watch);
-        if (t) { t.innerText = "▶ 시작 " + began + " · 완료 " + now(); }
-      } else if (Date.now() - startedAt > MAX_WAIT) {
-        busy = false; lastEnd = Date.now(); clearInterval(watch);
-        if (t) { t.innerText = "▶ 시작 " + began + " · 시간초과"; }
-      }
-    }, 5000);
-  }
-
-  // ── 벽시계 정렬 ───────────────────────────────────────────────────────
-  // setInterval 은 시작 시점 기준이라 11:10 에 켜면 11:40, 12:10 이 된다.
-  // 다음 슬롯까지 남은 시간을 계산해 걸고, 실행 후 다시 예약한다.
-  function msToNextSlot() {
-    var d = new Date();
-    var next = (Math.floor(d.getMinutes() / PERIOD_MIN) + 1) * PERIOD_MIN;
-    var t = new Date(d);
-    t.setMinutes(next, 0, 0);
-    return t - d;
-  }
-
-  function scheduleNext() {
-    later(function () { fire(); scheduleNext(); }, msToNextSlot());
-  }
-
-  later(fire, FIRST_DELAY);
-  scheduleNext();
-})();
