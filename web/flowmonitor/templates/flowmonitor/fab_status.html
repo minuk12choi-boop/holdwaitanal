@@ -586,7 +586,7 @@ function czBarChart(canvasId, onPick, pluginId) {
     type: "bar",
     data: { labels: [], datasets: [
       { data: [], borderRadius: 3, order: 2, yAxisID: "y" },
-      // 경과일 평균(hr/lot). 막대 위에 겹치지 않게 별도 축을 쓴다.
+      // 경과일 평균(일/lot). 막대 위에 겹치지 않게 별도 축을 쓴다.
       { type: "line", data: [], order: 1, yAxisID: "y2",
         borderColor: "#B4504F", backgroundColor: "#B4504F",
         borderWidth: 2, pointRadius: 3, pointHoverRadius: 4,
@@ -601,8 +601,8 @@ function czBarChart(canvasId, onPick, pluginId) {
                    label: (t) => {
                      const x = t.chart.$nodes[t.dataIndex] || {};
                      if (t.datasetIndex === 1) {
-                       return "경과 평균 " + (x.elapsed_hr == null ? "-"
-                              : x.elapsed_hr.toFixed(1) + " hr/lot");
+                       return "경과 평균 " + (x.elapsed_d == null ? "-"
+                              : x.elapsed_d.toFixed(1) + " 일/lot");
                      }
                      return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
                    } } } },
@@ -645,7 +645,7 @@ function czBarChart(canvasId, onPick, pluginId) {
         ch.getDatasetMeta(1).data.forEach((el, k) => {
           const v = ch.data.datasets[1].data[k];
           if (v === null || v === undefined) { return; }
-          ctx.fillText(v.toFixed(1) + " hr/lot", el.x, el.y - 7);
+          ctx.fillText(v.toFixed(1) + " 일/lot", el.x, el.y - 7);
         });
         ctx.restore();
       }
@@ -736,7 +736,7 @@ function czApply(ch, nodes, u, selName) {
   ch.data.datasets[0].backgroundColor = nodes.map((_, i) =>
     `rgba(240,128,128,${Math.max(1 - 0.11 * i, 0.25).toFixed(2)})`);
   ch.data.datasets[1].data = nodes.map(x =>
-    (x.elapsed_hr === null || x.elapsed_hr === undefined) ? null : x.elapsed_hr);
+    (x.elapsed_d === null || x.elapsed_d === undefined) ? null : x.elapsed_d);
   markSelected(ch, nodes.findIndex(x => x.name === selName));
   ch.update();
 }

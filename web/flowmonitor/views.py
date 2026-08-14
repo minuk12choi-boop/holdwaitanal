@@ -1180,8 +1180,8 @@ def api_summary(request):
     def node(name, v, extra=None):
         n = v.get("eln") or 0
         d = {"name": name, "lots": round(v["lots"], 1), "qty": int(round(v["qty"])),
-             # 경과일 평균 -> 시간 단위(hr/lot). 라인차트에 쓴다.
-             "elapsed_hr": (round(v.get("eld", 0.0) / n * 24, 1) if n else None)}
+             # 경과일 평균(일/lot). 라인차트에 쓴다.
+             "elapsed_d": (round(v.get("eld", 0.0) / n, 1) if n else None)}
         if extra:
             d.update(extra)
         return d
