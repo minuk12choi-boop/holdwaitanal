@@ -1,135 +1,96 @@
-<get_move.log>
+<span id="tick" style="color:#6B7280;font-size:11px"></span>
+<P><SpotfireControl id="52faf3cca9ee415592e8200a9bd3e79f" /></P>
+<P><SpotfireControl id="ce92106737414158b92e5ed263a2ae8b" /><BR>
+<SpotfireControl id="0963b0fd531a4c3caaf159001748e373" /></P>
 
+<script>
+(function () {
+  // ── 설정 ──────────────────────────────────────────────────────────────
+  var PERIOD_MIN  = 30;             // 30 이면 벽시계 :00, :30 에 실행
+  var MIN_GAP_MIN = 15;             // 직전 완료 후 이만큼 안 지났으면 건너뜀 (0=끔)
+  var FIRST_DELAY = 60000;          // 문서를 연 뒤 첫 실행까지 (편집 여유)
+  var MAX_WAIT    = 12 * 60 * 1000; // 이 시간 넘으면 멈춘 것으로 보고 busy 해제
 
-===== 2026-08-14 10:00:35.60 auto =====
-[MOVE] 조회구간 2026-08-13 14:00 ~ 2026-08-14 10:00
-[MOVE] 원천 18,354행 1.5s
-[MOVE] shift 집계 6행 / 일 집계 4행 / lot 단위 5,267행
-  biz_date sys_line_id  move_qty  lot_cnt
-2026-08-13        KFR7     50174     1160
-2026-08-13        PFR1     48369     1024
-2026-08-14        KFR7     70048     1572
-2026-08-14        PFR1     71430     1511
-[MOVE] 적재 완료: 3개 (업무일,shift) 교체
-        2026-08-13 SW
-        2026-08-14 DAY
-        2026-08-14 GY
+  // ── 타이머 정리 ───────────────────────────────────────────────────────
+  // 텍스트영역을 저장할 때마다 이 스크립트가 다시 실행된다.
+  // 이전 타이머를 지우지 않으면 계속 쌓여 주기가 짧아진 것처럼 보인다.
+  if (window.__MFM_TIMERS) {
+    window.__MFM_TIMERS.forEach(function (t) { clearTimeout(t); });
+  }
+  window.__MFM_TIMERS = [];
+  function later(fn, ms) { window.__MFM_TIMERS.push(setTimeout(fn, ms)); }
 
-===== 2026-08-14 10:15:35.47 auto =====
-[MOVE] 조회구간 2026-08-13 14:00 ~ 2026-08-14 10:15
-[MOVE] 원천 18,594행 1.4s
-[MOVE] shift 집계 6행 / 일 집계 4행 / lot 단위 5,321행
-  biz_date sys_line_id  move_qty  lot_cnt
-2026-08-13        KFR7     50174     1160
-2026-08-13        PFR1     48369     1024
-2026-08-14        KFR7     71690     1606
-2026-08-14        PFR1     72876     1531
-[MOVE] 적재 완료: 3개 (업무일,shift) 교체
-        2026-08-13 SW
-        2026-08-14 DAY
-        2026-08-14 GY
+  var busy = false, startedAt = 0, lastEnd = 0;
+  function now() { return new Date().toLocaleTimeString(); }
 
+  // ── 이 텍스트영역 안의 버튼 찾기 (id 가 바뀌어도 동작) ─────────────────
+  function findBtn() {
+    var tick = document.getElementById("tick");
+    if (!tick) { return null; }
+    var box = tick.parentNode;
+    for (var i = 0; i < 5 && box; i++) {
+      var b = box.querySelectorAll(
+        "input[type='button'], input[type='submit'], button");
+      if (b.length) { return b[0]; }
+      box = box.parentNode;
+    }
+    return null;
+  }
 
-<build_f3.log>
-===== 2026-08-14 10:15:01.82 =====
-[ENV] cwd=D:\PERSONAL_SPACE\SW\python\7_holdwaitanal
-[ENV] python=C:\Users\minuk12.choi\AppData\Local\aipforge\python.exe
-[S3] 새 회차 감지 finished_at=2026-08-14 10:08:59 (이전 2026-08-14 09:53:02)
-[TIMER] 소형 원천 조회 start
-[QUERY] lot 조회 시작 2026-08-14 10:15:06
-[QUERY] lot rows=9,063 cols=22 0.2s
-[QUERY] materialworkstatus 조회 시작 2026-08-14 10:15:06
-[QUERY] materialworkstatus rows=150,508 cols=4 0.1s
-[STAGE] fa_object4 결합 시작
-[JOIN] fa_object4 8,982/9,063 lot 매칭
-[STAGE] fa_object4 결합 0.1s
-[QUERY] equipment 조회 시작 2026-08-14 10:15:06
-[QUERY] equipment rows=19,372 cols=8 0.1s
-[CACHE] eqp_group 재사용 (eqp_group_20260814.csv) rows=12,878
-[QUERY] hold 조회 시작 2026-08-14 10:15:06
-[QUERY] hold rows=5,343 cols=10 0.1s
-[TIMER] 소형 원천 조회 elapsed=0.557s
-[QUERY] KFR7_step_path 조회 시작 2026-08-14 10:15:06
-[QUERY] KFR7_step_path 라인분리(line_id) 5,798,388 -> 5,381,346
-[QUERY] KFR7_step_path rows=5,381,346 cols=17 6.5s
-[STAGE] KFR7 범위축약 시작
-[STAGE] KFR7 범위축약 4.5s
-[ROWS] KFR7 scope(step) = 12,088
-[STAGE] KFR7 설비그룹전개 시작
-[STAGE] KFR7 설비그룹전개 0.1s
-[QUERY] PFR1_step_path 조회 시작 2026-08-14 10:15:18
-[QUERY] PFR1_step_path <- 캐시(PFR1_KFR7_STEP_PATH)
-[QUERY] PFR1_step_path 라인분리(line_id) 5,798,388 -> 417,042
-[QUERY] PFR1_step_path rows=417,042 cols=17 0.8s
-[STAGE] PFR1 범위축약 시작
-[STAGE] PFR1 범위축약 0.3s
-[ROWS] PFR1 scope(step) = 2,316
-[STAGE] PFR1 설비그룹전개 시작
-[STAGE] PFR1 설비그룹전개 0.0s
-[ROWS] s = 42,168
-[QUERY] KFR7_tip 조회 시작 2026-08-14 10:15:19
-[QUERY] KFR7_tip 라인분리(line_id) 9,910,358 -> 6,935,572
-[QUERY] KFR7_tip rows=6,935,572 cols=12 6.8s
-[STAGE] KFR7 tip 선필터 시작
-[STAGE] KFR7 tip 선필터 1.6s
-[FILTER] KFR7 tip 6,935,572 -> 100,699
-[STAGE] KFR7 tip 전처리 시작
-[STAGE] KFR7 tip 전처리 0.5s
-[QUERY] PFR1_tip 조회 시작 2026-08-14 10:15:28
-[QUERY] PFR1_tip <- 캐시(PFR1_KFR7_TIP)
-[QUERY] PFR1_tip 라인분리(line_id) 9,910,358 -> 2,974,786
-[QUERY] PFR1_tip rows=2,974,786 cols=12 1.4s
-[STAGE] PFR1 tip 선필터 시작
-[STAGE] PFR1 tip 선필터 0.7s
-[FILTER] PFR1 tip 2,974,786 -> 18,973
-[STAGE] PFR1 tip 전처리 시작
-[STAGE] PFR1 tip 전처리 0.2s
-[ROWS] t = 92,237
-[STAGE] hold 전처리 시작
-[HOLD] 최신 version_desc=20260814-060000 적용: 5,343 -> 5,343행
-[HOLD] 재공 lot 한정: 5,343 -> 4,518행
-[STAGE] hold 전처리 0.0s
-[ROWS] h1 = 3,140
-[ROWS] h2 = 583
-[ROWS] h3 = 238
-[STAGE] f3 생성 시작
-[TIP] wc_mask=01 rules=91,392 wildcard=['lot_type']
-[TIP] wc_mask=03 rules=2 wildcard=['lot_type', 'process']
-[TIP] wc_mask=05 rules=135 wildcard=['lot_type', 'step']
-[TIP] wc_mask=07 rules=569 wildcard=['lot_type', 'process', 'step']
-[TIP] wc_mask=09 rules=2 wildcard=['lot_type', 'ppid']
-[TIP] wc_mask=13 rules=137 wildcard=['lot_type', 'step', 'ppid']
-[TIP] 매칭 후보 = 29,430행
-[STAGE] f3 생성 2.0s
-[TIP] f3 tip 값 있는 행 = 1,289 / 14,403
-[ROWS] f3 = 14,403  (lot 9,028개)
-[DUP] lot/step 중복 없음
-[MIX] f3 사용 설비그룹 1,259개 중 batch/single 혼재 2개 (equipment 미매칭 설비 2건)
-[TIMER] DB 적재 start
-[DB] f3_live 갱신 snapshot_at=2026-08-14 10:15:06 rows=14,403
-[DB] f3_history 갱신 없음 (이미 더 가까운 스냅샷이 적재돼 있음)
-[TIMER] DB 적재 elapsed=1.742s
+  // ── 실행 ──────────────────────────────────────────────────────────────
+  function fire() {
+    var t = document.getElementById("tick");
+    var b = findBtn();
+    if (!b) { if (t) { t.innerText = "✕ 버튼을 찾지 못함 " + now(); } return; }
 
+    // ① 이전 회차가 아직 돌고 있으면 이번 주기는 건너뛴다
+    if (busy && Date.now() - startedAt < MAX_WAIT) {
+      if (t) { t.innerText += " · " + now() + " 건너뜀(실행 중)"; }
+      return;
+    }
+    // ② 끝난 지 얼마 안 됐으면 건너뛴다 (수동 클릭이 끼어든 경우)
+    if (MIN_GAP_MIN && lastEnd &&
+        Date.now() - lastEnd < MIN_GAP_MIN * 60 * 1000) {
+      var left = Math.ceil(
+        (MIN_GAP_MIN * 60 * 1000 - (Date.now() - lastEnd)) / 60000);
+      if (t) { t.innerText += " · " + now() + " 건너뜀(" + left + "분 더)"; }
+      return;
+    }
 
-<spotfire_export.log>
-2026-08-14 10:08:39  ============================================================
-2026-08-14 10:08:39  script start
-2026-08-14 10:08:40  client ok  bucket=RND_FABMODELING prefix=multi_report/
-2026-08-14 10:08:40  input  PFR1_KFR7_LOT                       9063 rows  qt=2026-08-14 09:57:59
-2026-08-14 10:08:40  input  PFR1_KFR7_MATERIALWORKSTATUS      150508 rows  qt=2026-08-14 10:04:09
-2026-08-14 10:08:40  input  PFR1_KFR7_STEP_PATH              5798388 rows  qt=2026-08-14 09:59:13
-2026-08-14 10:08:40  input  PFR1_KFR7_TIP                    9910358 rows  qt=2026-08-14 10:02:39
-2026-08-14 10:08:40  input  PFR1_KFR7_EQUIPMENT                19372 rows  qt=2026-08-14 10:04:23
-2026-08-14 10:08:40  input  PFR1_KFR7_EQP_GROUP                13113 rows  qt=2026-08-14 09:58:59
-2026-08-14 10:08:40  input  PFR1_KFR7_HOLD                      5343 rows  qt=2026-08-14 09:58:33
-2026-08-14 10:08:40  input  PFR1_KFR7_MOVE                     64295 rows  qt=2026-08-14 09:58:16
-2026-08-14 10:08:40  upload PFR1_KFR7_LOT                  OK  ser=0.1s up=0.1s
-2026-08-14 10:08:40  upload PFR1_KFR7_MATERIALWORKSTATUS   OK  ser=0.1s up=0.1s
-2026-08-14 10:08:48  upload PFR1_KFR7_STEP_PATH            OK  ser=7.2s up=1.0s
-2026-08-14 10:08:58  upload PFR1_KFR7_TIP                  OK  ser=8.8s up=1.0s
-2026-08-14 10:08:58  upload PFR1_KFR7_EQUIPMENT            OK  ser=0.1s up=0.0s
-2026-08-14 10:08:58  upload PFR1_KFR7_EQP_GROUP            OK  ser=0.0s up=0.0s
-2026-08-14 10:08:58  upload PFR1_KFR7_HOLD                 OK  ser=0.0s up=0.0s
-2026-08-14 10:08:59  upload PFR1_KFR7_MOVE                 OK  ser=0.1s up=0.3s
-2026-08-14 10:08:59  manifest ok  ok=8/8
-2026-08-14 10:08:59  script end  rows=9  total=20.1s
+    busy = true;
+    startedAt = Date.now();
+    var began = now();
+    if (t) { t.innerText = "▶ 시작 " + began + " · 실행 중…"; }
+    later(function () { b.click(); }, 50);
+
+    // click 은 즉시 반환한다. 완료는 runlog 라벨의 문구로 판정한다.
+    var watch = setInterval(function () {
+      var log = document.body.innerText || "";
+      if (log.indexOf("완료 (테이블") >= 0 && Date.now() - startedAt > 10000) {
+        busy = false; lastEnd = Date.now(); clearInterval(watch);
+        if (t) { t.innerText = "▶ 시작 " + began + " · 완료 " + now(); }
+      } else if (Date.now() - startedAt > MAX_WAIT) {
+        busy = false; lastEnd = Date.now(); clearInterval(watch);
+        if (t) { t.innerText = "▶ 시작 " + began + " · 시간초과"; }
+      }
+    }, 5000);
+  }
+
+  // ── 벽시계 정렬 ───────────────────────────────────────────────────────
+  // setInterval 은 시작 시점 기준이라 11:10 에 켜면 11:40, 12:10 이 된다.
+  // 다음 슬롯까지 남은 시간을 계산해 걸고, 실행 후 다시 예약한다.
+  function msToNextSlot() {
+    var d = new Date();
+    var next = (Math.floor(d.getMinutes() / PERIOD_MIN) + 1) * PERIOD_MIN;
+    var t = new Date(d);
+    t.setMinutes(next, 0, 0);
+    return t - d;
+  }
+
+  function scheduleNext() {
+    later(function () { fire(); scheduleNext(); }, msToNextSlot());
+  }
+
+  later(fire, FIRST_DELAY);
+  scheduleNext();
+})();
