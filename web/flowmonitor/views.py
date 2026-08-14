@@ -272,7 +272,8 @@ def _load_log(snapshot_at):
                 "SELECT table_name, load_start, load_end, elapsed_sec, row_count,"
                 " col_count, kind, query_time FROM f3_load_log "
                 "WHERE snapshot_at = %s ORDER BY id", [snapshot_at])
-            rows = [{"table": r[0], "start": r[1], "end": r[2], "sec": r[3],
+            rows = [{"table": r[0], "start": r[1], "end": r[2],
+                     "sec": (None if r[3] is None else round(float(r[3]), 2)),
                      "rows": r[4], "cols": r[5], "kind": r[6], "qt": r[7]}
                     for r in cur.fetchall()]
         except Exception:          # kind / query_time 추가 이전 스냅샷
@@ -280,7 +281,8 @@ def _load_log(snapshot_at):
                 "SELECT table_name, load_start, load_end, elapsed_sec, row_count,"
                 " col_count FROM f3_load_log WHERE snapshot_at = %s ORDER BY id",
                 [snapshot_at])
-            rows = [{"table": r[0], "start": r[1], "end": r[2], "sec": r[3],
+            rows = [{"table": r[0], "start": r[1], "end": r[2],
+                     "sec": (None if r[3] is None else round(float(r[3]), 2)),
                      "rows": r[4], "cols": r[5], "kind": "조회", "qt": None}
                     for r in cur.fetchall()]
 
@@ -294,7 +296,7 @@ def _load_log(snapshot_at):
         "table": "계", "kind": "", "qt": (qts[-1] if qts else None),
         "start": min(starts) if starts else None,
         "end": max(ends) if ends else None,
-        "sec": round(sum(r["sec"] or 0 for r in rows), 3),
+        "sec": round(sum(r["sec"] or 0 for r in rows), 2),
         "rows": sum(r["rows"] or 0 for r in rows),
         "cols": None,
     }
@@ -596,6 +598,14 @@ def api_status(request):
 #   원인은 Hold > Wait성 진행불가(exception/ftp) > 설비(down) > TIP(prevent)
 #   순으로 하나에만 귀속한다(중복 카운트 없음).
 # ---------------------------------------------------------------------------
+def num_f(v, default=None):
+    """소수 허용 숫자 변환. 경과일처럼 실수 컬럼용."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
 def num(v, default=0):
     """f3 는 전 컬럼이 문자열이라 qty 가 '20.0' 처럼 올 수 있다.
     int('20.0') 은 ValueError 이므로 float 을 거쳐 변환한다."""
@@ -854,8 +864,33 @@ WT_RANGES = [
     {"key": "5+",  "label": "WT > 5",       "lo": 5.0,  "hi": None},
 ]
 
+# W/T=0 재공을 '마지막 작업 이후 며칠 지났는가' 로 나눈다.
+# 2일이하 = 1일 초과 ~ 2일 이하.
+WT0_BINS = [
+    {"key": "d1",  "label": "1일 이하",  "lo": None, "hi": 1.0},
+    {"key": "d2",  "label": "2일 이하",  "lo": 1.0,  "hi": 2.0},
+    {"key": "d3",  "label": "3일 이하",  "lo": 2.0,  "hi": 3.0},
+    {"key": "d4",  "label": "4일 이하",  "lo": 3.0,  "hi": 4.0},
+    {"key": "d5",  "label": "5일 이하",  "lo": 4.0,  "hi": 5.0},
+    {"key": "d7",  "label": "7일 이하",  "lo": 5.0,  "hi": 7.0},
+    {"key": "d15", "label": "15일 이하", "lo": 7.0,  "hi": 15.0},
+    {"key": "d15p", "label": "15일 초과", "lo": 15.0, "hi": None},
+]
+
 EQP_ISSUE = ("DOWN", "PM", "LOCAL")
 TOP_N = 5
+
+
+def _wt0_bin(days):
+    """마지막작업경과_일 -> 구간 키."""
+    if days is None:
+        return None
+    for b in WT0_BINS:
+        lo_ok = b["lo"] is None or days > b["lo"]
+        hi_ok = b["hi"] is None or days <= b["hi"]
+        if lo_ok and hi_ok:
+            return b["key"]
+    return None
 
 
 def _wt_range_key(wt):
@@ -897,30 +932,50 @@ def _eqp_status_of(down):
     return None
 
 
+# 현스텝 행에서만 의미가 있는 컬럼(연속블록 행에는 값이 없다)
+STEP_SCOPED = ("eqpgroup", "eqpgroup_cham", "down", "tip", "recipe_id",
+               "step_seq", "step_desc", "eqp_type", "batch_kind", "eqpline",
+               "order_seq", "layer_id", "AREA", "de_rank", "연속", "현스텝")
+
+
 def _summary_rows(line, types):
-    """현재 스냅샷의 lot 단위 원자료 (현스텝 기준)."""
+    """현재 스냅샷의 lot 단위 원자료.
+
+    SELECT 목록을 손으로 관리하면 컬럼이 늘 때마다 빠뜨린다(실제로
+    경과일/fa_object4 가 통째로 NULL 이었다). LOT_DETAIL_COLS 에서 자동 생성한다.
+    """
     snap = _latest_snapshot()
     if not snap:
         return [], None
+
+    with connection.cursor() as cur:
+        cur.execute("SELECT * FROM f3_live LIMIT 0")
+        have = {d[0] for d in cur.description}
+
+    want = [c for c, _ in LOT_DETAIL_COLS if c not in ("lot_id", "wt", "cause")]
+    for extra in ("recipe_id", "step_seq", "step_desc", "lot_type"):
+        if extra not in want:
+            want.append(extra)
+
+    sel = []
+    for c in want:
+        if c not in have:
+            continue
+        if c == "qty":
+            sel.append("MIN(CAST(`qty` AS SIGNED)) AS `qty`")
+        elif c in STEP_SCOPED:
+            sel.append(f"MIN(CASE WHEN `현스텝`='현스텝' THEN `{c}` END) AS `{c}`")
+        else:
+            sel.append(f"MIN(`{c}`) AS `{c}`")
+
     cond, params = "", [snap, line]
     if types:
         cond = " AND lot_type IN (%s)" % ",".join(["%s"] * len(types))
         params += list(types)
+
     with connection.cursor() as cur:
         cur.execute(f"""
-            SELECT lot_id,
-                   MIN(lot_type) AS lot_type,
-                   MIN(CAST(qty AS SIGNED)) AS qty,
-                   MIN(lot_status) AS lot_status,
-                   MIN(CASE WHEN `현스텝`='현스텝' THEN eqpgroup END)  AS eqpgroup,
-                   MIN(CASE WHEN `현스텝`='현스텝' THEN down END)      AS down,
-                   MIN(CASE WHEN `현스텝`='현스텝' THEN tip END)       AS tip,
-                   MIN(CASE WHEN `현스텝`='현스텝' THEN recipe_id END) AS recipe_id,
-                   MIN(CASE WHEN `현스텝`='현스텝' THEN step_seq END)  AS step_seq,
-                   MIN(CASE WHEN `현스텝`='현스텝' THEN step_desc END) AS step_desc,
-                   MIN(hold) AS hold, MIN(hold_reason) AS hold_reason,
-                   MIN(exception) AS exception, MIN(exception_reason) AS exception_reason,
-                   MIN(ftp) AS ftp, MIN(ftp_reason) AS ftp_reason
+            SELECT lot_id, {', '.join(sel)}
             FROM   f3_live
             WHERE  snapshot_at = %s AND `line` = %s {cond}
             GROUP  BY lot_id
@@ -1017,7 +1072,7 @@ def api_summary(request):
     rules = _cause_rules()
 
     tot = {"lots": 0, "qty": 0}
-    by_type, by_status, by_wt = {}, {}, {}
+    by_type, by_status, by_wt, by_wt0 = {}, {}, {}, {}
     tree = {}
 
     for r in rows:
@@ -1027,7 +1082,11 @@ def api_summary(request):
         tot["qty"] += q
         _bucket(by_type, r.get("lot_type") or "-", q)
         _bucket(by_status, st, q)
-        _bucket(by_wt, _wt_range_key((mv.get(r["lot_id"], 0.0) / q) if q else 0.0), q)
+        wt = (mv.get(r["lot_id"], 0.0) / q) if q else 0.0
+        _bucket(by_wt, _wt_range_key(wt), q)
+        if wt <= 0:
+            # W/T=0 재공만 '마지막 작업 이후 경과일' 로 다시 나눈다.
+            _bucket(by_wt0, _wt0_bin(num_f(r.get("마지막작업경과_일"))), q)
 
         big, mid, subs = classify_lot(r, rules)
         if not big:
@@ -1089,6 +1148,10 @@ def api_summary(request):
                    if tot["lots"] else 0,
             "lots": sum(x["lots"] for x in blocked),
             "qty": sum(x["qty"] for x in blocked)},
+        "wt0_bins": WT0_BINS,
+        "wt0_dist": [{"name": b["key"], "label": b["label"],
+                      **by_wt0.get(b["key"], {"lots": 0, "qty": 0})}
+                     for b in WT0_BINS],
         "wt_ranges": WT_RANGES,
         "wt_dist": [{"name": r["key"], "label": r["label"],
                      **by_wt.get(r["key"], {"lots": 0, "qty": 0})}
@@ -1177,6 +1240,7 @@ def api_lots_live(request):
     types = ([t for t in raw.split(",") if t] if raw is not None
              else list(DEFAULT_LOT_TYPES))
     wt_range = request.GET.get("wt_range", "")
+    wt0 = request.GET.get("wt0", "")
     big = request.GET.get("big", "")
     mid = request.GET.get("mid", "")
     sub = request.GET.get("sub", "")
@@ -1194,6 +1258,9 @@ def api_lots_live(request):
         wt = (mv.get(r["lot_id"], 0.0) / q) if q else 0.0
         if wt_range and _wt_range_key(wt) != wt_range:
             continue
+        if wt0:
+            if wt > 0 or _wt0_bin(num_f(r.get("마지막작업경과_일"))) != wt0:
+                continue
         b2, m2, s2 = classify_lot(r, rules)
         if big and b2 != big:
             continue
