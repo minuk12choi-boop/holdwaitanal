@@ -313,8 +313,15 @@ def downloads(request):
     # 좌: 원천 테이블 목록(원천조회 기준 오름차순) / 우: 조회+처리 구간
     src = sorted([r for r in log if r.get("kind") != "처리"],
                  key=lambda r: (r.get("qt") or "9999"))
+    qts = [r.get("qt") for r in src if r.get("qt")]
+    starts = [r.get("start") for r in src if r.get("start")]
+    src_total = ({"n": len(src),
+                  "qt_min": (min(qts) if qts else None),
+                  "qt_max": (max(qts) if qts else None),
+                  "start": (min(starts) if starts else None)}
+                 if src else None)
     return render(request, "flowmonitor/downloads.html", {
-        "sources": src,
+        "sources": src, "src_total": src_total,
         "menu": MENU,
         "snapshots": snaps, "selected": sel, "load_log": log, "load_total": total,
     })
@@ -1120,10 +1127,15 @@ def api_summary(request):
         children = []
         for mkey, m in sorted(g["mid"].items(), key=lambda kv: -kv[1]["qty"]):
             if mkey == "_":
-                children = subs_of(m, 12)          # 중분류 없는 대분류
+                # 중분류가 없는 대분류(Hold / Bottleneck)는 소분류를 바로 보여준다.
+                # 상위 N 개만. 나머지는 대분류 헤더 클릭으로 전체 목록을 본다.
+                children = subs_of(m, TOP_N)
             else:
                 children.append(node(mkey, m, {"children": subs_of(m)}))
-        causes.append(node(big, g, {"children": children}))
+        total_sub = sum(len(m["sub"]) for m in g["mid"].values())
+        causes.append(node(big, g, {"children": children,
+                                    "sub_total": total_sub,
+                                    "shown": len(children)}))
 
     status = [{"name": s, "color": STATUS_COLORS[s],
                "lots": by_status.get(s, {}).get("lots", 0),

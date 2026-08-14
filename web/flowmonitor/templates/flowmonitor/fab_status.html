@@ -411,31 +411,45 @@ function renderCause() {
     const g = czGroup(i);
     const nodes = czNodes(i);
 
-    document.getElementById("czh" + i).innerHTML =
-      `<span>${g.name || "-"}</span><span>${nf(u === "lots" ? g.lots : g.qty)}`
-      + `${u === "lots" ? " LOT" : " 매"}</span>`;
-    document.getElementById("czp" + i).innerHTML =
-      CZ_PATHS[i].length
-        ? `<a onclick="czGo(${i},0)">전체</a>`
-          + CZ_PATHS[i].map((p, k) =>
-              ` &rsaquo; <a onclick="czGo(${i},${k + 1})">${p}</a>`).join("")
-        : "";
+    var more = (g.sub_total || 0) - (g.shown || 0);
+    var hd = document.getElementById("czh" + i);
+    hd.innerHTML = `<span>${g.name || "-"}</span>`
+      + `<span>${nf(u === "lots" ? g.lots : g.qty)}`
+      + `${u === "lots" ? " LOT" : " 매"}`
+      + `${more > 0 && !CZ_PATHS[i].length ? " · 상위" + (g.shown || 0) : ""}</span>`;
+    hd.onclick = function () {                 // 헤더 클릭 = 대분류 전체 목록
+      openDrill({ big: g.name }, g.name + " 전체");
+    };
+
+    // 파고든 뒤 되돌아갈 수단. 경로와 뒤로 버튼을 함께 둔다.
+    var pathEl = document.getElementById("czp" + i);
+    if (CZ_PATHS[i].length) {
+      pathEl.innerHTML =
+        `<span class="czback" onclick="czGo(${i},${CZ_PATHS[i].length - 1})">◀ 뒤로</span>`
+        + `<a onclick="czGo(${i},0)">전체</a>`
+        + CZ_PATHS[i].map((p, k) =>
+            ` &rsaquo; <a onclick="czGo(${i},${k + 1})">${p}</a>`).join("");
+    } else {
+      pathEl.innerHTML = more > 0
+        ? `<span style="color:var(--mut)">그 외 ${more}개는 제목 클릭</span>` : "";
+    }
 
     if (!czCharts[i]) {
       czCharts[i] = new Chart(document.getElementById("czc" + i), {
         type: "bar",
         data: { labels: [], datasets: [{ data: [], borderRadius: 3 }] },
         options: {
-          indexAxis: "y", responsive: true, maintainAspectRatio: false,
-          animation: false,
-          layout: { padding: { right: 34 } },
+          responsive: true, maintainAspectRatio: false, animation: false,
+          layout: { padding: { top: 16 } },
           plugins: { legend: { display: false },
                      tooltip: { callbacks: { label: (t) => {
                        const x = czNodes(i)[t.dataIndex] || {};
                        return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
                      } } } },
-          scales: { x: { display: false, beginAtZero: true, grace: "12%" },
-                    y: { grid: { display: false }, ticks: { font: { size: 10 } } } },
+          scales: { x: { grid: { display: false },
+                         ticks: { font: { size: 9 }, autoSkip: false,
+                                  maxRotation: 40, minRotation: 0 } },
+                    y: { display: false, beginAtZero: true, grace: "18%" } },
           onClick: (e, els) => {
             if (!els.length) return;
             const x = czNodes(i)[els[0].index];
@@ -455,10 +469,10 @@ function renderCause() {
           afterDatasetsDraw(ch) {
             const ctx = ch.ctx; ctx.save();
             ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
-            ctx.textAlign = "left"; ctx.textBaseline = "middle";
+            ctx.textAlign = "center"; ctx.textBaseline = "bottom";
             ctx.fillStyle = "#374151";
             ch.getDatasetMeta(0).data.forEach((el, k) => {
-              ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x + 6, el.y);
+              ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x, el.y - 4);
             });
             ctx.restore();
           }

@@ -67,6 +67,14 @@
                 <th>테이블</th><th>원천조회(SYSDATE)</th><th>S3적재</th>
               </tr></thead>
               <tbody>
+                {% if src_total %}
+                <tr class="tot">
+                  <td><span class="c">계 ({{ src_total.n }}개)</span></td>
+                  <td><span class="c">{{ src_total.qt_min|default:"-" }}
+                    ~ {{ src_total.qt_max|default:"-" }}</span></td>
+                  <td><span class="c">{{ src_total.start|date:'H:i:s'|default:"-" }}</span></td>
+                </tr>
+                {% endif %}
                 {% for r in sources %}
                 <tr>
                   <td><span class="c">{{ r.table }}</span></td>
@@ -92,6 +100,18 @@
                 <th class="num">소요(초)</th><th class="num">행수</th><th class="num">컬럼</th>
               </tr></thead>
               <tbody>
+                {% if load_total %}
+                <tr class="tot">
+                  <td></td><td><span class="c">계</span></td>
+                  <td><span class="c">{{ load_total.start|date:'H:i:s' }}</span></td>
+                  <td><span class="c">{{ load_total.end|date:'H:i:s' }}</span></td>
+                  <td class="num">{{ load_total.sec }}{% if load_total.wall %}
+                    <span style="color:var(--mut);font-weight:400">
+                      / {{ load_total.wall }}</span>{% endif %}</td>
+                  <td class="num">{{ load_total.rows }}</td>
+                  <td></td>
+                </tr>
+                {% endif %}
                 {% for r in load_log %}
                 <tr>
                   <td class="kind"><span class="c">{{ r.kind }}</span></td>
@@ -105,18 +125,6 @@
                 {% empty %}
                 <tr><td colspan="7" class="kind">기록 없음</td></tr>
                 {% endfor %}
-                {% if load_total %}
-                <tr class="tot">
-                  <td></td><td>계</td>
-                  <td>{{ load_total.start|date:'H:i:s' }}</td>
-                  <td>{{ load_total.end|date:'H:i:s' }}</td>
-                  <td class="num">{{ load_total.sec }}{% if load_total.wall %}
-                    <span style="color:var(--mut);font-weight:400">
-                      / {{ load_total.wall }}</span>{% endif %}</td>
-                  <td class="num">{{ load_total.rows }}</td>
-                  <td></td>
-                </tr>
-                {% endif %}
               </tbody>
             </table>
           </div>
