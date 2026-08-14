@@ -296,9 +296,11 @@ function renderWip() {
 
 function pickType(name) {
   SEL_TYPE = (SEL_TYPE === name) ? null : name;
-  renderWip();
-  if (SEL_TYPE) { openDrill({ lot_type: name }, name, "type"); }
-  else { closeDrill(); }
+  renderWip();                       // 선택 표시를 먼저 반영하고
+  requestAnimationFrame(() => {      // 그다음 프레임에 요청을 건다
+    if (SEL_TYPE) { openDrill({ lot_type: name }, name, "type"); }
+    else { closeDrill(); }
+  });
 }
 
 /* --- status --- */
@@ -371,9 +373,10 @@ function renderStatus() {
           pickStatus(i);
           const st = DATA.status[i];
           SEL_PIE = (SEL_PIE === st.name) ? null : st.name;
+          markSelected(dnChart, DATA.status.findIndex(x => x.name === SEL_PIE));
+          dnChart.update();
           if (SEL_PIE) { openDrill({ status: st.name }, st.name, "status"); }
           else { closeDrill(); }
-          dnChart.update();
         }
       },
       plugins: [sliceLabels]
@@ -878,7 +881,11 @@ function renderDrillTable() {
 function openDrill(filt, label, src) {
   clearOtherSelections(src || "");
   const el = document.getElementById("drill");
-  el.innerHTML = `<div class="bar"><b>불러오는 중…</b></div>`;
+  // 곧바로 자리표시자를 그려 '눌리지 않은 것처럼' 보이지 않게 한다.
+  el.classList.add("loading");
+  el.innerHTML = `<div class="cellttl"><span>${SRC_TITLE[src] || "LOT 상세"}`
+    + ` · ${LINE}${label ? " · " + label : ""}</span></div>`
+    + `<div class="bar"><b>불러오는 중…</b><span class="spin"></span></div>`;
   smoothTo(el);
   const base = { line: LINE, types: selectedTypes().join(","),
                  prod1: PROD1.join(","), prod2: PROD2.join(",") };
@@ -887,6 +894,7 @@ function openDrill(filt, label, src) {
     .map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
 
   fetch("/api/lots-live/?" + q).then(r => r.json()).then(d => {
+    el.classList.remove("loading");
     DRILL_DATA = d;
     SORT_KEYS = [];                       // 새 조건이면 정렬은 초기화
     const ttl = [SRC_TITLE[src] || "LOT 상세", LINE, label]

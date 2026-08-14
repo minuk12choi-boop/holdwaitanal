@@ -974,7 +974,7 @@ STEP_SCOPED = ("eqpgroup", "eqpgroup_cham", "down", "tip", "recipe_id",
                "order_seq", "layer_id", "AREA", "de_rank", "연속", "현스텝")
 
 
-def _summary_rows(line, types):
+def _summary_rows(line, types, extra=None):
     """현재 스냅샷의 lot 단위 원자료.
 
     SELECT 목록을 손으로 관리하면 컬럼이 늘 때마다 빠뜨린다(실제로
@@ -987,11 +987,12 @@ def _summary_rows(line, types):
     with connection.cursor() as cur:
         cur.execute("SELECT * FROM f3_live LIMIT 0")
         have = {d[0] for d in cur.description}
+    have_l = {c.lower() for c in have}
 
     want = [c for c, _ in LOT_DETAIL_COLS if c not in ("lot_id", "wt", "cause")]
-    for extra in ("recipe_id", "step_seq", "step_desc", "lot_type"):
-        if extra not in want:
-            want.append(extra)
+    for c in ("recipe_id", "step_seq", "step_desc", "lot_type"):
+        if c not in want:
+            want.append(c)
 
     sel = []
     for c in want:
@@ -1008,6 +1009,14 @@ def _summary_rows(line, types):
     if types:
         cond = " AND lot_type IN (%s)" % ",".join(["%s"] * len(types))
         params += list(types)
+    # lot 단위 속성(제품구분/상태)은 SQL 에서 거른다.
+    # 파이썬으로 전부 가져와 거르면 드릴다운마다 전 재공을 훑게 된다.
+    for col, vals in (extra or {}).items():
+        if not vals or col.lower() not in have_l:
+            continue
+        vals = list(vals)
+        cond += " AND `%s` IN (%s)" % (col, ",".join(["%s"] * len(vals)))
+        params += vals
 
     with connection.cursor() as cur:
         cur.execute(f"""
@@ -1324,7 +1333,11 @@ def api_lots_live(request):
     if not _table_exists("f3_live"):
         return JsonResponse({"rows": [], "cols": [], "reason": "f3_live 미적재"})
 
-    rows, snap = _summary_rows(line, types)
+    rows, snap = _summary_rows(line, types, {
+        "prod1": prod1, "prod2": prod2,
+        "lot_type": [lot_type] if lot_type else None,
+        "lot_status": [status] if status else None,
+    })
     mv = _lot_move_map(line)
     rules = _cause_rules()
 
@@ -1332,14 +1345,7 @@ def api_lots_live(request):
     tot_qty = 0
     for r in rows:
         q = num(r.get("qty"))
-        if prod1 and r.get("prod1") not in prod1:
-            continue
-        if prod2 and r.get("prod2") not in prod2:
-            continue
-        if lot_type and (r.get("lot_type") or "-") != lot_type:
-            continue
-        if status and (r.get("lot_status") or "-") != status:
-            continue
+        # prod1/prod2/lot_type/status 는 위 SQL 에서 이미 걸렀다
         wt = (mv.get(r["lot_id"], 0.0) / q) if q else 0.0
         if wt_range and _wt_range_key(wt) != wt_range:
             continue

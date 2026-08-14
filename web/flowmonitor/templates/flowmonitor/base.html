@@ -314,6 +314,27 @@
   .prodf { display:flex; gap:8px; margin-bottom:12px; }
   .prodf .dd { flex:1; min-width:0; }
   .prodf .dd > button { width:100%; }
+  /* ── 전환 효과 ─────────────────────────────────────────────────────────
+     클릭에 즉시 반응한 것처럼 보이게 한다. 실제 로딩은 그 뒤에 끝난다. */
+  .cell, .detail, .card { transition:box-shadow .18s ease, border-color .18s ease; }
+  .detail.loading { opacity:.55; }
+  .detail { transition:opacity .18s ease; }
+  .spin { display:inline-block; width:12px; height:12px; margin-left:8px;
+          border:2px solid var(--bd); border-top-color:var(--brand);
+          border-radius:50%; animation:spin .7s linear infinite;
+          vertical-align:-2px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .lineseg button, .gfilter .prodf .dd > button, .seg button, .dd > button {
+    transition:background .15s ease, color .15s ease, border-color .15s ease; }
+  .stack i { transition:box-shadow .15s ease, outline-color .15s ease; }
+  .grid tbody tr { transition:background .12s ease; }
+  .czpath a, .legend span { transition:color .15s ease; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition:none !important; animation:none !important; }
+  }
+
   .czh { cursor:pointer; }
   .czh:hover span:first-child { text-decoration:underline; }
   .czpath { font-size:11px; color:var(--mut); margin-bottom:4px; min-height:16px; }
