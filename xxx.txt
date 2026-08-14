@@ -1,29 +1,135 @@
+<get_move.log>
 
-테이블	원천조회(SYSDATE)	S3적재
-lot
-2026-08-14 09:43:00
-10:00:06
-hold
-2026-08-14 09:43:36
-10:00:07
-KFR7_step_path
-2026-08-14 09:44:18
-10:00:07
-PFR1_step_path
-2026-08-14 09:44:18
-10:00:18
-KFR7_tip
-2026-08-14 09:47:02
-10:00:19
-PFR1_tip
-2026-08-14 09:47:02
-10:00:28
-materialworkstatus
-2026-08-14 09:47:59
-10:00:07
-equipment
-2026-08-14 09:48:13
-10:00:07
-eqp_group
--
--
+
+===== 2026-08-14 10:00:35.60 auto =====
+[MOVE] 조회구간 2026-08-13 14:00 ~ 2026-08-14 10:00
+[MOVE] 원천 18,354행 1.5s
+[MOVE] shift 집계 6행 / 일 집계 4행 / lot 단위 5,267행
+  biz_date sys_line_id  move_qty  lot_cnt
+2026-08-13        KFR7     50174     1160
+2026-08-13        PFR1     48369     1024
+2026-08-14        KFR7     70048     1572
+2026-08-14        PFR1     71430     1511
+[MOVE] 적재 완료: 3개 (업무일,shift) 교체
+        2026-08-13 SW
+        2026-08-14 DAY
+        2026-08-14 GY
+
+===== 2026-08-14 10:15:35.47 auto =====
+[MOVE] 조회구간 2026-08-13 14:00 ~ 2026-08-14 10:15
+[MOVE] 원천 18,594행 1.4s
+[MOVE] shift 집계 6행 / 일 집계 4행 / lot 단위 5,321행
+  biz_date sys_line_id  move_qty  lot_cnt
+2026-08-13        KFR7     50174     1160
+2026-08-13        PFR1     48369     1024
+2026-08-14        KFR7     71690     1606
+2026-08-14        PFR1     72876     1531
+[MOVE] 적재 완료: 3개 (업무일,shift) 교체
+        2026-08-13 SW
+        2026-08-14 DAY
+        2026-08-14 GY
+
+
+<build_f3.log>
+===== 2026-08-14 10:15:01.82 =====
+[ENV] cwd=D:\PERSONAL_SPACE\SW\python\7_holdwaitanal
+[ENV] python=C:\Users\minuk12.choi\AppData\Local\aipforge\python.exe
+[S3] 새 회차 감지 finished_at=2026-08-14 10:08:59 (이전 2026-08-14 09:53:02)
+[TIMER] 소형 원천 조회 start
+[QUERY] lot 조회 시작 2026-08-14 10:15:06
+[QUERY] lot rows=9,063 cols=22 0.2s
+[QUERY] materialworkstatus 조회 시작 2026-08-14 10:15:06
+[QUERY] materialworkstatus rows=150,508 cols=4 0.1s
+[STAGE] fa_object4 결합 시작
+[JOIN] fa_object4 8,982/9,063 lot 매칭
+[STAGE] fa_object4 결합 0.1s
+[QUERY] equipment 조회 시작 2026-08-14 10:15:06
+[QUERY] equipment rows=19,372 cols=8 0.1s
+[CACHE] eqp_group 재사용 (eqp_group_20260814.csv) rows=12,878
+[QUERY] hold 조회 시작 2026-08-14 10:15:06
+[QUERY] hold rows=5,343 cols=10 0.1s
+[TIMER] 소형 원천 조회 elapsed=0.557s
+[QUERY] KFR7_step_path 조회 시작 2026-08-14 10:15:06
+[QUERY] KFR7_step_path 라인분리(line_id) 5,798,388 -> 5,381,346
+[QUERY] KFR7_step_path rows=5,381,346 cols=17 6.5s
+[STAGE] KFR7 범위축약 시작
+[STAGE] KFR7 범위축약 4.5s
+[ROWS] KFR7 scope(step) = 12,088
+[STAGE] KFR7 설비그룹전개 시작
+[STAGE] KFR7 설비그룹전개 0.1s
+[QUERY] PFR1_step_path 조회 시작 2026-08-14 10:15:18
+[QUERY] PFR1_step_path <- 캐시(PFR1_KFR7_STEP_PATH)
+[QUERY] PFR1_step_path 라인분리(line_id) 5,798,388 -> 417,042
+[QUERY] PFR1_step_path rows=417,042 cols=17 0.8s
+[STAGE] PFR1 범위축약 시작
+[STAGE] PFR1 범위축약 0.3s
+[ROWS] PFR1 scope(step) = 2,316
+[STAGE] PFR1 설비그룹전개 시작
+[STAGE] PFR1 설비그룹전개 0.0s
+[ROWS] s = 42,168
+[QUERY] KFR7_tip 조회 시작 2026-08-14 10:15:19
+[QUERY] KFR7_tip 라인분리(line_id) 9,910,358 -> 6,935,572
+[QUERY] KFR7_tip rows=6,935,572 cols=12 6.8s
+[STAGE] KFR7 tip 선필터 시작
+[STAGE] KFR7 tip 선필터 1.6s
+[FILTER] KFR7 tip 6,935,572 -> 100,699
+[STAGE] KFR7 tip 전처리 시작
+[STAGE] KFR7 tip 전처리 0.5s
+[QUERY] PFR1_tip 조회 시작 2026-08-14 10:15:28
+[QUERY] PFR1_tip <- 캐시(PFR1_KFR7_TIP)
+[QUERY] PFR1_tip 라인분리(line_id) 9,910,358 -> 2,974,786
+[QUERY] PFR1_tip rows=2,974,786 cols=12 1.4s
+[STAGE] PFR1 tip 선필터 시작
+[STAGE] PFR1 tip 선필터 0.7s
+[FILTER] PFR1 tip 2,974,786 -> 18,973
+[STAGE] PFR1 tip 전처리 시작
+[STAGE] PFR1 tip 전처리 0.2s
+[ROWS] t = 92,237
+[STAGE] hold 전처리 시작
+[HOLD] 최신 version_desc=20260814-060000 적용: 5,343 -> 5,343행
+[HOLD] 재공 lot 한정: 5,343 -> 4,518행
+[STAGE] hold 전처리 0.0s
+[ROWS] h1 = 3,140
+[ROWS] h2 = 583
+[ROWS] h3 = 238
+[STAGE] f3 생성 시작
+[TIP] wc_mask=01 rules=91,392 wildcard=['lot_type']
+[TIP] wc_mask=03 rules=2 wildcard=['lot_type', 'process']
+[TIP] wc_mask=05 rules=135 wildcard=['lot_type', 'step']
+[TIP] wc_mask=07 rules=569 wildcard=['lot_type', 'process', 'step']
+[TIP] wc_mask=09 rules=2 wildcard=['lot_type', 'ppid']
+[TIP] wc_mask=13 rules=137 wildcard=['lot_type', 'step', 'ppid']
+[TIP] 매칭 후보 = 29,430행
+[STAGE] f3 생성 2.0s
+[TIP] f3 tip 값 있는 행 = 1,289 / 14,403
+[ROWS] f3 = 14,403  (lot 9,028개)
+[DUP] lot/step 중복 없음
+[MIX] f3 사용 설비그룹 1,259개 중 batch/single 혼재 2개 (equipment 미매칭 설비 2건)
+[TIMER] DB 적재 start
+[DB] f3_live 갱신 snapshot_at=2026-08-14 10:15:06 rows=14,403
+[DB] f3_history 갱신 없음 (이미 더 가까운 스냅샷이 적재돼 있음)
+[TIMER] DB 적재 elapsed=1.742s
+
+
+<spotfire_export.log>
+2026-08-14 10:08:39  ============================================================
+2026-08-14 10:08:39  script start
+2026-08-14 10:08:40  client ok  bucket=RND_FABMODELING prefix=multi_report/
+2026-08-14 10:08:40  input  PFR1_KFR7_LOT                       9063 rows  qt=2026-08-14 09:57:59
+2026-08-14 10:08:40  input  PFR1_KFR7_MATERIALWORKSTATUS      150508 rows  qt=2026-08-14 10:04:09
+2026-08-14 10:08:40  input  PFR1_KFR7_STEP_PATH              5798388 rows  qt=2026-08-14 09:59:13
+2026-08-14 10:08:40  input  PFR1_KFR7_TIP                    9910358 rows  qt=2026-08-14 10:02:39
+2026-08-14 10:08:40  input  PFR1_KFR7_EQUIPMENT                19372 rows  qt=2026-08-14 10:04:23
+2026-08-14 10:08:40  input  PFR1_KFR7_EQP_GROUP                13113 rows  qt=2026-08-14 09:58:59
+2026-08-14 10:08:40  input  PFR1_KFR7_HOLD                      5343 rows  qt=2026-08-14 09:58:33
+2026-08-14 10:08:40  input  PFR1_KFR7_MOVE                     64295 rows  qt=2026-08-14 09:58:16
+2026-08-14 10:08:40  upload PFR1_KFR7_LOT                  OK  ser=0.1s up=0.1s
+2026-08-14 10:08:40  upload PFR1_KFR7_MATERIALWORKSTATUS   OK  ser=0.1s up=0.1s
+2026-08-14 10:08:48  upload PFR1_KFR7_STEP_PATH            OK  ser=7.2s up=1.0s
+2026-08-14 10:08:58  upload PFR1_KFR7_TIP                  OK  ser=8.8s up=1.0s
+2026-08-14 10:08:58  upload PFR1_KFR7_EQUIPMENT            OK  ser=0.1s up=0.0s
+2026-08-14 10:08:58  upload PFR1_KFR7_EQP_GROUP            OK  ser=0.0s up=0.0s
+2026-08-14 10:08:58  upload PFR1_KFR7_HOLD                 OK  ser=0.0s up=0.0s
+2026-08-14 10:08:59  upload PFR1_KFR7_MOVE                 OK  ser=0.1s up=0.3s
+2026-08-14 10:08:59  manifest ok  ok=8/8
+2026-08-14 10:08:59  script end  rows=9  total=20.1s
