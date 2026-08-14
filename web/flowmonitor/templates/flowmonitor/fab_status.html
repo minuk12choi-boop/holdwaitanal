@@ -600,13 +600,13 @@ function markSelected(ch, selIdx) {
 }
 
 function czApply(ch, nodes, u, selName) {
+  // 값에 따라 농도를 달리하면 1위 막대가 '선택된 것' 처럼 보인다.
+  // 선택 표시는 3D 팝업이 전담하므로 막대색은 전부 같은 남색으로 둔다.
   const vals = nodes.map(x => u === "lots" ? x.lots : x.qty);
-  const mx = Math.max.apply(null, vals.concat([1]));
   ch.$nodes = nodes;
   ch.data.labels = nodes.map(x => x.name);
   ch.data.datasets[0].data = vals;
-  ch.data.datasets[0].backgroundColor = vals.map(v =>
-    `rgba(47,75,124,${(0.3 + 0.7 * v / mx).toFixed(2)})`);
+  ch.data.datasets[0].backgroundColor = nodes.map(() => BRAND);
   markSelected(ch, nodes.findIndex(x => x.name === selName));
   ch.update();
 }
