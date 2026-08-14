@@ -71,13 +71,13 @@
           <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
         </span></div>
       <div class="cz3">
-        <div><div class="subttl czh" id="czh0"></div>
+        <div class="czcol"><div class="subttl czh" id="czh0"></div>
           <div id="czp0" class="czpath"></div>
           <div style="height:170px"><canvas id="czc0"></canvas></div></div>
-        <div><div class="subttl czh" id="czh1"></div>
+        <div class="czcol"><div class="subttl czh" id="czh1"></div>
           <div id="czp1" class="czpath"></div>
           <div style="height:170px"><canvas id="czc1"></canvas></div></div>
-        <div><div class="subttl czh" id="czh2"></div>
+        <div class="czcol"><div class="subttl czh" id="czh2"></div>
           <div id="czp2" class="czpath"></div>
           <div style="height:170px"><canvas id="czc2"></canvas></div></div>
       </div>
@@ -202,11 +202,21 @@ function renderWip() {
   }
   const tot = d.by_lot_type.reduce((a, x) => a + x.lots, 0) || 1;
   document.getElementById("ws").innerHTML = d.by_lot_type.map((x, k) =>
-    `<i style="width:${x.lots / tot * 100}%;background:${TYPE_COLORS[k % 5]}"
-        title="${x.name} ${nf(x.lots)} LOT / ${nf(x.qty)} 매"></i>`).join("");
+    `<i style="width:${x.lots / tot * 100}%;background:${TYPE_COLORS[k % 5]}
+        ${SEL_TYPE === x.name ? ';outline:2px solid ' + SEL_BORDER
+                              + ';outline-offset:-2px' : ''}"
+        onclick="pickType('${x.name}')" title="${x.name} ${nf(x.lots)} LOT / ${nf(x.qty)} 매"
+        ></i>`).join("");
   document.getElementById("wg").innerHTML = d.by_lot_type.map((x, k) =>
     `<span><i style="background:${TYPE_COLORS[k % 5]}"></i>${x.name}
        ${(x.lots / tot * 100).toFixed(0)}%</span>`).join("");
+}
+
+function pickType(name) {
+  SEL_TYPE = (SEL_TYPE === name) ? null : name;
+  renderWip();
+  if (SEL_TYPE) { openDrill({ lot_type: name }, name, "type"); }
+  else { closeDrill(); }
 }
 
 /* --- status --- */
@@ -273,7 +283,16 @@ function renderStatus() {
                      return st.name + "  " + st.pct + "% / " + nf(st.lots) + " LOT / "
                             + nf(st.qty) + " 매";
                    } } } },
-        onClick: (e, els) => { if (els.length) pickStatus(els[0].index); }
+        onClick: (e, els) => {
+          if (!els.length) return;
+          const i = els[0].index;
+          pickStatus(i);
+          const st = DATA.status[i];
+          SEL_PIE = (SEL_PIE === st.name) ? null : st.name;
+          if (SEL_PIE) { openDrill({ status: st.name }, st.name, "status"); }
+          else { closeDrill(); }
+          dnChart.update();
+        }
       },
       plugins: [sliceLabels]
     });
@@ -281,6 +300,10 @@ function renderStatus() {
   dnChart.data.labels = d.status.map(s => s.name);
   dnChart.data.datasets[0].data = d.status.map(s => s.lots);
   dnChart.data.datasets[0].backgroundColor = d.status.map(s => s.color);
+  dnChart.data.datasets[0].borderColor = d.status.map(s =>
+    s.name === SEL_PIE ? SEL_BORDER : "transparent");
+  dnChart.data.datasets[0].borderWidth = d.status.map(s =>
+    s.name === SEL_PIE ? 3 : 0);
   dnChart.$status = d.status;
   dnChart.update();
   setStatusInfo();
@@ -313,7 +336,9 @@ function renderWt() {
         onClick: (e, els) => {
           if (!els.length) return;
           const x = DATA.wt_dist[els[0].index];
-          openDrill({ wt_range: x.name }, x.label);
+          SEL_WT = x.name;
+          openDrill({ wt_range: x.name }, x.label, "wt");
+          renderWt();
         }
       },
       plugins: [{
@@ -335,6 +360,7 @@ function renderWt() {
   wtChart.data.labels = d.wt_dist.map(x => x.label);
   wtChart.data.datasets[0].data = vals;
   wtChart.data.datasets[0].backgroundColor = colors;
+  markSelected(wtChart, d.wt_dist.findIndex(x => x.name === SEL_WT));
   wtChart.update();
 }
 
@@ -366,7 +392,9 @@ function renderWt0() {
         onClick: (e, els) => {
           if (!els.length) return;
           const x = (DATA.wt0_dist || [])[els[0].index];
-          openDrill({ wt0: x.name }, "W/T 0 · " + x.label);
+          SEL_WT0 = x.name;
+          openDrill({ wt0: x.name }, x.label, "wt0");
+          renderWt0();
         }
       },
       plugins: [{
@@ -386,6 +414,7 @@ function renderWt0() {
   wt0Chart.data.labels = list.map(x => x.label);
   wt0Chart.data.datasets[0].data = vals;
   wt0Chart.data.datasets[0].backgroundColor = colors;
+  markSelected(wt0Chart, list.findIndex(x => x.name === SEL_WT0));
   wt0Chart.update();
 }
 
@@ -398,6 +427,7 @@ const czCharts = [null, null, null];
 let czDrill = null;
 let CZ_SEL = { i: -1, path: [] };          // 한 번에 하나만 파고든다
 let DRILL_KEY = { node: null };            // 표가 어느 막대에서 나왔는지
+let SEL_WT = null, SEL_WT0 = null, SEL_TYPE = null, SEL_PIE = null;
 
 function czGroup(i) { return (DATA.causes || [])[i] || { name: "", children: [] }; }
 
@@ -590,12 +620,28 @@ const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝�
                           "마지막작업경과_일"]);
 
 function closeDrill() {
+  DRILL_SRC = "";
   document.getElementById("drill").innerHTML =
-    `<div class="empty">좌측 <b>W/T 분포</b> 막대나 <b>원인 분석</b> 항목을 클릭하면
+    `<div class="empty">좌측 <b>재공</b>·<b>status</b>·<b>W/T 분포</b>·
+      <b>W/T 0 재공 분포</b> 또는 위 <b>원인 분석</b> 항목을 클릭하면
       해당 LOT 상세가 여기에 표시됩니다.</div>`;
 }
 
-function openDrill(filt, label) {
+// 표가 어느 뷰에서 나왔는지. 다른 뷰를 누르면 이전 선택 표시를 지운다.
+let DRILL_SRC = "";
+
+function clearOtherSelections(src) {
+  if (DRILL_SRC === src) { return; }
+  if (src !== "cause") { DRILL_KEY = { node: null }; }
+  if (src !== "wt")    { SEL_WT = null; }
+  if (src !== "wt0")   { SEL_WT0 = null; }
+  if (src !== "type")  { SEL_TYPE = null; }
+  if (src !== "status") { SEL_PIE = null; }
+  DRILL_SRC = src;
+}
+
+function openDrill(filt, label, src) {
+  clearOtherSelections(src || "");
   const el = document.getElementById("drill");
   el.innerHTML = `<div class="bar"><b>불러오는 중…</b></div>`;
   smoothTo(el);
@@ -603,25 +649,34 @@ function openDrill(filt, label) {
   const q = Object.entries(Object.assign(base, filt || {}))
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
     .map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
+
   fetch("/api/lots-live/?" + q).then(r => r.json()).then(d => {
     const cols = d.cols || [], rows = d.rows || [];
     const head = cols.map(c =>
       `<th class="${NUM_COLS.has(c.k) ? "num" : ""}">${c.t}</th>`).join("");
     const body = rows.map(r => "<tr>" + cols.map(c => {
       var v = (r[c.k] === null || r[c.k] === undefined) ? "" : String(r[c.k]);
-      // 셀 내용을 .c 로 감싸야 셀 안에서 가로 스크롤이 된다
       return `<td class="${NUM_COLS.has(c.k) ? "num" : ""}">`
            + `<span class="c">${v}</span></td>`;
     }).join("") + "</tr>").join("");
-    el.innerHTML = `<div class="bar">
-        <div><b>${nf(rows.length)} LOT</b>
-          <span class="path">${[LINE, label].filter(Boolean).join(" / ")}</span></div>
+
+    el.innerHTML = `<div class="subttl">
+        <span>${SRC_TITLE[src] || "LOT 상세"}</span>
+        <span class="v">${[LINE, label].filter(Boolean).join(" · ")}</span></div>
+      <div class="bar">
+        <div><b>${nf(d.lots || rows.length)} LOT</b>
+          <b style="margin-left:8px">${nf(d.qty || 0)} 매</b></div>
         <button onclick="closeDrill()">닫기</button></div>
-      <div class="gridwrap"><table class="grid"><thead><tr>${head}</tr></thead><tbody>${body
-        || `<tr><td colspan="${cols.length}" style="color:#6B7280">`
+      <div class="gridwrap"><table class="grid"><thead><tr>${head}</tr></thead>
+        <tbody>${body || `<tr><td colspan="${cols.length}" style="color:#6B7280">`
            + `해당 조건의 LOT 이 없습니다.</td></tr>`}</tbody></table></div>`;
   });
 }
+
+const SRC_TITLE = {
+  cause: "원인 분석 상세", wt: "W/T 분포 상세", wt0: "W/T 0 재공 상세",
+  type: "재공 lot_type 상세", status: "status 상세",
+};
 
 /* --- 로딩 --- */
 function loadSummary() {
