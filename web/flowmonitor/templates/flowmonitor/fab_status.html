@@ -656,7 +656,19 @@ function czBarChart(canvasId, onPick, pluginId) {
 /* 선택된 요소를 굵은 테두리로 표시한다(발광 없음).
    Chart.register 로 전역 등록하므로 앞으로 만드는 차트도 자동 적용된다.
    각 차트는 ch.$sel 에 선택 인덱스(없으면 -1)만 넣으면 된다. */
-const SEL_COLOR = "#E2F516";
+const SEL_COLOR = "#FFD700";
+
+// 선택된 요소는 자기 계열에서 가장 진한 색으로 채운다.
+// rgba(...) 는 알파를 1 로, 그 외(hex 등)는 그대로 쓴다.
+function strongest(c) {
+  if (typeof c !== "string") { return c; }
+  const m = c.match(/^rgba?\(([^)]+)\)$/);
+  if (m) {
+    const p = m[1].split(",").map(x => x.trim());
+    return `rgb(${p[0]}, ${p[1]}, ${p[2]})`;
+  }
+  return c;
+}
 
 const popSelected = {
   id: "popSelected",
@@ -666,8 +678,11 @@ const popSelected = {
     const el = (chart.getDatasetMeta(0).data || [])[sel];
     if (!el) { return; }
     const ctx = chart.ctx;
+    const bg = chart.data.datasets[0].backgroundColor;
+    const fill = strongest(Array.isArray(bg) ? bg[sel] : bg);
 
     ctx.save();
+    ctx.fillStyle = fill;
     ctx.strokeStyle = SEL_COLOR;
     ctx.lineWidth = 3;
     ctx.lineJoin = "round";
@@ -677,6 +692,7 @@ const popSelected = {
       ctx.arc(el.x, el.y, el.outerRadius - 1.5, el.startAngle, el.endAngle);
       ctx.arc(el.x, el.y, el.innerRadius + 1.5, el.endAngle, el.startAngle, true);
       ctx.closePath();
+      ctx.fill();                                // 계열 최강색으로 다시 채우고
       ctx.stroke();
     } else {                                     // 막대
       // 가로막대(indexAxis:'y')와 세로막대는 width/height/base 의미가 다르다.
@@ -696,6 +712,7 @@ const popSelected = {
         x0 = p.x - w / 2;
       }
       const in_ = 1.5;                           // 선 굵기의 절반만큼 안쪽으로
+      ctx.fillRect(x0, y0, w, h);                // 계열 최강색으로 다시 채우고
       ctx.strokeRect(x0 + in_, y0 + in_,
                      Math.max(w - in_ * 2, 1), Math.max(h - in_ * 2, 1));
     }

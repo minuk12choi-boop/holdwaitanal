@@ -290,6 +290,39 @@ def ensure_standard_schema(conn):
           KEY ix_cr (category, sort_no)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
+        # 1) 모듈설정: 조건에 맞는 lot 에 module1/module2 를 부여
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS std_module (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          line VARCHAR(16) NULL,
+          proc_id VARCHAR(64) NULL,
+          start_layer VARCHAR(32) NULL,
+          end_layer VARCHAR(32) NULL,
+          start_stepseq VARCHAR(32) NULL,
+          end_stepseq VARCHAR(32) NULL,
+          module1 VARCHAR(64) NOT NULL,
+          module2 VARCHAR(64) NULL,
+          updated_at DATETIME NULL,
+          UNIQUE KEY uq_mod (line, proc_id, start_layer, end_layer,
+                             start_stepseq, end_stepseq, module1, module2)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+
+        # 2) Hold 유형설정: 사유 문자열에 condition 이 모두 들어가면 type_name
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS std_holdtype (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          line VARCHAR(16) NULL,
+          type VARCHAR(16) NULL,          -- ALL | HOLD | FTP | 예약제외
+          condition1 VARCHAR(128) NULL,
+          condition2 VARCHAR(128) NULL,
+          condition3 VARCHAR(128) NULL,
+          type_name VARCHAR(64) NOT NULL,
+          updated_at DATETIME NULL,
+          UNIQUE KEY uq_ht (line, type, condition1, condition2, condition3,
+                            type_name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
     conn.commit()
 
 

@@ -7,6 +7,8 @@
 """
 import datetime as dt
 
+import json
+
 from django.db import connection, ProgrammingError, OperationalError
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -912,6 +914,9 @@ WT0_BINS = [
     {"key": "d15p", "label": "15일 초과", "lo": 15.0, "hi": None},
 ]
 
+# 제품구분이 붙지 않은 lot 도 골라볼 수 있어야 한다.
+UNCLASSIFIED = "(미분류)"
+
 EQP_ISSUE = ("DOWN", "PM", "LOCAL")
 TOP_N = 5          # 상단 요약 차트에 그릴 개수
 SUB_MAX = 15       # 서버가 내려주는 소분류 최대 개수(드릴다운 차트용)
@@ -1121,12 +1126,15 @@ def api_summary(request):
     all_rows, _ = _summary_rows(line, [])
     all_types = sorted({(r.get("lot_type") or "-") for r in all_rows}, key=lot_type_key)
     # 제품구분 선택지는 lot_type 필터까지만 반영한다(자기 자신은 제외해야 목록이 안 줄어든다)
-    p1_opts = sorted({r.get("prod1") for r in rows if r.get("prod1")})
-    p2_opts = sorted({r.get("prod2") for r in rows
-                      if r.get("prod2") and (not prod1 or r.get("prod1") in prod1)})
+    def pv(r, k):
+        return r.get(k) or UNCLASSIFIED
+
+    p1_opts = sorted({pv(r, "prod1") for r in rows})
+    p2_opts = sorted({pv(r, "prod2") for r in rows
+                      if not prod1 or pv(r, "prod1") in prod1})
     rows = [r for r in rows
-            if (not prod1 or r.get("prod1") in prod1)
-            and (not prod2 or r.get("prod2") in prod2)]
+            if (not prod1 or pv(r, "prod1") in prod1)
+            and (not prod2 or pv(r, "prod2") in prod2)]
     if not rows:
         return JsonResponse({"ready": False, "reason": "선택한 제품구분에 해당하는 재공이 없습니다",
                              "prod1_options": p1_opts, "prod2_options": p2_opts},
@@ -1273,41 +1281,114 @@ def fab_metrics(request):
                                   for c in LINE_CARDS]))
 
 
+# 기준정보 카드 정의. 컬럼을 여기서만 관리하면 화면/저장이 함께 따라간다.
+STD_CARDS = [
+    {"key": "module", "table": "std_module", "title": "모듈설정",
+     "desc": "조건에 맞는 LOT 에 MODULE1 / MODULE2 를 부여한다. "
+             "빈 칸은 와일드카드이고, 더 구체적으로 지정된 행이 우선한다.",
+     "cols": [
+         {"k": "line", "t": "LINE", "type": "select", "opts": "lines"},
+         {"k": "proc_id", "t": "PROC_ID"},
+         {"k": "start_layer", "t": "START_LAYER"},
+         {"k": "end_layer", "t": "END_LAYER"},
+         {"k": "start_stepseq", "t": "START_STEPSEQ"},
+         {"k": "end_stepseq", "t": "END_STEPSEQ"},
+         {"k": "module1", "t": "MODULE1", "req": True},
+         {"k": "module2", "t": "MODULE2"},
+     ]},
+    {"key": "holdtype", "table": "std_holdtype", "title": "HOLD 유형설정",
+     "desc": "각 유형의 사유 컬럼에 CONDITION 이 모두 포함되면 TYPE_NAME 으로 "
+             "분류한다. 동시에 걸리면 HOLD > FTP > 예약제외 순으로 하나만 쓴다.",
+     "cols": [
+         {"k": "line", "t": "LINE", "type": "select", "opts": "lines"},
+         {"k": "type", "t": "TYPE", "type": "select",
+          "opts": ["ALL", "HOLD", "FTP", "예약제외"]},
+         {"k": "condition1", "t": "CONDITION1"},
+         {"k": "condition2", "t": "CONDITION2"},
+         {"k": "condition3", "t": "CONDITION3"},
+         {"k": "type_name", "t": "TYPE_NAME", "req": True},
+     ]},
+]
+
+
+def _std_rows(table, cols):
+    if not _table_exists(table):
+        return []
+    names = ", ".join(f"`{c['k']}`" for c in cols)
+    with connection.cursor() as cur:
+        cur.execute(f"SELECT id, {names} FROM `{table}` ORDER BY id")
+        keys = ["id"] + [c["k"] for c in cols]
+        return [dict(zip(keys, r)) for r in cur.fetchall()]
+
+
+def _std_save(conn, card, payload):
+    """행 목록을 통째로 교체한다.
+
+    같은 내용이 여러 번 들어와도 결과가 같아야 하므로 중복은 걸러 저장한다.
+    """
+    cols = [c["k"] for c in card["cols"]]
+    req = [c["k"] for c in card["cols"] if c.get("req")]
+
+    clean, seen = [], set()
+    for row in payload:
+        v = {k: (str(row.get(k) or "").strip() or None) for k in cols}
+        if any(not v.get(k) for k in req):
+            continue                                   # 필수값 없으면 버린다
+        if "module1" in cols and not v.get("module2"):
+            v["module2"] = v["module1"]                # 비우면 module1 과 동일
+        sig = tuple(v[k] for k in cols)
+        if sig in seen:
+            continue                                   # 완전히 같은 행은 하나만
+        seen.add(sig)
+        clean.append(v)
+
+    ph = ", ".join(["%s"] * len(cols))
+    names = ", ".join(f"`{k}`" for k in cols)
+    with conn.cursor() as cur:
+        cur.execute(f"DELETE FROM `{card['table']}`")
+        if clean:
+            now = dt.datetime.now()
+            cur.executemany(
+                f"INSERT INTO `{card['table']}` ({names}, updated_at) "
+                f"VALUES ({ph}, %s)",
+                [tuple(v[k] for k in cols) + (now,) for v in clean])
+    conn.commit()
+    return len(clean)
+
+
 def standards(request):
-    """기준정보: 원인 소분류 규칙 편집."""
+    """기준정보. 카드별로 행 추가/삭제/저장/검색을 한다."""
     import db_common as DB
 
     msg = ""
     if request.method == "POST":
-        conn = DB.connect()
-        DB.ensure_standard_schema(conn)
-        with conn.cursor() as cur:
-            if request.POST.get("delete"):
-                cur.execute("DELETE FROM cause_rules WHERE id=%s",
-                            [request.POST["delete"]])
-                msg = "삭제했습니다."
-            else:
-                cur.execute(
-                    "INSERT INTO cause_rules (category, keyword, label, sort_no,"
-                    " updated_at) VALUES (%s,%s,%s,%s,NOW())",
-                    [request.POST.get("category", "hold"),
-                     request.POST.get("keyword", "").strip(),
-                     request.POST.get("label", "").strip() or "미지정",
-                     int(request.POST.get("sort_no") or 100)])
-                msg = "추가했습니다."
-        conn.commit()
-        conn.close()
+        key = request.POST.get("card")
+        card = next((c for c in STD_CARDS if c["key"] == key), None)
+        if card:
+            try:
+                payload = json.loads(request.POST.get("rows") or "[]")
+            except ValueError:
+                payload = []
+            conn = DB.connect()
+            DB.ensure_standard_schema(conn)
+            n = _std_save(conn, card, payload)
+            conn.close()
+            msg = f"{card['title']}: {n}행 저장했습니다."
 
-    rules = []
-    if _table_exists("cause_rules"):
-        with connection.cursor() as cur:
-            cur.execute("SELECT id, category, keyword, label, sort_no "
-                        "FROM cause_rules ORDER BY category, sort_no, id")
-            rules = [{"id": r[0], "category": r[1], "keyword": r[2],
-                      "label": r[3], "sort_no": r[4]} for r in cur.fetchall()]
+    lines = [c["line"] for c in LINE_CARDS]
+    cards = []
+    for c in STD_CARDS:
+        cols = []
+        for col in c["cols"]:
+            col = dict(col)
+            if col.get("opts") == "lines":
+                col["opts"] = lines
+            cols.append(col)
+        cards.append({**c, "cols": cols, "rows": _std_rows(c["table"], c["cols"])})
+
     return render(request, "flowmonitor/standards.html",
-                  base_ctx(rules=rules, msg=msg,
-                           categories=["hold", "exception", "ftp"]))
+                  base_ctx(cards=cards, msg=msg,
+                           cards_json=json.dumps(cards, ensure_ascii=False)))
 
 
 def api_lots_live(request):
@@ -1333,8 +1414,11 @@ def api_lots_live(request):
     if not _table_exists("f3_live"):
         return JsonResponse({"rows": [], "cols": [], "reason": "f3_live 미적재"})
 
+    # (미분류)가 섞이면 IN 절로 못 거른다. 그 경우만 파이썬에서 처리한다.
+    p1_sql = prod1 if prod1 and UNCLASSIFIED not in prod1 else None
+    p2_sql = prod2 if prod2 and UNCLASSIFIED not in prod2 else None
     rows, snap = _summary_rows(line, types, {
-        "prod1": prod1, "prod2": prod2,
+        "prod1": p1_sql, "prod2": p2_sql,
         "lot_type": [lot_type] if lot_type else None,
         "lot_status": [status] if status else None,
     })
@@ -1345,7 +1429,11 @@ def api_lots_live(request):
     tot_qty = 0
     for r in rows:
         q = num(r.get("qty"))
-        # prod1/prod2/lot_type/status 는 위 SQL 에서 이미 걸렀다
+        # lot_type/status 와 (미분류) 없는 제품구분은 위 SQL 에서 이미 걸렀다
+        if prod1 and not p1_sql and (r.get("prod1") or UNCLASSIFIED) not in prod1:
+            continue
+        if prod2 and not p2_sql and (r.get("prod2") or UNCLASSIFIED) not in prod2:
+            continue
         wt = (mv.get(r["lot_id"], 0.0) / q) if q else 0.0
         if wt_range and _wt_range_key(wt) != wt_range:
             continue

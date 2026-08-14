@@ -1,46 +1,161 @@
 {% extends "flowmonitor/base.html" %}
 {% block body %}
-<div class="std">
-  <h1 style="font-size:17px;margin:0 0 4px">기준정보 · 원인 소분류 규칙</h1>
-  <div style="color:#6B7280;font-size:12px;margin-bottom:14px">
-    HOLD / EXCEPTION / FTP 의 사유 문자열에 <b>키워드</b>가 포함되면 그 <b>유형</b>으로
-    분류합니다. 위에서부터 먼저 맞는 규칙이 적용되고, 어디에도 안 맞으면 사유 원문이
-    그대로 표시됩니다.
-  </div>
+<style>
+  .std { padding:16px; }
+  .std .card { border:1px solid var(--bd); border-radius:8px; background:#fff;
+               margin-bottom:14px; }
+  .std .card > .hd { padding:12px 16px; border-bottom:1px solid var(--bd);
+                     display:flex; align-items:flex-start; justify-content:space-between;
+                     gap:12px; flex-wrap:wrap; }
+  .std .card > .bd { padding:12px 16px; }
+  .std .tools { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .std .tools input[type=text] { padding:6px 9px; border:1px solid var(--bd);
+                                 border-radius:6px; font-size:12px; min-width:150px; }
+  .std .btn { border:1px solid var(--bd); background:#fff; border-radius:6px;
+              font-size:12px; font-weight:600; padding:6px 12px; cursor:pointer;
+              transition:background .15s ease; }
+  .std .btn:hover { background:#F3F4F6; }
+  .std .btn.pri { background:var(--brand); border-color:var(--brand); color:#fff; }
+  .std .btn.pri:hover { background:var(--brand-on); }
+  .std .btn.dan { color:#B91C1C; }
+  .std .msg { color:#065F46; font-size:12px; margin-bottom:10px; }
+  .std .dirty { color:#B45309; font-size:11px; margin-left:6px; }
+  .std td input, .std td select { width:100%; box-sizing:border-box; border:0;
+                                  background:transparent; font-size:12px;
+                                  padding:2px 3px; font-family:inherit; }
+  .std td input:focus, .std td select:focus { outline:2px solid var(--brand-on);
+                                              border-radius:3px; background:#fff; }
+  .std td.ck, .std th.ck { width:34px; text-align:center; }
+  .std tr.on td { background:#FFF7E0; }
+  .std .req { color:#B91C1C; }
+</style>
 
+<div class="std">
   {% if msg %}<div class="msg">{{ msg }}</div>{% endif %}
 
-  <table class="grid">
-    <thead><tr><th>대분류</th><th>키워드</th><th>유형</th><th>순서</th><th></th></tr></thead>
-    <tbody>
-      {% for r in rules %}
-      <tr>
-        <td><span class="c">{{ r.category }}</span></td>
-        <td><span class="c">{{ r.keyword }}</span></td>
-        <td><span class="c">{{ r.label }}</span></td>
-        <td class="num">{{ r.sort_no }}</td>
-        <td>
-          <form method="post" style="margin:0">{% csrf_token %}
-            <input type="hidden" name="delete" value="{{ r.id }}">
-            <button type="submit">삭제</button>
-          </form>
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="5" style="color:#6B7280">
-        등록된 규칙이 없습니다. 사유 원문이 그대로 유형으로 표시됩니다.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% for c in cards %}
+  <div class="card" id="card_{{ c.key }}">
+    <div class="hd">
+      <div>
+        <h2 style="margin:0;font-size:15px;color:var(--accent)">{{ c.title }}</h2>
+        <div class="minittl" style="margin-top:3px">{{ c.desc }}</div>
+      </div>
+      <div class="tools">
+        <input type="text" placeholder="검색" oninput="stdSearch('{{ c.key }}')"
+               id="q_{{ c.key }}">
+        <button class="btn" onclick="stdAdd('{{ c.key }}')">행 추가</button>
+        <button class="btn dan" onclick="stdDel('{{ c.key }}')">선택 삭제</button>
+        <button class="btn pri" onclick="stdSave('{{ c.key }}')">저장</button>
+        <span class="dirty" id="d_{{ c.key }}"></span>
+      </div>
+    </div>
+    <div class="bd">
+      <div class="gridwrap"><table class="grid" id="t_{{ c.key }}">
+        <thead><tr>
+          <th class="ck"><input type="checkbox" onchange="stdAll('{{ c.key }}',this)"></th>
+          {% for col in c.cols %}
+            <th>{{ col.t }}{% if col.req %}<span class="req"> *</span>{% endif %}</th>
+          {% endfor %}
+        </tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </div>
+  {% endfor %}
 
-  <form method="post">{% csrf_token %}
-    <select name="category">
-      {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
-    </select>
-    <input name="keyword" placeholder="키워드 (사유에 포함될 문자열)" size="30" required>
-    <input name="label" placeholder="유형명" size="18" required>
-    <input name="sort_no" type="number" value="100" style="width:70px" title="순서">
-    <button type="submit">추가</button>
+  <form method="post" id="stdForm" style="display:none">{% csrf_token %}
+    <input type="hidden" name="card" id="f_card">
+    <input type="hidden" name="rows" id="f_rows">
   </form>
 </div>
+
+<script>
+const CARDS = {{ cards_json|safe }};
+const DATA = {};
+let lastIdx = {};          // shift 범위 선택용 기준점
+
+function esc(v) {
+  return String(v === null || v === undefined ? "" : v)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+}
+
+function cellHtml(card, col, row, r) {
+  const v = esc(row[col.k]);
+  if (col.type === "select") {
+    const opts = ["", ...(col.opts || [])];
+    return `<select onchange="stdEdit('${card}',${r},'${col.k}',this.value)">`
+      + opts.map(o => `<option value="${esc(o)}"`
+          + `${String(row[col.k] || "") === o ? " selected" : ""}>${esc(o)}</option>`)
+        .join("") + `</select>`;
+  }
+  return `<input value="${v}" `
+    + `oninput="stdEdit('${card}',${r},'${col.k}',this.value)">`;
+}
+
+function render(key) {
+  const card = CARDS.find(c => c.key === key);
+  const q = (document.getElementById("q_" + key).value || "").trim().toLowerCase();
+  const body = DATA[key].map((row, r) => {
+    const hay = card.cols.map(c => String(row[c.k] || "")).join(" ").toLowerCase();
+    if (q && hay.indexOf(q) < 0) { return ""; }
+    return `<tr class="${row.__sel ? "on" : ""}" data-r="${r}">`
+      + `<td class="ck"><input type="checkbox" ${row.__sel ? "checked" : ""}`
+      + ` onclick="stdPick(event,'${key}',${r})"></td>`
+      + card.cols.map(c => `<td>${cellHtml(key, c, row, r)}</td>`).join("")
+      + `</tr>`;
+  }).join("");
+  document.querySelector("#t_" + key + " tbody").innerHTML = body
+    || `<tr><td colspan="${card.cols.length + 1}" style="color:var(--mut)">`
+       + `행이 없습니다. '행 추가' 로 시작하세요.</td></tr>`;
+}
+
+function stdEdit(key, r, k, v) { DATA[key][r][k] = v; dirty(key); }
+function dirty(key) { document.getElementById("d_" + key).textContent = "저장 안 됨"; }
+
+function stdAdd(key) {
+  const card = CARDS.find(c => c.key === key);
+  const row = {};
+  card.cols.forEach(c => { row[c.k] = ""; });
+  DATA[key].push(row); dirty(key); render(key);
+}
+
+function stdDel(key) {
+  DATA[key] = DATA[key].filter(x => !x.__sel);
+  dirty(key); render(key);
+}
+
+function stdAll(key, el) {
+  DATA[key].forEach(x => { x.__sel = el.checked; });
+  render(key);
+}
+
+// shift 를 누른 채 클릭하면 직전 클릭 지점부터 범위 선택
+function stdPick(ev, key, r) {
+  const on = ev.target.checked;
+  if (ev.shiftKey && lastIdx[key] !== undefined) {
+    const a = Math.min(lastIdx[key], r), b = Math.max(lastIdx[key], r);
+    for (let i = a; i <= b; i++) { DATA[key][i].__sel = on; }
+  } else {
+    DATA[key][r].__sel = on;
+  }
+  lastIdx[key] = r;
+  render(key);
+}
+
+function stdSearch(key) { render(key); }
+
+function stdSave(key) {
+  const card = CARDS.find(c => c.key === key);
+  const rows = DATA[key].map(row => {
+    const o = {};
+    card.cols.forEach(c => { o[c.k] = row[c.k]; });
+    return o;
+  });
+  document.getElementById("f_card").value = key;
+  document.getElementById("f_rows").value = JSON.stringify(rows);
+  document.getElementById("stdForm").submit();
+}
+
+CARDS.forEach(c => { DATA[c.key] = c.rows.map(r => Object.assign({}, r)); render(c.key); });
+</script>
 {% endblock %}
