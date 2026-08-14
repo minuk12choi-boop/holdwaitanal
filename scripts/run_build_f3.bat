@@ -1,8 +1,8 @@
 @echo off
 setlocal
-REM Scheduler entry point. Runs every 2 hours.
+REM Scheduler entry point. Runs every 30 minutes.
 REM   build_f3.py : every run (f3_live always, f3_history at shift boundaries)
-REM   get_move.py : every run (incremental window covers the in-progress shift)
+REM   get_move.py : every run (window = in-progress shift, max 8h)
 REM Keep this file ASCII only.
 cd /d "%~dp0.."
 if not exist logs mkdir logs

@@ -360,6 +360,29 @@ d["tkout_date"] = DB.to_datetime(d["tkout_date"])
 DuckDB 쪽 `parsed_ts()` 도 `TRY_STRPTIME` + `TRY_CAST` 조합이라 양쪽을 받는다.
 따라서 Oracle 쿼리에서 날짜 변환을 추가하거나 빼도 python 을 고칠 필요가 없다.
 
+### MOVE 증분 조회 창
+
+`get_move.py` 의 `INCREMENTAL_HOURS` 는 **1** 이다. 시작 시각이 shift 경계로
+정렬되므로 실제 창은 **진행 중 shift 전체(최대 8시간)** 가 된다. 부분 집계가
+남지 않으면서 조회량은 최소가 된다.
+
+```
+23:15 실행 -> 22:00 ~ 23:15   (1.2시간)
+05:15 실행 -> 22:00 ~ 05:15   (7.2시간)
+07:15 실행 -> 06:00 ~ 07:15   (1.2시간)
+```
+
+30분 주기로 바뀌기 전에는 20 이었다(매번 20시간치를 다시 읽었다).
+
+기간을 강제로 넓히려면:
+
+```
+python getdata/get_move.py --hours 6
+python getdata/get_move.py --days 3
+python getdata/get_move.py --from 2026-08-01 --to 2026-08-10
+python getdata/get_move.py --full
+```
+
 ### 경과일 컬럼
 
 f3 는 네 가지 경과일을 담는다. 모두 `현재시각 - 기준시각` 을 일 단위 소수 1자리로.

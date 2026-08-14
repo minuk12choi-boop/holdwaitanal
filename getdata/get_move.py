@@ -43,7 +43,11 @@ INIT_MONTHS = 3
 # 2시간 주기 실행 기준 증분 조회 폭(시간).
 #   진행 중인 shift(최대 8h) + 직전 shift(8h) 를 덮고도 남는 여유를 둔다.
 #   실행이 몇 시간 밀려도 공백이 생기지 않는다. (교체 적재라 겹쳐도 무해)
-INCREMENTAL_HOURS = 20
+# 증분 조회 창. 실행 주기(30분)보다 넉넉하되 과하지 않게.
+#   시작은 이 값 이전이 속한 shift 의 시작으로 맞춰지므로,
+#   실제 창은 최소 이 값 ~ 최대 (이 값 + 8시간) 이 된다.
+#   1 이면 진행 중 shift 전체(최대 8시간)를 다시 읽는다. 그것으로 충분하다.
+INCREMENTAL_HOURS = 1
 BOUNDARY_SHIFT = {22: "GY", 6: "DAY", 14: "SW"}
 TARGET_LINES = ("KFR7", "PFR1")
 
@@ -110,6 +114,8 @@ def resolve_range(conn, args):
     if args.ts_from and args.ts_to:
         return (dt.datetime.combine(args.ts_from, dt.time(22)) - dt.timedelta(days=1),
                 dt.datetime.combine(args.ts_to, dt.time(22)))
+    if args.hours:
+        return shift_start_at_or_before(now - dt.timedelta(hours=args.hours)), now
     if args.days:
         return shift_start_at_or_before(now - dt.timedelta(days=args.days)), now
     if args.full or DB.move_last_biz_date(conn) is None:
@@ -170,6 +176,8 @@ def aggregate(df, ts_from, ts_to):
 def main():
     ap = argparse.ArgumentParser(description="MOVE 조회/적재")
     ap.add_argument("--full", action="store_true", help=f"{INIT_MONTHS}개월치 재적재")
+    ap.add_argument("--hours", type=int, default=0,
+                    help="최근 N시간 (shift 시작으로 정렬). 예: --hours 6")
     ap.add_argument("--days", type=int, default=0, help="최근 N일")
     ap.add_argument("--from", dest="ts_from", type=dt.date.fromisoformat)
     ap.add_argument("--to", dest="ts_to", type=dt.date.fromisoformat)
