@@ -95,6 +95,17 @@ S3_PREFIX            = "multi_report/"          # 예) "multi_report/"  (끝 '/'
 USE_BOTO3 = True
 # ────────────────────────────────────────────────────────────────────────────
 
+# 이 데이터 함수가 담당할 테이블.
+#   8개를 한 함수에 몰면 Spotfire 가 입력을 pandas 로 넘기는 단계에서
+#   메모리/임시디스크가 터진다(_read_inputs 에서 MemoryError).
+#   함수를 여러 개로 나누고 각 함수의 TABLE_NAMES 를 아래처럼 줄인다.
+#
+#     s3drive_big1 : ["PFR1_KFR7_STEP_PATH"]
+#     s3drive_big2 : ["PFR1_KFR7_TIP"]
+#     s3drive_rest : 나머지 6개
+#
+#   매니페스트는 회차마다 병합되므로 어느 함수가 먼저 끝나든 상관없다.
+#   8개가 모두 채워졌을 때만 완결로 본다.
 TABLE_NAMES = [
     "PFR1_KFR7_LOT",
     "PFR1_KFR7_MATERIALWORKSTATUS",
@@ -119,6 +130,9 @@ TABLE_NAMES = [
 # 바뀌므로 낡은 값을 재사용하면 실시간 전환의 의미가 없다.
 # 전송량은 주기를 늦추는 대신 압축으로 줄인다.
 FMT = "parquet"
+
+# 파이프라인 전체가 기대하는 테이블 수. 함수를 나눠도 이 값은 8 로 둔다.
+ALL_TABLES = 9
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +246,7 @@ try:
 
         jobs.append((name, df, qt))
         trace("input  %-30s %9d rows  qt=%s" % (name, len(df), qt))
+        df = None
 
     # ── 2) 직렬화 + 업로드 (병렬) ────────────────────────────────────────
     def work(job):
@@ -258,27 +273,46 @@ try:
 
     # 순차 실행. 병렬은 실측상 이득이 없고(직렬화 6.5초), Spotfire 임베디드
     # python 에서 boto3 클라이언트를 스레드로 공유하면 멈출 수 있다.
-    for j in jobs:
-        r = work(j)
+    import gc
+    for k in range(len(jobs)):
+        r = work(jobs[k])
         rows.append(r)
         trace("upload %-30s %s  ser=%.1fs up=%.1fs" % (r[0], r[1], r[5], r[6]))
+        jobs[k] = None          # 올린 DataFrame 은 바로 놓아준다
+        gc.collect()
 
     # 8개를 다 올린 뒤 마지막에 매니페스트를 쓴다.
     #   업로드는 순차라 중간에 읽히면 서로 다른 시점의 파일이 섞인다.
     #   매니페스트가 '마지막에' 생기므로, 읽는 쪽은 이것만 보면
     #   '이번 회차가 완결됐는지' 를 알 수 있다.
     ok = [r for r in rows if r[1] == "OK"]
-    qts = sorted({r[4] for r in ok if r[4]})
+
+    # 기존 매니페스트를 읽어 병합한다. 함수를 여러 개로 나눠도
+    # 마지막에 도는 함수가 8개 전부를 담은 매니페스트를 남기게 된다.
+    prev = {}
+    try:
+        obj = client.get_object(Bucket=bucket, Key="%s_manifest.json" % prefix)
+        old = json.loads(obj["Body"].read().decode("utf-8"))
+        # 같은 회차(=오늘) 것만 이어 붙인다. 날이 바뀌면 새로 시작.
+        if str(old.get("run_at", ""))[:10] == started.strftime("%Y-%m-%d"):
+            prev = old.get("tables") or {}
+    except Exception:
+        prev = {}
+
+    tables = dict(prev)
+    for r in ok:
+        tables[r[0]] = {"rows": int(r[2]), "cols": int(r[3]), "query_time": r[4]}
+
+    qts = sorted({v.get("query_time") for v in tables.values() if v.get("query_time")})
     manifest = {
         "run_at": started.strftime("%Y-%m-%d %H:%M:%S"),
         "finished_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "query_time": qts[-1] if qts else "",       # 원천 조회 시각(SYSDATE)
         "query_time_all": qts,                      # 테이블별로 다르면 여기서 드러난다
         "fmt": FMT,
-        "tables": {r[0]: {"rows": int(r[2]), "cols": int(r[3]), "query_time": r[4]}
-                   for r in ok},
-        "ok": len(ok),
-        "total": len(TABLE_NAMES),
+        "tables": tables,
+        "ok": len(tables),
+        "total": ALL_TABLES,
     }
     buf = io.BytesIO(json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8"))
     client.upload_fileobj(buf, bucket, "%s_manifest.json" % prefix)

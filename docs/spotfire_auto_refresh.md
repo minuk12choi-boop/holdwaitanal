@@ -175,3 +175,51 @@ Oracle 직접 접속은 사내 정책상 불가. 스케줄러가 Spotfire 를 �
 `run_build_f3.bat` 의 트리거를 2시간 -> **30분** 으로 바꾼다.
 매니페스트 비교로 새 회차일 때만 실제 작업하므로, Spotfire 와 시각이
 어긋나도 문제없다.
+
+---
+
+## 메모리 부족으로 data function 이 실패할 때
+
+```
+Low disk space. (3)
+numpy.core._exceptions._ArrayMemoryError: Unable to allocate 756 MiB
+  ... File "data_function.py", line 343, in _read_inputs
+```
+
+`_read_inputs` 는 **우리 스크립트가 실행되기 전** 단계다. Spotfire 가 입력
+테이블을 SBDF 임시파일로 쓰고 pandas 로 읽어 넘기는 구간이라, 스크립트를
+고쳐서는 막을 수 없다. 한 함수에 1,500만 행을 몰아넣은 것이 원인이다.
+
+### 조치 1. 데이터 함수를 나눈다 (권장)
+
+같은 스크립트를 이름만 달리해 3개 등록하고, 각 함수의 `TABLE_NAMES` 와
+Input Parameters 를 아래처럼 줄인다.
+
+| 함수 | TABLE_NAMES | 행수 |
+|---|---|---|
+| `s3drive_step` | `["PFR1_KFR7_STEP_PATH"]` | 약 570만 |
+| `s3drive_tip` | `["PFR1_KFR7_TIP"]` | 약 990만 |
+| `s3drive_rest` | 나머지 7개 | 약 40만 |
+
+**매니페스트는 회차마다 병합**되므로 실행 순서와 무관하다. 각 함수가 자기
+테이블만 갱신하고, 9개가 모두 채워졌을 때 `build_f3.py` 가 처리한다.
+아직 덜 왔으면 이렇게 뜬다.
+
+```
+[SKIP] 이번 회차가 아직 완결되지 않았습니다. 미도착 2개: PFR1_KFR7_TIP, ...
+```
+
+`RefreshAll` 은 그대로 두면 된다. `Document.Data.DataFunctions` 를 전부 돌리므로
+나눈 함수가 순차로 실행된다.
+
+### 조치 2. 임시 폴더 공간 확보
+
+Spotfire 는 입력을 임시파일로 쓴다. 1,500만 행이면 수 GB 다.
+
+```
+%LOCALAPPDATA%\Temp
+%LOCALAPPDATA%\Spotfire\...\Temp
+```
+
+여유가 없으면 `Tools > Options > Application > Temporary files` 에서 공간이
+넉넉한 드라이브로 옮긴다.

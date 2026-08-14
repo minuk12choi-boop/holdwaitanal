@@ -1622,6 +1622,15 @@ def main():
                   "확인하세요.", flush=True)
             return
 
+        # 함수를 나눠 올리면 매니페스트가 회차 중간에도 존재한다.
+        # 9개가 모두 채워지기 전에는 처리하지 않는다.
+        have = set((man.get("tables") or {}).keys())
+        missing = [t for t in s3_source.TABLES if t not in have]
+        if missing and "--force" not in sys.argv:
+            print(f"[SKIP] 이번 회차가 아직 완결되지 않았습니다. "
+                  f"미도착 {len(missing)}개: {', '.join(missing)}", flush=True)
+            return
+
         fin = str(man.get("finished_at", ""))
         if SKIP_IF_NOT_FRESH and "--force" not in sys.argv:
             prev = ""
