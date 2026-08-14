@@ -1,85 +1,29 @@
-> python getdata/build_f3.py --force         
-[TIMER] 소형 원천 조회 start   
-[QUERY] lot 조회 시작 2026-08-14 09:20:47
-[QUERY] lot rows=9,036 cols=22 1.9s
-[QUERY] materialworkstatus 조회 시작 2026-08-14 09:20:48
-[QUERY] materialworkstatus rows=150,259 cols=4 0.2s
-[STAGE] fa_object4 결합 시작
-[JOIN] fa_object4 8,957/9,036 lot 매칭
-[STAGE] fa_object4 결합 0.1s
-[QUERY] equipment 조회 시작 2026-08-14 09:20:49
-[QUERY] equipment rows=19,372 cols=8 0.1s
-[CACHE] eqp_group 재사용 (eqp_group_20260814.csv) rows=12,878
-[QUERY] hold 조회 시작 2026-08-14 09:20:49
-[QUERY] hold rows=7,470 cols=10 0.1s
-[TIMER] 소형 원천 조회 elapsed=2.307s
-[QUERY] KFR7_step_path 조회 시작 2026-08-14 09:20:49
-[QUERY] KFR7_step_path 라인분리(line_id) 5,742,880 -> 5,332,756
-[QUERY] KFR7_step_path rows=5,332,756 cols=17 6.1s
-[STAGE] KFR7 범위축약 시작
-[STAGE] KFR7 범위축약 5.2s
-[ROWS] KFR7 scope(step) = 11,855
-[STAGE] KFR7 설비그룹전개 시작
-[STAGE] KFR7 설비그룹전개 0.1s
-[QUERY] PFR1_step_path 조회 시작 2026-08-14 09:21:00
-[QUERY] PFR1_step_path <- 캐시(PFR1_KFR7_STEP_PATH)
-[QUERY] PFR1_step_path 라인분리(line_id) 5,742,880 -> 410,124
-[QUERY] PFR1_step_path rows=410,124 cols=17 0.8s
-[STAGE] PFR1 범위축약 시작
-[STAGE] PFR1 범위축약 0.3s
-[ROWS] PFR1 scope(step) = 2,247
-[STAGE] PFR1 설비그룹전개 시작
-[STAGE] PFR1 설비그룹전개 0.0s
-[ROWS] s = 40,962
-[QUERY] KFR7_tip 조회 시작 2026-08-14 09:21:01
-[QUERY] KFR7_tip 라인분리(line_id) 9,906,861 -> 6,933,073
-[QUERY] KFR7_tip rows=6,933,073 cols=12 6.1s
-[STAGE] KFR7 tip 선필터 시작
-[STAGE] KFR7 tip 선필터 1.8s
-[FILTER] KFR7 tip 6,933,073 -> 105,293
-[STAGE] KFR7 tip 전처리 시작
-[STAGE] KFR7 tip 전처리 0.7s
-[QUERY] PFR1_tip 조회 시작 2026-08-14 09:21:10
-[QUERY] PFR1_tip <- 캐시(PFR1_KFR7_TIP)
-[QUERY] PFR1_tip 라인분리(line_id) 9,906,861 -> 2,973,788
-[QUERY] PFR1_tip rows=2,973,788 cols=12 1.7s
-[STAGE] PFR1 tip 선필터 시작
-[STAGE] PFR1 tip 선필터 0.9s
-[FILTER] PFR1 tip 2,973,788 -> 16,730
-[STAGE] PFR1 tip 전처리 시작
-[STAGE] PFR1 tip 전처리 0.2s
-[ROWS] t = 93,959
-[STAGE] hold 전처리 시작
-[HOLD] 최신 version_desc=20260813-220000 적용: 7,470 -> 7,470행
-[HOLD] 재공 lot 한정: 7,470 -> 5,196행
-[STAGE] hold 전처리 0.0s
-[ROWS] h1 = 3,677
-[ROWS] h2 = 675
-[ROWS] h3 = 276
-[STAGE] f3 생성 시작
-[TIP] wc_mask=01 rules=93,076 wildcard=['lot_type']
-[TIP] wc_mask=03 rules=2 wildcard=['lot_type', 'process']
-[TIP] wc_mask=05 rules=136 wildcard=['lot_type', 'step']
-[TIP] wc_mask=07 rules=603 wildcard=['lot_type', 'process', 'step']
-[TIP] wc_mask=09 rules=2 wildcard=['lot_type', 'ppid']
-[TIP] wc_mask=13 rules=139 wildcard=['lot_type', 'step', 'ppid']
-[TIP] wc_mask=15 rules=1 wildcard=['lot_type', 'process', 'step', 'ppid']
-[TIP] 매칭 후보 = 28,019행
-[STAGE] f3 생성 2.0s
-[TIP] f3 tip 값 있는 행 = 1,207 / 14,102
-[ROWS] f3 = 14,102  (lot 9,021개)
-[DUP] lot/step 중복 없음
-[MIX] f3 사용 설비그룹 1,240개 중 batch/single 혼재 2개 (equipment 미매칭 설비 2건)
-[TIMER] DB 적재 start
-[DB] f3_live 갱신 snapshot_at=2026-08-14 09:20:47 rows=14,102
-[DB] f3_history 적재 biz_date=2026-08-14 shift=DAY snapshot=2026-08-14 09:20:47 (기준시각과 200분 차)
-[TIMER] DB 적재 elapsed=2.498s
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\diag.py wt      
 
-======================================================================
-W/T 진단
-======================================================================
-f3_live 스냅샷      : 2026-08-14 09:20:47   lot 9,021개
-move_lot 업무일     : 2026-08-14      lot 1,119개
-두 쪽 모두 있는 lot : 657
-MOVE 가 없는 lot    : 8,364  -> 이들이 WT=0 이 된다
+테이블	원천조회(SYSDATE)	S3적재
+lot
+2026-08-14 09:43:00
+10:00:06
+hold
+2026-08-14 09:43:36
+10:00:07
+KFR7_step_path
+2026-08-14 09:44:18
+10:00:07
+PFR1_step_path
+2026-08-14 09:44:18
+10:00:18
+KFR7_tip
+2026-08-14 09:47:02
+10:00:19
+PFR1_tip
+2026-08-14 09:47:02
+10:00:28
+materialworkstatus
+2026-08-14 09:47:59
+10:00:07
+equipment
+2026-08-14 09:48:13
+10:00:07
+eqp_group
+-
+-
