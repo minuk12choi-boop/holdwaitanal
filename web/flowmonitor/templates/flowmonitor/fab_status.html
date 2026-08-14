@@ -562,7 +562,7 @@ function czPick(i, node, depth) {
     DRILL_KEY = { i: i, node: node.name };
     renderCause();
     openDrill(f, [czGroup(i).name].concat(keep.map(p => p.name))
-                 .concat([node.name]).join(" › "), "cause");
+                 .concat([node.name]).join(" > "), "cause");
     return;
   }
 
@@ -653,10 +653,10 @@ function czBarChart(canvasId, onPick, pluginId) {
   });
 }
 
-/* 선택된 요소를 형광 테두리로 표시한다.
+/* 선택된 요소를 굵은 테두리로 표시한다(발광 없음).
    Chart.register 로 전역 등록하므로 앞으로 만드는 차트도 자동 적용된다.
    각 차트는 ch.$sel 에 선택 인덱스(없으면 -1)만 넣으면 된다. */
-const SEL_COLOR = "#FFFFE0";
+const SEL_COLOR = "#E2F516";
 
 const popSelected = {
   id: "popSelected",
@@ -671,15 +671,13 @@ const popSelected = {
     ctx.strokeStyle = SEL_COLOR;
     ctx.lineWidth = 3;
     ctx.lineJoin = "round";
-    ctx.shadowColor = SEL_COLOR;      // 형광 느낌
-    ctx.shadowBlur = 12;
 
     if (el.outerRadius !== undefined) {          // 원차트 조각
       ctx.beginPath();
       ctx.arc(el.x, el.y, el.outerRadius - 1.5, el.startAngle, el.endAngle);
       ctx.arc(el.x, el.y, el.innerRadius + 1.5, el.endAngle, el.startAngle, true);
       ctx.closePath();
-      ctx.stroke(); ctx.stroke();                // 두 번 그려 발광 강화
+      ctx.stroke();
     } else {                                     // 막대
       // 가로막대(indexAxis:'y')와 세로막대는 width/height/base 의미가 다르다.
       // 두 경우를 나눠 실제 막대와 정확히 겹치게 그린다.
@@ -698,8 +696,6 @@ const popSelected = {
         x0 = p.x - w / 2;
       }
       const in_ = 1.5;                           // 선 굵기의 절반만큼 안쪽으로
-      ctx.strokeRect(x0 + in_, y0 + in_,
-                     Math.max(w - in_ * 2, 1), Math.max(h - in_ * 2, 1));
       ctx.strokeRect(x0 + in_, y0 + in_,
                      Math.max(w - in_ * 2, 1), Math.max(h - in_ * 2, 1));
     }
@@ -799,12 +795,12 @@ function renderCause() {
 
   const names = CZ_SEL.path.filter(p => p.kind !== "all").map(p => p.name);
   document.getElementById("czdttl").textContent =
-    [g.name].concat(names).join(" › ") + (isAll ? " 전체" : "");
+    [g.name].concat(names).join(" > ") + (isAll ? " 전체" : "");
   document.getElementById("czdcnt").textContent = nodes.length + "개";
   document.getElementById("czdpath").innerHTML =
     `<span class="czback" onclick="czGo(${Math.max(CZ_SEL.path.length - 1, 0)})">`
     + `◀ 뒤로</span><a onclick="czReset()">닫기</a>`
-    + names.map((n, k) => ` &rsaquo; <a onclick="czGo(${k + 1})">${n}</a>`).join("");
+    + names.map((n, k) => ` &gt; <a onclick="czGo(${k + 1})">${n}</a>`).join("");
 
   if (!czDrill) {
     czDrill = czBarChart("czdc",
@@ -910,13 +906,20 @@ function renderDrillTable() {
          + `해당 조건의 LOT 이 없습니다.</td></tr>`}</tbody></table>`;
 }
 
+// 드릴다운 소제목. 영문은 대문자, 단계는 > 로 잇는다.
+function drillTitle(src, label) {
+  return [SRC_TITLE[src] || "LOT 상세", LINE, label]
+    .filter(Boolean)
+    .join(" > ")
+    .replace(/[a-z]+/g, (m) => m.toUpperCase());
+}
+
 function openDrill(filt, label, src) {
   clearOtherSelections(src || "");
   const el = document.getElementById("drill");
   // 곧바로 자리표시자를 그려 '눌리지 않은 것처럼' 보이지 않게 한다.
   el.classList.add("loading");
-  el.innerHTML = `<div class="cellttl"><span>${SRC_TITLE[src] || "LOT 상세"}`
-    + ` · ${LINE}${label ? " · " + label : ""}</span></div>`
+  el.innerHTML = `<div class="cellttl"><span>${drillTitle(src, label)}</span></div>`
     + `<div class="bar"><b>불러오는 중…</b><span class="spin"></span></div>`;
   smoothTo(el);
   const base = { line: LINE, types: selectedTypes().join(","),
@@ -929,9 +932,7 @@ function openDrill(filt, label, src) {
     el.classList.remove("loading");
     DRILL_DATA = d;
     SORT_KEYS = [];                       // 새 조건이면 정렬은 초기화
-    const ttl = [SRC_TITLE[src] || "LOT 상세", LINE, label]
-      .filter(Boolean).join(" · ");
-    el.innerHTML = `<div class="cellttl"><span>${ttl}</span></div>
+    el.innerHTML = `<div class="cellttl"><span>${drillTitle(src, label)}</span></div>
       <div class="bar">
         <div><b>${nf(d.lots || (d.rows || []).length)} LOT</b>
           <b style="margin-left:8px">${nf(d.qty || 0)} 매</b>
