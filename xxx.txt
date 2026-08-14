@@ -1,11 +1,11 @@
-C:\Users\minuk12.choi>dir "C:\ProgramData\MySQL\MySQL Server 8.0\Data\app_db"
- C 드라이브의 볼륨에는 이름이 없습니다.
- 볼륨 일련 번호: 0E57-9717
+C:\Users\minuk12.choi>dir "D:\MySQLData\app_db"
+ D 드라이브의 볼륨에는 이름이 없습니다.
+ 볼륨 일련 번호: 340B-3488
 
- C:\ProgramData\MySQL\MySQL Server 8.0\Data\app_db 디렉터리
+ D:\MySQLData\app_db 디렉터리
 
 2026-08-13  오전 07:30    <DIR>          .
-2026-08-14  오후 02:27    <DIR>          ..
+2026-08-14  오후 02:31    <DIR>          ..
 2026-02-25  오후 06:09           131,072 auth_group.ibd
 2026-02-25  오후 06:09           147,456 auth_group_permissions.ibd
 2026-05-18  오후 04:33           147,456 auth_permission.ibd
@@ -105,4 +105,4 @@ C:\Users\minuk12.choi>dir "C:\ProgramData\MySQL\MySQL Server 8.0\Data\app_db"
 2026-05-19  오후 01:59           114,688 wip_ref_product_rule.ibd
 2026-05-19  오후 03:15           196,608 wip_report_lotpath.ibd
               98개 파일      55,489,366,863 바이트
-               2개 디렉터리  16,040,763,392 바이트 남음
+               2개 디렉터리  604,694,450,176 바이트 남음
