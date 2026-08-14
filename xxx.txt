@@ -1,51 +1,35 @@
-<spotfire error message1>
+mysql> mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
+ERROR:
+Unknown command '\b'.
+ERROR:
+Unknown command '\a'.
+    -> mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
+ERROR:
+Unknown command '\b'.
+ERROR:
+Unknown command '\a'.
+    -> exit
+    ->
+    -> ;
+ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
+mysqldump -u m' at line 1
+mysql> mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
+ERROR:
+Unknown command '\b'.
+ERROR:
+Unknown command '\a'.
+    -> exit
+    -> ;
+ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
+exit' at line 1
+mysql> mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql;
+ERROR:
+Unknown command '\b'.
+ERROR:
+Unknown command '\a'.
+ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql' at line 1
+mysql> exit
+Bye
 
-Low disk space. (3)
-
-The disk space available for temporary storage is used up. For better performance, try to free up some disk space.
-
-
-<spotfire error message2>
-Could not execute function call 's3drive'
-
-
-Error executing Python script:
-
-numpy.core._exceptions._ArrayMemoryError: Unable to allocate 756. MiB for an array with shape (10, 9914639) and data type object
-
-Traceback (most recent call last):
-  File "data_function.py", line 289, in evaluate
-    self._read_inputs(result)
-  File "data_function.py", line 343, in _read_inputs
-    input_.read(self.globals, self.debug)
-  File "data_function.py", line 97, in read
-    dataframe = sbdf.import_data(self.file)
-  File "sbdf.py", line 85, in import_data
-    dataframe = pd.concat(columns, axis=1)
-  File "_decorators.py", line 331, in wrapper
-    return func(*args, **kwargs)
-  File "concat.py", line 381, in concat
-    return op.get_result()
-  File "concat.py", line 592, in get_result
-    df = cons(data, index=index, copy=self.copy)
-  File "frame.py", line 664, in __init__
-    mgr = dict_to_mgr(data, index, columns, dtype=dtype, copy=copy, typ=manager)
-  File "construction.py", line 493, in dict_to_mgr
-    return arrays_to_mgr(arrays, columns, index, dtype=dtype, typ=typ, consolidate=copy)
-  File "construction.py", line 154, in arrays_to_mgr
-    return create_block_manager_from_column_arrays(
-  File "managers.py", line 2204, in create_block_manager_from_column_arrays
-    mgr._consolidate_inplace()
-  File "managers.py", line 1871, in _consolidate_inplace
-    self.blocks = _consolidate(self.blocks)
-  File "managers.py", line 2329, in _consolidate
-    merged_blocks, _ = _merge_blocks(
-  File "managers.py", line 2388, in _merge_blocks
-    new_values = new_values[argsort]
-
-
-
-   at Spotfire.Dxp.Data.DataFunctions.Executors.LocalPythonFunctionClient.<RunFunction>d__8.MoveNext()
-   at Spotfire.Dxp.Data.DataFunctions.Executors.PythonScriptExecutor.<ExecuteFunction>d__11.MoveNext()
-   at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
-
+C:\Users\minuk12.choi>mysqldump -u minuk12.choi -p app_db > D:\backup\app_db_backup.sql
+지정된 경로를 찾을 수 없습니다.
