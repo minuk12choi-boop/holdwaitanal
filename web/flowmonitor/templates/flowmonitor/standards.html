@@ -10,15 +10,15 @@
 
   {% if msg %}<div class="msg">{{ msg }}</div>{% endif %}
 
-  <table>
+  <table class="grid">
     <thead><tr><th>대분류</th><th>키워드</th><th>유형</th><th>순서</th><th></th></tr></thead>
     <tbody>
       {% for r in rules %}
       <tr>
-        <td>{{ r.category }}</td>
-        <td>{{ r.keyword }}</td>
-        <td>{{ r.label }}</td>
-        <td>{{ r.sort_no }}</td>
+        <td><span class="c">{{ r.category }}</span></td>
+        <td><span class="c">{{ r.keyword }}</span></td>
+        <td><span class="c">{{ r.label }}</span></td>
+        <td class="num">{{ r.sort_no }}</td>
         <td>
           <form method="post" style="margin:0">{% csrf_token %}
             <input type="hidden" name="delete" value="{{ r.id }}">

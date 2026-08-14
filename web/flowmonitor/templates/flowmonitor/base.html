@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ page_title|default:"Multi Line Fab Monitor" }}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -218,6 +219,52 @@
   .std input, .std select { padding:5px 7px; border:1px solid var(--bd);
                             border-radius:4px; font-size:13px; }
   .std .msg { color:#065F46; font-size:12px; margin-bottom:10px; }
+
+  /* ── 공용 표(.grid) ─────────────────────────────────────────────────────
+     - 셀 경계선을 그어 컬럼을 구분
+     - 헤더 가운데 정렬
+     - 내용 길이에 맞춰 폭을 잡되 최대 폭을 두고, 넘치면 셀 안에서 가로 스크롤
+     ------------------------------------------------------------------- */
+  .grid { border-collapse:collapse; width:auto; font-size:12px;
+          table-layout:auto; }
+  .grid th, .grid td { border:1px solid var(--bd); padding:5px 8px;
+                       white-space:nowrap; vertical-align:middle; }
+  .grid thead th { text-align:center; background:#F3F4F6; color:var(--mut);
+                   font-size:11px; font-weight:600; position:sticky; top:0; z-index:1; }
+  .grid tbody td { text-align:left; }
+  .grid td.num, .grid th.num { text-align:right;
+                               font-variant-numeric:tabular-nums; }
+  /* 셀 내부 스크롤. td 자체에는 overflow 가 먹지 않아 내부 div 를 쓴다. */
+  .grid .c { display:block; max-width:240px; overflow-x:auto; overflow-y:hidden;
+             white-space:nowrap; scrollbar-width:thin; }
+  .grid .c::-webkit-scrollbar { height:6px; }
+  .grid .c::-webkit-scrollbar-thumb { background:#D1D5DB; border-radius:3px; }
+  .grid tbody tr:hover td { background:#FAFAFA; }
+  .grid tr.tot td { font-weight:700; background:#F9FAFB;
+                    border-top:2px solid var(--bd); }
+
+  .gridwrap { overflow:auto; border:1px solid var(--bd); border-radius:6px;
+              max-height:60vh; }
+
+  /* ── 해상도 대응 ──────────────────────────────────────────────────────── */
+  @media (max-width: 1600px) {
+    .summary { flex:0 0 340px; }
+    .grid .c { max-width:200px; }
+  }
+  @media (max-width: 1280px) {
+    .layout, main { flex-wrap:wrap; }
+    .summary, .left { flex:1 1 100%; min-width:0; }
+    .detail, .right { flex:1 1 100%; }
+    .status { grid-template-columns:repeat(2, 1fr); }
+    .grid .c { max-width:170px; }
+  }
+  @media (max-width: 820px) {
+    .status { grid-template-columns:1fr; }
+    header { flex-wrap:wrap; height:auto; padding:8px 12px; }
+    header .meta { margin-left:0; width:100%; }
+    .dl .split { flex-wrap:wrap; }
+    .dl .split > .left, .dl .split > .right { flex:1 1 100%; }
+  }
 </style>
 </head>
 <body>

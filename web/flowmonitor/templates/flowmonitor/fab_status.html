@@ -403,16 +403,19 @@ function openDrill(filt, label) {
     .map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
   fetch("/api/lots-live/?" + q).then(r => r.json()).then(d => {
     const cols = d.cols || [], rows = d.rows || [];
-    const head = cols.map(c => `<th>${c.t}</th>`).join("");
-    const body = rows.map(r => "<tr>" + cols.map(c =>
-      `<td class="${NUM_COLS.has(c.k) ? "num" : ""}">`
-      + (r[c.k] === null || r[c.k] === undefined ? "" : r[c.k]) + "</td>").join("")
-      + "</tr>").join("");
+    const head = cols.map(c =>
+      `<th class="${NUM_COLS.has(c.k) ? "num" : ""}">${c.t}</th>`).join("");
+    const body = rows.map(r => "<tr>" + cols.map(c => {
+      var v = (r[c.k] === null || r[c.k] === undefined) ? "" : String(r[c.k]);
+      // 셀 내용을 .c 로 감싸야 셀 안에서 가로 스크롤이 된다
+      return `<td class="${NUM_COLS.has(c.k) ? "num" : ""}">`
+           + `<span class="c">${v}</span></td>`;
+    }).join("") + "</tr>").join("");
     el.innerHTML = `<div class="bar">
         <div><b>${nf(rows.length)} LOT</b>
           <span class="path">${[LINE, label].filter(Boolean).join(" / ")}</span></div>
         <button onclick="closeDrill()">닫기</button></div>
-      <div class="scroll"><table><thead><tr>${head}</tr></thead><tbody>${body
+      <div class="gridwrap"><table class="grid"><thead><tr>${head}</tr></thead><tbody>${body
         || `<tr><td colspan="${cols.length}" style="color:#6B7280">`
            + `해당 조건의 LOT 이 없습니다.</td></tr>`}</tbody></table></div>`;
   });
