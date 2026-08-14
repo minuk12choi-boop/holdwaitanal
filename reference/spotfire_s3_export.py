@@ -215,8 +215,14 @@ try:
         t0 = dt.datetime.now()
         df = globals().get(name)
         if df is None:
+            # 이름이 한 글자라도 다르면 globals 에 없다.
+            # 실제로 들어온 DataFrame 이름을 함께 찍어 대조할 수 있게 한다.
+            got = sorted(k for k, v in globals().items()
+                         if isinstance(v, pd.DataFrame) and not k.startswith("_"))
             rows.append([name, "SKIP", 0, 0, "", 0.0, 0.0,
-                         "입력 파라미터 미등록", t0, dt.datetime.now()])
+                         "입력 파라미터 미등록. 들어온 입력: "
+                         + (", ".join(got) if got else "(없음)"),
+                         t0, dt.datetime.now()])
             continue
         if not isinstance(df, pd.DataFrame):
             df = pd.DataFrame(df)
