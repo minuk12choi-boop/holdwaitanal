@@ -714,9 +714,21 @@ function czApply(ch, nodes, u, selName) {
 const CZ_TOP = 5;        // 상단 요약 차트
 const CZ_DEEP = 15;      // 드릴다운 차트
 
-function czShowAll(i) {          // 제목 클릭 = 전체를 차트로 펼친다
-  CZ_SEL = { i: i, path: [{ name: "__ALL__", kind: "all" }] };
+// 전체 순위 보기 = 상위 5개 제한 없이 차트로 펼친다
+function czShowAll(i) {
+  const on = (CZ_SEL.i === i && CZ_SEL.path.length
+              && CZ_SEL.path[0].kind === "all");
+  CZ_SEL = on ? { i: -1, path: [] }
+              : { i: i, path: [{ name: "__ALL__", kind: "all" }] };
   renderCause();
+}
+
+// 소제목 클릭 = 그 대분류 전체를 드릴다운 표로
+function czWhole(i) {
+  const g = czGroup(i);
+  DRILL_KEY = { i: -1, node: null };
+  renderCause();
+  openDrill({ big: g.name }, g.name + " 전체", "cause");
 }
 
 function renderCause() {
@@ -732,12 +744,15 @@ function renderCause() {
     const hd = document.getElementById("czh" + i);
     hd.innerHTML = `<span>${g.name || "-"}</span>`
       + `<span class="v">전체 ${nf(u === "lots" ? g.lots : g.qty)}${unit}</span>`;
-    hd.onclick = function () { czShowAll(i); };
+    hd.onclick = function () { czWhole(i); };      // 제목 = 전체 표
 
+    const openAll = (CZ_SEL.i === i && CZ_SEL.path.length
+                     && CZ_SEL.path[0].kind === "all");
     document.getElementById("czp" + i).innerHTML = more > 0
-      ? `<span class="minittl">차트는 상위 ${nodes.length}개 · `
-        + `<a onclick="czShowAll(${i})">그 외 ${more}개 보기</a></span>`
-      : `<span class="minittl">${all.length}개</span>`;
+      ? `<button class="rankbtn ${openAll ? "on" : ""}"`
+        + ` onclick="czShowAll(${i})">전체 순위 보기`
+        + `<span class="cv">${openAll ? "▲" : "▼"}</span></button>`
+      : "";
 
     if (!czCharts[i]) {
       czCharts[i] = czBarChart("czc" + i,

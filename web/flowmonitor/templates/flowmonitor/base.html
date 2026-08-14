@@ -335,7 +335,18 @@
     * { transition:none !important; animation:none !important; }
   }
 
+  /* '전체 순위 보기' 는 정보가 아니라 동작이다. 버튼처럼 보이게 한다. */
+  .rankbtn { display:inline-flex; align-items:center; gap:4px;
+             border:1px solid var(--bd); background:#fff; color:var(--brand);
+             border-radius:999px; font-size:11px; font-weight:600;
+             padding:2px 9px; cursor:pointer; line-height:1.6;
+             transition:background .15s ease, color .15s ease; }
+  .rankbtn:hover { background:#EEF2F9; }
+  .rankbtn.on { background:var(--brand); color:#fff; border-color:var(--brand); }
+  .rankbtn .cv { font-size:9px; }
+
   .czh { cursor:pointer; }
+  .czh span:first-child::after { content:" ▸"; color:var(--mut); font-size:10px; }
   .czh:hover span:first-child { text-decoration:underline; }
   .czpath { font-size:11px; color:var(--mut); margin-bottom:4px; min-height:16px; }
   .czpath a { color:var(--brand); cursor:pointer; text-decoration:none; }
