@@ -310,14 +310,20 @@ def downloads(request):
     sel = request.GET.get("snapshot") or (snaps[0]["snapshot_at"].strftime(
         "%Y-%m-%d %H:%M:%S") if snaps else "")
     log, total = _load_log(sel) if sel else ([], None)
-    # 좌: 원천 테이블 목록(원천조회 기준 오름차순) / 우: 조회+처리 구간
-    src = sorted([r for r in log if r.get("kind") != "처리"],
-                 key=lambda r: (r.get("qt") or "9999"))
+
+    # 좌측은 S3 원천(매니페스트 기록) 목록. 없으면 예전 방식으로 폴백한다.
+    src = [r for r in log if r.get("kind") == "원천"]
+    if not src:
+        src = [r for r in log if r.get("kind") != "처리"]
+    src = sorted(src, key=lambda r: (r.get("qt") or "9999"))
+
+    log = [r for r in log if r.get("kind") != "원천"]   # 우측은 처리 구간만
     qts = [r.get("qt") for r in src if r.get("qt")]
     starts = [r.get("start") for r in src if r.get("start")]
     src_total = ({"n": len(src),
                   "qt_min": (min(qts) if qts else None),
                   "qt_max": (max(qts) if qts else None),
+                  "rows": sum(r.get("rows") or 0 for r in src),
                   "start": (min(starts) if starts else None)}
                  if src else None)
     return render(request, "flowmonitor/downloads.html", {

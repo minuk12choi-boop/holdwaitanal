@@ -60,11 +60,12 @@
         <div class="left">
           <div class="ttl">원천 테이블</div>
           <div class="sub" style="margin-bottom:7px">
-            Oracle 이 데이터를 만든 시각 순</div>
+            Spotfire 가 S3 에 올린 원천. Oracle 조회 시각 순</div>
           <div class="gridwrap">
             <table class="grid">
               <thead><tr>
-                <th>테이블</th><th>원천조회(SYSDATE)</th><th>S3적재</th>
+                <th>테이블</th><th>원천조회(SYSDATE)</th>
+                <th class="num">행수</th>
               </tr></thead>
               <tbody>
                 {% if src_total %}
@@ -72,14 +73,14 @@
                   <td><span class="c">계 ({{ src_total.n }}개)</span></td>
                   <td><span class="c">{{ src_total.qt_min|default:"-" }}
                     ~ {{ src_total.qt_max|default:"-" }}</span></td>
-                  <td><span class="c">{{ src_total.start|date:'H:i:s'|default:"-" }}</span></td>
+                  <td class="num">{{ src_total.rows }}</td>
                 </tr>
                 {% endif %}
                 {% for r in sources %}
                 <tr>
                   <td><span class="c">{{ r.table }}</span></td>
                   <td><span class="c">{{ r.qt|default:"-" }}</span></td>
-                  <td><span class="c">{{ r.start|date:'H:i:s'|default:"-" }}</span></td>
+                  <td class="num">{{ r.rows|default:"" }}</td>
                 </tr>
                 {% empty %}
                 <tr><td colspan="3" class="kind">기록 없음</td></tr>

@@ -1546,6 +1546,7 @@ def save_raw_workbook(path, raw_samples, extra_sheets):
 
 # ---------------------------------------------------------------------------
 def main():
+    s3_manifest_log = []
     if SOURCE == "bdq":
         from bigdataquery import getData
     else:
@@ -1568,6 +1569,17 @@ def main():
                 return
             print(f"[S3] 새 회차 감지 finished_at={fin} "
                   f"(이전 {prev or '없음'})", flush=True)
+            # 매니페스트에 S3 원천 8개의 조회시각/행수가 있다. 그대로 기록해
+            # 다운로드 화면이 '내부 처리 단위' 가 아니라 실제 원천을 보여주게 한다.
+            for tname, meta in (man.get("tables") or {}).items():
+                s3_manifest_log.append({
+                    "테이블": tname, "구분": "원천",
+                    "로딩_시작시각": None, "로딩_종료시각": None,
+                    "소요_초": None,
+                    "행수": meta.get("rows"), "컬럼수": meta.get("cols"),
+                    "시트_기록행수": 0, "시트_잘림여부": "N",
+                    "원천조회시각": meta.get("query_time") or man.get("query_time"),
+                })
             os.makedirs(os.path.dirname(_FRESH_MARK), exist_ok=True)
             with open(_FRESH_MARK, "w", encoding="utf-8") as f:
                 f.write(fin)
@@ -1812,7 +1824,8 @@ def main():
                 DB.ensure_load_log_schema(conn)
                 snapshot_at = run_at
                 DB.load_f3_live(conn, df_f3, SUMMARY_OUTPUT_COLUMNS, snapshot_at)
-                DB.load_f3_load_log(conn, snapshot_at, load_log)
+                DB.load_f3_load_log(conn, snapshot_at,
+                                    s3_manifest_log + load_log)
                 print(f"[DB] f3_live 갱신 snapshot_at={snapshot_at} "
                       f"rows={len(df_f3):,}", flush=True)
                 promoted = DB.promote_to_history(conn, SUMMARY_OUTPUT_COLUMNS)
