@@ -333,7 +333,7 @@
       <a href="{{ url }}" {% if request.path == url %}class="on"{% endif %}>{{ name }}</a>
     {% endfor %}
   </nav>
-  <div class="meta">문의: <b>minuk12.choi</b> / 적재시각: <b id="snapAt">-</b></div>
+  <div class="meta">문의: <b>minuk12.choi</b> / 적재시각: <b id="snapAt">{{ snapshot_at|default:"-" }}</b></div>
 </header>
 {% block body %}{% endblock %}
 </body>

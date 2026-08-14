@@ -505,7 +505,7 @@ function renderWt0() {
 const czCharts = [null, null, null];
 let czDrill = null;
 let CZ_SEL = { i: -1, path: [] };          // 한 번에 하나만 파고든다
-let DRILL_KEY = { node: null };            // 표가 어느 막대에서 나왔는지
+let DRILL_KEY = { i: -1, node: null };     // 표가 어느 차트·막대에서 나왔는지
 let SEL_WT = null, SEL_WT0 = null, SEL_TYPE = null, SEL_PIE = null;
 
 function czGroup(i) { return (DATA.causes || [])[i] || { name: "", children: [] }; }
@@ -534,7 +534,7 @@ function czLabel(v, max) {
 
 function czReset() {
   CZ_SEL = { i: -1, path: [] };
-  DRILL_KEY = { node: null };
+  DRILL_KEY = { i: -1, node: null };
   closeDrill();
   renderCause();
 }
@@ -556,7 +556,7 @@ function czPick(i, node, depth) {
     const f = { big: czGroup(i).name };
     for (const p of keep) { f[p.kind === "mid" ? "mid" : "sub"] = p.name; }
     f[node.kind === "mid" ? "mid" : "sub"] = node.name;
-    DRILL_KEY = { node: node.name };
+    DRILL_KEY = { i: i, node: node.name };
     renderCause();
     openDrill(f, [czGroup(i).name].concat(keep.map(p => p.name))
                  .concat([node.name]).join(" › "), "cause");
@@ -564,7 +564,7 @@ function czPick(i, node, depth) {
   }
 
   CZ_SEL.path.push({ name: node.name, kind: node.kind || "sub" });
-  DRILL_KEY = { node: null };
+  DRILL_KEY = { i: -1, node: null };
   DRILL_SRC = "cause";
   closeDrill();                 // 단계를 옮기면 이전 표는 무효다
   DRILL_SRC = "cause";
@@ -585,7 +585,7 @@ function czBarChart(canvasId, onPick, pluginId) {
       { data: [], borderRadius: 3, order: 2, yAxisID: "y" },
       // 경과일 평균(hr/lot). 막대 위에 겹치지 않게 별도 축을 쓴다.
       { type: "line", data: [], order: 1, yAxisID: "y2",
-        borderColor: "#7FA0D4", backgroundColor: "#7FA0D4",
+        borderColor: "#8C4A5C", backgroundColor: "#8C4A5C",
         borderWidth: 2, pointRadius: 3, pointHoverRadius: 4,
         tension: 0.25, spanGaps: true }
     ] },
@@ -621,7 +621,7 @@ function czBarChart(canvasId, onPick, pluginId) {
         ch.getDatasetMeta(0).data.forEach((el, k) => {
           ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x, el.y - 4);
         });
-        ctx.fillStyle = "#5C7FB8";
+        ctx.fillStyle = "#8C4A5C";
         ch.getDatasetMeta(1).data.forEach((el, k) => {
           const v = ch.data.datasets[1].data[k];
           if (v === null || v === undefined) { return; }
@@ -661,14 +661,27 @@ const popSelected = {
       ctx.closePath();
       ctx.stroke(); ctx.stroke();                // 두 번 그려 발광 강화
     } else {                                     // 막대
+      // 가로막대(indexAxis:'y')와 세로막대는 width/height/base 의미가 다르다.
+      // 두 경우를 나눠 실제 막대와 정확히 겹치게 그린다.
       const p = el.getProps(["x", "y", "base", "width", "height"], true);
-      const w = p.width || 0;
-      const x0 = p.x - w / 2;
-      const y0 = Math.min(p.y, p.base === undefined ? p.y : p.base);
-      const h = Math.abs((p.base === undefined ? p.y + (p.height || 0) : p.base)
-                         - p.y);
-      ctx.strokeRect(x0 + 1.5, y0 + 1.5, Math.max(w - 3, 1), Math.max(h - 3, 1));
-      ctx.strokeRect(x0 + 1.5, y0 + 1.5, Math.max(w - 3, 1), Math.max(h - 3, 1));
+      const horiz = (chart.options.indexAxis === "y");
+      let x0, y0, w, h;
+      if (horiz) {
+        x0 = Math.min(p.base, p.x);
+        w  = Math.abs(p.x - p.base);
+        h  = p.height || 0;
+        y0 = p.y - h / 2;
+      } else {
+        y0 = Math.min(p.base, p.y);
+        h  = Math.abs(p.base - p.y);
+        w  = p.width || 0;
+        x0 = p.x - w / 2;
+      }
+      const in_ = 1.5;                           // 선 굵기의 절반만큼 안쪽으로
+      ctx.strokeRect(x0 + in_, y0 + in_,
+                     Math.max(w - in_ * 2, 1), Math.max(h - in_ * 2, 1));
+      ctx.strokeRect(x0 + in_, y0 + in_,
+                     Math.max(w - in_ * 2, 1), Math.max(h - in_ * 2, 1));
     }
     ctx.restore();
   }
@@ -686,7 +699,9 @@ function czApply(ch, nodes, u, selName) {
   ch.$nodes = nodes;
   ch.data.labels = nodes.map(x => x.name);
   ch.data.datasets[0].data = vals;
-  ch.data.datasets[0].backgroundColor = nodes.map(() => BRAND);
+  // W/T 분포와 같은 적색 계열. 상위일수록 진하다(값 내림차순으로 온다).
+  ch.data.datasets[0].backgroundColor = nodes.map((_, i) =>
+    `rgba(220,20,60,${Math.max(1 - 0.11 * i, 0.20).toFixed(2)})`);
   ch.data.datasets[1].data = nodes.map(x =>
     (x.elapsed_hr === null || x.elapsed_hr === undefined) ? null : x.elapsed_hr);
   markSelected(ch, nodes.findIndex(x => x.name === selName));
@@ -725,7 +740,13 @@ function renderCause() {
       czCharts[i] = czBarChart("czc" + i,
         (idx) => czPick(i, (czCharts[i].$nodes || [])[idx], 0), "czVal" + i);
     }
-    const sel = (CZ_SEL.i === i && CZ_SEL.path.length) ? CZ_SEL.path[0].name : null;
+    // 상단 차트의 선택 표시: 파고든 경로의 첫 단계, 또는 표를 띄운 말단 막대
+    let sel = null;
+    if (CZ_SEL.i === i && CZ_SEL.path.length && CZ_SEL.path[0].kind !== "all") {
+      sel = CZ_SEL.path[0].name;
+    } else if (DRILL_KEY.i === i) {
+      sel = DRILL_KEY.node;
+    }
     czApply(czCharts[i], nodes, u, sel);
   }
 
@@ -775,7 +796,8 @@ let DRILL_SRC = "";
 function clearOtherSelections(src) {
   if (DRILL_SRC === src) { return; }
   // 선택 상태만 지우면 차트에 이전 표시가 남는다. 반드시 다시 그린다.
-  if (src !== "cause")  { DRILL_KEY = { node: null }; CZ_SEL = { i: -1, path: [] }; }
+  if (src !== "cause")  { DRILL_KEY = { i: -1, node: null };
+                          CZ_SEL = { i: -1, path: [] }; }
   if (src !== "wt")     { SEL_WT = null; }
   if (src !== "wt0")    { SEL_WT0 = null; }
   if (src !== "type")   { SEL_TYPE = null; }

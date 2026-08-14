@@ -23,6 +23,27 @@ MOVE_LOT_TYPES = ("PP", "PB", "PG")
 # 상단 메뉴는 모든 페이지가 공유한다.
 MENU = [("FAB현황", "/main/"), ("기준정보", "/standards/"),
         ("다운로드", "/downloads/")]
+
+
+def _fmt_snap(v):
+    if v is None or v == "":
+        return "-"
+    if hasattr(v, "strftime"):
+        return v.strftime("%Y-%m-%d %H:%M")
+    return str(v)[:16]          # '2026-08-14 15:30:00' -> '2026-08-14 15:30'
+
+
+def base_ctx(**kw):
+    """모든 페이지 공통 컨텍스트. 헤더의 적재시각을 여기서 채운다."""
+    snap = None
+    try:
+        if _table_exists("f3_live"):
+            snap = _latest_snapshot()
+    except Exception:
+        snap = None
+    ctx = {"menu": MENU, "snapshot_at": _fmt_snap(snap)}
+    ctx.update(kw)
+    return ctx
 DEFAULT_LINE = "KFR7"          # NRD-K
 
 # 상단 현황 카드. 좌측부터 고정 순서.
@@ -329,6 +350,7 @@ def downloads(request):
     return render(request, "flowmonitor/downloads.html", {
         "sources": src, "src_total": src_total,
         "menu": MENU,
+        "snapshot_at": _fmt_snap(sel),
         "snapshots": snaps, "selected": sel, "load_log": log, "load_total": total,
     })
 
@@ -1228,7 +1250,7 @@ def fab_status(request):
     for x in lines:
         x["ready"] = x["line"] in ready
     return render(request, "flowmonitor/fab_status.html",
-                  {"menu": MENU, "lines": lines, "default_line": DEFAULT_LINE})
+                  base_ctx(lines=lines, default_line=DEFAULT_LINE))
 
 
 def fab_metrics(request):
@@ -1237,9 +1259,9 @@ def fab_metrics(request):
     panels = [dict(p, px=int(round(p["h"] * PANEL_BASE_PX)) + PANEL_AXIS_PX)
               for p in PANELS]
     return render(request, "flowmonitor/fab_metrics.html",
-                  {"menu": MENU, "panels": panels,
-                   "lines": [{"label": c["label"], "line": c["line"]}
-                             for c in LINE_CARDS]})
+                  base_ctx(panels=panels,
+                           lines=[{"label": c["label"], "line": c["line"]}
+                                  for c in LINE_CARDS]))
 
 
 def standards(request):
@@ -1275,8 +1297,8 @@ def standards(request):
             rules = [{"id": r[0], "category": r[1], "keyword": r[2],
                       "label": r[3], "sort_no": r[4]} for r in cur.fetchall()]
     return render(request, "flowmonitor/standards.html",
-                  {"menu": MENU, "rules": rules, "msg": msg,
-                   "categories": ["hold", "exception", "ftp"]})
+                  base_ctx(rules=rules, msg=msg,
+                           categories=["hold", "exception", "ftp"]))
 
 
 def api_lots_live(request):
