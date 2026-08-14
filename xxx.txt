@@ -1,3 +1,11 @@
+<spotfire error message1>
+
+Low disk space. (3)
+
+The disk space available for temporary storage is used up. For better performance, try to free up some disk space.
+
+
+<spotfire error message2>
 Could not execute function call 's3drive'
 
 
