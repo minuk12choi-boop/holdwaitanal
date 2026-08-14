@@ -1,108 +1,24 @@
-C:\Users\minuk12.choi>dir "D:\MySQLData\app_db"
- D 드라이브의 볼륨에는 이름이 없습니다.
- 볼륨 일련 번호: 340B-3488
+C:\Users\minuk12.choi>dir "C:\ProgramData\MySQL\MySQL Server 8.0\Data\app_db"
+ C 드라이브의 볼륨에는 이름이 없습니다.
+ 볼륨 일련 번호: 0E57-9717
 
- D:\MySQLData\app_db 디렉터리
+ C:\ProgramData\MySQL\MySQL Server 8.0\Data 디렉터리
 
-2026-08-13  오전 07:30    <DIR>          .
-2026-08-14  오후 02:31    <DIR>          ..
-2026-02-25  오후 06:09           131,072 auth_group.ibd
-2026-02-25  오후 06:09           147,456 auth_group_permissions.ibd
-2026-05-18  오후 04:33           147,456 auth_permission.ibd
-2026-08-14  오전 06:28           131,072 auth_user.ibd
-2026-02-25  오후 06:09           147,456 auth_user_groups.ibd
-2026-02-25  오후 06:09           147,456 auth_user_user_permissions.ibd
-2026-08-11  오후 02:38           131,072 cause_rules.ibd
-2026-03-23  오후 02:11           147,456 django_admin_log.ibd
-2026-05-18  오후 04:33           131,072 django_content_type.ibd
-2026-05-18  오후 04:33           114,688 django_migrations.ibd
-2026-08-14  오전 07:01           671,744 django_session.ibd
-2026-08-14  오전 09:21        62,914,560 f3_history.ibd
-2026-08-14  오전 09:21           114,688 f3_history_meta.ibd
-2026-08-14  오후 01:30        32,505,856 f3_live.ibd
-2026-08-14  오후 02:00           131,072 f3_load_log.ibd
-2026-08-14  오전 07:00         1,015,808 facts_access_history.ibd
-2026-03-23  오후 02:12           196,608 facts_audit_log.ibd
-2026-08-05  오후 04:45           131,072 facts_capa_capa.ibd
-2026-08-05  오후 04:45           131,072 facts_capa_cln_info.ibd
-2026-08-05  오후 04:45           131,072 facts_capa_compat_group.ibd
-2026-08-05  오후 04:45           131,072 facts_capa_eqp_info.ibd
-2026-08-05  오후 04:45           131,072 facts_capa_input_plan.ibd
-2026-08-05  오후 04:45           131,072 facts_capa_lp_sb.ibd
-2026-08-05  오후 04:45           131,072 facts_capa_peanut.ibd
-2026-08-05  오후 04:45           131,072 facts_capa_survival_rate.ibd
-2026-08-05  오후 04:45           131,072 facts_capa_version_history.ibd
-2026-03-23  오후 02:10           262,144 facts_compat_plan.ibd
-2026-04-04  오전 09:18           114,688 facts_dashboard_config.ibd
-2026-04-29  오후 01:52         9,437,184 facts_dashboard_graph_cache.ibd
-2026-08-14  오전 06:59    12,071,206,912 facts_dashboard_metric_daily.ibd
-2026-04-11  오전 11:00           229,376 facts_department_master.ibd
-2026-08-12  오후 03:46           114,688 facts_dept_access_rule.ibd
-2026-08-13  오후 05:34        19,922,944 facts_edit_history.ibd
-2026-08-14  오후 02:24     1,925,185,536 facts_eqp_model.ibd
-2026-07-14  오후 04:29           147,456 facts_eval_stage_master.ibd
-2026-08-14  오전 06:47     4,173,332,480 facts_filter_cache.ibd
-2026-08-14  오전 06:49     8,124,366,848 facts_filter_option_cache.ibd
-2026-03-23  오후 02:10           163,840 facts_goal.ibd
-2026-04-18  오후 01:09           131,072 facts_guide_document.ibd
-2026-04-18  오후 01:09           147,456 facts_guide_page.ibd
-2026-08-13  오후 03:18         9,437,184 facts_history_summary_cache.ibd
-2026-06-29  오후 05:31           196,608 facts_kpi_target.ibd
-2026-04-01  오전 11:13           147,456 facts_line_master.ibd
-2026-08-14  오전 06:42       440,401,920 facts_oee_raw.ibd
-2026-08-14  오후 02:00       146,800,640 facts_ppid_eqp_history.ibd
-2026-08-14  오전 06:47           737,280 facts_ppid_recommend_summary.ibd
-2026-07-17  오후 03:42           131,072 facts_prevent_line_baseline.ibd
-2026-07-17  오후 03:42           147,456 facts_prevent_rule_master.ibd
-2026-04-07  오후 12:08           114,688 facts_prevent_tip_rule.ibd
-2026-03-23  오후 02:12           245,760 facts_step_feedback.ibd
-2026-08-13  오후 05:34        17,825,792 facts_step_path_override.ibd
-2026-08-13  오후 04:59           212,992 facts_step_plan.ibd
-2026-08-07  오전 09:42           196,608 facts_tip_missing_compat_path.ibd
-2026-04-27  오후 06:54           147,456 facts_voc_answer_status_master.ibd
-2026-07-15  오후 02:17           163,840 facts_voc_comment.ibd
-2026-05-06  오후 03:04           180,224 facts_voc_post.ibd
-2026-08-14  오후 02:24    25,685,917,696 facts_wip_source.ibd
-2026-03-20  오후 12:52           114,688 hold_type_definition.ibd
-2026-03-06  오후 04:05         9,437,184 lot_product_match.ibd
-2026-03-20  오후 02:03           114,688 main_equipment_setting.ibd
-2026-03-20  오후 02:03           114,688 main_product_setting.ibd
-2026-08-14  오후 02:00           131,072 move_daily.ibd
-2026-08-14  오후 02:00        67,108,864 move_lot.ibd
-2026-08-14  오후 02:00           163,840 move_shift.ibd
-2026-06-07  오후 12:17           114,688 multiwip_bottleneck_threshold_rule.ibd
-2026-08-13  오전 07:30       109,051,904 multiwip_f2_current.ibd
-2026-08-13  오전 07:30        15,728,640 multiwip_f3_current.ibd
-2026-07-27  오후 01:45        46,137,344 multiwip_f3_snapshot.ibd
-2026-08-13  오전 07:31        19,922,944 multiwip_filter_cache.ibd
-2026-07-25  오전 09:13           114,688 multiwip_grade_capa_rule.ibd
-2026-07-25  오전 08:51           114,688 multiwip_hold_type_rule.ibd
-2026-07-07  오후 01:17           147,456 multiwip_hot_comment.ibd
-2026-08-13  오전 07:30        10,485,760 multiwip_hot_lot_daily.ibd
-2026-06-09  오후 07:59           131,072 multiwip_hot_move_history.ibd
-2026-07-25  오전 08:58           114,688 multiwip_hot_rule.ibd
-2026-06-09  오후 06:43           393,216 multiwip_hot_schedule_snapshot.ibd
-2026-07-08  오후 01:46           114,688 multiwip_line_code.ibd
-2026-08-13  오전 07:31           114,688 multiwip_load_log.ibd
-2026-07-08  오후 02:32     2,025,848,832 multiwip_lot_transn_hist.ibd
-2026-06-23  오후 05:35           114,688 multiwip_module_rule.ibd
-2026-07-08  오후 02:18        41,943,040 multiwip_move_daily.ibd
-2026-07-25  오전 09:28           131,072 multiwip_move_time_rule.ibd
-2026-07-22  오후 02:26           180,224 multiwip_product_rule.ibd
-2026-06-14  오후 03:13        75,497,472 multiwip_prtime.ibd
-2026-06-04  오후 03:28           114,688 multiwip_summary_pivot_rule.ibd
-2026-06-14  오후 03:20           131,072 multiwip_wait_time_weight_rule.ibd
-2026-03-06  오후 04:03           229,376 product_identifier_rule.ibd
-2026-02-25  오후 05:46         2,067,544 wip_history_nrdp.MYD
-2026-03-02  오후 12:31            53,248 wip_history_nrdp.MYI
-2026-02-25  오후 04:30            44,791 wip_history_nrdp_401.sdi
-2026-05-19  오후 03:20       301,989,888 wip_move.ibd
-2026-05-19  오후 03:20        32,505,856 wip_move_group.ibd
-2026-05-16  오후 02:52           114,688 wip_ref_exclusion_type_rule.ibd
-2026-05-19  오후 03:12           114,688 wip_ref_hot_lot_rule.ibd
-2026-05-18  오후 05:09           114,688 wip_ref_line_code_rule.ibd
-2026-05-18  오후 02:26           114,688 wip_ref_module_rule.ibd
-2026-05-19  오후 01:59           114,688 wip_ref_product_rule.ibd
-2026-05-19  오후 03:15           196,608 wip_report_lotpath.ibd
-              98개 파일      55,489,366,863 바이트
-               2개 디렉터리  604,694,450,176 바이트 남음
+파일을 찾을 수 없습니다.
+
+C:\Users\minuk12.choi>mklink /J "C:\ProgramData\MySQL\MySQL Server 8.0\Data\app_db" "D:\MySQLData\app_db"
+C:\ProgramData\MySQL\MySQL Server 8.0\Data\app_db <<===>> D:\MySQLData\app_db에 대한 교차점을 만들었습니다.
+
+
+
+
+
+
+
+<cmd 화면>
+C:\Users\minuk12.choi>net start MySQL80
+MySQL80 서비스를 시작합니다..
+MySQL80 서비스가 잘 시작되었습니다.
+
+
+C:\Users\minuk12.choi>
