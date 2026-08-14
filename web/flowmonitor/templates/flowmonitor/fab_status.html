@@ -81,6 +81,15 @@
           <div id="czp2" class="czpath"></div>
           <div style="height:170px"><canvas id="czc2"></canvas></div></div>
       </div>
+
+      <!-- 상단 3개는 그대로 두고, 파고든 결과는 아래에 전체 폭으로 -->
+      <div id="czdrill" style="display:none;margin-top:12px;
+                               border-top:1px solid var(--bd);padding-top:10px">
+        <div class="subttl"><span id="czdttl"></span>
+          <span class="v" id="czdcnt"></span></div>
+        <div id="czdpath" class="czpath"></div>
+        <div style="height:230px"><canvas id="czdc"></canvas></div>
+      </div>
     </div>
 
     <div class="detail" id="drill">
@@ -380,112 +389,162 @@ function renderWt0() {
   wt0Chart.update();
 }
 
-/* --- 원인 분석 : 대분류 3개를 각각 별도 차트로. 각 차트에서 하위로 파고든다 --- */
+/* --- 원인 분석 -------------------------------------------------------------
+   상단 3개(대분류)는 항상 고정. 막대를 누르면 아래에 드릴다운 차트가 생긴다.
+   경로 항목은 {name, kind} 로 들고 있어야 필터에서 중분류/소분류를 구분한다.
+   (Hold / Bottleneck 은 중분류가 없어 첫 단계가 곧 소분류다.)
+--------------------------------------------------------------------------- */
 const czCharts = [null, null, null];
-const CZ_PATHS = [[], [], []];      // 대분류별 파고든 경로
+let czDrill = null;
+let CZ_SEL = { i: -1, path: [] };          // 한 번에 하나만 파고든다
 
 function czGroup(i) { return (DATA.causes || [])[i] || { name: "", children: [] }; }
 
-function czNodes(i) {
+function czNodesAt(i, path) {
   let list = czGroup(i).children || [];
-  for (const p of CZ_PATHS[i]) {
-    const hit = list.find(x => x.name === p);
+  for (const p of path) {
+    const hit = list.find(x => x.name === p.name);
     list = (hit && hit.children) || [];
   }
   return list;
 }
 
-function czFilter(i) {
-  const f = { big: czGroup(i).name };
-  if (CZ_PATHS[i][0]) f.mid = CZ_PATHS[i][0];
-  if (CZ_PATHS[i][1]) f.sub = CZ_PATHS[i][1];
+function czFilter() {
+  const f = { big: czGroup(CZ_SEL.i).name };
+  for (const p of CZ_SEL.path) {
+    if (p.kind === "mid") { f.mid = p.name; } else { f.sub = p.name; }
+  }
   return f;
 }
 
-function czGo(i, depth) { CZ_PATHS[i] = CZ_PATHS[i].slice(0, depth); renderCause(); }
+function czLabel(v, max) {
+  v = String(v == null ? "" : v);
+  return v.length > max ? v.slice(0, max - 1) + "…" : v;
+}
+
+function czReset() { CZ_SEL = { i: -1, path: [] }; renderCause(); }
+function czGo(depth) { CZ_SEL.path = CZ_SEL.path.slice(0, depth); renderCause(); }
+
+function czPick(i, node) {
+  if (CZ_SEL.i !== i) { CZ_SEL = { i: i, path: [] }; }
+  CZ_SEL.path.push({ name: node.name, kind: node.kind || "sub" });
+  renderCause();
+  if (!(node.children && node.children.length)) {
+    openDrill(czFilter(), [czGroup(i).name]
+      .concat(CZ_SEL.path.map(p => p.name)).join(" › "));
+  }
+}
+
+// x축 라벨을 세로(시계방향 90도)로 세우고 길면 줄인다.
+const CZ_SCALE_X = {
+  grid: { display: false },
+  ticks: { font: { size: 9 }, autoSkip: false,
+           maxRotation: 90, minRotation: 90,
+           callback: function (v) { return czLabel(this.getLabelForValue(v), 14); } }
+};
+
+function czBarChart(canvasId, onPick, pluginId) {
+  return new Chart(document.getElementById(canvasId), {
+    type: "bar",
+    data: { labels: [], datasets: [{ data: [], borderRadius: 3 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      layout: { padding: { top: 16 } },
+      plugins: { legend: { display: false },
+                 tooltip: { callbacks: {
+                   title: (t) => t[0].chart.$nodes[t[0].dataIndex].name,
+                   label: (t) => {
+                     const x = t.chart.$nodes[t.dataIndex] || {};
+                     return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
+                   } } } },
+      scales: { x: CZ_SCALE_X,
+                y: { display: false, beginAtZero: true, grace: "20%" } },
+      onClick: (e, els) => { if (els.length) { onPick(els[0].index); } }
+    },
+    plugins: [{
+      id: pluginId,
+      afterDatasetsDraw(ch) {
+        const ctx = ch.ctx; ctx.save();
+        ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+        ctx.fillStyle = "#374151";
+        ch.getDatasetMeta(0).data.forEach((el, k) => {
+          ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x, el.y - 4);
+        });
+        ctx.restore();
+      }
+    }]
+  });
+}
+
+function czApply(ch, nodes, u) {
+  const vals = nodes.map(x => u === "lots" ? x.lots : x.qty);
+  const mx = Math.max.apply(null, vals.concat([1]));
+  ch.$nodes = nodes;
+  ch.data.labels = nodes.map(x => x.name);
+  ch.data.datasets[0].data = vals;
+  ch.data.datasets[0].backgroundColor = vals.map(v =>
+    `rgba(47,75,124,${(0.3 + 0.7 * v / mx).toFixed(2)})`);
+  ch.update();
+}
+
+const CZ_TOP = 5;        // 상단 요약 차트
+const CZ_DEEP = 15;      // 드릴다운 차트
 
 function renderCause() {
   const u = CAUSE_UNIT;
+
   for (let i = 0; i < 3; i++) {
     const g = czGroup(i);
-    const nodes = czNodes(i);
+    const all = g.children || [];
+    const nodes = all.slice(0, CZ_TOP);
+    const more = all.length - nodes.length;
 
-    var more = (g.sub_total || 0) - (g.shown || 0);
-    var hd = document.getElementById("czh" + i);
+    const hd = document.getElementById("czh" + i);
     hd.innerHTML = `<span>${g.name || "-"}</span>`
       + `<span class="v">${nf(u === "lots" ? g.lots : g.qty)}`
       + `${u === "lots" ? " LOT" : " 매"}`
-      + `${more > 0 && !CZ_PATHS[i].length ? " · 상위" + (g.shown || 0) : ""}</span>`;
-    hd.onclick = function () {                 // 헤더 클릭 = 대분류 전체 목록
-      openDrill({ big: g.name }, g.name + " 전체");
-    };
+      + `${more > 0 ? " · 상위" + nodes.length : ""}</span>`;
+    hd.onclick = function () { openDrill({ big: g.name }, g.name + " 전체"); };
 
-    // 파고든 뒤 되돌아갈 수단. 경로와 뒤로 버튼을 함께 둔다.
-    var pathEl = document.getElementById("czp" + i);
-    if (CZ_PATHS[i].length) {
-      pathEl.innerHTML =
-        `<span class="czback" onclick="czGo(${i},${CZ_PATHS[i].length - 1})">◀ 뒤로</span>`
-        + `<a onclick="czGo(${i},0)">전체</a>`
-        + CZ_PATHS[i].map((p, k) =>
-            ` &rsaquo; <a onclick="czGo(${i},${k + 1})">${p}</a>`).join("");
-    } else {
-      pathEl.innerHTML = more > 0
-        ? `<span style="color:var(--mut)">그 외 ${more}개는 제목 클릭</span>` : "";
-    }
+    document.getElementById("czp" + i).innerHTML = more > 0
+      ? `<span style="color:var(--mut)">그 외 ${more}개는 제목 클릭</span>` : "";
 
     if (!czCharts[i]) {
-      czCharts[i] = new Chart(document.getElementById("czc" + i), {
-        type: "bar",
-        data: { labels: [], datasets: [{ data: [], borderRadius: 3 }] },
-        options: {
-          responsive: true, maintainAspectRatio: false, animation: false,
-          layout: { padding: { top: 16 } },
-          plugins: { legend: { display: false },
-                     tooltip: { callbacks: { label: (t) => {
-                       const x = czNodes(i)[t.dataIndex] || {};
-                       return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
-                     } } } },
-          scales: { x: { grid: { display: false },
-                         ticks: { font: { size: 9 }, autoSkip: false,
-                                  maxRotation: 40, minRotation: 0 } },
-                    y: { display: false, beginAtZero: true, grace: "18%" } },
-          onClick: (e, els) => {
-            if (!els.length) return;
-            const x = czNodes(i)[els[0].index];
-            if (x.children && x.children.length) {
-              CZ_PATHS[i].push(x.name);      // 더 파고들 수 있으면 진입
-              renderCause();
-            } else {
-              CZ_PATHS[i].push(x.name);
-              renderCause();
-              openDrill(czFilter(i),
-                        [czGroup(i).name].concat(CZ_PATHS[i]).join(" › "));
-            }
-          }
-        },
-        plugins: [{
-          id: "czVal" + i,
-          afterDatasetsDraw(ch) {
-            const ctx = ch.ctx; ctx.save();
-            ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
-            ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-            ctx.fillStyle = "#374151";
-            ch.getDatasetMeta(0).data.forEach((el, k) => {
-              ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x, el.y - 4);
-            });
-            ctx.restore();
-          }
-        }]
-      });
+      czCharts[i] = czBarChart("czc" + i,
+        (idx) => czPick(i, (czCharts[i].$nodes || [])[idx]), "czVal" + i);
     }
-    const vals = nodes.map(x => u === "lots" ? x.lots : x.qty);
-    const mx = Math.max.apply(null, vals.concat([1]));
-    czCharts[i].data.labels = nodes.map(x => x.name);
-    czCharts[i].data.datasets[0].data = vals;
-    czCharts[i].data.datasets[0].backgroundColor = vals.map(v =>
-      `rgba(47,75,124,${(0.3 + 0.7 * v / mx).toFixed(2)})`);
-    czCharts[i].update();
+    czApply(czCharts[i], nodes, u);
   }
+
+  // ── 드릴다운 차트 ──────────────────────────────────────────────────
+  const box = document.getElementById("czdrill");
+  if (CZ_SEL.i < 0 || !CZ_SEL.path.length) { box.style.display = "none"; return; }
+
+  const g = czGroup(CZ_SEL.i);
+  const nodes = czNodesAt(CZ_SEL.i, CZ_SEL.path).slice(0, CZ_DEEP);
+  const cur = CZ_SEL.path[CZ_SEL.path.length - 1];
+
+  if (!nodes.length) {            // 말단이면 차트가 없다. 표만 남는다.
+    box.style.display = "none";
+    return;
+  }
+  box.style.display = "block";
+  document.getElementById("czdttl").textContent =
+    g.name + " › " + cur.name;
+  document.getElementById("czdcnt").textContent =
+    nodes.length + "개 표시" + (nodes.length >= CZ_DEEP ? " (상위 15)" : "");
+  document.getElementById("czdpath").innerHTML =
+    `<span class="czback" onclick="czGo(${CZ_SEL.path.length - 1})">◀ 뒤로</span>`
+    + `<a onclick="czReset()">닫기</a>`
+    + CZ_SEL.path.map((p, k) =>
+        ` &rsaquo; <a onclick="czGo(${k + 1})">${p.name}</a>`).join("");
+
+  if (!czDrill) {
+    czDrill = czBarChart("czdc",
+      (idx) => czPick(CZ_SEL.i, (czDrill.$nodes || [])[idx]), "czdVal");
+  }
+  czApply(czDrill, nodes, u);
 }
 
 /* --- 드릴다운 --- */
@@ -537,7 +596,7 @@ function loadSummary() {
       err.textContent = "";
       DATA = d;
       SEL_STATUS = null;
-      CZ_PATHS[0] = []; CZ_PATHS[1] = []; CZ_PATHS[2] = [];
+      CZ_SEL = { i: -1, path: [] };
       document.getElementById("snapAt").textContent = d.snapshot_at || "-";
       renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
     })

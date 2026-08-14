@@ -891,7 +891,8 @@ WT0_BINS = [
 ]
 
 EQP_ISSUE = ("DOWN", "PM", "LOCAL")
-TOP_N = 5
+TOP_N = 5          # 상단 요약 차트에 그릴 개수
+SUB_MAX = 15       # 서버가 내려주는 소분류 최대 개수(드릴다운 차트용)
 
 
 def _wt0_bin(days):
@@ -1120,9 +1121,10 @@ def api_summary(request):
             d.update(extra)
         return d
 
-    def subs_of(m, limit=TOP_N):
+    def subs_of(m, limit=SUB_MAX):
+        """소분류 목록. 화면이 상위 몇 개만 그릴지는 클라이언트가 정한다."""
         items = sorted(m["sub"].items(), key=lambda kv: (-kv[1]["qty"], kv[0]))
-        return [node(k, v) for k, v in items[:limit]]
+        return [node(k, v, {"kind": "sub"}) for k, v in items[:limit]]
 
     causes = []
     for big in ("Hold", "Wait성 진행불가", "Bottleneck"):
@@ -1133,14 +1135,16 @@ def api_summary(request):
         children = []
         for mkey, m in sorted(g["mid"].items(), key=lambda kv: -kv[1]["qty"]):
             if mkey == "_":
-                # 중분류가 없는 대분류(Hold / Bottleneck)는 소분류를 바로 보여준다.
-                # 상위 N 개만. 나머지는 대분류 헤더 클릭으로 전체 목록을 본다.
-                children = subs_of(m, TOP_N)
+                # 중분류가 없는 대분류(Hold / Bottleneck)는 소분류가 바로 자식이다.
+                # kind 로 구분해 두지 않으면 드릴다운 필터가 mid/sub 를 혼동한다.
+                children = subs_of(m)
             else:
-                children.append(node(mkey, m, {"children": subs_of(m)}))
-        total_sub = sum(len(m["sub"]) for m in g["mid"].values())
+                children.append(node(mkey, m, {"kind": "mid",
+                                               "children": subs_of(m)}))
+        total_child = (sum(len(m["sub"]) for m in g["mid"].values())
+                       if list(g["mid"]) == ["_"] else len(g["mid"]))
         causes.append(node(big, g, {"children": children,
-                                    "sub_total": total_sub,
+                                    "sub_total": total_child,
                                     "shown": len(children)}))
 
     status = [{"name": s, "color": STATUS_COLORS[s],

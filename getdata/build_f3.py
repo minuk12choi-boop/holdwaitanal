@@ -1552,13 +1552,14 @@ def main():
     else:
         import s3_source
 
+        man = s3_source.read_manifest()
+        if not man:
+            print("[SKIP] S3 매니페스트가 없습니다. Spotfire 업로드를 먼저 "
+                  "확인하세요.", flush=True)
+            return
+
+        fin = str(man.get("finished_at", ""))
         if SKIP_IF_NOT_FRESH and "--force" not in sys.argv:
-            man = s3_source.read_manifest()
-            if not man:
-                print("[SKIP] S3 매니페스트가 없습니다. Spotfire 업로드를 먼저 "
-                      "확인하세요. (--force 로 무시 가능)", flush=True)
-                return
-            fin = str(man.get("finished_at", ""))
             prev = ""
             if os.path.exists(_FRESH_MARK):
                 with open(_FRESH_MARK, encoding="utf-8") as f:
@@ -1569,20 +1570,21 @@ def main():
                 return
             print(f"[S3] 새 회차 감지 finished_at={fin} "
                   f"(이전 {prev or '없음'})", flush=True)
-            # 매니페스트에 S3 원천 8개의 조회시각/행수가 있다. 그대로 기록해
-            # 다운로드 화면이 '내부 처리 단위' 가 아니라 실제 원천을 보여주게 한다.
-            for tname, meta in (man.get("tables") or {}).items():
-                s3_manifest_log.append({
-                    "테이블": tname, "구분": "원천",
-                    "로딩_시작시각": None, "로딩_종료시각": None,
-                    "소요_초": None,
-                    "행수": meta.get("rows"), "컬럼수": meta.get("cols"),
-                    "시트_기록행수": 0, "시트_잘림여부": "N",
-                    "원천조회시각": meta.get("query_time") or man.get("query_time"),
-                })
             os.makedirs(os.path.dirname(_FRESH_MARK), exist_ok=True)
             with open(_FRESH_MARK, "w", encoding="utf-8") as f:
                 f.write(fin)
+
+        # 매니페스트에 S3 원천 8개의 조회시각/행수가 있다. 그대로 기록해
+        # 다운로드 화면이 '내부 처리 단위' 가 아니라 실제 원천을 보여주게 한다.
+        # --force 로 돌려도 남아야 하므로 위 분기 밖에 둔다.
+        for tname, meta in (man.get("tables") or {}).items():
+            s3_manifest_log.append({
+                "테이블": tname, "구분": "원천",
+                "로딩_시작시각": None, "로딩_종료시각": None, "소요_초": None,
+                "행수": meta.get("rows"), "컬럼수": meta.get("cols"),
+                "시트_기록행수": 0, "시트_잘림여부": "N",
+                "원천조회시각": meta.get("query_time") or man.get("query_time"),
+            })
 
     load_log = []
     s3_cache = {}          # STEP_PATH / TIP 은 두 라인이 한 파일이라 재사용

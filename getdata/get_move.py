@@ -102,6 +102,29 @@ def shift_start_at_or_before(ts):
                                                second=0, microsecond=0)
 
 
+def _append_load_log(conn, started, ended, src_rows, lot_rows):
+    """f3_load_log 에 MOVE 처리 구간을 덧붙인다.
+
+    build_f3 가 이미 그 스냅샷 행을 다 써 둔 뒤라 DELETE 없이 INSERT 만 한다.
+    """
+    with conn.cursor() as cur:
+        cur.execute("SELECT MAX(snapshot_at) FROM f3_live")
+        row = cur.fetchone()
+        snap = row[0] if row else None
+        if not snap:
+            return
+        cur.execute("DELETE FROM f3_load_log WHERE snapshot_at=%s AND table_name=%s",
+                    (snap, "move 적재"))
+        cur.execute(
+            "INSERT INTO f3_load_log (snapshot_at, table_name, load_start, load_end,"
+            " elapsed_sec, row_count, col_count, kind, query_time)"
+            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NULL)",
+            (snap, "move 적재", started, ended,
+             round((ended - started).total_seconds(), 2),
+             int(src_rows), int(lot_rows), "처리"))
+    conn.commit()
+
+
 def resolve_range(conn, args):
     """조회 구간을 결정한다.
 
@@ -195,6 +218,7 @@ def main():
     ts_from, ts_to = resolve_range(conn, args)
     print(f"[MOVE] 조회구간 {ts_from:%Y-%m-%d %H:%M} ~ {ts_to:%Y-%m-%d %H:%M}", flush=True)
 
+    t_start = dt.datetime.now()
     t0 = perf_counter()
     if SOURCE == "bdq":
         df = getData(param=move_query(ts_from, ts_to), convert_type=True, verbose=True)
@@ -224,6 +248,14 @@ def main():
     print(f"[MOVE] 적재 완료: {len(pairs)}개 (업무일,shift) 교체", flush=True)
     for bd, sh in pairs[-6:]:
         print(f"        {bd} {sh}", flush=True)
+
+    # 다운로드 화면의 '처리 구간' 에 MOVE 도 보이게 한다.
+    # build_f3 와 다른 프로세스라 f3_live 의 최신 스냅샷에 붙인다.
+    try:
+        _append_load_log(conn, t_start, dt.datetime.now(), len(df), len(df_lot))
+    except Exception as e:
+        print(f"[MOVE] load_log 기록 실패(무시): {e}", flush=True)
+
     conn.close()
 
 
