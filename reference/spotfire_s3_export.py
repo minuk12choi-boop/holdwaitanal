@@ -15,6 +15,7 @@ spotfire_s3_export.py — Spotfire 데이터 함수용 S3 자동 적재
           PFR1_KFR7_EQP_GROUP
           PFR1_KFR7_HOLD
           PFR1_KFR7_MOVE
+          PFR1_KFR7_SSPS_PROD_NAME
     - Output Parameters : upload_log (Table) — 적재 결과 확인용. 생략 가능.
   등록 후 Refresh Function 을 "Automatic" 으로 두면 분석 파일을 열 때마다,
   즉 데이터가 새로 로딩될 때마다 S3 에 올라간다.
@@ -103,6 +104,7 @@ TABLE_NAMES = [
     "PFR1_KFR7_EQP_GROUP",
     "PFR1_KFR7_HOLD",
     "PFR1_KFR7_MOVE",
+    "PFR1_KFR7_SSPS_PROD_NAME",
 ]
 
 # 저장 형식.

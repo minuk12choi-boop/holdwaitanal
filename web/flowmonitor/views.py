@@ -755,6 +755,7 @@ LOT_DETAIL_COLS = [
     ("스텝도착경과_일", "스텝도착경과(일)"),
     ("마지막작업경과_일", "마지막작업경과(일)"),
     ("fa_object4", "FA_OBJECT4"),
+    ("prod1", "PROD1"), ("prod2", "PROD2"), ("dept", "DEPT"),
 ]
 
 
@@ -1070,6 +1071,8 @@ def api_summary(request):
     raw = request.GET.get("types")
     types = ([t for t in raw.split(",") if t] if raw is not None
              else list(DEFAULT_LOT_TYPES))
+    prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
+    prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
 
     if not _table_exists("f3_live"):
         return JsonResponse({"ready": False, "reason": "f3_live 미적재"})
@@ -1081,6 +1084,17 @@ def api_summary(request):
     # lot_type 목록은 필터와 무관하게 전체에서 뽑아야 토글이 유지된다
     all_rows, _ = _summary_rows(line, [])
     all_types = sorted({(r.get("lot_type") or "-") for r in all_rows}, key=lot_type_key)
+    # 제품구분 선택지는 lot_type 필터까지만 반영한다(자기 자신은 제외해야 목록이 안 줄어든다)
+    p1_opts = sorted({r.get("prod1") for r in rows if r.get("prod1")})
+    p2_opts = sorted({r.get("prod2") for r in rows
+                      if r.get("prod2") and (not prod1 or r.get("prod1") in prod1)})
+    rows = [r for r in rows
+            if (not prod1 or r.get("prod1") in prod1)
+            and (not prod2 or r.get("prod2") in prod2)]
+    if not rows:
+        return JsonResponse({"ready": False, "reason": "선택한 제품구분에 해당하는 재공이 없습니다",
+                             "prod1_options": p1_opts, "prod2_options": p2_opts},
+                            json_dumps_params={"ensure_ascii": False})
 
     mv = _lot_move_map(line)
     rules = _cause_rules()
@@ -1160,6 +1174,8 @@ def api_summary(request):
         "snapshot_at": (snap.strftime("%Y-%m-%d %H:%M")
                         if hasattr(snap, "strftime") else str(snap)),
         "types": all_types, "selected_types": types,
+        "prod1_options": p1_opts, "prod2_options": p2_opts,
+        "selected_prod1": prod1, "selected_prod2": prod2,
         "total": tot,
         "by_lot_type": [{"name": k, **by_type[k]}
                         for k in sorted(by_type, key=lot_type_key)],
@@ -1263,6 +1279,8 @@ def api_lots_live(request):
              else list(DEFAULT_LOT_TYPES))
     wt_range = request.GET.get("wt_range", "")
     wt0 = request.GET.get("wt0", "")
+    prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
+    prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
     lot_type = request.GET.get("lot_type", "")     # 재공 구성 막대에서
     status = request.GET.get("status", "")         # status 원차트에서
     big = request.GET.get("big", "")
@@ -1280,6 +1298,10 @@ def api_lots_live(request):
     tot_qty = 0
     for r in rows:
         q = num(r.get("qty"))
+        if prod1 and r.get("prod1") not in prod1:
+            continue
+        if prod2 and r.get("prod2") not in prod2:
+            continue
         if lot_type and (r.get("lot_type") or "-") != lot_type:
             continue
         if status and (r.get("lot_status") or "-") != status:

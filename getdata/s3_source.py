@@ -49,6 +49,7 @@ TABLES = [
     "PFR1_KFR7_EQP_GROUP",
     "PFR1_KFR7_HOLD",
     "PFR1_KFR7_MOVE",
+    "PFR1_KFR7_SSPS_PROD_NAME",
 ]
 
 # Spotfire 쪽 FMT 와 맞춘다. parquet 권장(pkl 대비 약 6% 크기).

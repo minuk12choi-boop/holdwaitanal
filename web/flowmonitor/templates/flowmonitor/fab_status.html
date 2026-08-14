@@ -31,6 +31,22 @@
       </div>
     </div>
 
+    <!-- 제품구분 필터 -->
+    <div class="cell">
+      <div class="cellttl"><span>제품구분</span>
+        <span class="v" id="prodsum" style="font-size:11px;color:var(--mut)"></span></div>
+      <div class="prodf">
+        <div class="dd" id="dp1">
+          <button onclick="toggleProd('dp1')" id="p1b">PROD1 전체 &#9662;</button>
+          <div class="menu" id="p1m"></div>
+        </div>
+        <div class="dd" id="dp2">
+          <button onclick="toggleProd('dp2')" id="p2b">PROD2 전체 &#9662;</button>
+          <div class="menu" id="p2m"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- status 뷰 -->
     <div class="cell">
       <div class="donut">
@@ -158,11 +174,46 @@ function onTypeCheck() {
   loadSummary();
 }
 
+let PROD1 = [], PROD2 = [];
+
+function toggleProd(id) {
+  const el = document.getElementById(id);
+  const open = el.classList.contains("open");
+  document.querySelectorAll(".dd").forEach(d => d.classList.remove("open"));
+  if (!open) { el.classList.add("open"); }
+}
+
+function prodPicked(which) {
+  const sel = [...document.querySelectorAll("#p" + which + "m input:checked")]
+    .map(x => x.value);
+  if (which === 1) { PROD1 = sel; PROD2 = []; } else { PROD2 = sel; }
+  loadSummary();
+}
+
+function renderProd(d) {
+  const fill = (which, opts, cur) => {
+    const box = document.getElementById("p" + which + "m");
+    const set = new Set(cur);
+    box.innerHTML = (opts || []).map(o =>
+      `<label><input type="checkbox" value="${o}" ${set.has(o) ? "checked" : ""}`
+      + ` onchange="prodPicked(${which})">${o}</label>`).join("")
+      || `<label style="color:var(--mut)">값 없음</label>`;
+    document.getElementById("p" + which + "b").innerHTML =
+      `PROD${which} ` + (cur.length ? (cur.length <= 2 ? cur.join(",")
+                                       : cur.length + "개") : "전체") + " &#9662;";
+  };
+  fill(1, d.prod1_options, PROD1);
+  fill(2, d.prod2_options, PROD2);
+  document.getElementById("prodsum").textContent =
+    `${(d.prod1_options || []).length} / ${(d.prod2_options || []).length}종`;
+}
+
 function pickLine(line) {
   LINE = line;
   document.querySelectorAll("#lineseg button").forEach(b =>
     b.classList.toggle("on", b.dataset.line === line));
   document.getElementById("ddm").innerHTML = "";   // 라인마다 lot_type 이 다를 수 있다
+  PROD1 = []; PROD2 = [];                          // 제품구분도 라인별로 다르다
   loadSummary();
 }
 
@@ -202,7 +253,7 @@ function renderWip() {
   }
   const tot = d.by_lot_type.reduce((a, x) => a + x.lots, 0) || 1;
   document.getElementById("ws").innerHTML = d.by_lot_type.map((x, k) =>
-    `<i class="${SEL_TYPE === x.name ? 'pop' : ''}"
+    `<i class="${SEL_TYPE === x.name ? 'sel' : ''}"
         style="width:${x.lots / tot * 100}%;background:${TYPE_COLORS[k % 5]}"
         onclick="pickType('${x.name}')" title="${x.name} ${nf(x.lots)} LOT / ${nf(x.qty)} 매"
         ></i>`).join("");
@@ -529,11 +580,11 @@ function czBarChart(canvasId, onPick, pluginId) {
   });
 }
 
-/* 선택된 요소를 입체로 표시한다.
-   el.draw() 재호출은 Chart 버전에 따라 아무것도 그리지 않는 경우가 있어,
-   좌표를 직접 받아 그림자 + 밝은 윗면 + 어두운 옆면을 손으로 그린다.
+/* 선택된 요소를 형광 테두리로 표시한다.
    Chart.register 로 전역 등록하므로 앞으로 만드는 차트도 자동 적용된다.
    각 차트는 ch.$sel 에 선택 인덱스(없으면 -1)만 넣으면 된다. */
+const SEL_COLOR = "#E2F516";
+
 const popSelected = {
   id: "popSelected",
   afterDatasetsDraw(chart) {
@@ -542,54 +593,30 @@ const popSelected = {
     const el = (chart.getDatasetMeta(0).data || [])[sel];
     if (!el) { return; }
     const ctx = chart.ctx;
-    const color = chart.data.datasets[0].backgroundColor;
-    const fill = Array.isArray(color) ? color[sel] : color;
 
-    // 원차트(도넛)는 조각을 바깥으로 밀어 표현한다
-    if (el.outerRadius !== undefined) {
-      const a = (el.startAngle + el.endAngle) / 2;
-      ctx.save();
-      ctx.translate(Math.cos(a) * 9, Math.sin(a) * 9);
-      ctx.shadowColor = "rgba(17,24,39,0.5)";
-      ctx.shadowBlur = 10;
+    ctx.save();
+    ctx.strokeStyle = SEL_COLOR;
+    ctx.lineWidth = 3;
+    ctx.lineJoin = "round";
+    ctx.shadowColor = SEL_COLOR;      // 형광 느낌
+    ctx.shadowBlur = 12;
+
+    if (el.outerRadius !== undefined) {          // 원차트 조각
       ctx.beginPath();
-      ctx.arc(el.x, el.y, el.outerRadius, el.startAngle, el.endAngle);
-      ctx.arc(el.x, el.y, el.innerRadius, el.endAngle, el.startAngle, true);
+      ctx.arc(el.x, el.y, el.outerRadius - 1.5, el.startAngle, el.endAngle);
+      ctx.arc(el.x, el.y, el.innerRadius + 1.5, el.endAngle, el.startAngle, true);
       ctx.closePath();
-      ctx.fillStyle = fill || "#999";
-      ctx.fill();
-      ctx.restore();
-      return;
+      ctx.stroke(); ctx.stroke();                // 두 번 그려 발광 강화
+    } else {                                     // 막대
+      const p = el.getProps(["x", "y", "base", "width", "height"], true);
+      const w = p.width || 0;
+      const x0 = p.x - w / 2;
+      const y0 = Math.min(p.y, p.base === undefined ? p.y : p.base);
+      const h = Math.abs((p.base === undefined ? p.y + (p.height || 0) : p.base)
+                         - p.y);
+      ctx.strokeRect(x0 + 1.5, y0 + 1.5, Math.max(w - 3, 1), Math.max(h - 3, 1));
+      ctx.strokeRect(x0 + 1.5, y0 + 1.5, Math.max(w - 3, 1), Math.max(h - 3, 1));
     }
-
-    // 막대: 그림자로 띄우고 윗면/옆면을 덧그려 입체로
-    const p = el.getProps(["x", "y", "base", "width", "height"], true);
-    const w = p.width || 0;
-    const x0 = p.x - w / 2;
-    const y0 = Math.min(p.y, p.base);
-    const h = Math.abs((p.base === undefined ? p.y + (p.height || 0) : p.base) - p.y);
-    const d = Math.max(3, Math.min(7, w * 0.22));      // 입체 깊이
-
-    ctx.save();
-    ctx.shadowColor = "rgba(17,24,39,0.45)";
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetX = 2;
-    ctx.shadowOffsetY = 2;
-    ctx.fillStyle = fill || "#2F4B7C";
-    ctx.fillRect(x0, y0, w, h);
-    ctx.restore();
-
-    ctx.save();
-    ctx.fillStyle = "rgba(255,255,255,0.40)";          // 윗면
-    ctx.beginPath();
-    ctx.moveTo(x0, y0); ctx.lineTo(x0 + d, y0 - d);
-    ctx.lineTo(x0 + w + d, y0 - d); ctx.lineTo(x0 + w, y0);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = "rgba(17,24,39,0.28)";             // 옆면
-    ctx.beginPath();
-    ctx.moveTo(x0 + w, y0); ctx.lineTo(x0 + w + d, y0 - d);
-    ctx.lineTo(x0 + w + d, y0 + h - d); ctx.lineTo(x0 + w, y0 + h);
-    ctx.closePath(); ctx.fill();
     ctx.restore();
   }
 };
@@ -712,7 +739,8 @@ function openDrill(filt, label, src) {
   const el = document.getElementById("drill");
   el.innerHTML = `<div class="bar"><b>불러오는 중…</b></div>`;
   smoothTo(el);
-  const base = { line: LINE, types: selectedTypes().join(",") };
+  const base = { line: LINE, types: selectedTypes().join(","),
+                 prod1: PROD1.join(","), prod2: PROD2.join(",") };
   const q = Object.entries(Object.assign(base, filt || {}))
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
     .map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
@@ -750,16 +778,23 @@ const SRC_TITLE = {
 /* --- 로딩 --- */
 function loadSummary() {
   fetch("/api/summary/?line=" + encodeURIComponent(LINE)
-        + "&types=" + encodeURIComponent(selectedTypes().join(",")))
+        + "&types=" + encodeURIComponent(selectedTypes().join(","))
+        + "&prod1=" + encodeURIComponent(PROD1.join(","))
+        + "&prod2=" + encodeURIComponent(PROD2.join(",")))
     .then(r => r.ok ? r.json() : Promise.reject("HTTP " + r.status))
     .then(d => {
       const err = document.getElementById("err");
-      if (!d.ready) { err.textContent = d.reason || "데이터 없음"; return; }
+      if (!d.ready) {
+        err.textContent = d.reason || "데이터 없음";
+        if (d.prod1_options) { renderProd(d); }   // 필터는 되돌릴 수 있어야 한다
+        return;
+      }
       err.textContent = "";
       DATA = d;
       SEL_STATUS = null;
       CZ_SEL = { i: -1, path: [] };
       document.getElementById("snapAt").textContent = d.snapshot_at || "-";
+      renderProd(d);
       renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
     })
     .catch(e => { document.getElementById("err").textContent = "조회 실패: " + e; });

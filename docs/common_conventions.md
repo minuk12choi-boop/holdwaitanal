@@ -386,6 +386,20 @@ python getdata/get_move.py --from 2026-08-01 --to 2026-08-10
 python getdata/get_move.py --full
 ```
 
+### 제품구분 (SSPS_PROD_NAME)
+
+`PROD1` / `PROD2` / `DEPT` 를 lot 에 붙인다. 조인 키는 세 개다.
+
+```
+line = LINE_ID  AND  lot_type = LOT_TYPE  AND  LEFT(lot_id, LEN(ID)) = ID
+```
+
+`ID` 길이가 **2~4 로 제각각**이라 길이별로 나눠 붙이고, 같은 lot 에 여러 길이가
+맞으면 **더 긴(구체적인) 규칙**을 쓴다(`attach_prod`).
+
+`/main/` 좌측에 PROD1 / PROD2 다중선택 필터가 있고, PROD1 을 고르면 PROD2
+선택지가 그에 맞게 좁혀진다. 필터는 드릴다운 표에도 그대로 적용된다.
+
 ### 경과일 기준 시각 (중요)
 
 DuckDB 의 `CURRENT_TIMESTAMP` 는 **UTC** 를 돌려준다. 원천 시각은 KST 라

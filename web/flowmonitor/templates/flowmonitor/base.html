@@ -287,8 +287,11 @@
   .cz3 > .czcol:first-child { padding-left:0; }
   .cz3 > .czcol:last-child { border-right:0; padding-right:0; }
   /* 재공 구성 막대 등 canvas 가 아닌 요소의 선택 표시(차트의 3D 팝업과 동일 개념) */
-  .stack i.pop { box-shadow:3px -3px 9px rgba(17,24,39,0.45); position:relative;
-                 z-index:2; filter:brightness(1.12); }
+  .stack i.sel { outline:3px solid #E2F516; outline-offset:-3px;
+                 box-shadow:0 0 10px #E2F516; position:relative; z-index:2; }
+  .prodf { display:flex; gap:8px; }
+  .prodf .dd { flex:1; min-width:0; }
+  .prodf .dd > button { width:100%; }
   .czh { cursor:pointer; }
   .czh:hover span:first-child { text-decoration:underline; }
   .czpath { font-size:11px; color:var(--mut); margin-bottom:4px; min-height:16px; }

@@ -640,6 +640,7 @@ _FRESH_MARK = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 S3_MAP = {
     "lot": "PFR1_KFR7_LOT",
     "materialworkstatus": "PFR1_KFR7_MATERIALWORKSTATUS",
+    "ssps_prod_name": "PFR1_KFR7_SSPS_PROD_NAME",
     "equipment": "PFR1_KFR7_EQUIPMENT",
     "eqp_group": "PFR1_KFR7_EQP_GROUP",
     "hold": "PFR1_KFR7_HOLD",
@@ -698,7 +699,7 @@ SUMMARY_OUTPUT_COLUMNS = [
     "현스텝", "order_seq", "step_seq", "step_desc", "recipe_id", "eqp_type",
     "batch_kind", "eqpline", "eqpgroup", "eqpgroup_cham",
     "tip", "down", "hold", "hold_reason", "exception", "exception_reason",
-    "ftp", "ftp_reason", "fa_object4",
+    "ftp", "ftp_reason", "fa_object4", "prod1", "prod2", "dept",
 ]
 
 # hold 는 생테이블 조회에 4분이 걸리는데, 실제로 쓰이는 건 현재 재공(mc_lot)에
@@ -898,6 +899,56 @@ def elapsed_days_text(column: str) -> str:
     return "FORMAT('{:.1f}', " + elapsed_days_num(column) + ") || '일↑'"
 
 
+PROD_COLS = ("prod1", "prod2", "dept")
+
+
+def attach_prod(df_lot, df_prod):
+    """SSPS_PROD_NAME 을 lot 에 붙인다.
+
+    조인 조건
+        line = line_id
+        lot_type = lot_type
+        LEFT(lot_id, LEN(id)) = id       <- id 길이가 2~4 로 제각각이다
+
+    같은 lot 에 길이가 다른 규칙이 함께 맞으면 **더 긴(구체적인) 쪽**을 쓴다.
+    """
+    lot = _lower_cols(df_lot).copy()
+    for c in PROD_COLS:
+        lot[c] = pd.NA
+    if df_prod is None or not len(df_prod):
+        print("[JOIN] 제품구분 원천 없음", flush=True)
+        return lot
+
+    p = _lower_cols(df_prod).copy()
+    lcol = "line_id" if "line_id" in p.columns else "line"
+    need = [lcol, "lot_type", "id"] + [c for c in PROD_COLS if c in p.columns]
+    p = p[need].dropna(subset=[lcol, "lot_type", "id"])
+    p["id"] = p["id"].astype(str).str.strip()
+    p = p[p["id"] != ""]
+    p["_len"] = p["id"].str.len()
+
+    key = ["line", "lot_type"]
+    lot["_ltype"] = lot["lot_type"].astype(str)
+    filled = 0
+    # 짧은 규칙부터 붙이고 긴 규칙으로 덮어써서, 긴 쪽이 이기게 한다
+    for n in sorted(p["_len"].unique()):
+        sub = (p[p["_len"] == n]
+               .rename(columns={lcol: "line"})
+               .drop_duplicates(subset=key + ["id"]))
+        lot["_pfx"] = lot["lot_id"].astype(str).str.slice(0, int(n))
+        merged = lot.merge(sub, how="left", left_on=key + ["_pfx"],
+                           right_on=key + ["id"], suffixes=("", "_n"))
+        for c in PROD_COLS:
+            src = c + "_n"
+            if src in merged.columns:
+                lot[c] = merged[src].where(merged[src].notna(), lot[c].values).values
+        filled = int(lot["prod1"].notna().sum())
+
+    lot = lot.drop(columns=[c for c in ("_pfx", "_ltype") if c in lot.columns])
+    print(f"[JOIN] 제품구분 {filled:,}/{len(lot):,} lot 매칭", flush=True)
+    return lot
+
+
 # ---------------------------------------------------------------------------
 # 1. StepPath → f3 범위로 선축약  (이 파이프라인의 핵심)
 # ---------------------------------------------------------------------------
@@ -1084,7 +1135,7 @@ def build_f3(con):
             m.lot_id, m.carr_id, m.grade, m.lot_type, m.lot_level, m.cur_qty,
             m.bay_name, m.sendfab,
             m.start_date, m.last_event_date, m.step_arrive_date, m.last_tkout_date,
-            m.fa_object4,
+            m.fa_object4, m.prod1, m.prod2, m.dept,
             m.status, m.order_seq AS m_order_seq,
             s.proc_id, s.order_seq, s.de_rank, s."연속", s.AREA,
             s.layer_id, s.step_level, s.ein, s.step_seq, s.step_desc,
@@ -1362,7 +1413,7 @@ def build_f3(con):
             f.lot_id, f.carr_id, f.grade, f.lot_type, f.lot_level,
             f.cur_qty AS qty, f.bay_name AS bay, f.sendfab,
             f."투입경과_일", f."마지막이벤트경과_일", f."스텝도착경과_일",
-            f."마지막작업경과_일", f.fa_object4,
+            f."마지막작업경과_일", f.fa_object4, f.prod1, f.prod2, f.dept,
             f.lot_status, f.step_status, f.proc_id, f.de_rank, f."연속",
             f.AREA, f.layer_id, f."현스텝", f.order_seq, f.step_seq, f.step_desc,
             f.recipe_id, f.eqp_type, {'f.batch_kind_agg' if AGGREGATE_BATCH_KIND else 'CAST(f.batch_kind AS VARCHAR)'} AS batch_kind,
@@ -1720,6 +1771,12 @@ def main():
                 df_lot = _lower_cols(df_lot).merge(m, on=["line", "lot_id"], how="left")
                 got = int(df_lot["fa_object4"].notna().sum())
                 print(f"[JOIN] fa_object4 {got:,}/{before:,} lot 매칭", flush=True)
+            # 제품구분(SSPS_PROD_NAME). a.id 는 lot_id 의 앞 2~4글자다.
+            # 길이가 제각각이라 길이별로 나눠 붙이고, 더 구체적인(긴) 것을 우선한다.
+            df_prod = fetch("ssps_prod_name", None)
+            with stage("제품구분 결합"):
+                df_lot = attach_prod(df_lot, df_prod)
+
         df_eqp = fetch("equipment", eqp_query)
         # 설비그룹은 하루에 한 번만 바뀌면 충분하다. 업무일(22시 기준) 단위로
         # 캐시해 두고, 'OFF' 제외까지 마친 상태로 저장해 재사용한다.
