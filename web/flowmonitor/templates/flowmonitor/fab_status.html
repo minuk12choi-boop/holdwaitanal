@@ -57,8 +57,7 @@
           <button id="zu_lots" onclick="setWt0Unit('lots')">LOT</button>
           <button class="on" id="zu_qty" onclick="setWt0Unit('qty')">매</button>
         </span></div>
-      <div class="sub" style="font-size:11px;color:var(--mut);margin-bottom:6px">
-        마지막 작업 이후 경과일 기준</div>
+      <div class="minittl" style="margin-bottom:6px">마지막 작업 이후 경과일 기준</div>
       <div style="height:210px"><canvas id="wt0c"></canvas></div>
     </div>
   </div>
@@ -72,13 +71,13 @@
           <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
         </span></div>
       <div class="cz3">
-        <div><div class="czh" id="czh0"></div>
+        <div><div class="subttl czh" id="czh0"></div>
           <div id="czp0" class="czpath"></div>
           <div style="height:170px"><canvas id="czc0"></canvas></div></div>
-        <div><div class="czh" id="czh1"></div>
+        <div><div class="subttl czh" id="czh1"></div>
           <div id="czp1" class="czpath"></div>
           <div style="height:170px"><canvas id="czc1"></canvas></div></div>
-        <div><div class="czh" id="czh2"></div>
+        <div><div class="subttl czh" id="czh2"></div>
           <div id="czp2" class="czpath"></div>
           <div style="height:170px"><canvas id="czc2"></canvas></div></div>
       </div>
@@ -414,7 +413,7 @@ function renderCause() {
     var more = (g.sub_total || 0) - (g.shown || 0);
     var hd = document.getElementById("czh" + i);
     hd.innerHTML = `<span>${g.name || "-"}</span>`
-      + `<span>${nf(u === "lots" ? g.lots : g.qty)}`
+      + `<span class="v">${nf(u === "lots" ? g.lots : g.qty)}`
       + `${u === "lots" ? " LOT" : " 매"}`
       + `${more > 0 && !CZ_PATHS[i].length ? " · 상위" + (g.shown || 0) : ""}</span>`;
     hd.onclick = function () {                 // 헤더 클릭 = 대분류 전체 목록

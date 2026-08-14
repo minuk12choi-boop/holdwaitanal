@@ -11,6 +11,8 @@
   :root {
     --bd:#E5E7EB; --fg:#111827; --mut:#6B7280;
     --brand:#2F4B7C; --brand-on:#4C7DD1; --accent:#6A5ACD;
+  /* 제목 위계: h1 > .cellttl(--accent) > .subttl(--accent-2) > .minittl */
+  --accent-2:#9B93DB;
     /* 라틴 폰트를 먼저 두면 영문에만 적용되고 한글은 뒤 폰트로 넘어간다 */
     --f-body:"Poppins","Noto Sans KR","Malgun Gothic",sans-serif;
     --f-title:"Plus Jakarta Sans","IBM Plex Sans KR","Malgun Gothic",sans-serif;
@@ -18,7 +20,8 @@
   html { scroll-behavior:smooth; }
   * { box-sizing:border-box; }
   body { margin:0; font-family:var(--f-body); color:var(--fg); font-size:14px; }
-  h1, h2, .brand, .card .head, .cellttl, .lbl { font-family:var(--f-title); }
+  h1, h2, .brand, .card .head, .cellttl, .subttl, .minittl, .lbl {
+    font-family:var(--f-title); }
 
   header { border-bottom:1px solid var(--bd); padding:0 18px; display:flex;
            align-items:center; height:52px; gap:26px; }
@@ -41,6 +44,14 @@
   .card.on .head { background:var(--brand-on); }
   .card.on { box-shadow:inset 0 0 0 2px var(--brand-on); }
   .card .cell { border-top:1px solid var(--bd); padding:11px 12px; }
+  /* 카드 소제목 아래 단계. 같은 계열이되 한 톤 옅게 해 위계를 구분한다. */
+  .subttl { font-size:12px; font-weight:700; color:var(--accent-2);
+            display:flex; justify-content:space-between; align-items:baseline;
+            gap:6px; border-bottom:1px solid var(--bd);
+            padding-bottom:3px; margin-bottom:4px; }
+  .subttl .v { color:var(--mut); font-weight:400; font-size:11px; }
+  .minittl { font-size:11px; font-weight:600; color:var(--mut); }
+
   .cellttl { font-size:14px; font-weight:700; color:var(--accent);
              margin-bottom:9px; display:flex; justify-content:space-between;
              align-items:center; gap:6px; }
@@ -265,6 +276,20 @@
     .dl .split { flex-wrap:wrap; }
     .dl .split > .left, .dl .split > .right { flex:1 1 100%; }
   }
+
+  /* ── 원인 분석 (대분류 3개 차트) ──────────────────────────────────────── */
+  /* 항상 1 x 3. 폭이 모자라면 세로로 쌓지 말고 가로 스크롤한다. */
+  .cz3 { display:grid; grid-template-columns:repeat(3, minmax(210px, 1fr));
+         gap:12px; overflow-x:auto; padding-bottom:2px; }
+  .czh { cursor:pointer; }
+  .czh:hover span:first-child { text-decoration:underline; }
+  .czpath { font-size:11px; color:var(--mut); margin-bottom:4px; min-height:16px; }
+  .czpath a { color:var(--brand); cursor:pointer; text-decoration:none; }
+  .czpath a:hover { text-decoration:underline; }
+  .czback { display:inline-block; border:1px solid var(--bd); background:#fff;
+            border-radius:4px; font-size:11px; padding:1px 7px; cursor:pointer;
+            color:var(--fg); margin-right:6px; }
+  .czback:hover { background:#F3F4F6; }
 </style>
 </head>
 <body>

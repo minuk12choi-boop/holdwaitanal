@@ -21,8 +21,7 @@
   .dl .split { display:flex; gap:14px; align-items:flex-start; }
   .dl .split > .left  { flex:0 0 42%; }
   .dl .split > .right { flex:1; min-width:0; }
-  .dl .ttl { font-family:var(--f-title); font-size:13px; font-weight:700;
-             margin-bottom:7px; }
+
 
   .dl .kind { color:var(--mut); }
   .dl .empty { color:var(--mut); padding:24px 4px; font-size:13px; }
@@ -58,8 +57,8 @@
     <div class="bd">
       <div class="split">
         <div class="left">
-          <div class="ttl">원천 테이블</div>
-          <div class="sub" style="margin-bottom:7px">
+          <div class="subttl"><span>원천 테이블</span></div>
+          <div class="minittl" style="margin-bottom:7px">
             Spotfire 가 S3 에 올린 원천. Oracle 조회 시각 순</div>
           <div class="gridwrap">
             <table class="grid">
@@ -91,8 +90,8 @@
         </div>
 
         <div class="right">
-          <div class="ttl">처리 구간</div>
-          <div class="sub" style="margin-bottom:7px">
+          <div class="subttl"><span>처리 구간</span></div>
+          <div class="minittl" style="margin-bottom:7px">
             소요합과 경과가 크게 벌어지면 기록되지 않은 구간이 있다는 뜻입니다.</div>
           <div class="gridwrap">
             <table class="grid">
