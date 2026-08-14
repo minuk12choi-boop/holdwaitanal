@@ -3,22 +3,23 @@
 {% block body %}
 <div class="layout">
   <div class="summary">
-    <div class="lineseg" id="lineseg">
-      {% for l in lines %}
-        <button data-line="{{ l.line }}" {% if not l.ready %}disabled
-          title="아직 적재된 데이터가 없습니다"{% endif %}
-          onclick="pickLine('{{ l.line }}')">{{ l.label }}</button>
-      {% endfor %}
-    </div>
-
-    <div class="prodf">
-      <div class="dd" id="dp1">
-        <button onclick="toggleProd('dp1')" id="p1b">제품군 전체 &#9662;</button>
-        <div class="menu" id="p1m"></div>
+    <div class="gfilter">
+      <div class="lineseg" id="lineseg">
+        {% for l in lines %}
+          <button data-line="{{ l.line }}" {% if not l.ready %}disabled
+            title="아직 적재된 데이터가 없습니다"{% endif %}
+            onclick="pickLine('{{ l.line }}')">{{ l.label }}</button>
+        {% endfor %}
       </div>
-      <div class="dd" id="dp2">
-        <button onclick="toggleProd('dp2')" id="p2b">제품 전체 &#9662;</button>
-        <div class="menu" id="p2m"></div>
+      <div class="prodf">
+        <div class="dd" id="dp1">
+          <button onclick="toggleProd('dp1')" id="p1b">제품군 전체 &#9662;</button>
+          <div class="menu" id="p1m"></div>
+        </div>
+        <div class="dd" id="dp2">
+          <button onclick="toggleProd('dp2')" id="p2b">제품 전체 &#9662;</button>
+          <div class="menu" id="p2m"></div>
+        </div>
       </div>
     </div>
 
@@ -215,10 +216,11 @@ function renderProd(d) {
           + ` ${isAll || set.has(o) ? "checked" : ""}`
           + ` onchange="prodPicked(${which}, false)">${o}</label>`).join("")
          || `<label style="color:var(--mut)">값 없음</label>`);
-    document.getElementById("p" + which + "b").innerHTML =
-      PROD_LABEL[which] + " "
+    const btn = document.getElementById("p" + which + "b");
+    btn.innerHTML = `<span>${PROD_LABEL[which]} `
       + (isAll ? "전체" : (cur.length <= 2 ? cur.join(",") : cur.length + "개"))
-      + " &#9662;";
+      + `</span><span>&#9662;</span>`;
+    btn.classList.toggle("on", !isAll);      // 필터가 걸려 있으면 라인처럼 강조
   };
   fill(1, d.prod1_options, PROD1);
   fill(2, d.prod2_options, PROD2);

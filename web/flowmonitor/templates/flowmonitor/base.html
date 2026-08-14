@@ -192,6 +192,23 @@
   .summary { flex:0 0 380px; }
   .summary .cell { border:1px solid var(--bd); border-radius:6px; padding:11px 12px;
                    margin-bottom:10px; }
+  /* ── 전역 필터 (라인 + 제품구분) ────────────────────────────────────────
+     /main/ 전체에 걸리는 최상위 필터라 한 묶음으로 보이게 한다. */
+  .gfilter { border:1px solid var(--bd); border-radius:6px; background:#F7F8FA;
+             padding:8px; margin-bottom:12px; }
+  .gfilter .lineseg { margin-bottom:8px; }
+  .gfilter .prodf { margin-bottom:0; }
+  .gfilter .prodf .dd > button {
+      width:100%; text-align:left; font-family:var(--f-title);
+      font-weight:700; font-size:13px; padding:7px 10px;
+      border:1px solid var(--bd); border-radius:6px; background:#fff;
+      color:var(--mut); display:flex; justify-content:space-between;
+      align-items:center; gap:6px; }
+  .gfilter .prodf .dd > button.on { background:var(--brand); color:#fff;
+                                    border-color:var(--brand); }
+  .gfilter .prodf .menu { left:0; right:auto; top:34px; max-height:280px;
+                          overflow:auto; min-width:100%; }
+
   .lineseg { display:flex; gap:0; border:1px solid var(--bd); border-radius:6px;
              overflow:hidden; margin-bottom:12px; }
   .lineseg button { flex:1; border:0; border-right:1px solid var(--bd);
