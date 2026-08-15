@@ -744,7 +744,7 @@ SUMMARY_OUTPUT_COLUMNS = [
     "현스텝", "order_seq", "step_seq", "step_desc", "recipe_id", "eqp_type",
     "batch_kind", "eqpline", "eqpgroup", "eqpgroup_cham",
     "tip", "down", "hold", "hold_reason", "exception", "exception_reason",
-    "ftp", "ftp_reason", "fa_object4", "prod1", "prod2", "dept",
+    "ftp", "ftp_reason", "fa_object4", "prod1", "prod2", "dept", "dest_line_id",
 ]
 
 # hold 는 생테이블 조회에 4분이 걸리는데, 실제로 쓰이는 건 현재 재공(mc_lot)에
@@ -1180,7 +1180,7 @@ def build_f3(con):
             m.lot_id, m.carr_id, m.grade, m.lot_type, m.lot_level, m.cur_qty,
             m.bay_name, m.sendfab,
             m.start_date, m.last_event_date, m.step_arrive_date, m.last_tkout_date,
-            m.fa_object4, m.prod1, m.prod2, m.dept,
+            m.fa_object4, m.prod1, m.prod2, m.dept, m.dest_line_id,
             m.status, m.order_seq AS m_order_seq,
             s.proc_id, s.order_seq, s.de_rank, s."연속", s.AREA,
             s.layer_id, s.step_level, s.ein, s.step_seq, s.step_desc,
@@ -1459,6 +1459,7 @@ def build_f3(con):
             f.cur_qty AS qty, f.bay_name AS bay, f.sendfab,
             f."투입경과_일", f."마지막이벤트경과_일", f."스텝도착경과_일",
             f."마지막작업경과_일", f.fa_object4, f.prod1, f.prod2, f.dept,
+            f.dest_line_id,
             f.lot_status, f.step_status, f.proc_id, f.de_rank, f."연속",
             f.AREA, f.layer_id, f."현스텝", f.order_seq, f.step_seq, f.step_desc,
             f.recipe_id, f.eqp_type, {'f.batch_kind_agg' if AGGREGATE_BATCH_KIND else 'CAST(f.batch_kind AS VARCHAR)'} AS batch_kind,
@@ -1807,6 +1808,11 @@ def main():
 
     with timer("소형 원천 조회"):
         df_lot = fetch("lot", lot_query)
+        # dest_line_id 보정: bdq 경로나 옛 쿼리에는 이 컬럼이 없다.
+        # f3 출력 컬럼이라 없으면 SQL 이 깨지므로 빈 값으로 채워 둔다.
+        df_lot = _lower_cols(df_lot)
+        if "dest_line_id" not in df_lot.columns:
+            df_lot["dest_line_id"] = pd.NA
         if SOURCE != "bdq":
             # Oracle 은 datasource 가 달라 fa_object4 를 분리해 받는다.
             # 기존 Impala lot_query 는 이 컬럼을 포함했으므로 여기서 붙여준다.

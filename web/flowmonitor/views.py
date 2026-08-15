@@ -780,6 +780,7 @@ LOT_DETAIL_COLS = [
     ("스텝도착경과_일", "스텝도착경과(일)"),
     ("마지막작업경과_일", "마지막작업경과(일)"),
     ("fa_object4", "FA_OBJECT4"), ("dept", "DEPT"),
+    ("dest_line_id", "DEST_LINE_ID"),
 ]
 
 
