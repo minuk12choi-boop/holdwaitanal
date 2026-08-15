@@ -58,3 +58,11 @@ try:
     pymysql.install_as_MySQLdb()
 except ImportError:
     pass
+
+# 사내망에서 IP 로 접속하는 경우가 있어 허용 오리진을 함께 채운다.
+# ALLOWED_HOSTS 에 적은 호스트를 http/https 양쪽으로 넣는다.
+CSRF_TRUSTED_ORIGINS = [
+    f"{scheme}://{h}"
+    for h in ALLOWED_HOSTS if h not in ("*",)
+    for scheme in ("http", "https")
+]

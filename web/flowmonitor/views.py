@@ -12,6 +12,7 @@ import json
 from django.db import connection, ProgrammingError, OperationalError
 from django.http import JsonResponse
 from django.shortcuts import render
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from .chartdata import build_panel
 
@@ -1321,7 +1322,7 @@ def _std_rows(table, cols):
         return [dict(zip(keys, r)) for r in cur.fetchall()]
 
 
-def _std_save(conn, card, payload):
+def _std_save(card, payload):
     """행 목록을 통째로 교체한다.
 
     같은 내용이 여러 번 들어와도 결과가 같아야 하므로 중복은 걸러 저장한다.
@@ -1344,7 +1345,7 @@ def _std_save(conn, card, payload):
 
     ph = ", ".join(["%s"] * len(cols))
     names = ", ".join(f"`{k}`" for k in cols)
-    with conn.cursor() as cur:
+    with connection.cursor() as cur:
         cur.execute(f"DELETE FROM `{card['table']}`")
         if clean:
             now = dt.datetime.now()
@@ -1352,14 +1353,16 @@ def _std_save(conn, card, payload):
                 f"INSERT INTO `{card['table']}` ({names}, updated_at) "
                 f"VALUES ({ph}, %s)",
                 [tuple(v[k] for k in cols) + (now,) for v in clean])
-    conn.commit()
     return len(clean)
 
 
+@ensure_csrf_cookie
 def standards(request):
-    """기준정보. 카드별로 행 추가/삭제/저장/검색을 한다."""
-    import db_common as DB
+    """기준정보. 카드별로 행 추가/삭제/저장/검색을 한다.
 
+    ensure_csrf_cookie: 이 화면은 POST 로 저장하므로 GET 시점에 반드시
+    csrftoken 쿠키를 내려보낸다. 없으면 저장에서 403 이 난다.
+    """
     msg = ""
     if request.method == "POST":
         key = request.POST.get("card")
@@ -1369,11 +1372,12 @@ def standards(request):
                 payload = json.loads(request.POST.get("rows") or "[]")
             except ValueError:
                 payload = []
-            conn = DB.connect()
-            DB.ensure_standard_schema(conn)
-            n = _std_save(conn, card, payload)
-            conn.close()
-            msg = f"{card['title']}: {n}행 저장했습니다."
+            if not _table_exists(card["table"]):
+                msg = (f"{card['table']} 테이블이 없습니다. "
+                       f"python getdata/db_common.py --init 을 먼저 실행하세요.")
+            else:
+                n = _std_save(card, payload)
+                msg = f"{card['title']}: {n}행 저장했습니다."
 
     lines = [c["line"] for c in LINE_CARDS]
     cards = []
