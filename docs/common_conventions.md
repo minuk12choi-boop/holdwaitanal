@@ -386,6 +386,25 @@ python getdata/get_move.py --from 2026-08-01 --to 2026-08-10
 python getdata/get_move.py --full
 ```
 
+### 라인 분류 (dest_line_id)
+
+KFR7 원천 테이블에 **NRD-K 와 NRD 가 함께** 들어온다.
+`smimes.mi_current_wip_v` 의 `dest_line_id` 로 가른다.
+
+| 원천 line | dest_line_id | 최종 line |
+|---|---|---|
+| KFR7 | KFR7A, KFR7B | KFR7 (NRD-K) |
+| KFR7 | KFR7C, KFR7D | **KFR4 (NRD)** |
+| KFR7 | 그 외 | KFR7 (기존 분류 유지) |
+
+**조인·집계는 전부 원천 라인(KFR7)으로 끝내고, f3 완성 후 라벨만 바꾼다**
+(`relabel_lines`). 중간에 나누면 step_path / tip / equipment 조인을 라인별로
+다시 짜야 해서 복잡해지는데 결과는 같다.
+
+MOVE 는 라인을 보지 않는다. `move_lot` 은 원천 라인으로 적재되어 f3 의 분류와
+어긋나므로, W/T 계산은 **lot_id 로만** 연결한다(`_lot_move_map`).
+MOVE 쪽 라인 분류 체계는 아직 정립 전이라 보류한다.
+
 ### 제품구분 (SSPS_PROD_NAME)
 
 `PROD1` / `PROD2` / `DEPT` 를 lot 에 붙인다. 조인 키는 세 개다.

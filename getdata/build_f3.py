@@ -611,6 +611,51 @@ def _int_str(series):
 
 LINES = ("KFR7", "PFR1")
 
+# KFR7 원천에는 NRD-K 와 NRD 가 함께 들어온다. 목적지 라인으로 가른다.
+#   KFR7 + dest_line_id IN ('KFR7A','KFR7B') -> KFR7 (NRD-K)
+#   KFR7 + dest_line_id IN ('KFR7C','KFR7D') -> KFR4 (NRD)
+# 그 외 dest_line_id 는 기존 분류를 그대로 둔다.
+DEST_LINE_MAP = {
+    "KFR7": {"KFR7A": "KFR7", "KFR7B": "KFR7",
+             "KFR7C": "KFR4", "KFR7D": "KFR4"},
+}
+
+
+def relabel_lines(f3, df_lot):
+    """완성된 f3 의 line 만 dest_line_id 기준으로 다시 매긴다.
+
+    조인·집계는 전부 원천 라인(KFR7)으로 끝낸 뒤 마지막에 라벨만 바꾼다.
+    중간에 나누면 step_path/tip/equipment 조인을 라인별로 다시 짜야 해서
+    복잡해지고, 결과는 어차피 같다.
+    """
+    lot = _lower_cols(df_lot)
+    if "dest_line_id" not in lot.columns:
+        print("[LINE] dest_line_id 없음 - 재분류 생략", flush=True)
+        return f3
+
+    dest = (lot[["lot_id", "line", "dest_line_id"]]
+            .dropna(subset=["lot_id"]).drop_duplicates(subset=["lot_id"]))
+    dest["_d"] = dest["dest_line_id"].astype("string").str.strip().str.upper()
+
+    tgt = {}
+    for _, r in dest.iterrows():
+        m = DEST_LINE_MAP.get(str(r["line"]))
+        if m and r["_d"] in m:
+            tgt[r["lot_id"]] = m[r["_d"]]
+    if not tgt:
+        return f3
+
+    out = f3.copy()
+    before = out["line"].astype(str)
+    new = out["lot_id"].map(tgt).fillna(before)
+    moved = int((new != before).sum())
+    out["line"] = new
+    if moved:
+        cnt = new[new != before].value_counts()
+        print(f"[LINE] dest_line_id 로 재분류 {moved:,}행  "
+              + ", ".join(f"{k}:{v:,}" for k, v in cnt.items()), flush=True)
+    return out
+
 # Oracle `step_skip_yn <> 'Y'` 는 NULL 행을 제외한다(NULL <> 'Y' 는 UNKNOWN).
 # 재현 구현들은 NULL 을 포함해 왔다. 원본과 맞추려면 True 로 둔다.
 EXCLUDE_NULL_STEP_SKIP_YN = True
@@ -1874,6 +1919,12 @@ def main():
 
     with stage("f3 생성"):
         df_f3, tip_match, eqpgroup_trace = build_f3(con)
+
+    # 조인·집계는 원천 라인으로 끝내고, 라벨만 마지막에 바꾼다.
+    if SOURCE != "bdq":
+        with stage("라인 재분류(dest_line_id)"):
+            df_f3 = relabel_lines(df_f3, df_lot)
+
     n_tip = int(df_f3["tip"].notna().sum())
     print(f"[TIP] f3 tip 값 있는 행 = {n_tip:,} / {len(df_f3):,}", flush=True)
     print(f"[ROWS] f3 = {len(df_f3):,}  (lot {df_f3['lot_id'].nunique():,}개)", flush=True)

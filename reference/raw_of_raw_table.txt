@@ -103,6 +103,13 @@ raw_of_raw_table.txt
 --
 --    materialworkstatus 는 datasource 가 달라 #2 로 분리. python 이 (line, lot_id)
 --    로 붙인다.
+--
+--    [dest_line_id]
+--    smimes.mi_current_wip_v 를 lot_id 로 LEFT JOIN 해 목적지 라인을 붙인다.
+--    KFR7 테이블에 NRD-K 와 NRD 가 함께 들어와 있어, python 이 이 값으로 가른다.
+--      KFR7 + dest_line_id IN ('KFR7A','KFR7B') -> KFR7 (NRD-K)
+--      KFR7 + dest_line_id IN ('KFR7C','KFR7D') -> KFR4 (NRD)
+--    그 외 값은 기존 분류를 그대로 따른다.
 --------------------------------------------------------------------------------
 WITH lot AS (
     SELECT 'PFR1' AS line, object_id, sys_line_id, cur_line_id, origin_line_id,
@@ -132,6 +139,13 @@ grade AS (
     FROM   smicdc_nrdk.mc_lot_attr
     WHERE  attr_name = 'GRADE'
     GROUP  BY parent_object_id
+),
+wip AS (
+    -- 목적지 라인. KFR7 안에 NRD-K / NRD 가 섞여 있어 이 값으로 가른다.
+    SELECT lot_id, dest_line_id
+    FROM   smimes.mi_current_wip_v
+    WHERE  line_id IN ('KFR7', 'PFR1')
+      AND  dest_line_id IS NOT NULL
 ),
 co AS (
     SELECT line, lot_id, lot_inform
@@ -178,10 +192,12 @@ SELECT
             WHEN l.origin_line_id  = l.sys_line_id
              AND l.sys_line_id    <> l.cur_line_id THEN 'NEW_SEND'
        END                                                             AS sendfab,
-       co.lot_inform
+       co.lot_inform,
+       w.dest_line_id
 FROM       lot_rank l
 LEFT JOIN  grade g  ON g.line = l.line AND g.parent_object_id = l.object_id
 LEFT JOIN  co       ON co.line = l.line AND co.lot_id = l.lot_id
+LEFT JOIN  wip w    ON w.lot_id = l.lot_id
 WHERE      l.last_event_date = l.max_event_date
   AND      l.lot_status_seg IN ('Active', 'Hold')
   AND      l.line = l.sys_line_id

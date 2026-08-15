@@ -1035,8 +1035,13 @@ def _summary_rows(line, types, extra=None):
         return [dict(zip(names, r)) for r in cur.fetchall()], snap
 
 
-def _lot_move_map(line):
-    """당일 lot 별 MOVE (WT 계산용)."""
+def _lot_move_map(line=None):
+    """당일 lot 별 MOVE (WT 계산용).
+
+    lot_id 로만 연결한다. MOVE 의 라인 구분(sys_line_id)은 f3 의 라인 분류와
+    체계가 달라(예: KFR7 원천이 NRD-K / NRD 로 갈린다) 그대로 쓰면 재분류된
+    lot 의 MOVE 를 놓친다. lot_id 는 라인과 무관하게 유일하므로 조건을 뺀다.
+    """
     if not _table_exists("move_lot"):
         return {}
     with connection.cursor() as cur:
@@ -1045,7 +1050,7 @@ def _lot_move_map(line):
         if not bd:
             return {}
         cur.execute("SELECT lot_id, SUM(move_qty) FROM move_lot "
-                    "WHERE biz_date=%s AND sys_line_id=%s GROUP BY lot_id", [bd, line])
+                    "WHERE biz_date=%s GROUP BY lot_id", [bd])
         return {r[0]: float(r[1] or 0) for r in cur.fetchall()}
 
 
