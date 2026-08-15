@@ -224,6 +224,28 @@ def diag_lotwt(lot_id):
             same = [r[0] for r in cur.fetchall()]
             if same and same != [lot_id]:
                 print(f"\n   표기가 다른 같은 lot: {same}")
+
+            # 웹과 똑같이 계산해 본다
+            cur.execute("SELECT MIN(qty) FROM f3_live "
+                        "WHERE snapshot_at=%s AND lot_id=%s", [snap, lot_id])
+            qrow = cur.fetchone()
+            cur.execute("SELECT SUM(move_qty) FROM f3_move_lot "
+                        "WHERE biz_date=%s AND lot_id=%s", [bd, lot_id])
+            mrow = cur.fetchone()
+            try:
+                q = int(float(qrow[0])) if qrow and qrow[0] is not None else 0
+            except (TypeError, ValueError):
+                q = 0
+            m = float(mrow[0]) if mrow and mrow[0] is not None else 0.0
+            wt = (m / q) if q else 0.0
+            print(f"\n[W/T 계산] MOVE {m:g} / 재공 {q} = {wt:.2f}")
+            if not q:
+                print("   재공 수량이 0 이라 W/T 가 0 이 된다. qty 를 확인한다.")
+            elif not m:
+                print(f"   업무일 {bd} 에 이 lot 의 MOVE 가 없다.")
+            else:
+                print("   값이 0 이 아닌데 화면이 0 이면 웹이 옛 코드로 떠 있는 것이다.")
+                print("   waitress 를 재시작한다.")
     finally:
         conn.close()
 
