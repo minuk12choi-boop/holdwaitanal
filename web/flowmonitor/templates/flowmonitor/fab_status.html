@@ -520,6 +520,17 @@ let FCACHE = null;          // 필터 결과. 정렬만 바뀌면 재사용한�
 let dfLast = {};            // shift 범위 선택 기준점
 let COL_ORDER = null;       // 사용자가 드래그로 바꾼 컬럼 순서(키 배열)
 
+function allCols() {
+  if (DRILL_DATA && DRILL_DATA.all_cols) { return DRILL_DATA.all_cols; }
+  return (DRILL_DATA && DRILL_DATA.cols) ? DRILL_DATA.cols : [];
+}
+
+function visibleKeys() {
+  const all = allCols();
+  const v = all.filter(c => !HIDE_COLS[c.k]).map(c => c.k);
+  return v.length ? v : all.map(c => c.k);
+}
+
 function drillCols() {
   const cols = (DRILL_DATA && DRILL_DATA.cols) ? DRILL_DATA.cols : [];
   if (!COL_ORDER) { return cols; }
@@ -956,21 +967,25 @@ function sortedRows() {
 function toggleCol(k, on) {
   HIDE_COLS[k] = !on;
   syncAllColBox();
+  // 서버가 안 보낸 컬럼을 켰다면 다시 받아와야 값이 있다.
+  const have = (DRILL_DATA.cols || []).some(c => c.k === k);
+  if (on && !have) { reopenDrill(); return; }
   renderDrillTable();
 }
 
 // 전체 체크박스는 '지금 다 보이는가' 를 그대로 반영한다.
 // 끄면 전부 감추고, 켜면 전부 되살린다.
 function showAllCols(on) {
-  drillCols().forEach(c => { HIDE_COLS[c.k] = !on; });
+  allCols().forEach(c => { HIDE_COLS[c.k] = !on; });
   renderDrillHead();
+  if (on) { reopenDrill(); return; }     // 전부 켜면 빠진 컬럼을 받아온다
   renderDrillTable();
 }
 
 function syncAllColBox() {
   const el = document.getElementById("colAll");
   if (!el) { return; }
-  el.checked = drillCols().every(c => !HIDE_COLS[c.k]);
+  el.checked = allCols().every(c => !HIDE_COLS[c.k]);
 }
 
 /* 표 필터 -------------------------------------------------------------- */
@@ -1031,7 +1046,7 @@ function dfOptions(k) {
 }
 
 function renderDrillHead() {
-  const cols = drillCols();
+  const cols = allCols();
   const allOn = cols.every(c => !HIDE_COLS[c.k]);
   document.getElementById("drillCols").innerHTML =
     `<label><input type="checkbox" id="colAll" ${allOn ? "checked" : ""}`
@@ -1183,7 +1198,14 @@ function drillTitle(src, label) {
     .replace(/[a-z]+/g, (m) => m.toUpperCase());
 }
 
-function openDrill(filt, label, src) {
+let LAST_DRILL = null;
+
+function reopenDrill() {
+  if (LAST_DRILL) { openDrill(LAST_DRILL.f, LAST_DRILL.l, LAST_DRILL.s, true); }
+}
+
+function openDrill(filt, label, src, keepView) {
+  LAST_DRILL = { f: filt, l: label, s: src };
   clearOtherSelections(src || "");
   const el = document.getElementById("drill");
   // 곧바로 자리표시자를 그려 '눌리지 않은 것처럼' 보이지 않게 한다.
@@ -1192,7 +1214,8 @@ function openDrill(filt, label, src) {
     + `<div class="bar"><b>불러오는 중…</b><span class="spin"></span></div>`;
   smoothTo(el);
   const base = { line: LINE, types: selectedTypes().join(","),
-                 prod1: PROD1.join(","), prod2: PROD2.join(",") };
+                 prod1: PROD1.join(","), prod2: PROD2.join(","),
+                 cols: visibleKeys().join(",") };
   const q = Object.entries(Object.assign(base, filt || {}))
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
     .map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");

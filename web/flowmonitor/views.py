@@ -1000,7 +1000,14 @@ def holdtype_of(r, rules):
 
 
 def _sub_name(r, ht, kind, reason_col, rules, cat):
-    """소분류 이름. 기준정보 유형이 있으면 그걸 쓴다."""
+    """소분류 이름.
+
+    build_f3 가 미리 넣어 둔 cause_detail 을 우선 쓴다(전처리 결과).
+    기준정보를 방금 고쳐 아직 반영 전이면 그 자리에서 계산한다.
+    """
+    pre = r.get("cause_detail")
+    if pre:
+        return pre
     if ht:
         text = str(r.get(reason_col) or "")
         line = str(r.get("line") or "")
@@ -1154,8 +1161,12 @@ def _classify_lot(r, rules, ht=None):
         return ("Hold", None,
                 [_sub_name(r, ht, "HOLD", "hold_reason", rules, "hold")])
 
+    # 가상스텝 판정. 설비그룹 / recipe(ppid) / step 명 중 하나라도 WAIT 이면
+    # 실제 설비를 기다리는 게 아니므로 Bottleneck 이 아니다.
     virtual = "WAIT" in " ".join(
-        str(r.get(k) or "") for k in ("recipe_id", "step_seq", "step_desc")).upper()
+        str(r.get(k) or "") for k in
+        ("eqpgroup", "eqpgroup_cham", "recipe_id", "ppid",
+         "step_seq", "step_desc")).upper()
 
     if st == "WAIT(진행불가)" or r.get("exception") or r.get("ftp") \
             or _eqp_status_of(r.get("down")) or r.get("tip"):
@@ -1445,6 +1456,43 @@ def _std_save(card, payload):
     return len(clean)
 
 
+def _apply_standards():
+    """기준정보를 f3_live 에 즉시 반영한다.
+
+    평상시에는 build_f3 가 미리 계산해 두지만, 규칙을 방금 고쳤을 때
+    다음 배치까지 기다리지 않도록 여기서 cause_detail 만 다시 채운다.
+    """
+    if not _table_exists("f3_live"):
+        return 0, 0
+    ht = _holdtype_rules()
+    with connection.cursor() as cur:
+        cur.execute("SELECT MAX(snapshot_at) FROM f3_live")
+        row = cur.fetchone()
+        snap = row[0] if row else None
+        if not snap:
+            return 0, 0
+        cur.execute(
+            "SELECT lot_id, `line`, hold, hold_reason, ftp, ftp_reason,"
+            " exception, exception_reason FROM f3_live WHERE snapshot_at=%s",
+            [snap])
+        names = [d[0] for d in cur.description]
+        recs = [dict(zip(names, r)) for r in cur.fetchall()]
+
+        upd, seen = [], {}
+        for r in recs:
+            v = holdtype_of(r, ht) if ht else None
+            if seen.get(r["lot_id"]) == v:
+                continue
+            seen[r["lot_id"]] = v
+            upd.append((v, snap, r["lot_id"]))
+        if upd:
+            cur.executemany(
+                "UPDATE f3_live SET cause_detail=%s "
+                "WHERE snapshot_at=%s AND lot_id=%s", upd)
+        hit = sum(1 for v in seen.values() if v)
+    return hit, len(seen)
+
+
 @csrf_exempt
 @ensure_csrf_cookie
 def standards(request):
@@ -1470,6 +1518,9 @@ def standards(request):
             else:
                 n = _std_save(card, payload)
                 msg = f"{card['title']}: {n}행 저장했습니다."
+                if request.POST.get("apply"):
+                    hit, tot = _apply_standards()
+                    msg += f"  f3_live 에 즉시 반영: {hit:,}/{tot:,}행"
 
     lines = [c["line"] for c in LINE_CARDS]
     cards = []
@@ -1501,6 +1552,8 @@ def api_lots_live(request):
     wt0 = request.GET.get("wt0", "")
     prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
     prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
+    # 화면에 보이는 컬럼만 실어 보낸다. 응답 크기가 절반 이하로 준다.
+    want_cols = [x for x in request.GET.get("cols", "").split(",") if x]
     lot_type = request.GET.get("lot_type", "")     # 재공 구성 막대에서
     status = request.GET.get("status", "")         # status 원차트에서
     big = request.GET.get("big", "")
@@ -1521,6 +1574,13 @@ def api_lots_live(request):
     mv = _lot_move_map(line)
     rules = _cause_rules()
     ht = _holdtype_rules()
+
+    # lot_id / wt 는 정렬과 식별에 쓰이므로 화면에서 감춰도 항상 실어 보낸다.
+    keep = (set(want_cols) | {"lot_id", "wt"}) if want_cols else None
+    send = [(c, t) for c, t in LOT_DETAIL_COLS if keep is None or c in keep]
+    if not send:
+        send = list(LOT_DETAIL_COLS)
+    send_keys = [c for c, _ in send]
 
     out = []
     tot_qty = 0
@@ -1547,14 +1607,16 @@ def api_lots_live(request):
         rec = dict(r)
         rec["wt"] = round(wt, 2)
         cause = " / ".join(x for x in (b2, m2) if x)
-        detail = holdtype_of(r, ht)          # 기준정보 세부 유형
+        detail = r.get("cause_detail") or holdtype_of(r, ht)
         rec["cause"] = f"{cause}({detail})" if (cause and detail) else cause
-        out.append({c: rec.get(c) for c, _ in LOT_DETAIL_COLS})
+        out.append({c: rec.get(c) for c in send_keys})
         tot_qty += q
 
     out.sort(key=lambda x: (x["wt"], str(x["lot_id"])))
     return JsonResponse({
-        "rows": out, "cols": [{"k": c, "t": t} for c, t in LOT_DETAIL_COLS],
+        "rows": out,
+        "cols": [{"k": c, "t": t} for c, t in send],
+        "all_cols": [{"k": c, "t": t} for c, t in LOT_DETAIL_COLS],
         "lots": len(out), "qty": tot_qty,
         "line": line, "snapshot_at": str(snap) if snap else "",
     }, json_dumps_params={"ensure_ascii": False})

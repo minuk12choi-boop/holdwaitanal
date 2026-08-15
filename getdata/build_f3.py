@@ -745,7 +745,7 @@ SUMMARY_OUTPUT_COLUMNS = [
     "batch_kind", "eqpline", "eqpgroup", "eqpgroup_cham",
     "tip", "down", "hold", "hold_reason", "exception", "exception_reason",
     "ftp", "ftp_reason", "fa_object4", "prod1", "prod2", "dept", "dest_line_id",
-    "module1", "module2",
+    "module1", "module2", "cause_detail",
 ]
 
 # hold 는 생테이블 조회에 4분이 걸리는데, 실제로 쓰이는 건 현재 재공(mc_lot)에
@@ -947,6 +947,66 @@ def elapsed_days_text(column: str) -> str:
 
 PROD_COLS = ("prod1", "prod2", "dept")
 MODULE_COLS = ("module1", "module2")
+
+# 동시에 걸리면 이 순서로 하나만 쓴다
+HOLDTYPE_ORDER = (("HOLD", "hold", "hold_reason"),
+                  ("FTP", "ftp", "ftp_reason"),
+                  ("예약제외", "exception", "exception_reason"))
+
+
+def holdtype_rules():
+    """f3_std_holdtype 규칙. 구체적인 것 먼저, 같으면 저장 순서."""
+    rows = _std_table("f3_std_holdtype",
+                      ["id", "line", "type", "condition1", "condition2",
+                       "condition3", "type_name"])
+    out = []
+    for r in rows:
+        out.append({"id": r["id"], "line": r["line"],
+                    "type": (r["type"] or "ALL").upper(),
+                    "c": [x for x in (r["condition1"], r["condition2"],
+                                      r["condition3"]) if x],
+                    "name": r["type_name"]})
+
+    def spec(r):
+        return len(r["c"]) + (1 if r["line"] else 0) + (0 if r["type"] == "ALL" else 1)
+
+    return sorted(out, key=lambda r: (-spec(r), r["id"]))
+
+
+def holdtype_of(row, rules):
+    """한 행의 세부 유형. 못 찾으면 None."""
+    line = str(row.get("line") or "")
+    for kind, flag, reason in HOLDTYPE_ORDER:
+        if not row.get(flag):
+            continue
+        text = str(row.get(reason) or "")
+        if not text:
+            continue
+        for rule in rules:
+            if rule["line"] and rule["line"] != line:
+                continue
+            if rule["type"] not in ("ALL", kind):
+                continue
+            if all(c in text for c in rule["c"]):
+                return rule["name"]
+    return None
+
+
+def attach_holdtype(f3):
+    """기준정보로 cause_detail(세부 원인 유형)을 채운다."""
+    out = f3.copy()
+    out["cause_detail"] = pd.NA
+    rules = holdtype_rules()
+    if not rules:
+        return out
+
+    recs = out[["line", "hold", "hold_reason", "ftp", "ftp_reason",
+                "exception", "exception_reason"]].to_dict("records")
+    vals = [holdtype_of(r, rules) for r in recs]
+    out["cause_detail"] = pd.Series(vals, index=out.index, dtype="object")
+    n = int(out["cause_detail"].notna().sum())
+    print(f"[STD] holdtype {n:,}/{len(out):,}행 매칭 (규칙 {len(rules)}건)", flush=True)
+    return out
 
 
 def _std_table(name, cols):
@@ -1575,6 +1635,7 @@ def build_f3(con):
             f.dest_line_id,
             CAST(NULL AS VARCHAR) AS module1,
             CAST(NULL AS VARCHAR) AS module2,
+            CAST(NULL AS VARCHAR) AS cause_detail,
             f.lot_status, f.step_status, f.proc_id, f.de_rank, f."연속",
             f.AREA, f.layer_id, f."현스텝", f.order_seq, f.step_seq, f.step_desc,
             f.recipe_id, f.eqp_type, {'f.batch_kind_agg' if AGGREGATE_BATCH_KIND else 'CAST(f.batch_kind AS VARCHAR)'} AS batch_kind,
@@ -2048,6 +2109,8 @@ def main():
 
     with stage("모듈 결합(기준정보)"):
         df_f3 = attach_module(df_f3)
+    with stage("HOLD 유형 결합(기준정보)"):
+        df_f3 = attach_holdtype(df_f3)
 
     n_tip = int(df_f3["tip"].notna().sum())
     print(f"[TIP] f3 tip 값 있는 행 = {n_tip:,} / {len(df_f3):,}", flush=True)

@@ -62,6 +62,10 @@
         <button class="btn" onclick="stdAdd('{{ c.key }}')">행 추가</button>
         <button class="btn dan" onclick="stdDel('{{ c.key }}')">선택 삭제</button>
         <button class="btn pri" onclick="stdSave('{{ c.key }}')">저장</button>
+        {% if c.key == "holdtype" %}
+        <button class="btn pri" onclick="stdSave('{{ c.key }}', true)"
+                title="저장하고 현재 스냅샷에 바로 적용합니다">저장 + 지금 반영</button>
+        {% endif %}
         <button class="btn" onclick="stdCopy('{{ c.key }}')">복사하기</button>
         <span class="dirty" id="d_{{ c.key }}"></span>
       </div>
@@ -84,6 +88,7 @@
   <form method="post" id="stdForm" style="display:none">{% csrf_token %}
     <input type="hidden" name="card" id="f_card">
     <input type="hidden" name="rows" id="f_rows">
+    <input type="hidden" name="apply" id="f_apply">
   </form>
 </div>
 
@@ -245,13 +250,14 @@ function fallbackCopy(text, done) {
   document.body.removeChild(ta);
 }
 
-function stdSave(key) {
+function stdSave(key, apply) {
   const card = CARDS.find(c => c.key === key);
   const rows = DATA[key].map(row => {
     const o = {};
     card.cols.forEach(c => { o[c.k] = row[c.k]; });
     return o;
   });
+  document.getElementById("f_apply").value = apply ? "1" : "";
   document.getElementById("f_card").value = key;
   document.getElementById("f_rows").value = JSON.stringify(rows);
   document.getElementById("stdForm").submit();
