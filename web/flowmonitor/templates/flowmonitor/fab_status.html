@@ -5,8 +5,11 @@
   <div class="summary">
     <div class="gfilter">
       <div class="prodf" style="margin-bottom:8px">
-        <input type="date" id="snapDate" class="datef"
-               onchange="pickSnapDate(this.value)" title="비우면 현재">
+        <label class="datef" id="datefw">
+          <span id="snapDateLb">현재</span>
+          <input type="date" id="snapDate"
+                 onchange="pickSnapDate(this.value)" title="비우면 현재">
+        </label>
         <div class="dd" id="dsh">
           <button onclick="toggleProd('dsh')" id="shb">SHIFT 현재 &#9662;</button>
           <div class="menu" id="shm"></div>
@@ -86,6 +89,14 @@
   <div style="flex:1; min-width:0">
     <div class="cell" style="border:1px solid var(--bd);border-radius:6px;
                              padding:11px 12px;margin-bottom:10px">
+      <div class="cellttl"><span>SHIFT 추이</span>
+        <span class="v" id="trdpath"></span></div>
+      <div class="chips" id="trdlegend" style="margin-bottom:4px"></div>
+      <div style="height:210px"><canvas id="trdc"></canvas></div>
+    </div>
+
+    <div class="cell" style="border:1px solid var(--bd);border-radius:6px;
+                             padding:11px 12px;margin-bottom:10px">
       <div class="cellttl"><span>원인 분석</span>
         <span class="seg">
           <button id="cu_lots" onclick="setCauseUnit('lots')">LOT</button>
@@ -155,10 +166,9 @@ let CAUSE_UNIT = "qty";
 let WT0_UNIT = "qty";
 let dnChart = null;
 
-function smoothTo(el) {
-  const y = el.getBoundingClientRect().top + window.pageYOffset - 12;
-  window.scrollTo({ top: y, behavior: "smooth" });
-}
+// 예전에는 드릴다운 표로 스크롤을 옮겼다. 페이지가 짧아진 뒤로는
+// 오히려 시야가 튀어서 쓰지 않는다.
+function smoothTo(el) { /* no-op */ }
 
 function toggleDd() {
   document.getElementById("dd").classList.toggle("open");
@@ -200,10 +210,15 @@ function renderSnap(d) {
   const snaps = d.snapshots || [];
   const el = document.getElementById("snapDate");
   if (el && el.value !== SNAP_DATE) { el.value = SNAP_DATE; }
+  const lb = document.getElementById("snapDateLb");
+  if (lb) {
+    lb.textContent = SNAP_DATE ? SNAP_DATE.slice(2) : "현재";
+  }
   if (el) {
     const ds = snaps.map(x => x.biz_date).sort();
     if (ds.length) { el.min = ds[0]; el.max = ds[ds.length - 1]; }
-    el.classList.toggle("on", !!SNAP_DATE);
+    const w = document.getElementById("datefw");
+    if (w) { w.classList.toggle("on", !!SNAP_DATE); }
   }
 
   // 그 날짜에 실제로 적재된 shift 는 시각을 함께 보여준다.
@@ -213,7 +228,8 @@ function renderSnap(d) {
 
   const sm = document.getElementById("shm");
   sm.innerHTML = `<label><input type="radio" name="snaps"`
-    + `${!SNAP_SHIFT ? " checked" : ""} onchange="pickSnapShift('')">현재</label>`
+    + `${!SNAP_SHIFT ? " checked" : ""} onchange="pickSnapShift('')">`
+    + `현재${nowAt ? " (" + nowAt + ")" : ""}</label>`
     + SHIFT_LIST.map(k => {
         const at = have[k] || SHIFT_AT[k];
         const off = !have[k] && SNAP_DATE;      // 그 날 데이터가 없는 shift
@@ -222,8 +238,10 @@ function renderSnap(d) {
           + `${off ? " disabled" : ""} onchange="pickSnapShift('${k}')">`
           + `${k} (${at})${off ? " · 없음" : ""}</label>`;
       }).join("");
+  const nowAt = (d.snapshot_at || "").slice(11, 16);
   document.getElementById("shb").innerHTML =
-    `<span>SHIFT ${SNAP_SHIFT || "현재"}</span><span>&#9662;</span>`;
+    `<span>SHIFT ${SNAP_SHIFT || ("현재" + (nowAt ? " " + nowAt : ""))}</span>`
+    + `<span>&#9662;</span>`;
   document.getElementById("shb").classList.toggle("on", !!SNAP_SHIFT);
 }
 
@@ -681,6 +699,85 @@ function renderWt0Panel(show) {
   wt0hChart.data.labels = list.map(x => x.label);
   wt0hChart.data.datasets = datasets;
   wt0hChart.update();
+}
+
+/* --- SHIFT 추이 : 막대=재공, 라인=원인 비율 --- */
+let trdChart = null;
+let TRD_DRILL = [];          // [] / [대분류] / [대분류, 중분류]
+let TRD_OFF = {};            // 숨긴 라인
+
+const TRD_COLORS = ["#DC143C", "#F08080", "#E8C46A", "#84C09A", "#6699CC"];
+
+function trdGo(n) { TRD_DRILL = TRD_DRILL.slice(0, n); loadTrend(); }
+function trdToggle(k) { TRD_OFF[k] = !TRD_OFF[k]; loadTrend(); }
+
+function loadTrend() {
+  const q = "line=" + encodeURIComponent(LINE)
+    + "&types=" + encodeURIComponent(selectedTypes().join(","))
+    + "&prod1=" + encodeURIComponent(PROD1.join(","))
+    + "&prod2=" + encodeURIComponent(PROD2.join(","))
+    + "&biz_date=" + encodeURIComponent(SNAP_DATE)
+    + "&drill=" + encodeURIComponent(TRD_DRILL.join("|"));
+  fetch("/api/trend/?" + q).then(r => r.json()).then(renderTrend);
+}
+
+function renderTrend(d) {
+  const pts = d.points || [], keys = d.series || [];
+
+  document.getElementById("trdpath").innerHTML = TRD_DRILL.length
+    ? `<a onclick="trdGo(0)">전체</a>`
+      + TRD_DRILL.map((x, i) =>
+          ` &gt; <a onclick="trdGo(${i + 1})">${x}</a>`).join("")
+    : "재공(막대) · 원인 비율(라인)";
+
+  document.getElementById("trdlegend").innerHTML = keys.map((k, i) =>
+    `<label><input type="checkbox" ${TRD_OFF[k] ? "" : "checked"}`
+    + ` onchange="trdToggle('${k}')">`
+    + `<i style="display:inline-block;width:9px;height:9px;border-radius:2px;`
+    + `background:${TRD_COLORS[i % 5]}"></i> ${k}</label>`).join("");
+
+  const bars = { type: "bar", label: "재공", yAxisID: "y", order: 3,
+                 backgroundColor: "#C9D3E4", borderRadius: 3,
+                 data: pts.map(p => p.qty) };
+  const lines = keys.filter(k => !TRD_OFF[k]).map((k, i) => ({
+    type: "line", label: k, yAxisID: "y2", order: 1,
+    borderColor: TRD_COLORS[keys.indexOf(k) % 5],
+    backgroundColor: TRD_COLORS[keys.indexOf(k) % 5],
+    borderWidth: 2, pointRadius: 3, tension: .25, spanGaps: true,
+    data: pts.map(p => p.qty ? +((p.series[k] || 0) / p.qty * 100).toFixed(1) : 0)
+  }));
+
+  if (!trdChart) {
+    trdChart = new Chart(document.getElementById("trdc"), {
+      type: "bar", data: { labels: [], datasets: [] },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: { legend: { display: false },
+                   tooltip: { callbacks: { label: (t) =>
+                     t.dataset.yAxisID === "y2"
+                       ? t.dataset.label + " " + t.raw + "%"
+                       : "재공 " + nf(t.raw) + " 매" } } },
+        scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                  y: { display: false, beginAtZero: true, grace: "60%" },
+                  y2: { position: "right", beginAtZero: true, max: 100,
+                        grid: { display: false },
+                        ticks: { font: { size: 9 },
+                                 callback: (v) => v + "%" } } },
+        onClick: (e, els) => {
+          if (!els.length) { return; }
+          const ds = trdChart.data.datasets[els[0].datasetIndex];
+          if (!ds || ds.yAxisID !== "y2") { return; }
+          const k = ds.label;
+          if (k === "Hold+Wait성") { return; }
+          if (TRD_DRILL.length < 2) { TRD_DRILL.push(k); loadTrend(); }
+        }
+      }
+    });
+  }
+  trdChart.data.labels = pts.map(p => p.label);
+  trdChart.data.datasets = [bars].concat(lines);
+  trdChart.update();
 }
 
 /* --- 원인 분석 -------------------------------------------------------------
@@ -1302,29 +1399,36 @@ function toggleSteps(ev, lot) {
 
   btn.textContent = "−";
   const draw = (rows) => {
+    if (!rows.length) { btn.textContent = "+"; return; }
     const cols = drillCols().filter(c => !HIDE_COLS[c.k]);
-    const cur = tr;
+    const keys = cols.map(c => c.k);
     const frag = [];
-    rows.forEach(r => {
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
       frag.push('<tr class="steprow"><td class="expcol"></td>');
-      cols.forEach(c => {
-        const raw = r[c.k];
-        const v = (raw === null || raw === undefined) ? ""
-          : (c.k === "wt" ? "" : String(raw));
-        frag.push("<td>" + v + "</td>");
-      });
+      for (let j = 0; j < keys.length; j++) {
+        const raw = r[keys[j]];
+        frag.push("<td>");
+        frag.push((raw === null || raw === undefined || keys[j] === "wt")
+                  ? "" : raw);
+        frag.push("</td>");
+      }
       frag.push("</tr>");
-    });
-    cur.insertAdjacentHTML("afterend", frag.join(""));
+    }
+    tr.insertAdjacentHTML("afterend", frag.join(""));
   };
 
   if (STEP_CACHE[lot]) { draw(STEP_CACHE[lot]); return; }
+  btn.textContent = "…";
   fetch("/api/lot-steps/?line=" + encodeURIComponent(LINE)
         + "&lot_id=" + encodeURIComponent(lot))
     .then(r => r.json()).then(d => {
-      STEP_CACHE[lot] = d.rows || [];
+      // 현스텝은 위에 이미 있으니 후속 스텝만 남긴다.
+      STEP_CACHE[lot] = (d.rows || []).filter(r => !r["현스텝"]);
+      btn.textContent = "−";
       draw(STEP_CACHE[lot]);
-    });
+    })
+    .catch(() => { btn.textContent = "+"; });
 }
 
 /* 컬럼 드래그 정렬 ------------------------------------------------------ */
@@ -1574,6 +1678,7 @@ function loadSummary(keepFocus) {
       renderSnap(d);
       renderProd(d);
       renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
+      loadTrend();
     })
     .catch(e => { document.getElementById("err").textContent = "조회 실패: " + e; });
 }

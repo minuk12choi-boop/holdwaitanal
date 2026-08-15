@@ -1675,6 +1675,110 @@ def standards(request):
                            cards_json=json.dumps(cards, ensure_ascii=False)))
 
 
+SHIFT_SEQ = [("GY", "22:00"), ("DAY", "06:00"), ("SW", "14:00")]
+
+
+def api_trend(request):
+    """shift 추이. x=SHIFT, 막대=재공, 라인=원인 비율.
+
+    drill 로 어느 갈래를 파고들지 정한다.
+      (없음)            Hold+Wait / Hold / Wait 비율
+      Hold              Hold 소분류 상위 5
+      Wait성 진행불가    중분류(예약제외/설비이슈/TIP/가상스텝 대기/FTP)
+      Wait성 진행불가|설비이슈  그 중분류의 소분류 상위 5
+    """
+    line = request.GET.get("line") or DEFAULT_LINE
+    raw = request.GET.get("types")
+    types = ([t for t in raw.split(",") if t] if raw is not None
+             else list(DEFAULT_LOT_TYPES))
+    prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
+    prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
+    bdate = request.GET.get("biz_date", "")
+    drill = [x for x in request.GET.get("drill", "").split("|") if x]
+
+    rules, ht = _cause_rules(), _holdtype_rules()
+    mv = _lot_move_map(line)
+
+    # 어떤 shift 를 x 축에 놓을지: 이미 적재된 것 + 현재
+    points = []
+    if bdate and _table_exists("f3_history"):
+        with connection.cursor() as cur:
+            cur.execute("SELECT DISTINCT shift FROM f3_history WHERE biz_date=%s",
+                        [bdate])
+            have = {r[0] for r in cur.fetchall()}
+        for sh, at in SHIFT_SEQ:
+            if sh in have:
+                points.append({"key": sh, "label": f"{sh}\n{at}", "shift": sh})
+    else:
+        with connection.cursor() as cur:
+            cur.execute("SELECT MAX(biz_date) FROM f3_history WHERE `line`=%s",
+                        [line])
+            r = cur.fetchone()
+            today = str(r[0]) if r and r[0] else ""
+        if today and _table_exists("f3_history"):
+            with connection.cursor() as cur:
+                cur.execute("SELECT DISTINCT shift FROM f3_history "
+                            "WHERE biz_date=%s AND `line`=%s", [today, line])
+                have = {x[0] for x in cur.fetchall()}
+            for sh, at in SHIFT_SEQ:
+                if sh in have:
+                    points.append({"key": sh, "label": f"{sh}\n{at}",
+                                   "shift": sh, "biz_date": today})
+    # 현재는 아직 도래하지 않은 shift 자리에 놓는다(맨 뒤 고정이 아니다)
+    points.append({"key": "__now__", "label": "현재", "shift": None})
+
+    out = []
+    for p in points:
+        if p["shift"]:
+            rows, _ = _summary_rows(line, types,
+                                    biz_date=p.get("biz_date", bdate),
+                                    shift=p["shift"])
+        else:
+            rows, _ = _summary_rows(line, types)
+        rows = [r for r in rows
+                if (not prod1 or (r.get("prod1") or UNCLASSIFIED) in prod1)
+                and (not prod2 or (r.get("prod2") or UNCLASSIFIED) in prod2)]
+
+        qty = sum(num(r.get("qty")) for r in rows)
+        series = {}
+        for r in rows:
+            q = num(r.get("qty"))
+            big, mid, subs = classify_lot(r, rules, ht)
+            if not big:
+                continue
+            if not drill:
+                if big in ("Hold", "Wait성 진행불가"):
+                    series["Hold+Wait성"] = series.get("Hold+Wait성", 0) + q
+                    series[big] = series.get(big, 0) + q
+                continue
+            if big != drill[0]:
+                continue
+            if len(drill) == 1:
+                key = mid if (big == "Wait성 진행불가") else (subs[0] if subs else None)
+            else:
+                if mid != drill[1]:
+                    continue
+                key = subs[0] if subs else None
+            if key:
+                series[key] = series.get(key, 0) + q
+        out.append({"key": p["key"], "label": p["label"],
+                    "qty": qty, "series": series})
+
+    # 라인으로 그릴 계열 (상위 5)
+    tot = {}
+    for x in out:
+        for k, v in x["series"].items():
+            tot[k] = tot.get(k, 0) + v
+    order = ["Hold+Wait성", "Hold", "Wait성 진행불가"] if not drill else \
+        [k for k, _ in sorted(tot.items(), key=lambda kv: -kv[1])[:5]]
+    order = [k for k in order if k in tot]
+
+    return JsonResponse({
+        "points": out, "series": order, "drill": drill,
+        "levels": (["Hold", "Wait성 진행불가"] if not drill else []),
+    }, json_dumps_params={"ensure_ascii": False})
+
+
 def api_lot_steps(request):
     """한 lot 의 모든 스텝(현스텝 + 연속블록).
 
