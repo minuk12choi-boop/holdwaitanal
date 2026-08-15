@@ -307,8 +307,19 @@
   /* ── 원인 분석 (대분류 3개 차트) ──────────────────────────────────────── */
   /* 항상 1 x 3. 폭이 모자라면 세로로 쌓지 말고 가로 스크롤한다. */
   /* SHIFT 추이 + 대분류 3개 = 4등분. 좁으면 세로로 쌓지 말고 가로 스크롤. */
-  .cz3 { display:grid; grid-template-columns:repeat(4, minmax(190px, 1fr));
+  .cz3 { display:grid; grid-template-columns:repeat(3, minmax(190px, 1fr));
          gap:12px; overflow-x:auto; padding-bottom:2px; }
+  /* SHIFT 추이 + 원인 분석을 같은 등급 카드로 나란히 */
+  .rowcards { display:flex; gap:10px; align-items:flex-start; }
+  .rowcards > .trdcard { flex:0 0 340px; }
+  @media (max-width: 1180px) {
+    .rowcards { flex-wrap:wrap; }
+    .rowcards > .trdcard { flex:1 1 100%; }
+  }
+  .trdpath { font-size:12px; font-weight:700; color:var(--accent);
+             min-height:16px; margin-bottom:3px; }
+  .trdpath a { color:var(--accent); cursor:pointer; text-decoration:none; }
+  .trdpath a:hover { text-decoration:underline; }
   .trdlg { display:flex; flex-wrap:wrap; gap:1px 8px; min-height:16px;
            margin-bottom:2px; }
   .trdlg label { font-size:10px; display:inline-flex; align-items:center;
