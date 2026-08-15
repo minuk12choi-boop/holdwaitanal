@@ -950,6 +950,53 @@ def _wt_range_key(wt):
     return "5+"
 
 
+def _holdtype_rules():
+    """std_holdtype 규칙. 없으면 빈 목록.
+
+    반환 순서 = 우선순위. 구체적인(조건이 많은) 규칙이 앞, 같으면 저장 순서.
+    """
+    if not _table_exists("std_holdtype"):
+        return []
+    with connection.cursor() as cur:
+        cur.execute("SELECT id, line, type, condition1, condition2, condition3,"
+                    " type_name FROM std_holdtype ORDER BY id")
+        rows = [{"id": r[0], "line": r[1], "type": (r[2] or "ALL").upper(),
+                 "c": [x for x in (r[3], r[4], r[5]) if x],
+                 "name": r[6]} for r in cur.fetchall()]
+
+    def spec(r):
+        return len(r["c"]) + (1 if r["line"] else 0) + (0 if r["type"] == "ALL" else 1)
+
+    return sorted(rows, key=lambda r: (-spec(r), r["id"]))
+
+
+# 동시에 걸리면 이 순서로 하나만 쓴다
+HOLDTYPE_ORDER = [("HOLD", "hold", "hold_reason"),
+                  ("FTP", "ftp", "ftp_reason"),
+                  ("예약제외", "exception", "exception_reason")]
+
+
+def holdtype_of(r, rules):
+    """기준정보로 세부 유형을 찾는다. 못 찾으면 None."""
+    if not rules:
+        return None
+    line = str(r.get("line") or "")
+    for kind, flag, reason in HOLDTYPE_ORDER:
+        if not r.get(flag):
+            continue
+        text = str(r.get(reason) or "")
+        if not text:
+            continue
+        for rule in rules:
+            if rule["line"] and rule["line"] != line:
+                continue
+            if rule["type"] not in ("ALL", kind):
+                continue
+            if all(c in text for c in rule["c"]):
+                return rule["name"]
+    return None
+
+
 def _cause_rules():
     """기준정보의 소분류 규칙. 없으면 빈 목록(=사유 원문을 그대로 유형으로)."""
     if not _table_exists("cause_rules"):
@@ -1313,7 +1360,8 @@ STD_CARDS = [
      "cols": [
          {"k": "line", "t": "LINE", "type": "select", "opts": "lines", "w": "sm"},
          {"k": "type", "t": "TYPE", "type": "select", "w": "sm",
-          "opts": ["ALL", "HOLD", "FTP", "예약제외"]},
+          "opts": ["ALL", "HOLD", "FTP", "예약제외"], "noblank": True,
+          "default": "ALL"},
          {"k": "condition1", "t": "CONDITION1", "w": "lg"},
          {"k": "condition2", "t": "CONDITION2", "w": "lg"},
          {"k": "condition3", "t": "CONDITION3", "w": "lg"},
@@ -1343,6 +1391,9 @@ def _std_save(card, payload):
     clean, seen = [], set()
     for row in payload:
         v = {k: (str(row.get(k) or "").strip() or None) for k in cols}
+        for c in card["cols"]:                         # 비면 기본값으로 채운다
+            if c.get("default") and not v.get(c["k"]):
+                v[c["k"]] = c["default"]
         if any(not v.get(k) for k in req):
             continue                                   # 필수값 없으면 버린다
         if "module1" in cols and not v.get("module2"):
@@ -1441,6 +1492,7 @@ def api_lots_live(request):
     })
     mv = _lot_move_map(line)
     rules = _cause_rules()
+    ht = _holdtype_rules()
 
     out = []
     tot_qty = 0
@@ -1466,7 +1518,9 @@ def api_lots_live(request):
             continue
         rec = dict(r)
         rec["wt"] = round(wt, 2)
-        rec["cause"] = " / ".join(x for x in (b2, m2) if x)
+        cause = " / ".join(x for x in (b2, m2) if x)
+        detail = holdtype_of(r, ht)          # 기준정보 세부 유형
+        rec["cause"] = f"{cause}({detail})" if (cause and detail) else cause
         out.append({c: rec.get(c) for c, _ in LOT_DETAIL_COLS})
         tot_qty += q
 

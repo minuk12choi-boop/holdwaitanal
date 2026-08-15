@@ -408,6 +408,21 @@ MOVE 는 라인을 보지 않는다. `move_lot` 은 원천 라인으로 적재�
 어긋나므로, W/T 계산은 **lot_id 로만** 연결한다(`_lot_move_map`).
 MOVE 쪽 라인 분류 체계는 아직 정립 전이라 보류한다.
 
+### HOLD 유형 (기준정보 std_holdtype)
+
+각 유형의 사유 컬럼에 `condition1~3` 이 **모두** 포함되면 `type_name` 으로
+분류하고, 드릴다운의 `원인` 컬럼에 `Hold(품질검토)` 처럼 붙는다.
+
+```
+type = ALL          세 사유 컬럼을 모두 검사 (기본값, 빈 값이면 ALL 로 저장)
+type = HOLD/FTP/예약제외   그 사유만 검사
+line 이 비면 전 라인
+```
+
+동시에 걸리면 **HOLD > FTP > 예약제외** 순으로 하나만 쓴다.
+여러 규칙이 맞으면 **조건이 많은(구체적인) 규칙**이 이기고, 그래도 같으면
+**저장 순서(id)** 가 앞선 것을 쓴다.
+
 ### 모듈 (기준정보 std_module)
 
 `/standards/` 의 모듈설정으로 `module1` / `module2` 를 채운다(`attach_module`).
@@ -431,6 +446,15 @@ layer 050,  범위 20~74   -> 포함
 layer 100,  범위 20~74   -> 제외
 layer 005,  범위 0~10    -> 포함
 ```
+
+### 기준정보 저장 위치
+
+`app_db` 안에 있다. `python getdata/db_common.py --init` 으로 만든다.
+
+| 테이블 | 화면 |
+|---|---|
+| `std_module` | 기준정보 > 모듈설정 |
+| `std_holdtype` | 기준정보 > HOLD 유형설정 |
 
 ### 제품구분 (SSPS_PROD_NAME)
 

@@ -862,29 +862,67 @@ function clearOtherSelections(src) {
 
 let DRILL_DATA = null;      // 현재 표에 뿌린 원자료
 let SORT_KEYS = [];         // [{k, dir}] 순서가 곧 정렬 우선순위
+let HIDE_COLS = {};         // 감춘 컬럼
+let DFILT = {};             // 표 자체 필터 {컬럼: Set(값)}
+let DFILT_WT = null;        // WT 는 구간으로 고른다
+
+// 표 안에서 필터를 걸 컬럼
+const FILTER_COLS = ["line", "전산라인", "dest_line_id", "fa_object4",
+  "prod1", "prod2", "lot_id", "lot_type", "wt", "lot_status", "proc_id",
+  "module1", "module2", "layer_id", "step_seq", "step_desc", "eqpgroup", "cause"];
 
 function drillSort(k) {
   const i = SORT_KEYS.findIndex(x => x.k === k);
-  if (i < 0) { SORT_KEYS.push({ k: k, dir: 1 }); }        // 1) 오름차순
-  else if (SORT_KEYS[i].dir === 1) { SORT_KEYS[i].dir = -1; }  // 2) 내림차순
-  else { SORT_KEYS.splice(i, 1); }                        // 3) 해제
+  if (i < 0) { SORT_KEYS.push({ k: k, dir: 1 }); }
+  else if (SORT_KEYS[i].dir === 1) { SORT_KEYS[i].dir = -1; }
+  else { SORT_KEYS.splice(i, 1); }
   renderDrillTable();
 }
 
+function wtKey(v) {
+  const n = Number(v);
+  if (!isFinite(n) || n <= 0) { return "0"; }
+  if (n <= 1) { return "0-1"; }
+  if (n <= 2) { return "1-2"; }
+  if (n <= 3) { return "2-3"; }
+  if (n <= 4) { return "3-4"; }
+  if (n <= 5) { return "4-5"; }
+  return "5+";
+}
+const WT_LABEL = { "0": "WT = 0", "0-1": "0 < WT ≤ 1", "1-2": "1 < WT ≤ 2",
+  "2-3": "2 < WT ≤ 3", "3-4": "3 < WT ≤ 4", "4-5": "4 < WT ≤ 5", "5+": "WT > 5" };
+
+function passFilter(r) {
+  for (const k in DFILT) {
+    const set = DFILT[k];
+    if (!set || !set.size) { continue; }
+    const v = (r[k] === null || r[k] === undefined || r[k] === "")
+      ? "(없음)" : String(r[k]);
+    if (!set.has(v)) { return false; }
+  }
+  if (DFILT_WT && DFILT_WT.size && !DFILT_WT.has(wtKey(r.wt))) { return false; }
+  return true;
+}
+
+function filteredRows() {
+  const rows = (DRILL_DATA && DRILL_DATA.rows) ? DRILL_DATA.rows : [];
+  const any = DFILT_WT && DFILT_WT.size;
+  let need = any;
+  for (const k in DFILT) { if (DFILT[k] && DFILT[k].size) { need = true; break; } }
+  return need ? rows.filter(passFilter) : rows.slice();
+}
+
 function sortedRows() {
-  const rows = (DRILL_DATA && DRILL_DATA.rows) ? DRILL_DATA.rows.slice() : [];
+  const rows = filteredRows();
   if (!SORT_KEYS.length) { return rows; }
-  const num = (v) => {
-    const n = parseFloat(v);
-    return isNaN(n) ? null : n;
-  };
+  const num = (v) => { const n = parseFloat(v); return isNaN(n) ? null : n; };
   rows.sort((a, b) => {
     for (const s of SORT_KEYS) {
       let x = a[s.k], y = b[s.k];
       if (x === undefined || x === null || x === "") { x = null; }
       if (y === undefined || y === null || y === "") { y = null; }
       if (x === null && y === null) { continue; }
-      if (x === null) { return 1; }        // 빈 값은 항상 뒤로
+      if (x === null) { return 1; }
       if (y === null) { return -1; }
       const nx = num(x), ny = num(y);
       let c;
@@ -897,39 +935,66 @@ function sortedRows() {
   return rows;
 }
 
-function renderDrillTable() {
-  const d = DRILL_DATA;
-  if (!d) { return; }
-  const cols = d.cols || [], rows = sortedRows();
-
-  const head = cols.map(c => {
-    const i = SORT_KEYS.findIndex(x => x.k === c.k);
-    const mark = i < 0 ? ""
-      : `<sup class="so">${i + 1}${SORT_KEYS[i].dir === 1 ? "▲" : "▼"}</sup>`;
-    return `<th class="${NUM_COLS.has(c.k) ? "num " : ""}sortable"`
-         + ` onclick="drillSort('${c.k}')">${c.t}${mark}</th>`;
-  }).join("");
-
-  const body = rows.map(r => "<tr>" + cols.map(c => {
-    var raw = r[c.k];
-    var v = (raw === null || raw === undefined) ? ""
-          : (c.k === "wt" ? Number(raw).toFixed(1) : String(raw));
-    return `<td class="${NUM_COLS.has(c.k) ? "num" : ""}">`
-         + `<span class="c">${v}</span></td>`;
-  }).join("") + "</tr>").join("");
-
-  document.getElementById("drillBody").innerHTML =
-    `<table class="grid"><thead><tr>${head}</tr></thead><tbody>${body
-      || `<tr><td colspan="${cols.length}" style="color:#6B7280">`
-         + `해당 조건의 LOT 이 없습니다.</td></tr>`}</tbody></table>`;
+/* 컬럼 표시/숨김 ------------------------------------------------------- */
+function toggleCol(k, on) { HIDE_COLS[k] = !on; renderDrillTable(); }
+function showAllCols(on) {
+  (DRILL_DATA.cols || []).forEach(c => { HIDE_COLS[c.k] = !on; });
+  renderDrillHead(); renderDrillTable();
 }
 
-// 드릴다운 소제목. 영문은 대문자, 단계는 > 로 잇는다.
-function drillTitle(src, label) {
-  return [SRC_TITLE[src] || "LOT 상세", LINE, label]
-    .filter(Boolean)
-    .join(" > ")
-    .replace(/[a-z]+/g, (m) => m.toUpperCase());
+/* 표 필터 -------------------------------------------------------------- */
+function dfOpen(k) {
+  const el = document.getElementById("df_" + k);
+  const open = el.classList.contains("open");
+  document.querySelectorAll(".dd.open").forEach(d => d.classList.remove("open"));
+  if (!open) { el.classList.add("open"); }
+}
+
+function dfSearch(k) {
+  const q = (document.getElementById("dfq_" + k).value || "").trim().toLowerCase();
+  document.querySelectorAll("#dfm_" + k + " label[data-opt]").forEach(el => {
+    const v = (el.getAttribute("data-opt") || "").toLowerCase();
+    el.style.display = (!q || v.indexOf(q) >= 0) ? "" : "none";
+  });
+}
+
+let dfLast = {};
+function dfPick(ev, k, idx) {
+  const box = document.getElementById("dfm_" + k);
+  const boxes = [...box.querySelectorAll("input[data-opt-i]")];
+  if (ev.shiftKey && dfLast[k] !== undefined) {      // shift 범위 선택
+    const a = Math.min(dfLast[k], idx), b = Math.max(dfLast[k], idx);
+    for (let i = a; i <= b; i++) { boxes[i].checked = ev.target.checked; }
+  }
+  dfLast[k] = idx;
+  const sel = new Set(boxes.filter(x => x.checked).map(x => x.value));
+  const target = (k === "wt") ? "wt" : k;
+  if (sel.size === boxes.length) {                   // 전부 = 필터 없음
+    if (target === "wt") { DFILT_WT = null; } else { delete DFILT[k]; }
+  } else if (target === "wt") { DFILT_WT = sel; } else { DFILT[k] = sel; }
+  dfLabel(k, sel.size, boxes.length);
+  renderDrillTable();
+}
+
+function dfLabel(k, n, total) {
+  const b = document.getElementById("dfb_" + k);
+  if (!b) { return; }
+  const t = (DRILL_DATA.cols.find(c => c.k === k) || {}).t || k;
+  const all = (n === 0 || n === total);
+  b.innerHTML = `<span>${t}${all ? "" : " " + n}</span><span>&#9662;</span>`;
+  b.classList.toggle("on", !all);
+}
+
+function dfOptions(k) {
+  const rows = (DRILL_DATA && DRILL_DATA.rows) ? DRILL_DATA.rows : [];
+  if (k === "wt") { return Object.keys(WT_LABEL); }
+  const set = new Set();
+  for (const r of rows) {
+    const v = (r[k] === null || r[k] === undefined || r[k] === "")
+      ? "(없음)" : String(r[k]);
+    set.add(v);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b, "ko"));
 }
 
 function openDrill(filt, label, src) {
