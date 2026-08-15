@@ -1,99 +1,22 @@
-<span id="tick" style="color:#6B7280;font-size:11px"></span>
-<P><SpotfireControl id="c7ef3ddaef704323adb29dbca2215b2d" /><BR>
-<SpotfireControl id="0963b0fd531a4c3caaf159001748e373" /></P>
+Forbidden (403)
+CSRF verification failed. Request aborted.
 
-<SCRIPT>
-(function () {
-  var BTN_ID      = "0963b0fd531a4c3caaf159001748e373";  // RefreshAll 버튼
-  var PERIOD_MIN  = 30;                 // 벽시계 :00, :30 에 실행
-  var MIN_GAP_MIN = 15;                 // 직전 완료 후 이만큼 안 지났으면 건너뜀
-  var FIRST_DELAY = 60000;              // 문서를 연 뒤 첫 실행까지
-  var MAX_WAIT    = 15 * 60 * 1000;     // 이 시간 넘으면 멈춘 것으로 보고 해제
+You are seeing this message because this site requires a CSRF cookie when submitting forms. This cookie is required for security reasons, to ensure that your browser is not being hijacked by third parties.
 
-  // 상태를 window 에 둬야 텍스트영역이 다시 그려져도 중복 실행을 막을 수 있다.
-  var S = window.__MFM = window.__MFM || { to: [], iv: [], busy: false,
-                                           startedAt: 0, lastEnd: 0 };
-  S.to.forEach(function (t) { clearTimeout(t); });
-  S.iv.forEach(function (t) { clearInterval(t); });
-  S.to = []; S.iv = [];
+If you have configured your browser to disable cookies, please re-enable them, at least for this site, or for “same-origin” requests.
 
-  function later(fn, ms) { S.to.push(setTimeout(fn, ms)); }
-  function every(fn, ms) { var id = setInterval(fn, ms); S.iv.push(id); return id; }
-  function now() { return new Date().toLocaleTimeString(); }
-  function say(msg) {
-    var t = document.getElementById("tick");
-    if (t) { t.innerText = msg; }
-  }
+Help
+Reason given for failure:
 
-  // runlog 는 "HH:MM:SS 완료 (테이블 N개)" 형태다.
-  // 문구 존재 여부만 보면 '이전 회차 기록' 을 보고 끝났다고 착각한다.
-  // 앞의 시각 9글자까지 함께 읽어 값이 '바뀌었는지' 로 판정한다.
-  function doneStamp() {
-    var log = document.body.innerText || "";
-    var i = log.indexOf("완료 (테이블");
-    return i >= 9 ? log.substr(i - 9, 9) : "";
-  }
+    CSRF cookie not set.
+    
+In general, this can occur when there is a genuine Cross Site Request Forgery, or when Django’s CSRF mechanism has not been used correctly. For POST forms, you need to ensure:
 
-  // 버튼은 id 로 먼저 찾고, 편집으로 id 가 바뀌었으면 이 영역 안에서 찾는다.
-  function findBtn() {
-    var b = document.getElementById(BTN_ID);
-    if (b) { return b; }
-    var tick = document.getElementById("tick");
-    var box = tick ? tick.parentNode : null;
-    for (var i = 0; i < 5 && box; i++) {
-      var f = box.querySelectorAll(
-        "input[type='button'], input[type='submit'], button");
-      if (f.length) { return f[0]; }
-      box = box.parentNode;
-    }
-    return null;
-  }
+Your browser is accepting cookies.
+The view function passes a request to the template’s render method.
+In the template, there is a {% csrf_token %} template tag inside each POST form that targets an internal URL.
+If you are not using CsrfViewMiddleware, then you must use csrf_protect on any views that use the csrf_token template tag, as well as those that accept the POST data.
+The form has a valid CSRF token. After logging in in another browser tab or hitting the back button after a login, you may need to reload the page with the form, because the token is rotated after a login.
+You’re seeing the help section of this page because you have DEBUG = True in your Django settings file. Change that to False, and only the initial error message will be displayed.
 
-  function fire(reason) {
-    var b = findBtn();
-    if (!b) { say("✕ 버튼을 찾지 못함 " + now()); return; }
-
-    if (S.busy && Date.now() - S.startedAt < MAX_WAIT) {
-      say("· " + now() + " 건너뜀(실행 중)"); return;
-    }
-    if (MIN_GAP_MIN && S.lastEnd &&
-        Date.now() - S.lastEnd < MIN_GAP_MIN * 60 * 1000) {
-      var left = Math.ceil(
-        (MIN_GAP_MIN * 60 * 1000 - (Date.now() - S.lastEnd)) / 60000);
-      say("· " + now() + " 건너뜀(" + left + "분 더)"); return;
-    }
-
-    S.busy = true;
-    S.startedAt = Date.now();
-    var began = now();
-    var mark = doneStamp();            // 누르기 직전의 runlog 시각
-    say("▶ 시작 " + began + " (" + reason + ") · 실행 중…");
-    later(function () { b.click(); }, 50);
-
-    var watch = every(function () {
-      var cur = doneStamp();
-      if (cur && cur !== mark && Date.now() - S.startedAt > 10000) {
-        S.busy = false; S.lastEnd = Date.now(); clearInterval(watch);
-        say("▶ 시작 " + began + " · 완료 " + now());
-      } else if (Date.now() - S.startedAt > MAX_WAIT) {
-        S.busy = false; S.lastEnd = Date.now(); clearInterval(watch);
-        say("▶ 시작 " + began + " · 시간초과");
-      }
-    }, 5000);
-  }
-
-  function msToNextSlot() {
-    var d = new Date();
-    var next = (Math.floor(d.getMinutes() / PERIOD_MIN) + 1) * PERIOD_MIN;
-    var t = new Date(d);
-    t.setMinutes(next, 0, 0);
-    return t - d;
-  }
-  function scheduleNext() {
-    later(function () { fire("정기"); scheduleNext(); }, msToNextSlot());
-  }
-
-  if (!S.armed) { S.armed = true; later(function () { fire("최초"); }, FIRST_DELAY); }
-  scheduleNext();
-})();
-</SCRIPT>
+You can customize this page using the CSRF_FAILURE_VIEW setting.
