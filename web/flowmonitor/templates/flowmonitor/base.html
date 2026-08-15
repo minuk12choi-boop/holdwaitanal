@@ -306,8 +306,14 @@
 
   /* ── 원인 분석 (대분류 3개 차트) ──────────────────────────────────────── */
   /* 항상 1 x 3. 폭이 모자라면 세로로 쌓지 말고 가로 스크롤한다. */
-  .cz3 { display:grid; grid-template-columns:repeat(3, minmax(210px, 1fr));
+  /* SHIFT 추이 + 대분류 3개 = 4등분. 좁으면 세로로 쌓지 말고 가로 스크롤. */
+  .cz3 { display:grid; grid-template-columns:repeat(4, minmax(190px, 1fr));
          gap:12px; overflow-x:auto; padding-bottom:2px; }
+  .trdlg { display:flex; flex-wrap:wrap; gap:1px 8px; min-height:16px;
+           margin-bottom:2px; }
+  .trdlg label { font-size:10px; display:inline-flex; align-items:center;
+                 gap:2px; cursor:pointer; white-space:nowrap; }
+  .trdlg label.drill { text-decoration:underline dotted; }
   /* 그래프 사이 세로 경계 */
   .cz3 > .czcol { padding:0 10px; border-right:1px solid var(--bd); }
   .cz3 > .czcol:first-child { padding-left:0; }

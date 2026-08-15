@@ -6,7 +6,7 @@
     <div class="gfilter">
       <div class="prodf" style="margin-bottom:8px">
         <label class="datef" id="datefw">
-          <span id="snapDateLb">최신</span>
+          <span id="snapDateLb">-</span>
           <input type="date" id="snapDate"
                  onchange="pickSnapDate(this.value)" title="비우면 최신">
         </label>
@@ -89,20 +89,18 @@
   <div style="flex:1; min-width:0">
     <div class="cell" style="border:1px solid var(--bd);border-radius:6px;
                              padding:11px 12px;margin-bottom:10px">
-      <div class="cellttl"><span>SHIFT 추이</span>
-        <span class="v" id="trdpath"></span></div>
-      <div class="chips" id="trdlegend" style="margin-bottom:4px"></div>
-      <div style="height:210px"><canvas id="trdc"></canvas></div>
-    </div>
-
-    <div class="cell" style="border:1px solid var(--bd);border-radius:6px;
-                             padding:11px 12px;margin-bottom:10px">
       <div class="cellttl"><span>원인 분석</span>
         <span class="seg">
           <button id="cu_lots" onclick="setCauseUnit('lots')">LOT</button>
           <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
         </span></div>
       <div class="cz3">
+        <div class="czcol">
+          <div class="subttl"><span>SHIFT 추이</span>
+            <span class="v" id="trdpath"></span></div>
+          <div id="trdlegend" class="trdlg"></div>
+          <div style="height:170px"><canvas id="trdc"></canvas></div>
+        </div>
         <div class="czcol"><div class="subttl czh" id="czh0"></div>
           <div id="czp0" class="czpath"></div>
           <div style="height:170px"><canvas id="czc0"></canvas></div></div>
@@ -214,7 +212,9 @@ function renderSnap(d) {
   if (el && el.value !== SNAP_DATE) { el.value = SNAP_DATE; }
   const lb = document.getElementById("snapDateLb");
   if (lb) {
-    lb.textContent = SNAP_DATE ? SNAP_DATE.slice(2) : "최신";
+    // 비워 두면 '최신' 이지만, 그래도 어느 날짜인지는 보여야 한다.
+    const snapD = (d.snapshot_at || "").slice(0, 10);
+    lb.textContent = (SNAP_DATE || snapD).slice(2) || "최신";
   }
   if (el) {
     const ds = snaps.map(x => x.biz_date).sort();
@@ -712,6 +712,15 @@ const TRD_COLORS = ["#DC143C", "#F08080", "#E8C46A", "#84C09A", "#6699CC"];
 function trdGo(n) { TRD_DRILL = TRD_DRILL.slice(0, n); loadTrend(); }
 function trdToggle(k) { TRD_OFF[k] = !TRD_OFF[k]; loadTrend(); }
 
+// 라인 하나를 골라 파고든다. 점을 정확히 찍기 어려워 범례에서도 부른다.
+function trdDrill(k) {
+  if (!k || k === "Hold+Wait성") { return; }   // 합계는 내려갈 곳이 없다
+  if (TRD_DRILL.length >= 2) { return; }        // 대분류 > 중분류 까지
+  TRD_DRILL.push(k);
+  TRD_OFF = {};
+  loadTrend();
+}
+
 function loadTrend() {
   const q = "line=" + encodeURIComponent(LINE)
     + "&types=" + encodeURIComponent(selectedTypes().join(","))
@@ -731,11 +740,18 @@ function renderTrend(d) {
           ` &gt; <a onclick="trdGo(${i + 1})">${x}</a>`).join("")
     : "재공(막대) · 원인 비율(라인)";
 
-  document.getElementById("trdlegend").innerHTML = keys.map((k, i) =>
-    `<label><input type="checkbox" ${TRD_OFF[k] ? "" : "checked"}`
-    + ` onchange="trdToggle('${k}')">`
-    + `<i style="display:inline-block;width:9px;height:9px;border-radius:2px;`
-    + `background:${TRD_COLORS[i % 5]}"></i> ${k}</label>`).join("");
+  // 체크박스는 숨김/표시, 글자는 드릴다운.
+  const canDrill = TRD_DRILL.length < 2;
+  document.getElementById("trdlegend").innerHTML = keys.map((k, i) => {
+    const drillable = canDrill && k !== "Hold+Wait성";
+    return `<label class="${drillable ? "drill" : ""}">`
+      + `<input type="checkbox" ${TRD_OFF[k] ? "" : "checked"}`
+      + ` onchange="trdToggle('${k}')">`
+      + `<i style="display:inline-block;width:8px;height:8px;border-radius:2px;`
+      + `background:${TRD_COLORS[i % 5]}"></i>`
+      + `<span ${drillable ? `onclick="event.preventDefault();trdDrill('${k}')"`
+                           : ""}>${k}</span></label>`;
+  }).join("");
 
   const bars = { type: "bar", label: "재공", yAxisID: "y", order: 3,
                  backgroundColor: "#C9D3E4", borderRadius: 3,
@@ -765,13 +781,15 @@ function renderTrend(d) {
                         grid: { display: false },
                         ticks: { font: { size: 9 },
                                  callback: (v) => v + "%" } } },
-        onClick: (e, els) => {
-          if (!els.length) { return; }
-          const ds = trdChart.data.datasets[els[0].datasetIndex];
+        onClick: (e) => {
+          // interaction 이 index 모드라 els[0] 은 늘 막대다.
+          // 실제로 찍은 점을 다시 찾아야 어느 라인인지 알 수 있다.
+          const hit = trdChart.getElementsAtEventForMode(
+            e.native || e, "nearest", { intersect: true }, false);
+          if (!hit.length) { return; }
+          const ds = trdChart.data.datasets[hit[0].datasetIndex];
           if (!ds || ds.yAxisID !== "y2") { return; }
-          const k = ds.label;
-          if (k === "Hold+Wait성") { return; }
-          if (TRD_DRILL.length < 2) { TRD_DRILL.push(k); loadTrend(); }
+          trdDrill(ds.label);
         }
       }
     });
