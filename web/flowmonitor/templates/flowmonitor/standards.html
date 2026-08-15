@@ -39,6 +39,9 @@
       <div>
         <h2 style="margin:0;font-size:15px;color:var(--accent)">{{ c.title }}</h2>
         <div class="minittl" style="margin-top:3px">{{ c.desc }}</div>
+        <div class="minittl" style="margin-top:2px">
+          셀을 고르고 Excel 에서 복사한 범위를 붙여넣으면 컬럼별로 채워집니다.
+          복사하기는 선택 행만(없으면 전체) 헤더와 함께 복사합니다.</div>
       </div>
       <div class="tools">
         <input type="text" placeholder="검색" oninput="stdSearch('{{ c.key }}')"
@@ -46,6 +49,7 @@
         <button class="btn" onclick="stdAdd('{{ c.key }}')">행 추가</button>
         <button class="btn dan" onclick="stdDel('{{ c.key }}')">선택 삭제</button>
         <button class="btn pri" onclick="stdSave('{{ c.key }}')">저장</button>
+        <button class="btn" onclick="stdCopy('{{ c.key }}')">복사하기</button>
         <span class="dirty" id="d_{{ c.key }}"></span>
       </div>
     </div>
@@ -79,16 +83,18 @@ function esc(v) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 }
 
-function cellHtml(card, col, row, r) {
+function cellHtml(card, col, row, r, ci) {
   const v = esc(row[col.k]);
+  const pos = `data-card="${card}" data-r="${r}" data-c="${ci}"`;
   if (col.type === "select") {
     const opts = ["", ...(col.opts || [])];
-    return `<select onchange="stdEdit('${card}',${r},'${col.k}',this.value)">`
+    // 드롭다운은 유지하되, 붙여넣기 시작점이 될 수 있도록 위치를 심는다.
+    return `<select ${pos} onchange="stdEdit('${card}',${r},'${col.k}',this.value)">`
       + opts.map(o => `<option value="${esc(o)}"`
           + `${String(row[col.k] || "") === o ? " selected" : ""}>${esc(o)}</option>`)
         .join("") + `</select>`;
   }
-  return `<input value="${v}" `
+  return `<input ${pos} value="${v}" `
     + `oninput="stdEdit('${card}',${r},'${col.k}',this.value)">`;
 }
 
@@ -101,7 +107,7 @@ function render(key) {
     return `<tr class="${row.__sel ? "on" : ""}" data-r="${r}">`
       + `<td class="ck"><input type="checkbox" ${row.__sel ? "checked" : ""}`
       + ` onclick="stdPick(event,'${key}',${r})"></td>`
-      + card.cols.map(c => `<td>${cellHtml(key, c, row, r)}</td>`).join("")
+      + card.cols.map((c, ci) => `<td>${cellHtml(key, c, row, r, ci)}</td>`).join("")
       + `</tr>`;
   }).join("");
   document.querySelector("#t_" + key + " tbody").innerHTML = body
@@ -143,6 +149,84 @@ function stdPick(ev, key, r) {
 }
 
 function stdSearch(key) { render(key); }
+
+/* ── Excel 붙여넣기 ─────────────────────────────────────────────────────────
+   클립보드의 탭 구분 텍스트를 선택한 셀부터 오른쪽·아래로 채운다.
+   드롭다운 컬럼도 값이 선택지에 있으면 그대로 들어간다(없으면 빈 값).
+   행이 모자라면 자동으로 늘린다.
+--------------------------------------------------------------------------- */
+document.addEventListener("paste", function (ev) {
+  const el = ev.target;
+  if (!el || !el.dataset || !el.dataset.card) { return; }
+  const text = (ev.clipboardData || window.clipboardData).getData("text");
+  if (!text || text.indexOf("\t") < 0 && text.indexOf("\n") < 0) { return; }
+  ev.preventDefault();
+
+  const key = el.dataset.card;
+  const r0 = parseInt(el.dataset.r, 10);
+  const c0 = parseInt(el.dataset.c, 10);
+  const card = CARDS.find(c => c.key === key);
+
+  const lines = text.replace(/\r/g, "").split("\n");
+  while (lines.length && lines[lines.length - 1] === "") { lines.pop(); }
+
+  lines.forEach((line, i) => {
+    const r = r0 + i;
+    while (DATA[key].length <= r) {                 // 행이 모자라면 늘린다
+      const blank = {};
+      card.cols.forEach(c => { blank[c.k] = ""; });
+      DATA[key].push(blank);
+    }
+    line.split("\t").forEach((val, j) => {
+      const col = card.cols[c0 + j];
+      if (!col) { return; }                         // 컬럼 범위를 넘으면 버린다
+      let v = String(val).trim();
+      if (col.type === "select" && v && (col.opts || []).indexOf(v) < 0) {
+        v = "";                                     // 선택지에 없는 값은 비운다
+      }
+      DATA[key][r][col.k] = v;
+    });
+  });
+  dirty(key);
+  render(key);
+});
+
+/* ── 복사 ──────────────────────────────────────────────────────────────────
+   선택된 행이 있으면 그 행만, 없으면 전체를 탭 구분으로 클립보드에 넣는다.
+   헤더를 함께 넣어 Excel 에 바로 붙일 수 있다.
+--------------------------------------------------------------------------- */
+function stdCopy(key) {
+  const card = CARDS.find(c => c.key === key);
+  const picked = DATA[key].filter(x => x.__sel);
+  const rows = picked.length ? picked : DATA[key];
+  const text = [card.cols.map(c => c.t).join("\t")]
+    .concat(rows.map(r => card.cols.map(c => (r[c.k] === null
+             || r[c.k] === undefined) ? "" : String(r[c.k])).join("\t")))
+    .join("\n");
+
+  const done = () => {
+    const el = document.getElementById("d_" + key);
+    el.textContent = `${rows.length}행 복사됨`;
+    setTimeout(() => { if (el.textContent.indexOf("복사됨") >= 0) {
+      el.textContent = ""; } }, 2500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+
+function fallbackCopy(text, done) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); done(); } catch (e) { /* 무시 */ }
+  document.body.removeChild(ta);
+}
 
 function stdSave(key) {
   const card = CARDS.find(c => c.key === key);
