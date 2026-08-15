@@ -6,12 +6,12 @@
     <div class="gfilter">
       <div class="prodf" style="margin-bottom:8px">
         <label class="datef" id="datefw">
-          <span id="snapDateLb">현재</span>
+          <span id="snapDateLb">최신</span>
           <input type="date" id="snapDate"
-                 onchange="pickSnapDate(this.value)" title="비우면 현재">
+                 onchange="pickSnapDate(this.value)" title="비우면 최신">
         </label>
         <div class="dd" id="dsh">
-          <button onclick="toggleProd('dsh')" id="shb">SHIFT 현재 &#9662;</button>
+          <button onclick="toggleProd('dsh')" id="shb">SHIFT 최신 &#9662;</button>
           <div class="menu" id="shm"></div>
         </div>
       </div>
@@ -208,11 +208,13 @@ const SHIFT_LIST = ["GY", "SW", "DAY"];
 
 function renderSnap(d) {
   const snaps = d.snapshots || [];
+  // 아래 목록과 버튼 라벨 양쪽에서 쓴다. 선언이 뒤에 있으면 TDZ 오류가 난다.
+  const nowAt = (d.snapshot_at || "").slice(11, 16);
   const el = document.getElementById("snapDate");
   if (el && el.value !== SNAP_DATE) { el.value = SNAP_DATE; }
   const lb = document.getElementById("snapDateLb");
   if (lb) {
-    lb.textContent = SNAP_DATE ? SNAP_DATE.slice(2) : "현재";
+    lb.textContent = SNAP_DATE ? SNAP_DATE.slice(2) : "최신";
   }
   if (el) {
     const ds = snaps.map(x => x.biz_date).sort();
@@ -229,7 +231,7 @@ function renderSnap(d) {
   const sm = document.getElementById("shm");
   sm.innerHTML = `<label><input type="radio" name="snaps"`
     + `${!SNAP_SHIFT ? " checked" : ""} onchange="pickSnapShift('')">`
-    + `현재${nowAt ? " (" + nowAt + ")" : ""}</label>`
+    + `최신${nowAt ? " (" + nowAt + ")" : ""}</label>`
     + SHIFT_LIST.map(k => {
         const at = have[k] || SHIFT_AT[k];
         const off = !have[k] && SNAP_DATE;      // 그 날 데이터가 없는 shift
@@ -238,9 +240,8 @@ function renderSnap(d) {
           + `${off ? " disabled" : ""} onchange="pickSnapShift('${k}')">`
           + `${k} (${at})${off ? " · 없음" : ""}</label>`;
       }).join("");
-  const nowAt = (d.snapshot_at || "").slice(11, 16);
   document.getElementById("shb").innerHTML =
-    `<span>SHIFT ${SNAP_SHIFT || ("현재" + (nowAt ? " " + nowAt : ""))}</span>`
+    `<span>SHIFT ${SNAP_SHIFT || ("최신" + (nowAt ? " " + nowAt : ""))}</span>`
     + `<span>&#9662;</span>`;
   document.getElementById("shb").classList.toggle("on", !!SNAP_SHIFT);
 }
