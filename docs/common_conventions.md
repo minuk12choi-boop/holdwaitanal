@@ -425,7 +425,7 @@ line 이 비면 전 라인
 
 ### 모듈 (기준정보 f3_std_module)
 
-`/standards/` 의 모듈설정으로 `module1` / `module2` 를 채운다(`attach_module`).
+`/master/` 의 모듈설정으로 `module1` / `module2` 를 채운다(`attach_module`).
 
 ```
 line / proc_id            일치 (빈 칸이면 와일드카드)
@@ -548,7 +548,7 @@ f3 는 네 가지 경과일을 담는다. 모두 `현재시각 - 기준시각` �
 |---|---|---|---|
 | `/` | FAB현황 | 노출 | 라인 1개의 현재 단면 + 드릴다운 |
 | `/metrics/` | FAB지표 | **미노출** | Shift 별 MOVE, 추이(FlowStack) |
-| `/standards/` | 기준정보 | 노출 | 원인 소분류 규칙 편집 |
+| `/master/` | 기준정보 | 노출 | 모듈설정 / HOLD 유형설정 |
 | `/downloads/` | 다운로드 | 노출 | 재공Raw / 적재시각 |
 
 FAB지표는 아직 배치를 확정하지 않아 메뉴에서 감췄다. URL 로는 접근 가능하고

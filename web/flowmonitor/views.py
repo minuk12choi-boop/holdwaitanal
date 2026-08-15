@@ -24,7 +24,7 @@ LINE_TONES = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#A9C8E8"]
 MOVE_LOT_TYPES = ("PP", "PB", "PG")
 
 # 상단 메뉴는 모든 페이지가 공유한다.
-MENU = [("FAB현황", "/main/"), ("기준정보", "/standards/"),
+MENU = [("FAB현황", "/main/"), ("기준정보", "/master/"),
         ("다운로드", "/downloads/")]
 
 

@@ -9,7 +9,9 @@ urlpatterns = [
     path("", RedirectView.as_view(url="/main/", permanent=False)),
     path("main/", views.fab_status, name="fab_status"),
     path("metrics/", views.fab_metrics, name="fab_metrics"),   # 메뉴 미노출
-    path("standards/", views.standards, name="standards"),
+    path("master/", views.standards, name="standards"),
+    # 예전 주소로 들어와도 끊기지 않게
+    path("standards/", RedirectView.as_view(url="/master/", permanent=False)),
     path("downloads/", views.downloads, name="downloads"),
     path("downloads/wip-raw/", views.download_wip_raw, name="download_wip_raw"),
 

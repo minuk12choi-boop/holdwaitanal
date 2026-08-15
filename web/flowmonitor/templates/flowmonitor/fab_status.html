@@ -997,6 +997,90 @@ function dfOptions(k) {
   return [...set].sort((a, b) => a.localeCompare(b, "ko"));
 }
 
+function renderDrillHead() {
+  const cols = DRILL_DATA.cols || [];
+  document.getElementById("drillCols").innerHTML =
+    `<label><input type="checkbox" checked onchange="showAllCols(this.checked)">`
+    + `<b>전체</b></label>`
+    + cols.map(c => `<label><input type="checkbox"`
+        + `${HIDE_COLS[c.k] ? "" : " checked"}`
+        + ` onchange="toggleCol('${c.k}',this.checked)">${c.t}</label>`).join("");
+
+  document.getElementById("drillFilters").innerHTML =
+    FILTER_COLS.filter(k => cols.some(c => c.k === k)).map(k => {
+      const opts = dfOptions(k);
+      const label = (cols.find(c => c.k === k) || {}).t || k;
+      return `<div class="dd df" id="df_${k}">`
+        + `<button id="dfb_${k}" onclick="dfOpen('${k}')">`
+        + `<span>${label}</span><span>&#9662;</span></button>`
+        + `<div class="menu" id="dfm_${k}">`
+        + `<input class="ddq" id="dfq_${k}" type="text" placeholder="검색"`
+        + ` oninput="dfSearch('${k}')" onclick="event.stopPropagation()">`
+        + opts.map((o, i) => `<label data-opt="${o}"><input type="checkbox"`
+            + ` data-opt-i="${i}" value="${o}" checked`
+            + ` onclick="dfPick(event,'${k}',${i})">`
+            + `${k === "wt" ? WT_LABEL[o] : o}</label>`).join("")
+        + `</div></div>`;
+    }).join("");
+}
+
+function renderDrillTable() {
+  const d = DRILL_DATA;
+  if (!d) { return; }
+  const cols = (d.cols || []).filter(c => !HIDE_COLS[c.k]);
+  const rows = sortedRows();
+
+  const head = cols.map(c => {
+    const i = SORT_KEYS.findIndex(x => x.k === c.k);
+    const mark = i < 0 ? ""
+      : `<sup class="so">${i + 1}${SORT_KEYS[i].dir === 1 ? "▲" : "▼"}</sup>`;
+    return `<th class="${NUM_COLS.has(c.k) ? "num " : ""}sortable"`
+         + ` onclick="drillSort('${c.k}')">${c.t}${mark}</th>`;
+  }).join("");
+
+  // 배열에 모아 한 번에 넣는다. 문자열 누적보다 수천 행에서 훨씬 빠르다.
+  const buf = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    buf.push("<tr>");
+    for (let j = 0; j < cols.length; j++) {
+      const c = cols[j];
+      const raw = r[c.k];
+      const v = (raw === null || raw === undefined) ? ""
+        : (c.k === "wt" ? Number(raw).toFixed(1) : raw);
+      buf.push(NUM_COLS.has(c.k) ? '<td class="num"><span class="c">'
+                                 : '<td><span class="c">');
+      buf.push(v);
+      buf.push("</span></td>");
+    }
+    buf.push("</tr>");
+  }
+
+  const cnt = document.getElementById("drillCount");
+  if (cnt) {
+    cnt.textContent = nf(rows.length) + " / " + nf((d.rows || []).length) + " 행";
+  }
+  document.getElementById("drillBody").innerHTML =
+    `<table class="grid"><thead><tr>${head}</tr></thead><tbody>`
+    + (buf.length ? buf.join("")
+       : `<tr><td colspan="${cols.length}" style="color:#6B7280">`
+         + `해당 조건의 LOT 이 없습니다.</td></tr>`)
+    + `</tbody></table>`;
+}
+
+const SRC_TITLE = {
+  cause: "원인 분석 상세", wt: "W/T 분포 상세", wt0: "W/T 0 재공 상세",
+  type: "재공 lot_type 상세", status: "status 상세",
+};
+
+// 드릴다운 소제목. 영문은 대문자, 단계는 > 로 잇는다.
+function drillTitle(src, label) {
+  return [SRC_TITLE[src] || "LOT 상세", LINE, label]
+    .filter(Boolean)
+    .join(" > ")
+    .replace(/[a-z]+/g, (m) => m.toUpperCase());
+}
+
 function openDrill(filt, label, src) {
   clearOtherSelections(src || "");
   const el = document.getElementById("drill");
@@ -1026,11 +1110,6 @@ function openDrill(filt, label, src) {
     renderDrillTable();
   });
 }
-
-const SRC_TITLE = {
-  cause: "원인 분석 상세", wt: "W/T 분포 상세", wt0: "W/T 0 재공 상세",
-  type: "재공 lot_type 상세", status: "status 상세",
-};
 
 /* --- 로딩 --- */
 function loadSummary() {
