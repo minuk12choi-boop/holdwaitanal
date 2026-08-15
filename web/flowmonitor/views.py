@@ -767,24 +767,76 @@ def api_lowwt(request):
 # Drill-down: Low WT lot 상세
 #   f3_history 에 실제로 있는 컬럼만 내보낸다(없는 컬럼을 만들지 않는다).
 # ---------------------------------------------------------------------------
+# 드릴다운 표의 전체 컬럼. 이름은 여기서만 바꾼다(모든 프리셋에 함께 적용된다).
 LOT_DETAIL_COLS = [
     ("line", "LINE"), ("전산라인", "전산라인"),
-    ("dest_line_id", "DEST_LINE_ID"), ("fa_object4", "FA_OBJECT4"),
-    ("prod1", "제품군"), ("prod2", "제품"),
-    ("lot_id", "LOT"), ("lot_type", "TYPE"), ("qty", "매"), ("wt", "WT"),
+    ("dest_line_id", "DEST_LINE"), ("fa_object4", "FA_OBJECT4"),
+    ("prod1", "제품군"), ("prod2", "제품"), ("dept", "DEPT"),
+    ("lot_id", "LOT"), ("lot_type", "TYPE"), ("qty", "QTY"), ("wt", "W/T"),
     ("lot_status", "상태"), ("proc_id", "PROC"),
-    ("module1", "MODULE1"), ("module2", "MODULE2"), ("layer_id", "LAYER"),
-    ("step_seq", "STEP"), ("step_desc", "STEP명"),
-    ("eqpgroup", "설비그룹"), ("cause", "원인"),
+    ("module1", "모듈1"), ("module2", "모듈2"),
+    ("layer_id", "LAYER"), ("AREA", "AREA"),
+    ("step_seq", "STEP"), ("step_desc", "DESC"),
+    ("eqpgroup", "EQP그룹"), ("eqpgroup_cham", "CHAM그룹"), ("recipe_id", "RCP"),
+    ("cause", "제약원인"), ("down", "설비상태"), ("tip", "TIP"),
     ("hold", "HOLD_일"), ("hold_reason", "HOLD사유"),
     ("exception", "예약제외_일"), ("exception_reason", "예약제외사유"),
     ("ftp", "FTP_일"), ("ftp_reason", "FTP사유"),
-    ("down", "설비상태"), ("tip", "TIP"),
-    ("마지막이벤트경과_일", "마지막이벤트경과(일)"),
-    ("스텝도착경과_일", "스텝도착경과(일)"),
-    ("마지막작업경과_일", "마지막작업경과(일)"),
-    ("dept", "DEPT"),
+    ("마지막이벤트경과_일", "마지막이벤트경과_일"),
+    ("스텝도착경과_일", "스텝도착경과_일"),
+    ("마지막작업경과_일", "마지막TKOUT경과_일"),
 ]
+
+# 드릴다운 종류별 기본 컬럼과 순서.
+# 여기 없는 컬럼은 체크가 꺼진 채로 시작하고, 다시 켜면 볼 수 있다.
+_BASE = ["prod1", "prod2", "lot_id", "lot_type", "qty", "wt", "proc_id",
+         "module1", "module2", "layer_id", "AREA", "step_seq", "step_desc",
+         "eqpgroup", "eqpgroup_cham", "recipe_id"]
+_ELAPSED = ["마지막이벤트경과_일", "스텝도착경과_일", "마지막작업경과_일"]
+
+DRILL_PRESETS = {
+    # 재공 구성 막대
+    "type": (["line", "전산라인", "dest_line_id", "fa_object4"] + _BASE
+             + ["cause", "down", "tip", "hold", "hold_reason",
+                "exception", "exception_reason", "ftp", "ftp_reason"] + _ELAPSED),
+    # status WAIT / Bottleneck
+    "wait": (["line", "cause", "down", "tip"] + _BASE + _ELAPSED),
+    # status WAIT(진행불가) / Wait성 진행불가
+    "waitng": (["line", "cause", "down", "tip", "exception", "ftp"] + _BASE
+               + ["exception_reason", "ftp_reason"] + _ELAPSED),
+    # status HOLD / Hold
+    "hold": (["line", "cause", "hold"] + _BASE + ["hold_reason"] + _ELAPSED),
+    # status RUN
+    "run": ["line"] + _BASE,
+    # W/T 분포 · W/T0 재공 분포
+    "wt": (["wt", "cause", "down", "tip", "hold", "exception", "ftp",
+            "line", "전산라인"] + [c for c in _BASE if c != "wt"]
+           + ["hold_reason", "exception_reason", "ftp_reason"] + _ELAPSED),
+}
+
+
+def _preset_for(src, status, big, lot_type, wt_range, wt0):
+    """어떤 드릴다운인지에 따라 기본 컬럼 묶음을 고른다."""
+    if wt_range or wt0:
+        return "wt"
+    key = status or ""
+    if big == "Bottleneck":
+        key = "WAIT"
+    elif big == "Wait성 진행불가":
+        key = "WAIT(진행불가)"
+    elif big == "Hold":
+        key = "HOLD"
+    if key == "WAIT":
+        return "wait"
+    if key == "WAIT(진행불가)":
+        return "waitng"
+    if key == "HOLD":
+        return "hold"
+    if key == "RUN":
+        return "run"
+    if src == "type" or lot_type:
+        return "type"
+    return None
 
 
 def api_lots(request):
@@ -1053,7 +1105,7 @@ def _eqp_status_of(down):
 STEP_SCOPED = ("eqpgroup", "eqpgroup_cham", "down", "tip", "recipe_id",
                "step_seq", "step_desc", "eqp_type", "batch_kind", "eqpline",
                "order_seq", "layer_id", "AREA", "de_rank", "연속", "현스텝",
-               "module1", "module2")
+               "module1", "module2", "eqpgroup_cham")
 
 
 def _summary_rows(line, types, extra=None):
@@ -1460,7 +1512,9 @@ def _apply_standards():
     """기준정보를 f3_live 에 즉시 반영한다.
 
     평상시에는 build_f3 가 미리 계산해 두지만, 규칙을 방금 고쳤을 때
-    다음 배치까지 기다리지 않도록 여기서 cause_detail 만 다시 채운다.
+    다음 배치까지 기다리지 않도록 여기서 다시 채운다.
+    지금은 HOLD 유형(cause_detail)만 대상이다. 모듈은 layer/step 범위 비교라
+    SQL 로 옮기기 어려워 다음 배치에서 반영된다.
     """
     if not _table_exists("f3_live"):
         return 0, 0
@@ -1504,7 +1558,11 @@ def standards(request):
     ensure_csrf_cookie 는 정상 환경에서 쿠키를 계속 내려보내기 위해 남겨 둔다.
     """
     msg = ""
-    if request.method == "POST":
+    if request.method == "POST" and request.POST.get("card") == "__apply__":
+        # 카드별이 아니라 기준정보 전체를 현재 스냅샷에 반영한다.
+        hit, tot = _apply_standards()
+        msg = f"기준정보를 f3_live 에 반영했습니다. 원인 유형 {hit:,}/{tot:,} LOT"
+    elif request.method == "POST":
         key = request.POST.get("card")
         card = next((c for c in STD_CARDS if c["key"] == key), None)
         if card:
@@ -1518,9 +1576,6 @@ def standards(request):
             else:
                 n = _std_save(card, payload)
                 msg = f"{card['title']}: {n}행 저장했습니다."
-                if request.POST.get("apply"):
-                    hit, tot = _apply_standards()
-                    msg += f"  f3_live 에 즉시 반영: {hit:,}/{tot:,}행"
 
     lines = [c["line"] for c in LINE_CARDS]
     cards = []
@@ -1576,6 +1631,12 @@ def api_lots_live(request):
     ht = _holdtype_rules()
 
     # lot_id / wt 는 정렬과 식별에 쓰이므로 화면에서 감춰도 항상 실어 보낸다.
+    pkey = _preset_for(request.GET.get("src", ""), status, big, lot_type,
+                       wt_range, wt0)
+    valid = {c for c, _ in LOT_DETAIL_COLS}
+    preset = [c for c in DRILL_PRESETS.get(pkey, [])
+              if c in valid] if pkey else None
+
     keep = (set(want_cols) | {"lot_id", "wt"}) if want_cols else None
     send = [(c, t) for c, t in LOT_DETAIL_COLS if keep is None or c in keep]
     if not send:
@@ -1617,6 +1678,7 @@ def api_lots_live(request):
         "rows": out,
         "cols": [{"k": c, "t": t} for c, t in send],
         "all_cols": [{"k": c, "t": t} for c, t in LOT_DETAIL_COLS],
+        "preset": preset,
         "status_colors": STATUS_COLORS,
         "lots": len(out), "qty": tot_qty,
         "line": line, "snapshot_at": str(snap) if snap else "",

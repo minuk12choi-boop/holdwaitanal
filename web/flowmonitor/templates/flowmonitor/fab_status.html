@@ -1235,7 +1235,8 @@ function openDrill(filt, label, src, keepView) {
   smoothTo(el);
   const base = { line: LINE, types: selectedTypes().join(","),
                  prod1: PROD1.join(","), prod2: PROD2.join(","),
-                 cols: visibleKeys().join(",") };
+                 src: src || "",
+                 cols: keepView ? visibleKeys().join(",") : "" };
   const q = Object.entries(Object.assign(base, filt || {}))
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
     .map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");

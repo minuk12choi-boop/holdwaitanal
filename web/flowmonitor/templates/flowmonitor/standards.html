@@ -31,6 +31,9 @@
   .std .btn.pri:hover { background:var(--brand-on); }
   .std .btn.dan { color:#B91C1C; }
   .std .msg { color:#065F46; font-size:12px; margin-bottom:10px; }
+  .std .applybar { display:flex; align-items:center; justify-content:space-between;
+                   gap:12px; border:1px solid var(--bd); border-radius:8px;
+                   background:#F7F8FA; padding:10px 14px; margin-bottom:14px; }
   .std .dirty { color:#B45309; font-size:11px; margin-left:6px; }
   .std td input, .std td select { width:100%; box-sizing:border-box; border:0;
                                   background:transparent; font-size:12px;
@@ -45,6 +48,15 @@
 
 <div class="std">
   {% if msg %}<div class="msg">{{ msg }}</div>{% endif %}
+
+  <div class="applybar">
+    <div>
+      <b>지금 반영</b>
+      <span class="minittl">저장한 기준정보를 현재 스냅샷(f3_live)에 즉시
+        적용합니다. 누르지 않아도 다음 배치에서 자동 반영됩니다.</span>
+    </div>
+    <button class="btn pri" onclick="stdApply()">지금 반영</button>
+  </div>
 
   {% for c in cards %}
   <div class="card" id="card_{{ c.key }}">
@@ -62,10 +74,6 @@
         <button class="btn" onclick="stdAdd('{{ c.key }}')">행 추가</button>
         <button class="btn dan" onclick="stdDel('{{ c.key }}')">선택 삭제</button>
         <button class="btn pri" onclick="stdSave('{{ c.key }}')">저장</button>
-        {% if c.key == "holdtype" %}
-        <button class="btn pri" onclick="stdSave('{{ c.key }}', true)"
-                title="저장하고 현재 스냅샷에 바로 적용합니다">저장 + 지금 반영</button>
-        {% endif %}
         <button class="btn" onclick="stdCopy('{{ c.key }}')">복사하기</button>
         <span class="dirty" id="d_{{ c.key }}"></span>
       </div>
@@ -248,6 +256,12 @@ function fallbackCopy(text, done) {
   ta.select();
   try { document.execCommand("copy"); done(); } catch (e) { /* 무시 */ }
   document.body.removeChild(ta);
+}
+
+function stdApply() {
+  document.getElementById("f_card").value = "__apply__";
+  document.getElementById("f_rows").value = "[]";
+  document.getElementById("stdForm").submit();
 }
 
 function stdSave(key, apply) {

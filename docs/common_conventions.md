@@ -395,6 +395,26 @@ python getdata/get_move.py --full
 설비그룹이 빠져 있어 Bottleneck 으로 새던 적이 있다. 컬럼을 추가할 때
 이 목록도 함께 본다.
 
+### 드릴다운 컬럼 프리셋
+
+어떤 차트에서 들어왔는지에 따라 기본 컬럼과 순서가 다르다
+(`DRILL_PRESETS`, `_preset_for`).
+
+| 프리셋 | 진입 경로 |
+|---|---|
+| `type` | 재공 구성 막대 |
+| `wait` | status WAIT · 원인분석 Bottleneck |
+| `waitng` | status WAIT(진행불가) · 원인분석 Wait성 진행불가 |
+| `hold` | status HOLD · 원인분석 Hold |
+| `run` | status RUN |
+| `wt` | W/T 분포 · W/T 0 재공 분포 |
+
+프리셋에 없는 컬럼은 **체크가 꺼진 채로 시작**할 뿐 사라지지 않는다.
+체크하면 서버에서 값을 받아 바로 볼 수 있다.
+
+**컬럼 이름은 `LOT_DETAIL_COLS` 한 곳에서만 바꾼다.** 프리셋은 키만 나열하므로
+이름을 고치면 모든 프리셋에 함께 적용된다.
+
 ### 드릴다운 컬럼 선별 전송
 
 `/api/lots-live/` 는 `cols=` 로 받은 컬럼만 실어 보낸다. 화면에서 감춘 컬럼은
