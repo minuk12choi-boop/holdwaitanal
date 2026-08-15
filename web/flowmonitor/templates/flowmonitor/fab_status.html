@@ -904,16 +904,19 @@ function passFilter(r) {
   return true;
 }
 
+let FCACHE = null;          // 필터 결과. 정렬만 바뀌면 재사용한다.
+
 function filteredRows() {
+  if (FCACHE) { return FCACHE; }
   const rows = (DRILL_DATA && DRILL_DATA.rows) ? DRILL_DATA.rows : [];
-  const any = DFILT_WT && DFILT_WT.size;
-  let need = any;
+  let need = !!(DFILT_WT && DFILT_WT.size);
   for (const k in DFILT) { if (DFILT[k] && DFILT[k].size) { need = true; break; } }
-  return need ? rows.filter(passFilter) : rows.slice();
+  FCACHE = need ? rows.filter(passFilter) : rows.slice();
+  return FCACHE;
 }
 
 function sortedRows() {
-  const rows = filteredRows();
+  const rows = filteredRows();          // 캐시된 배열을 그대로 정렬한다
   if (!SORT_KEYS.length) { return rows; }
   const num = (v) => { const n = parseFloat(v); return isNaN(n) ? null : n; };
   rows.sort((a, b) => {
@@ -973,6 +976,7 @@ function dfPick(ev, k, idx) {
     if (target === "wt") { DFILT_WT = null; } else { delete DFILT[k]; }
   } else if (target === "wt") { DFILT_WT = sel; } else { DFILT[k] = sel; }
   dfLabel(k, sel.size, boxes.length);
+  FCACHE = null;                        // 필터가 바뀌었으니 다시 거른다
   renderDrillTable();
 }
 
@@ -1038,20 +1042,32 @@ function renderDrillTable() {
          + ` onclick="drillSort('${c.k}')">${c.t}${mark}</th>`;
   }).join("");
 
-  // 배열에 모아 한 번에 넣는다. 문자열 누적보다 수천 행에서 훨씬 빠르다.
+  // 셀마다 <span class="c"> 를 넣으면 DOM 노드가 두 배가 되어 느려진다.
+  // 가로 스크롤이 필요한 긴 값에만 span 을 쓴다.
+  const LONG = 14;
+  const keys = cols.map(c => c.k);
+  const isNum = cols.map(c => NUM_COLS.has(c.k));
+  const isWt = cols.map(c => c.k === "wt");
+  const nc = cols.length;
+
   const buf = [];
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     buf.push("<tr>");
-    for (let j = 0; j < cols.length; j++) {
-      const c = cols[j];
-      const raw = r[c.k];
-      const v = (raw === null || raw === undefined) ? ""
-        : (c.k === "wt" ? Number(raw).toFixed(1) : raw);
-      buf.push(NUM_COLS.has(c.k) ? '<td class="num"><span class="c">'
-                                 : '<td><span class="c">');
-      buf.push(v);
-      buf.push("</span></td>");
+    for (let j = 0; j < nc; j++) {
+      const raw = r[keys[j]];
+      let v = (raw === null || raw === undefined) ? ""
+        : (isWt[j] ? Number(raw).toFixed(1) : String(raw));
+      if (v.length > LONG) {
+        buf.push(isNum[j] ? '<td class="num"><span class="c">'
+                          : '<td><span class="c">');
+        buf.push(v);
+        buf.push("</span></td>");
+      } else {
+        buf.push(isNum[j] ? '<td class="num">' : "<td>");
+        buf.push(v);
+        buf.push("</td>");
+      }
     }
     buf.push("</tr>");
   }
@@ -1098,7 +1114,8 @@ function openDrill(filt, label, src) {
   fetch("/api/lots-live/?" + q).then(r => r.json()).then(d => {
     el.classList.remove("loading");
     DRILL_DATA = d;
-    SORT_KEYS = [];                       // 새 조건이면 정렬은 초기화
+    SORT_KEYS = [];                       // 새 조건이면 정렬/필터 초기화
+    HIDE_COLS = {}; DFILT = {}; DFILT_WT = null; dfLast = {}; FCACHE = null;
     el.innerHTML = `<div class="cellttl"><span>${drillTitle(src, label)}</span></div>
       <div class="bar">
         <div><b>${nf(d.lots || (d.rows || []).length)} LOT</b>
@@ -1106,7 +1123,15 @@ function openDrill(filt, label, src) {
           <span class="path">컬럼명을 누르면 정렬 (1회 오름 · 2회 내림 · 3회 해제)</span>
         </div>
         <button onclick="closeDrill()">닫기</button></div>
+      <div class="dtools">
+        <div class="drow"><span class="minittl">컬럼</span>
+          <div class="chips" id="drillCols"></div></div>
+        <div class="drow"><span class="minittl">필터</span>
+          <div class="dfs" id="drillFilters"></div>
+          <span class="minittl" id="drillCount"></span></div>
+      </div>
       <div class="gridwrap" id="drillBody"></div>`;
+    renderDrillHead();
     renderDrillTable();
   });
 }

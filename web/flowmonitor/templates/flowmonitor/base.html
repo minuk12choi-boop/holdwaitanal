@@ -271,6 +271,8 @@
   .grid td.num, .grid th.num { text-align:right;
                                font-variant-numeric:tabular-nums; }
   /* 셀 내부 스크롤. td 자체에는 overflow 가 먹지 않아 내부 div 를 쓴다. */
+  .grid td { max-width:240px; overflow:hidden; text-overflow:ellipsis; }
+  /* 긴 값만 이 래퍼로 감싸 셀 안에서 가로 스크롤한다(짧은 값은 감싸지 않는다). */
   .grid .c { display:block; max-width:240px; overflow-x:auto; overflow-y:hidden;
              white-space:nowrap; scrollbar-width:thin; }
   .grid .c::-webkit-scrollbar { height:6px; }
@@ -280,7 +282,7 @@
                     border-top:2px solid var(--bd); }
 
   .gridwrap { overflow:auto; border:1px solid var(--bd); border-radius:6px;
-              max-height:60vh; }
+              max-height:60vh; contain:paint; }
 
   /* ── 해상도 대응 ──────────────────────────────────────────────────────── */
   @media (max-width: 1600px) {
