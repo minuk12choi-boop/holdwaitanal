@@ -27,7 +27,7 @@
 
 ```
 1) getdata\build_f3.py    f3_live / f3_history
-2) getdata\get_move.py    move_shift / move_daily / move_lot
+2) getdata\get_move.py    f3_move_shift / f3_move_daily / f3_move_lot
 ```
 
 **두 개를 한 파일에서 순서대로 돌린다.** 스케줄러에 따로 등록하지 않는다.

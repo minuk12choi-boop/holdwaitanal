@@ -148,8 +148,8 @@ def _fetch():
             raise
 
     move = {(r[0], r[1]): float(r[2] or 0) for r in run(
-        "SELECT biz_date, sys_line_id, move_qty FROM move_daily WHERE biz_date >= %s",
-        [since], "move_daily")}
+        "SELECT biz_date, sys_line_id, move_qty FROM f3_move_daily WHERE biz_date >= %s",
+        [since], "f3_move_daily")}
 
     wip = {(r[0], r[1]): tuple(float(x or 0) for x in r[2:]) for r in run(f"""
             SELECT biz_date, `line`,
@@ -413,7 +413,7 @@ def download_wip_raw(request):
 def api_health(request):
     """적재 상태 진단. 차트가 비었을 때 원인을 바로 알기 위한 것."""
     info = {"tables": {}, "samples": {}}
-    for t in ("move_daily", "move_shift", "f3_live", "f3_history",
+    for t in ("f3_move_daily", "f3_move_shift", "f3_live", "f3_history",
               "f3_history_meta", "f3_load_log"):
         if not _table_exists(t):
             info["tables"][t] = "없음"
@@ -422,13 +422,13 @@ def api_health(request):
             cur.execute(f"SELECT COUNT(*) FROM {t}")
             info["tables"][t] = f"{cur.fetchone()[0]:,}행"
 
-    if _table_exists("move_daily"):
+    if _table_exists("f3_move_daily"):
         with connection.cursor() as cur:
             cur.execute("SELECT MIN(biz_date), MAX(biz_date), "
                         "COUNT(DISTINCT biz_date), COUNT(DISTINCT sys_line_id) "
-                        "FROM move_daily")
+                        "FROM f3_move_daily")
             r = cur.fetchone()
-            info["samples"]["move_daily"] = {
+            info["samples"]["f3_move_daily"] = {
                 "기간": f"{r[0]} ~ {r[1]}", "일수": r[2], "라인수": r[3]}
     if _table_exists("f3_history"):
         with connection.cursor() as cur:
@@ -439,7 +439,7 @@ def api_health(request):
 
     move, wip, missing = _fetch()
     info["조회결과"] = {
-        "move_daily 행": len(move), "f3_history 집계 행": len(wip),
+        "f3_move_daily 행": len(move), "f3_history 집계 행": len(wip),
         "없는 테이블": missing,
         "LOOKBACK_DAYS": LOOKBACK_DAYS,
         "조회 시작일": str(dt.date.today() - dt.timedelta(days=LOOKBACK_DAYS)),
@@ -486,22 +486,22 @@ def _lot_rows(snapshot_at):
 def _move_by_shift(types=None):
     """가장 최근 업무일의 라인별 shift MOVE.
 
-    lot_type 이 지정되면 move_lot 을 f3_live 의 lot_type 과 연결해 걸러낸다.
-    (move_lot 자체에는 lot_type 이 없다)
+    lot_type 이 지정되면 f3_move_lot 을 f3_live 의 lot_type 과 연결해 걸러낸다.
+    (f3_move_lot 자체에는 lot_type 이 없다)
     """
-    if not _table_exists("move_shift"):
+    if not _table_exists("f3_move_shift"):
         return {}, None
     with connection.cursor() as cur:
-        cur.execute("SELECT MAX(biz_date) FROM move_shift")
+        cur.execute("SELECT MAX(biz_date) FROM f3_move_shift")
         bd = cur.fetchone()[0]
         if not bd:
             return {}, None
 
-        if types and _table_exists("move_lot") and _table_exists("f3_live"):
+        if types and _table_exists("f3_move_lot") and _table_exists("f3_live"):
             ph = ",".join(["%s"] * len(types))
             cur.execute(f"""
                 SELECT m.sys_line_id, m.shift, SUM(m.move_qty)
-                FROM   move_lot m
+                FROM   f3_move_lot m
                 JOIN  (SELECT DISTINCT `line`, lot_id, lot_type
                        FROM   f3_live
                        WHERE  snapshot_at = (SELECT MAX(snapshot_at) FROM f3_live)) f
@@ -510,7 +510,7 @@ def _move_by_shift(types=None):
                 GROUP  BY m.sys_line_id, m.shift
             """, [bd, *types])
         else:
-            cur.execute("SELECT sys_line_id, shift, move_qty FROM move_shift "
+            cur.execute("SELECT sys_line_id, shift, move_qty FROM f3_move_shift "
                         "WHERE biz_date = %s", [bd])
         out = {}
         for line, sh, qty in cur.fetchall():
@@ -702,7 +702,7 @@ def _wt_source(biz_date, line):
 
         cur.execute("""
             SELECT shift, lot_id, SUM(move_qty)
-            FROM   move_lot WHERE biz_date = %s AND sys_line_id = %s
+            FROM   f3_move_lot WHERE biz_date = %s AND sys_line_id = %s
             GROUP  BY shift, lot_id
         """, [biz_date, line])
         for sh, lot, mv in cur.fetchall():
@@ -723,8 +723,8 @@ def _wt_source(biz_date, line):
 def api_lowwt(request):
     line = request.GET.get("line", "")
     max_wt = float(request.GET.get("max_wt", 0) or 0)
-    if not (_table_exists("f3_history") and _table_exists("move_lot")):
-        return JsonResponse({"ready": False, "reason": "f3_history / move_lot 미적재"})
+    if not (_table_exists("f3_history") and _table_exists("f3_move_lot")):
+        return JsonResponse({"ready": False, "reason": "f3_history / f3_move_lot 미적재"})
 
     with connection.cursor() as cur:
         cur.execute("SELECT MAX(biz_date) FROM f3_history")
@@ -808,7 +808,7 @@ def api_lots(request):
     req_date = request.GET.get("biz_date", "")
     max_wt = float(request.GET.get("max_wt", 0) or 0)
 
-    if not (_table_exists("f3_history") and _table_exists("move_lot")):
+    if not (_table_exists("f3_history") and _table_exists("f3_move_lot")):
         return JsonResponse({"rows": [], "cols": [], "reason": "미적재"})
 
     rules = _cause_rules()
@@ -849,10 +849,10 @@ def api_lots(request):
         recs = [dict(zip(names, r)) for r in cur.fetchall()]
 
         if col == "전체":
-            cur.execute("SELECT lot_id, SUM(move_qty) FROM move_lot "
+            cur.execute("SELECT lot_id, SUM(move_qty) FROM f3_move_lot "
                         "WHERE biz_date=%s AND sys_line_id=%s GROUP BY lot_id", [bd, line])
         else:
-            cur.execute("SELECT lot_id, SUM(move_qty) FROM move_lot "
+            cur.execute("SELECT lot_id, SUM(move_qty) FROM f3_move_lot "
                         "WHERE biz_date=%s AND sys_line_id=%s AND shift=%s "
                         "GROUP BY lot_id", [bd, line, col])
         mv = {r[0]: float(r[1] or 0) for r in cur.fetchall()}
@@ -951,15 +951,15 @@ def _wt_range_key(wt):
 
 
 def _holdtype_rules():
-    """std_holdtype 규칙. 없으면 빈 목록.
+    """f3_std_holdtype 규칙. 없으면 빈 목록.
 
     반환 순서 = 우선순위. 구체적인(조건이 많은) 규칙이 앞, 같으면 저장 순서.
     """
-    if not _table_exists("std_holdtype"):
+    if not _table_exists("f3_std_holdtype"):
         return []
     with connection.cursor() as cur:
         cur.execute("SELECT id, line, type, condition1, condition2, condition3,"
-                    " type_name FROM std_holdtype ORDER BY id")
+                    " type_name FROM f3_std_holdtype ORDER BY id")
         rows = [{"id": r[0], "line": r[1], "type": (r[2] or "ALL").upper(),
                  "c": [x for x in (r[3], r[4], r[5]) if x],
                  "name": r[6]} for r in cur.fetchall()]
@@ -999,11 +999,11 @@ def holdtype_of(r, rules):
 
 def _cause_rules():
     """기준정보의 소분류 규칙. 없으면 빈 목록(=사유 원문을 그대로 유형으로)."""
-    if not _table_exists("cause_rules"):
+    if not _table_exists("f3_cause_rules"):
         return {}
     out = {}
     with connection.cursor() as cur:
-        cur.execute("SELECT category, keyword, label FROM cause_rules "
+        cur.execute("SELECT category, keyword, label FROM f3_cause_rules "
                     "ORDER BY category, sort_no, id")
         for cat, kw, label in cur.fetchall():
             out.setdefault(cat, []).append((kw, label))
@@ -1094,14 +1094,14 @@ def _lot_move_map(line=None):
     체계가 달라(예: KFR7 원천이 NRD-K / NRD 로 갈린다) 그대로 쓰면 재분류된
     lot 의 MOVE 를 놓친다. lot_id 는 라인과 무관하게 유일하므로 조건을 뺀다.
     """
-    if not _table_exists("move_lot"):
+    if not _table_exists("f3_move_lot"):
         return {}
     with connection.cursor() as cur:
-        cur.execute("SELECT MAX(biz_date) FROM move_lot")
+        cur.execute("SELECT MAX(biz_date) FROM f3_move_lot")
         bd = cur.fetchone()[0]
         if not bd:
             return {}
-        cur.execute("SELECT lot_id, SUM(move_qty) FROM move_lot "
+        cur.execute("SELECT lot_id, SUM(move_qty) FROM f3_move_lot "
                     "WHERE biz_date=%s GROUP BY lot_id", [bd])
         return {r[0]: float(r[1] or 0) for r in cur.fetchall()}
 
@@ -1341,7 +1341,7 @@ def fab_metrics(request):
 
 # 기준정보 카드 정의. 컬럼을 여기서만 관리하면 화면/저장이 함께 따라간다.
 STD_CARDS = [
-    {"key": "module", "table": "std_module", "title": "모듈설정",
+    {"key": "module", "table": "f3_std_module", "title": "모듈설정",
      "desc": "조건에 맞는 LOT 에 MODULE1 / MODULE2 를 부여한다. "
              "빈 칸은 와일드카드이고, 더 구체적으로 지정된 행이 우선한다.",
      "cols": [
@@ -1354,7 +1354,7 @@ STD_CARDS = [
          {"k": "module1", "t": "MODULE1", "req": True, "w": "md"},
          {"k": "module2", "t": "MODULE2", "w": "md"},
      ]},
-    {"key": "holdtype", "table": "std_holdtype", "title": "HOLD 유형설정",
+    {"key": "holdtype", "table": "f3_std_holdtype", "title": "HOLD 유형설정",
      "desc": "각 유형의 사유 컬럼에 CONDITION 이 모두 포함되면 TYPE_NAME 으로 "
              "분류한다. 동시에 걸리면 HOLD > FTP > 예약제외 순으로 하나만 쓴다.",
      "cols": [

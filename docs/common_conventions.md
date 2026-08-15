@@ -147,8 +147,8 @@ W/T 의 분모(재공)는 스냅샷 시점 값이고 분자(MOVE)는 구간 누�
 | `f3_live` | 웹 실시간 상세. 최근 2벌 스냅샷 | 매 실행 시 추가, 2벌 초과분 삭제 |
 | `f3_history` | shift 단위 누적 상세 | shift 기준 시각에 가장 가까운 스냅샷으로 교체 |
 | `f3_history_meta` | 어떤 스냅샷이 어느 shift 로 채택됐는지 | `(biz_date, shift)` 유일 |
-| `move_shift` | shift 단위 MOVE 집계 | `(biz_date, shift, sys_line_id)` 교체 |
-| `move_daily` | 일 단위 MOVE 집계 | `(biz_date, sys_line_id)` 교체 |
+| `f3_move_shift` | shift 단위 MOVE 집계 | `(biz_date, shift, sys_line_id)` 교체 |
+| `f3_move_daily` | 일 단위 MOVE 집계 | `(biz_date, sys_line_id)` 교체 |
 
 웹은 실시간 조회 시 `f3_live` 의 최신 스냅샷을, 과거 조회 시 `f3_history` 를 본다.
 
@@ -290,7 +290,7 @@ shift(8h)를 덮고도 여유가 있어, 실행이 몇 시간 밀려도 공백�
 그 shift 전체로 교체된다.
 
 교체 단위는 **(업무일, shift) 쌍**이다. 업무일 통째로 지우면 같은 업무일의 이미
-적재된 다른 shift 가 날아간다. `move_daily` 는 교체 후 `move_shift` 에서 다시
+적재된 다른 shift 가 날아간다. `f3_move_daily` 는 교체 후 `f3_move_shift` 에서 다시
 합산해 만든다.
 
 ---
@@ -404,11 +404,11 @@ KFR7 원천 테이블에 **NRD-K 와 NRD 가 함께** 들어온다.
 `dest_line_id` 는 f3 출력 컬럼으로 남기고 드릴다운 표에도 보인다.
 쓰임새는 라인 분류 하나뿐이지만, 왜 그 라인으로 갈렸는지 확인할 수 있어야 한다.
 
-MOVE 는 라인을 보지 않는다. `move_lot` 은 원천 라인으로 적재되어 f3 의 분류와
+MOVE 는 라인을 보지 않는다. `f3_move_lot` 은 원천 라인으로 적재되어 f3 의 분류와
 어긋나므로, W/T 계산은 **lot_id 로만** 연결한다(`_lot_move_map`).
 MOVE 쪽 라인 분류 체계는 아직 정립 전이라 보류한다.
 
-### HOLD 유형 (기준정보 std_holdtype)
+### HOLD 유형 (기준정보 f3_std_holdtype)
 
 각 유형의 사유 컬럼에 `condition1~3` 이 **모두** 포함되면 `type_name` 으로
 분류하고, 드릴다운의 `원인` 컬럼에 `Hold(품질검토)` 처럼 붙는다.
@@ -423,7 +423,7 @@ line 이 비면 전 라인
 여러 규칙이 맞으면 **조건이 많은(구체적인) 규칙**이 이기고, 그래도 같으면
 **저장 순서(id)** 가 앞선 것을 쓴다.
 
-### 모듈 (기준정보 std_module)
+### 모듈 (기준정보 f3_std_module)
 
 `/standards/` 의 모듈설정으로 `module1` / `module2` 를 채운다(`attach_module`).
 
@@ -447,14 +447,28 @@ layer 100,  범위 20~74   -> 제외
 layer 005,  범위 0~10    -> 포함
 ```
 
+### 테이블 이름 규칙
+
+`app_db` 에 여러 프로젝트의 테이블이 섞여 있다. **이 프로젝트 것은 모두
+`f3_` 접두**를 붙인다. 새 테이블을 만들 때도 반드시 붙인다.
+
+```
+f3_live  f3_history  f3_history_meta  f3_load_log
+f3_move_shift  f3_move_daily  f3_move_lot
+f3_std_module  f3_std_holdtype  f3_cause_rules
+```
+
+목록은 `db_common.PROJECT_TABLES` 에 있다.
+이름을 바꾼 이력은 `getdata/migrate_rename_tables.sql` 참조.
+
 ### 기준정보 저장 위치
 
 `app_db` 안에 있다. `python getdata/db_common.py --init` 으로 만든다.
 
 | 테이블 | 화면 |
 |---|---|
-| `std_module` | 기준정보 > 모듈설정 |
-| `std_holdtype` | 기준정보 > HOLD 유형설정 |
+| `f3_std_module` | 기준정보 > 모듈설정 |
+| `f3_std_holdtype` | 기준정보 > HOLD 유형설정 |
 
 ### 제품구분 (SSPS_PROD_NAME)
 
@@ -651,7 +665,7 @@ PP → PB → PG → EG → (그 외 오름차순)
 
 ### Low WT 분석
 
-WT 는 lot 단위로 계산한다. `move_lot`(lot 단위 MOVE) ÷ 재공 매수.
+WT 는 lot 단위로 계산한다. `f3_move_lot`(lot 단위 MOVE) ÷ 재공 매수.
 **MOVE 기록이 없으면 WT = 0** 이다. `last_tkout_date` 는 쓰지 않는다
 (WT=0 뿐 아니라 저조 WT 구간까지 봐야 하므로).
 
@@ -776,4 +790,4 @@ Y축은 지표별 독립, 이중 Y축은 쓰지 않는다.
 **결측일은 존재하면 안 된다.** 스케줄러가 실패하면 해당 업무일을 다시 실행해
 채운다. 월/주 평균이 기간 나눗셈이므로 결측이 있으면 값이 낮게 왜곡된다.
 
-`f3_history_meta` 와 `move_daily` 의 `biz_date` 연속성을 주기적으로 점검한다.
+`f3_history_meta` 와 `f3_move_daily` 의 `biz_date` 연속성을 주기적으로 점검한다.

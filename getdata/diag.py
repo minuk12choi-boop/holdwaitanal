@@ -8,7 +8,7 @@ Oracle 전환 후 f3 결과가 Impala 시절과 크게 달라졌을 때, 어느 
     python getdata/diag.py hold      HOLD 분포 (status_seq / item_type / 중복)
     python getdata/diag.py lot       LOT 분포 (lot_type / status / 라인)
     python getdata/diag.py tip       TIP.process <-> STEP_PATH.proc_id 겹침
-    python getdata/diag.py wt        W/T=0 이 많은 이유 (move_lot <-> f3 lot 매칭)
+    python getdata/diag.py wt        W/T=0 이 많은 이유 (f3_move_lot <-> f3 lot 매칭)
     python getdata/diag.py dates     날짜 컬럼 원본 표기 확인
     python getdata/diag.py all
 """
@@ -140,7 +140,7 @@ def diag_dates():
 def diag_wt():
     """W/T = 0 이 많은 원인 추적.
 
-    W/T = move_lot 의 lot 별 MOVE / 재공 매수.
+    W/T = f3_move_lot 의 lot 별 MOVE / 재공 매수.
     lot_id 가 매칭되지 않으면 MOVE 가 0 으로 잡혀 전부 WT=0 이 된다.
     """
     import db_common as DB
@@ -153,9 +153,9 @@ def diag_wt():
             cur.execute("SELECT DISTINCT lot_id FROM f3_live WHERE snapshot_at=%s",
                         [snap])
             f3lots = {r[0] for r in cur.fetchall()}
-            cur.execute("SELECT MAX(biz_date) FROM move_lot")
+            cur.execute("SELECT MAX(biz_date) FROM f3_move_lot")
             bd = cur.fetchone()[0]
-            cur.execute("SELECT lot_id, SUM(move_qty) FROM move_lot "
+            cur.execute("SELECT lot_id, SUM(move_qty) FROM f3_move_lot "
                         "WHERE biz_date=%s GROUP BY lot_id", [bd])
             mv = {r[0]: float(r[1] or 0) for r in cur.fetchall()}
     finally:
@@ -163,14 +163,14 @@ def diag_wt():
 
     _head("W/T 진단")
     print(f"f3_live 스냅샷      : {snap}   lot {len(f3lots):,}개")
-    print(f"move_lot 업무일     : {bd}      lot {len(mv):,}개")
+    print(f"f3_move_lot 업무일     : {bd}      lot {len(mv):,}개")
     hit = f3lots & set(mv)
     print(f"두 쪽 모두 있는 lot : {len(hit):,}")
     print(f"MOVE 가 없는 lot    : {len(f3lots - set(mv)):,}  -> 이들이 WT=0 이 된다")
     if f3lots and not hit:
         print("\n  겹치는 lot_id 가 하나도 없다. lot_id 형식이 다를 수 있다.")
         print("  f3_live  예시:", sorted(f3lots)[:5])
-        print("  move_lot 예시:", sorted(mv)[:5])
+        print("  f3_move_lot 예시:", sorted(mv)[:5])
 
 
 def main():

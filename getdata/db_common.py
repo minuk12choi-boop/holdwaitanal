@@ -149,6 +149,15 @@ def load_env(path=None):
             os.environ.setdefault(k.strip(), v.strip())
 
 
+# 이 프로젝트가 소유하는 테이블. app_db 에 다른 프로젝트가 섞여 있어
+# f3_ 접두로 구분한다. 새 테이블도 반드시 이 접두를 붙인다.
+PROJECT_TABLES = (
+    "f3_live", "f3_history", "f3_history_meta", "f3_load_log",
+    "f3_move_shift", "f3_move_daily", "f3_move_lot",
+    "f3_std_module", "f3_std_holdtype", "f3_cause_rules",
+)
+
+
 def connect():
     """pymysql 커넥션. .env 의 HOLDWAITANAL_DB_* 사용."""
     import pymysql
@@ -280,7 +289,7 @@ def ensure_standard_schema(conn):
     """
     with conn.cursor() as cur:
         cur.execute("""
-        CREATE TABLE IF NOT EXISTS cause_rules (
+        CREATE TABLE IF NOT EXISTS f3_cause_rules (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           category VARCHAR(32) NOT NULL,      -- hold | exception | ftp
           keyword VARCHAR(128) NOT NULL,      -- 사유에 포함되면 매칭
@@ -292,7 +301,7 @@ def ensure_standard_schema(conn):
         """)
         # 1) 모듈설정: 조건에 맞는 lot 에 module1/module2 를 부여
         cur.execute("""
-        CREATE TABLE IF NOT EXISTS std_module (
+        CREATE TABLE IF NOT EXISTS f3_std_module (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           line VARCHAR(16) NULL,
           proc_id VARCHAR(64) NULL,
@@ -310,7 +319,7 @@ def ensure_standard_schema(conn):
 
         # 2) Hold 유형설정: 사유 문자열에 condition 이 모두 들어가면 type_name
         cur.execute("""
-        CREATE TABLE IF NOT EXISTS std_holdtype (
+        CREATE TABLE IF NOT EXISTS f3_std_holdtype (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           line VARCHAR(16) NULL,
           type VARCHAR(16) NULL,          -- ALL | HOLD | FTP | 예약제외
@@ -375,13 +384,13 @@ def load_f3_load_log(conn, snapshot_at, load_log, keep=2):
 
 
 def ensure_move_schema(conn):
-    """move_shift / move_daily / move_lot.
+    """f3_move_shift / f3_move_daily / f3_move_lot.
 
-    move_lot 은 lot 단위 MOVE. WT(= MOVE/재공매수) 를 lot 별로 계산하려면
+    f3_move_lot 은 lot 단위 MOVE. WT(= MOVE/재공매수) 를 lot 별로 계산하려면
     집계본만으로는 부족해서 따로 둔다. Low WT 분석의 기반.
     """
     shift_tbl = """
-    CREATE TABLE IF NOT EXISTS move_shift (
+    CREATE TABLE IF NOT EXISTS f3_move_shift (
       biz_date DATE NOT NULL,
       shift VARCHAR(3) NOT NULL,
       sys_line_id VARCHAR(32) NOT NULL,
@@ -393,7 +402,7 @@ def ensure_move_schema(conn):
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """
     daily_tbl = """
-    CREATE TABLE IF NOT EXISTS move_daily (
+    CREATE TABLE IF NOT EXISTS f3_move_daily (
       biz_date DATE NOT NULL,
       sys_line_id VARCHAR(32) NOT NULL,
       move_qty BIGINT NOT NULL DEFAULT 0,
@@ -404,7 +413,7 @@ def ensure_move_schema(conn):
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """
     lot_tbl = """
-    CREATE TABLE IF NOT EXISTS move_lot (
+    CREATE TABLE IF NOT EXISTS f3_move_lot (
       biz_date DATE NOT NULL,
       shift VARCHAR(3) NOT NULL,
       sys_line_id VARCHAR(32) NOT NULL,
@@ -511,7 +520,7 @@ def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None):
 
     업무일 통째로 지우면 안 된다. 2시간 주기로 최근 몇 시간만 조회할 때
     같은 업무일의 이전 shift(이미 적재된 것)까지 날아간다.
-    move_daily 는 교체 후 move_shift 에서 다시 합산해 만든다.
+    f3_move_daily 는 교체 후 f3_move_shift 에서 다시 합산해 만든다.
     """
     now = dt.datetime.now()
     pairs = sorted({(r.biz_date, r.shift) for r in df_shift.itertuples(index=False)}) \
@@ -519,12 +528,12 @@ def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None):
 
     with conn.cursor() as cur:
         for bd, sh in pairs:
-            cur.execute("DELETE FROM move_shift WHERE biz_date=%s AND shift=%s", (bd, sh))
-            cur.execute("DELETE FROM move_lot   WHERE biz_date=%s AND shift=%s", (bd, sh))
+            cur.execute("DELETE FROM f3_move_shift WHERE biz_date=%s AND shift=%s", (bd, sh))
+            cur.execute("DELETE FROM f3_move_lot   WHERE biz_date=%s AND shift=%s", (bd, sh))
 
         if len(df_shift):
             cur.executemany(
-                "INSERT INTO move_shift "
+                "INSERT INTO f3_move_shift "
                 "(biz_date, shift, sys_line_id, move_qty, lot_cnt, loaded_at) "
                 "VALUES (%s,%s,%s,%s,%s,%s)",
                 [(r.biz_date, r.shift, r.sys_line_id, int(r.move_qty), int(r.lot_cnt), now)
@@ -532,7 +541,7 @@ def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None):
 
         if df_lot is not None and len(df_lot):
             cur.executemany(
-                "INSERT INTO move_lot "
+                "INSERT INTO f3_move_lot "
                 "(biz_date, shift, sys_line_id, lot_id, move_qty, tkout_cnt, loaded_at) "
                 "VALUES (%s,%s,%s,%s,%s,%s,%s)",
                 [(r.biz_date, r.shift, r.sys_line_id, str(r.lot_id)[:64],
@@ -541,12 +550,12 @@ def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None):
 
         # 영향받은 업무일의 일 집계를 shift 합으로 다시 만든다
         for bd in sorted({b for b, _ in pairs}):
-            cur.execute("DELETE FROM move_daily WHERE biz_date=%s", (bd,))
+            cur.execute("DELETE FROM f3_move_daily WHERE biz_date=%s", (bd,))
             cur.execute(
-                "INSERT INTO move_daily "
+                "INSERT INTO f3_move_daily "
                 "(biz_date, sys_line_id, move_qty, lot_cnt, loaded_at) "
                 "SELECT biz_date, sys_line_id, SUM(move_qty), SUM(lot_cnt), %s "
-                "FROM move_shift WHERE biz_date=%s "
+                "FROM f3_move_shift WHERE biz_date=%s "
                 "GROUP BY biz_date, sys_line_id", (now, bd))
     conn.commit()
     return pairs
@@ -554,7 +563,7 @@ def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None):
 
 def move_last_biz_date(conn):
     with conn.cursor() as cur:
-        cur.execute("SELECT MAX(biz_date) FROM move_daily")
+        cur.execute("SELECT MAX(biz_date) FROM f3_move_daily")
         return cur.fetchone()[0]
 
 

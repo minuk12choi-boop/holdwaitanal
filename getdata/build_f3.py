@@ -1016,7 +1016,7 @@ def _in_range(v, lo, hi):
 
 
 def attach_module(f3):
-    """기준정보(std_module)로 module1 / module2 를 채운다.
+    """기준정보(f3_std_module)로 module1 / module2 를 채운다.
 
     빈 칸은 와일드카드다. 여러 행이 맞으면 **더 구체적으로 지정된 행**
     (빈 칸이 적은 행)이 이긴다.
@@ -1025,7 +1025,7 @@ def attach_module(f3):
     for c in MODULE_COLS:
         out[c] = pd.NA
 
-    rules = _std_table("std_module",
+    rules = _std_table("f3_std_module",
                        ["line", "proc_id", "start_layer", "end_layer",
                         "start_stepseq", "end_stepseq", "module1", "module2"])
     if not rules:

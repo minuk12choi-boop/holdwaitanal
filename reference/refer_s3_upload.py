@@ -21,7 +21,7 @@ refer_s3_upload.py — [참고용] DB 의 전처리 결과를 S3 로 올리는 �
 
 사용:
     import s3_upload
-    s3_upload.upload_frames({"f3": df_f3, "move_daily": df_move})
+    s3_upload.upload_frames({"f3": df_f3, "f3_move_daily": df_move})
 
     # 단독 실행: DB 에 적재된 최신 스냅샷을 S3 로 올린다
     python getdata/s3_upload.py
@@ -104,7 +104,7 @@ def _latest_frames():
         if snap:
             out["f3_live"] = pd.read_sql(
                 "SELECT * FROM f3_live WHERE snapshot_at = %s", conn, params=(snap,))
-        for t in ("move_daily", "move_shift", "move_lot"):
+        for t in ("f3_move_daily", "f3_move_shift", "f3_move_lot"):
             try:
                 out[t] = pd.read_sql(f"SELECT * FROM {t}", conn)
             except Exception:
