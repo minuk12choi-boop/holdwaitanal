@@ -969,10 +969,44 @@ def _std_table(name, cols):
                 pass
 
 
-def _in_range(v, lo, hi):
-    """lo~hi 범위 판정. 경계는 포함하고, 비어 있으면 와일드카드."""
+def _as_num(v):
+    """앞자리 0 이 붙거나 빠져도 같은 값으로 보도록 숫자로 바꾼다.
+
+    f3 의 layer 는 '050' 처럼 0 이 채워져 오고, 기준정보에는 '50' 이나 '20'
+    처럼 들어오는 경우가 많다. 문자열로 비교하면 '050' < '20' 이 되어 어긋난다.
+    숫자로 못 바꾸면 None 을 돌려주고, 그때만 문자열로 비교한다.
+    """
     if v is None or (isinstance(v, float) and v != v):
-        return lo is None and hi is None
+        return None
+    t = str(v).strip()
+    if not t:
+        return None
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
+def _in_range(v, lo, hi):
+    """lo~hi 범위 판정. 경계는 포함하고, 비어 있으면 와일드카드.
+
+    값과 경계가 모두 숫자면 숫자로, 하나라도 아니면 문자열로 비교한다.
+    """
+    if v is None or (isinstance(v, float) and v != v):
+        return lo in (None, "") and hi in (None, "")
+
+    nv, nlo, nhi = _as_num(v), _as_num(lo), _as_num(hi)
+    use_num = nv is not None and \
+        (lo in (None, "") or nlo is not None) and \
+        (hi in (None, "") or nhi is not None)
+
+    if use_num:
+        if nlo is not None and nv < nlo:
+            return False
+        if nhi is not None and nv > nhi:
+            return False
+        return True
+
     t = str(v).strip()
     if lo not in (None, "") and t < str(lo).strip():
         return False
