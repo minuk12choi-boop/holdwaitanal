@@ -1109,14 +1109,18 @@ STEP_SCOPED = ("eqpgroup", "eqpgroup_cham", "down", "tip", "recipe_id",
 
 
 def _hist_snapshots(line):
-    """날짜/shift 선택지. f3_history 의 (biz_date, shift, snapshot_at)."""
+    """날짜/shift 선택지. f3_history 의 (biz_date, shift, snapshot_at).
+
+    라인으로 좁히면 목록이 비는 일이 있다(예: KFR4 는 최근 분류라 과거
+    스냅샷에 없다). 날짜/shift 는 라인과 무관하므로 전체에서 뽑는다.
+    """
     if not _table_exists("f3_history"):
         return []
     with connection.cursor() as cur:
         cur.execute(
             "SELECT biz_date, shift, MAX(snapshot_at) FROM f3_history "
-            "WHERE `line`=%s GROUP BY biz_date, shift "
-            "ORDER BY biz_date DESC, MAX(snapshot_at) DESC LIMIT 60", [line])
+            "GROUP BY biz_date, shift "
+            "ORDER BY biz_date DESC, MAX(snapshot_at) DESC LIMIT 60")
         return [{"biz_date": str(r[0]), "shift": r[1],
                  "at": (r[2].strftime("%H:%M") if hasattr(r[2], "strftime")
                         else str(r[2])[11:16])}

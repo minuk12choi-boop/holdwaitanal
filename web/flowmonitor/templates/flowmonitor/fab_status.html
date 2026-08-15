@@ -1060,7 +1060,7 @@ function clearOtherSelections(src) {
   if (!src) { DRILL_SRC = ""; return; }
   // 선택 상태만 지우면 차트에 이전 표시가 남는다. 반드시 다시 그린다.
   if (src !== "cause")  { DRILL_KEY = { i: -1, node: null };
-                          if (!keepFocus) { CZ_SEL = { i: -1, path: [] }; } }
+                          CZ_SEL = { i: -1, path: [] }; }
   if (src !== "wt")     { SEL_WT = null; }
   if (src !== "wt0")    { SEL_WT0 = null; }
   if (src !== "type")   { SEL_TYPE = null; }
