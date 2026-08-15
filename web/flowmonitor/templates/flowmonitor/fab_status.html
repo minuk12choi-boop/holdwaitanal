@@ -69,6 +69,7 @@
           <button id="zu_lots" onclick="setWt0Unit('lots')">LOT</button>
           <button class="on" id="zu_qty" onclick="setWt0Unit('qty')">매</button>
         </span></div>
+      <div class="stsum" id="wt0sum"></div>
       <div class="minittl" style="margin-bottom:6px">마지막 작업 이후 경과일 기준</div>
       <div style="height:210px"><canvas id="wt0c"></canvas></div>
     </div>
@@ -446,31 +447,48 @@ function renderWt() {
   wtChart.update();
 }
 
-/* --- W/T 0 재공 분포 : 마지막 작업 이후 경과일 --- */
+/* --- W/T 0 재공 분포 : 마지막 작업 이후 경과일, status 누적막대 --- */
 let wt0Chart = null;
 
 function renderWt0() {
   const d = DATA, u = WT0_UNIT;
   const list = d.wt0_dist || [];
-  const vals = list.map(x => u === "lots" ? x.lots : x.qty);
-  // 오래 방치될수록 진하게
-  const colors = list.map((_, i) =>
-    `rgba(220,20,60,${Math.min(0.25 + 0.1 * i, 1).toFixed(2)})`);
+  const sts = d.wt0_status || [];
+  const unit = (u === "lots") ? " lot" : " 매";
+
+  // 구간별 합계(비율 계산용)
+  const binTot = list.map(x => (u === "lots" ? x.lots : x.qty) || 0);
+
+  const datasets = sts.map(st => ({
+    label: st.name,
+    backgroundColor: st.color,
+    borderWidth: 0,
+    data: list.map(x => {
+      const v = (x.by_status || {})[st.name];
+      return v ? (u === "lots" ? v.lots : v.qty) : 0;
+    })
+  }));
 
   if (!wt0Chart) {
     wt0Chart = new Chart(document.getElementById("wt0c"), {
       type: "bar",
-      data: { labels: [], datasets: [{ data: [], borderRadius: 3 }] },
+      data: { labels: [], datasets: [] },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
-        layout: { padding: { top: 16 } },
+        layout: { padding: { top: 18 } },
         plugins: { legend: { display: false },
                    tooltip: { callbacks: { label: (t) => {
-                     const x = (DATA.wt0_dist || [])[t.dataIndex] || {};
-                     return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
+                     const tot = (wt0Chart.$binTot || [])[t.dataIndex] || 0;
+                     const v = t.raw || 0;
+                     const p = tot ? Math.round(v / tot * 100) : 0;
+                     return t.dataset.label + " " + nf(v)
+                            + (WT0_UNIT === "lots" ? " lot" : " 매")
+                            + " (" + p + "%)";
                    } } } },
-        scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-                  y: { display: false, beginAtZero: true, grace: "18%" } },
+        scales: { x: { stacked: true, grid: { display: false },
+                       ticks: { font: { size: 10 } } },
+                  y: { stacked: true, display: false, beginAtZero: true,
+                       grace: "20%" } },
         onClick: (e, els) => {
           if (!els.length) return;
           const x = (DATA.wt0_dist || [])[els[0].index];
@@ -482,22 +500,59 @@ function renderWt0() {
       plugins: [{
         id: "wt0Val",
         afterDatasetsDraw(ch) {
-          const ctx = ch.ctx; ctx.save();
+          const ctx = ch.ctx;
+          ctx.save();
+          ctx.font = "9px 'Poppins','Noto Sans KR',sans-serif";
+          ctx.textAlign = "center";
+          const tot = ch.$binTot || [];
+
+          // 누적 조각마다 값과 비율. 조각이 얇으면 생략한다.
+          ch.data.datasets.forEach((ds, di) => {
+            const meta = ch.getDatasetMeta(di);
+            if (meta.hidden) { return; }
+            meta.data.forEach((el, k) => {
+              const v = ds.data[k];
+              if (!v) { return; }
+              const p = tot[k] ? Math.round(v / tot[k] * 100) : 0;
+              const h = Math.abs(el.base - el.y);
+              if (h < 13) { return; }
+              ctx.fillStyle = "#1F2937";
+              ctx.textBaseline = "middle";
+              ctx.fillText(nf(v) + " (" + p + "%)", el.x, (el.y + el.base) / 2);
+            });
+          });
+
+          // 구간 합계는 막대 위에
+          const top = ch.getDatasetMeta(ch.data.datasets.length - 1);
+          ctx.fillStyle = "#374151";
+          ctx.textBaseline = "bottom";
           ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
-          ctx.textAlign = "center"; ctx.fillStyle = "#374151";
-          ch.getDatasetMeta(0).data.forEach((el, k) => {
-            ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x, el.y - 4);
+          (top ? top.data : []).forEach((el, k) => {
+            if (!tot[k]) { return; }
+            ctx.fillText(nf(tot[k]) + (WT0_UNIT === "lots" ? " lot" : " 매"),
+                         el.x, el.y - 4);
           });
           ctx.restore();
         }
       }]
     });
   }
+
+  wt0Chart.$binTot = binTot;
   wt0Chart.data.labels = list.map(x => x.label);
-  wt0Chart.data.datasets[0].data = vals;
-  wt0Chart.data.datasets[0].backgroundColor = colors;
-  markSelected(wt0Chart, list.findIndex(x => x.name === SEL_WT0));
+  wt0Chart.data.datasets = datasets;
+  markSelected(wt0Chart, -1);        // 누적막대는 조각 단위 강조를 쓰지 않는다
   wt0Chart.update();
+
+  // 전 구간 status 요약
+  const gt = sts.reduce((a, x) => a + (u === "lots" ? x.lots : x.qty), 0);
+  document.getElementById("wt0sum").innerHTML = gt
+    ? sts.map(x => {
+        const v = (u === "lots" ? x.lots : x.qty);
+        return `<span class="stchip"><i style="background:${x.color}"></i>`
+             + `${x.name} ${nf(v)}${unit} (${Math.round(v / gt * 100)}%)</span>`;
+      }).join("")
+    : "";
 }
 
 /* --- 원인 분석 -------------------------------------------------------------

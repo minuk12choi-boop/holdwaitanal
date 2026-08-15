@@ -1294,6 +1294,7 @@ def api_summary(request):
 
     tot = {"lots": 0, "qty": 0}
     by_type, by_status, by_wt, by_wt0 = {}, {}, {}, {}
+    wt0_st, wt0_tot = {}, {}      # W/T 0 재공의 status 분해
     tree = {}
 
     for r in rows:
@@ -1307,7 +1308,11 @@ def api_summary(request):
         _bucket(by_wt, _wt_range_key(wt), q)
         if wt <= 0:
             # W/T=0 재공만 '마지막 작업 이후 경과일' 로 다시 나눈다.
-            _bucket(by_wt0, _wt0_bin(num_f(r.get("마지막작업경과_일"))), q)
+            b0 = _wt0_bin(num_f(r.get("마지막작업경과_일")))
+            _bucket(by_wt0, b0, q)
+            if b0:                       # status 별로도 쌓는다(누적막대용)
+                _bucket(wt0_st.setdefault(b0, {}), st, q)
+            _bucket(wt0_tot, st, q)      # 전 구간 합계
 
         big, mid, subs = classify_lot(r, rules, ht)
         if not big:
@@ -1388,8 +1393,17 @@ def api_summary(request):
             "qty": sum(x["qty"] for x in blocked)},
         "wt0_bins": WT0_BINS,
         "wt0_dist": [{"name": b["key"], "label": b["label"],
-                      **by_wt0.get(b["key"], {"lots": 0, "qty": 0})}
+                      **by_wt0.get(b["key"], {"lots": 0, "qty": 0}),
+                      "by_status": {k: {"lots": v["lots"], "qty": v["qty"]}
+                                    for k, v in wt0_st.get(b["key"], {}).items()}}
                      for b in WT0_BINS],
+        # 누적막대 계열 순서와 색. 원차트와 같은 색을 쓴다.
+        "wt0_status": [{"name": k, "color": STATUS_COLORS.get(k, "#9CA3AF"),
+                        "lots": v["lots"], "qty": v["qty"]}
+                       for k, v in sorted(
+                           wt0_tot.items(),
+                           key=lambda kv: STATUS_ORDER.index(kv[0])
+                           if kv[0] in STATUS_ORDER else 99)],
         "wt_ranges": WT_RANGES,
         "wt_dist": [{"name": r["key"], "label": r["label"],
                      **by_wt.get(r["key"], {"lots": 0, "qty": 0})}

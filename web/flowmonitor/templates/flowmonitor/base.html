@@ -394,6 +394,12 @@
   .grid thead th.dragging { opacity:.45; }
   .grid thead th[draggable="true"] { cursor:grab; }
 
+  /* W/T 0 재공의 status 요약 */
+  .stsum { display:flex; flex-wrap:wrap; gap:3px 10px; margin-bottom:5px; }
+  .stchip { font-size:11px; color:var(--fg); display:inline-flex;
+            align-items:center; gap:4px; white-space:nowrap; }
+  .stchip i { width:9px; height:9px; border-radius:2px; display:inline-block; }
+
   .czh { cursor:pointer; }
   .czh span:first-child::after { content:" ▸"; color:var(--mut); font-size:10px; }
   .czh:hover span:first-child { text-decoration:underline; }
