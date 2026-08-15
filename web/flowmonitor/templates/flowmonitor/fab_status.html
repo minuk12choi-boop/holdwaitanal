@@ -509,6 +509,15 @@ const czCharts = [null, null, null];
 let czDrill = null;
 let CZ_SEL = { i: -1, path: [] };          // 한 번에 하나만 파고든다
 let DRILL_KEY = { i: -1, node: null };     // 표가 어느 차트·막대에서 나왔는지
+
+// 드릴다운 표 상태. closeDrill 이 초기 로딩에서도 불리므로 선언을 앞에 둔다.
+let DRILL_DATA = null;      // 현재 표에 뿌린 원자료
+let SORT_KEYS = [];         // [{k, dir}] 순서가 곧 정렬 우선순위
+let HIDE_COLS = {};         // 감춘 컬럼
+let DFILT = {};             // 표 자체 필터 {컬럼: Set(값)}
+let DFILT_WT = null;        // WT 는 구간으로 고른다
+let FCACHE = null;          // 필터 결과. 정렬만 바뀌면 재사용한다
+let dfLast = {};            // shift 범위 선택 기준점
 let SEL_WT = null, SEL_WT0 = null, SEL_TYPE = null, SEL_PIE = null;
 
 function czGroup(i) { return (DATA.causes || [])[i] || { name: "", children: [] }; }
@@ -833,6 +842,7 @@ const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝�
 
 function closeDrill() {
   DRILL_SRC = ""; DRILL_DATA = null; SORT_KEYS = [];
+  HIDE_COLS = {}; DFILT = {}; DFILT_WT = null; dfLast = {}; FCACHE = null;
   document.getElementById("drill").innerHTML =
     `<div class="empty">좌측 <b>재공</b>·<b>status</b>·<b>W/T 분포</b>·
       <b>W/T 0 재공 분포</b> 또는 위 <b>원인 분석</b> 항목을 클릭하면
@@ -859,12 +869,6 @@ function clearOtherSelections(src) {
   if (src !== "status") { renderStatus(); }
   if (src !== "cause")  { renderCause(); }
 }
-
-let DRILL_DATA = null;      // 현재 표에 뿌린 원자료
-let SORT_KEYS = [];         // [{k, dir}] 순서가 곧 정렬 우선순위
-let HIDE_COLS = {};         // 감춘 컬럼
-let DFILT = {};             // 표 자체 필터 {컬럼: Set(값)}
-let DFILT_WT = null;        // WT 는 구간으로 고른다
 
 // 표 안에서 필터를 걸 컬럼
 const FILTER_COLS = ["line", "전산라인", "dest_line_id", "fa_object4",
@@ -903,8 +907,6 @@ function passFilter(r) {
   if (DFILT_WT && DFILT_WT.size && !DFILT_WT.has(wtKey(r.wt))) { return false; }
   return true;
 }
-
-let FCACHE = null;          // 필터 결과. 정렬만 바뀌면 재사용한다.
 
 function filteredRows() {
   if (FCACHE) { return FCACHE; }
@@ -961,7 +963,6 @@ function dfSearch(k) {
   });
 }
 
-let dfLast = {};
 function dfPick(ev, k, idx) {
   const box = document.getElementById("dfm_" + k);
   const boxes = [...box.querySelectorAll("input[data-opt-i]")];
@@ -1138,6 +1139,13 @@ function openDrill(filt, label, src) {
 
 /* --- 로딩 --- */
 function loadSummary() {
+  // 라인/lot_type/제품구분이 바뀌면 지금 표는 다른 조건의 결과다.
+  // 그대로 두면 잘못된 데이터를 보게 되므로 선택과 표를 함께 지운다.
+  SEL_WT = null; SEL_WT0 = null; SEL_TYPE = null; SEL_PIE = null;
+  CZ_SEL = { i: -1, path: [] };
+  DRILL_KEY = { i: -1, node: null };
+  closeDrill();
+
   fetch("/api/summary/?line=" + encodeURIComponent(LINE)
         + "&types=" + encodeURIComponent(selectedTypes().join(","))
         + "&prod1=" + encodeURIComponent(PROD1.join(","))
