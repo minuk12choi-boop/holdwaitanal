@@ -2,12 +2,22 @@
 {% block body %}
 <style>
   .std { padding:16px; }
+  /* 편집용 표는 값이 다 보여야 한다. 셀 안 input 이 width:100% 라
+     내용에 따른 자동 폭이 안 잡히므로 컬럼별 최소 폭을 직접 준다. */
+  .std .grid { width:100%; }
+  .std .grid th, .std .grid td { padding:5px 9px; }
+  .std .grid td .c { max-width:none; }
+  .std th.w-sm  { min-width:96px; }      /* LINE, TYPE 등 드롭다운 */
+  .std th.w-md  { min-width:132px; }     /* 코드값 */
+  .std th.w-lg  { min-width:200px; }     /* 사유/조건 텍스트 */
+  .std .gridwrap { max-height:none; }
   .std .card { border:1px solid var(--bd); border-radius:8px; background:#fff;
                margin-bottom:14px; }
   .std .card > .hd { padding:12px 16px; border-bottom:1px solid var(--bd);
                      display:flex; align-items:flex-start; justify-content:space-between;
                      gap:12px; flex-wrap:wrap; }
   .std .card > .bd { padding:12px 16px; }
+  .std .gridwrap { overflow-x:auto; }
   .std .tools { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
   .std .tools input[type=text] { padding:6px 9px; border:1px solid var(--bd);
                                  border-radius:6px; font-size:12px; min-width:150px; }
@@ -22,9 +32,10 @@
   .std .dirty { color:#B45309; font-size:11px; margin-left:6px; }
   .std td input, .std td select { width:100%; box-sizing:border-box; border:0;
                                   background:transparent; font-size:12px;
-                                  padding:2px 3px; font-family:inherit; }
+                                  padding:3px 4px; font-family:inherit; }
   .std td input:focus, .std td select:focus { outline:2px solid var(--brand-on);
                                               border-radius:3px; background:#fff; }
+  .std td select { appearance:auto; padding-right:2px; }
   .std td.ck, .std th.ck { width:34px; text-align:center; }
   .std tr.on td { background:#FFF7E0; }
   .std .req { color:#B91C1C; }
@@ -58,7 +69,8 @@
         <thead><tr>
           <th class="ck"><input type="checkbox" onchange="stdAll('{{ c.key }}',this)"></th>
           {% for col in c.cols %}
-            <th>{{ col.t }}{% if col.req %}<span class="req"> *</span>{% endif %}</th>
+            <th class="w-{{ col.w|default:'md' }}">{{ col.t }}{% if col.req %}<span
+              class="req"> *</span>{% endif %}</th>
           {% endfor %}
         </tr></thead>
         <tbody></tbody>
