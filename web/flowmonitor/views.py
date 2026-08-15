@@ -1695,12 +1695,28 @@ def api_trend(request):
     prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
     bdate = request.GET.get("biz_date", "")
     drill = [x for x in request.GET.get("drill", "").split("|") if x]
+    # scope=day 면 x축이 SHIFT, scope=week 면 최근 7일(날짜)
+    scope = request.GET.get("scope", "day")
+    wshift = request.GET.get("wshift", "GY")     # 주간 보기에서 볼 SHIFT
 
     rules, ht = _cause_rules(), _holdtype_rules()
     mv = _lot_move_map(line)
 
-    # 어떤 shift 를 x 축에 놓을지: 이미 적재된 것 + 현재
     points = []
+    if scope == "week":
+        if _table_exists("f3_history"):
+            with connection.cursor() as cur:
+                cur.execute(
+                    "SELECT DISTINCT biz_date FROM f3_history "
+                    "WHERE shift=%s ORDER BY biz_date DESC LIMIT 7", [wshift])
+                days = [str(r[0]) for r in cur.fetchall()][::-1]
+            for dstr in days:
+                points.append({"key": dstr, "label": dstr[5:],
+                               "shift": wshift, "biz_date": dstr})
+        return _trend_points(points, line, types, prod1, prod2, drill,
+                             rules, ht, scope, wshift)
+
+    # 어떤 shift 를 x 축에 놓을지: 이미 적재된 것 + 현재
     if bdate and _table_exists("f3_history"):
         with connection.cursor() as cur:
             cur.execute("SELECT DISTINCT shift FROM f3_history WHERE biz_date=%s",
@@ -1726,12 +1742,18 @@ def api_trend(request):
                                    "shift": sh, "biz_date": today})
     # 현재는 아직 도래하지 않은 shift 자리에 놓는다(맨 뒤 고정이 아니다)
     points.append({"key": "__now__", "label": "현재", "shift": None})
+    return _trend_points(points, line, types, prod1, prod2, drill,
+                         rules, ht, scope, wshift)
 
+
+def _trend_points(points, line, types, prod1, prod2, drill, rules, ht,
+                  scope, wshift):
+    """각 지점의 재공과 원인 비율을 센다. x축이 SHIFT 든 날짜든 같다."""
     out = []
     for p in points:
         if p["shift"]:
             rows, _ = _summary_rows(line, types,
-                                    biz_date=p.get("biz_date", bdate),
+                                    biz_date=p.get("biz_date"),
                                     shift=p["shift"])
         else:
             rows, _ = _summary_rows(line, types)
@@ -1775,7 +1797,7 @@ def api_trend(request):
 
     return JsonResponse({
         "points": out, "series": order, "drill": drill,
-        "levels": (["Hold", "Wait성 진행불가"] if not drill else []),
+        "scope": scope, "wshift": wshift,
     }, json_dumps_params={"ensure_ascii": False})
 
 

@@ -92,8 +92,9 @@
                                      padding:11px 12px;margin-bottom:10px">
       <div class="cellttl"><span>SHIFT 추이</span>
         <span class="czback" id="trdback" style="display:none"
-              onclick="trdGo(TRD_DRILL.length - 1)">◀ 뒤로</span></div>
+              onclick="trdBack()">◀ 뒤로</span></div>
       <div class="trdpath" id="trdpath"></div>
+      <span class="seg" id="trdshift" style="display:none"></span>
       <div id="trdlegend" class="trdlg"></div>
       <div style="height:240px"><canvas id="trdc"></canvas></div>
     </div>
@@ -712,6 +713,8 @@ function renderWt0Panel(show) {
 let trdChart = null;
 let TRD_DRILL = [];          // [] / [대분류] / [대분류, 중분류]
 let TRD_OFF = {};            // 숨긴 라인
+let TRD_SCOPE = "day";       // day = 그 날의 SHIFT, week = 최근 7일
+let TRD_WSHIFT = "GY";       // 주간 보기에서 볼 SHIFT
 
 const TRD_COLORS = ["#DC143C", "#F08080", "#E8C46A", "#84C09A", "#6699CC"];
 
@@ -721,7 +724,17 @@ function kfmt(v) {
   return n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(Math.round(n));
 }
 
+// 뒤로: 원인 계층을 먼저 올라가고, 더 올라갈 게 없으면 일간 -> 주간
+function trdBack() {
+  if (TRD_DRILL.length) { TRD_DRILL.pop(); }
+  else if (TRD_SCOPE === "day") { TRD_SCOPE = "week"; }
+  else { return; }
+  loadTrend();
+}
+
 function trdGo(n) { TRD_DRILL = TRD_DRILL.slice(0, n); loadTrend(); }
+function trdScope(v) { TRD_SCOPE = v; loadTrend(); }
+function trdWshift(v) { TRD_WSHIFT = v; loadTrend(); }
 function trdToggle(k) { TRD_OFF[k] = !TRD_OFF[k]; loadTrend(); }
 
 // 라인 하나를 골라 파고든다. 점을 정확히 찍기 어려워 범례에서도 부른다.
@@ -739,6 +752,7 @@ function loadTrend() {
     + "&prod1=" + encodeURIComponent(PROD1.join(","))
     + "&prod2=" + encodeURIComponent(PROD2.join(","))
     + "&biz_date=" + encodeURIComponent(SNAP_DATE)
+    + "&scope=" + TRD_SCOPE + "&wshift=" + TRD_WSHIFT
     + "&drill=" + encodeURIComponent(TRD_DRILL.join("|"));
   fetch("/api/trend/?" + q).then(r => r.json()).then(renderTrend);
 }
@@ -746,13 +760,30 @@ function loadTrend() {
 function renderTrend(d) {
   const pts = d.points || [], keys = d.series || [];
 
-  document.getElementById("trdpath").innerHTML = TRD_DRILL.length
-    ? `<a onclick="trdGo(0)">전체</a>`
-      + TRD_DRILL.map((x, i) =>
-          ` &gt; <a onclick="trdGo(${i + 1})">${x}</a>`).join("")
-    : `<span style="color:var(--mut);font-weight:400">재공(막대) · 비율(라인)</span>`;
+  const scopeName = (TRD_SCOPE === "week") ? "최근 7일" : "당일 SHIFT";
+  document.getElementById("trdpath").innerHTML =
+    `<a onclick="trdScope('${TRD_SCOPE === "week" ? "day" : "week"}')">`
+    + `${scopeName}</a>`
+    + (TRD_DRILL.length
+       ? ` &gt; <a onclick="trdGo(0)">전체</a>`
+         + TRD_DRILL.map((x, i) =>
+             ` &gt; <a onclick="trdGo(${i + 1})">${x}</a>`).join("")
+       : `<span style="color:var(--mut);font-weight:400"> · 재공(막대) 비율(라인)`
+         + `</span>`);
+
+  // 주간 보기에서만 SHIFT 토글
+  const sw = document.getElementById("trdshift");
+  if (sw) {
+    sw.style.display = (TRD_SCOPE === "week") ? "" : "none";
+    sw.innerHTML = ["GY", "DAY", "SW"].map(k =>
+      `<button class="${TRD_WSHIFT === k ? "on" : ""}"`
+      + ` onclick="trdWshift('${k}')">${k}</button>`).join("");
+  }
+
   const bk = document.getElementById("trdback");
-  if (bk) { bk.style.display = TRD_DRILL.length ? "" : "none"; }
+  if (bk) {
+    bk.style.display = (TRD_DRILL.length || TRD_SCOPE === "day") ? "" : "none";
+  }
 
   // 체크박스는 숨김/표시, 글자는 드릴다운.
   const canDrill = TRD_DRILL.length < 2;
