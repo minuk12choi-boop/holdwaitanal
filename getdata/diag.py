@@ -173,6 +173,64 @@ def diag_wt():
         print("  f3_move_lot 예시:", sorted(mv)[:5])
 
 
+def diag_lotwt(lot_id):
+    """한 lot 이 왜 WT=0 인지 추적한다.
+
+    f3 쪽 값 / f3_move_lot 적재분 / MOVE 원천을 나란히 보여준다.
+    """
+    import db_common as DB
+
+    if not lot_id:
+        print("사용: python getdata/diag.py lotwt 1DFSE01.1")
+        return
+
+    _head(f"lot {lot_id} MOVE 매칭 추적")
+    conn = DB.connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT MAX(snapshot_at) FROM f3_live")
+            snap = cur.fetchone()[0]
+            cur.execute(
+                "SELECT `line`, lot_id, lot_status, qty, `마지막작업경과_일` "
+                "FROM f3_live WHERE snapshot_at=%s AND lot_id=%s LIMIT 3",
+                [snap, lot_id])
+            rows = cur.fetchall()
+            print(f"[f3_live] snapshot={snap}")
+            if rows:
+                for r in rows:
+                    print(f"   line={r[0]} lot={r[1]!r} status={r[2]} qty={r[3]} "
+                          f"마지막작업경과일={r[4]}")
+            else:
+                print("   해당 lot 없음. lot_id 표기를 확인한다.")
+
+            cur.execute("SELECT MAX(biz_date) FROM f3_move_lot")
+            bd = cur.fetchone()[0]
+            print(f"\n[f3_move_lot] 화면이 쓰는 업무일 = {bd}")
+            cur.execute("SELECT biz_date, shift, sys_line_id, lot_id, move_qty "
+                        "FROM f3_move_lot WHERE lot_id=%s "
+                        "ORDER BY biz_date DESC, shift LIMIT 10", [lot_id])
+            mv = cur.fetchall()
+            if mv:
+                for r in mv:
+                    mark = "  <- 화면 대상" if r[0] == bd else ""
+                    print(f"   {r[0]} {r[1]:3s} {r[2]} qty={r[4]}{mark}")
+            else:
+                print("   적재된 MOVE 가 없다.")
+
+            # lot_id 표기 차이(공백/대소문자) 확인
+            cur.execute("SELECT DISTINCT lot_id FROM f3_move_lot "
+                        "WHERE REPLACE(UPPER(lot_id),' ','')=%s LIMIT 5",
+                        [lot_id.upper().replace(" ", "")])
+            same = [r[0] for r in cur.fetchall()]
+            if same and same != [lot_id]:
+                print(f"\n   표기가 다른 같은 lot: {same}")
+    finally:
+        conn.close()
+
+    print("\n[MOVE 원천] 최근 구간을 직접 조회하려면:")
+    print("   python getdata/get_move.py --hours 24   (재적재 후 다시 확인)")
+
+
 def main():
     what = (sys.argv[1] if len(sys.argv) > 1 else "all").lower()
     if what in ("hold", "all"):
@@ -183,6 +241,8 @@ def main():
         diag_tip()
     if what in ("wt", "all"):
         diag_wt()
+    if what == "lotwt":
+        diag_lotwt(sys.argv[2] if len(sys.argv) > 2 else "")
     if what in ("dates", "all"):
         diag_dates()
 

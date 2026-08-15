@@ -15,7 +15,7 @@ TPL_DIR = Path(__file__).resolve().parent / "templates" / "flowmonitor"
 
 PAGES = {
     "fab_status.html": [
-        "const nf =", "function loadSummary()", "function renderWip()",
+        "const nf =", "function loadSummary(", "function renderWip()",
         "function renderStatus()", "function renderWt()", "function renderCause()",
         "function openDrill", "function pickLine", "function smoothTo",
     ],

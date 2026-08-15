@@ -1262,6 +1262,11 @@ def api_summary(request):
              else list(DEFAULT_LOT_TYPES))
     prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
     prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
+    # 좌측에서 막대/조각을 고르면 원인 분석만 그 부분집합으로 다시 센다.
+    f_status = request.GET.get("f_status", "")
+    f_wt = request.GET.get("f_wt", "")
+    f_wt0 = request.GET.get("f_wt0", "")
+    f_type = request.GET.get("f_type", "")
 
     if not _table_exists("f3_live"):
         return JsonResponse({"ready": False, "reason": "f3_live 미적재"})
@@ -1313,6 +1318,16 @@ def api_summary(request):
             if b0:                       # status 별로도 쌓는다(누적막대용)
                 _bucket(wt0_st.setdefault(b0, {}), st, q)
             _bucket(wt0_tot, st, q)      # 전 구간 합계
+
+        if f_status and st != f_status:
+            continue
+        if f_type and (r.get("lot_type") or "-") != f_type:
+            continue
+        if f_wt and _wt_range_key(wt) != f_wt:
+            continue
+        if f_wt0 and (wt > 0
+                      or _wt0_bin(num_f(r.get("마지막작업경과_일"))) != f_wt0):
+            continue
 
         big, mid, subs = classify_lot(r, rules, ht)
         if not big:

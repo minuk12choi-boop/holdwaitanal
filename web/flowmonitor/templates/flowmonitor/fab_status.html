@@ -105,6 +105,13 @@
       </div>
     </div>
 
+    <!-- W/T 0 구간 x status 분해. 폭이 넓어 라벨이 다 보인다. -->
+    <div class="cell" id="wt0panel" style="display:none;border:1px solid var(--bd);
+         border-radius:6px;padding:11px 12px;margin-bottom:10px">
+      <div class="cellttl"><span>W/T 0 재공 · 경과기간 × STATUS</span></div>
+      <div style="height:220px"><canvas id="wt0hc"></canvas></div>
+    </div>
+
     <div class="detail" id="drill">
       <div class="empty">좌측 <b>W/T 분포</b>·<b>W/T 0 재공 분포</b> 막대나
         위 <b>원인 분석</b> 항목을 클릭하면 해당 LOT 상세가 여기에 표시됩니다.</div>
@@ -198,9 +205,16 @@ function prodPicked(which, isAll) {
   const sel = opts.filter(x => x.checked).map(x => x.value);
   if (all) { all.checked = (sel.length === opts.length && opts.length > 0); }
 
-  // 전부 선택 == 전체. 서버에는 빈 값으로 보내 필터를 걸지 않는다.
+  // 전부 선택 == 전체(빈 배열). 다만 '전부 해제' 는 전체가 아니다.
+  // 그때 빈 배열로 보내면 서버가 전체로 보고 다시 다 체크되어 되돌아간다.
+  // 하나도 안 고른 동안에는 조회하지 않고 UI 상태만 유지한다.
   const eff = (sel.length === opts.length) ? [] : sel;
   if (which === 1) { PROD1 = eff; PROD2 = []; } else { PROD2 = eff; }
+  if (sel.length === 0) {
+    document.getElementById("p" + which + "b").innerHTML =
+      `<span>${PROD_LABEL[which]} 선택 없음</span><span>&#9662;</span>`;
+    return;                       // 항목을 고르면 그때 조회한다
+  }
   loadSummary();
 }
 
@@ -269,6 +283,7 @@ function setWt0Unit(u) {
   document.getElementById("zu_lots").className = (u === "lots") ? "on" : "";
   document.getElementById("zu_qty").className = (u === "qty") ? "on" : "";
   renderWt0();
+  renderWt0Panel(DRILL_SRC === "wt0");
 }
 
 /* --- 재공 --- */
@@ -301,6 +316,7 @@ function pickType(name) {
   requestAnimationFrame(() => {      // 그다음 프레임에 요청을 건다
     if (SEL_TYPE) { openDrill({ lot_type: name }, name, "type"); }
     else { closeDrill(); }
+    loadSummary(true);
   });
 }
 
@@ -378,6 +394,7 @@ function renderStatus() {
           dnChart.update();
           if (SEL_PIE) { openDrill({ status: st.name }, st.name, "status"); }
           else { closeDrill(); }
+          loadSummary(true);
         }
       },
       plugins: [sliceLabels]
@@ -419,9 +436,11 @@ function renderWt() {
         onClick: (e, els) => {
           if (!els.length) return;
           const x = DATA.wt_dist[els[0].index];
-          SEL_WT = x.name;
-          openDrill({ wt_range: x.name }, x.label, "wt");
+          SEL_WT = (SEL_WT === x.name) ? null : x.name;
           renderWt();
+          if (SEL_WT) { openDrill({ wt_range: x.name }, x.label, "wt"); }
+          else { closeDrill(); }
+          loadSummary(true);
         }
       },
       plugins: [{
@@ -447,7 +466,7 @@ function renderWt() {
   wtChart.update();
 }
 
-/* --- W/T 0 재공 분포 : 마지막 작업 이후 경과일, status 누적막대 --- */
+/* --- W/T 0 재공 분포 : 마지막 작업 이후 경과일 --- */
 let wt0Chart = null;
 
 function renderWt0() {
@@ -455,9 +474,84 @@ function renderWt0() {
   const list = d.wt0_dist || [];
   const sts = d.wt0_status || [];
   const unit = (u === "lots") ? " lot" : " 매";
+  const vals = list.map(x => u === "lots" ? x.lots : x.qty);
+  const colors = list.map((_, i) =>
+    `rgba(220,20,60,${Math.min(0.25 + 0.1 * i, 1).toFixed(2)})`);
 
-  // 구간별 합계(비율 계산용)
-  const binTot = list.map(x => (u === "lots" ? x.lots : x.qty) || 0);
+  if (!wt0Chart) {
+    wt0Chart = new Chart(document.getElementById("wt0c"), {
+      type: "bar",
+      data: { labels: [], datasets: [{ data: [], borderRadius: 3 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        layout: { padding: { top: 16 } },
+        plugins: { legend: { display: false },
+                   tooltip: { callbacks: { label: (t) => {
+                     const x = (DATA.wt0_dist || [])[t.dataIndex] || {};
+                     return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
+                   } } } },
+        scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                  y: { display: false, beginAtZero: true, grace: "18%" } },
+        onClick: (e, els) => {
+          if (!els.length) return;
+          const x = (DATA.wt0_dist || [])[els[0].index];
+          SEL_WT0 = (SEL_WT0 === x.name) ? null : x.name;
+          renderWt0();
+          if (SEL_WT0) { openDrill({ wt0: x.name }, x.label, "wt0"); }
+          else { closeDrill(); }
+          loadSummary(true);           // 원인 분석을 이 구간으로 좁힌다
+        }
+      },
+      plugins: [{
+        id: "wt0Val",
+        afterDatasetsDraw(ch) {
+          const ctx = ch.ctx; ctx.save();
+          ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
+          ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+          ctx.fillStyle = "#374151";
+          ch.getDatasetMeta(0).data.forEach((el, k) => {
+            const v = ch.data.datasets[0].data[k];
+            if (!v) { return; }
+            ctx.fillText(nf(v) + (WT0_UNIT === "lots" ? " lot" : " 매"),
+                         el.x, el.y - 4);
+          });
+          ctx.restore();
+        }
+      }]
+    });
+  }
+  wt0Chart.data.labels = list.map(x => x.label);
+  wt0Chart.data.datasets[0].data = vals;
+  wt0Chart.data.datasets[0].backgroundColor = colors;
+  markSelected(wt0Chart, list.findIndex(x => x.name === SEL_WT0));
+  wt0Chart.update();
+
+  // 전 구간 status 비율 (누적막대 대신 글자로 남긴다)
+  const gt = sts.reduce((a, x) => a + (u === "lots" ? x.lots : x.qty), 0);
+  document.getElementById("wt0sum").innerHTML = gt
+    ? sts.map(x => {
+        const v = (u === "lots" ? x.lots : x.qty);
+        return `<span class="stchip"><i style="background:${x.color}"></i>`
+             + `${x.name} ${nf(v)}${unit} (${Math.round(v / gt * 100)}%)</span>`;
+      }).join("")
+    : "";
+}
+
+/* --- W/T 0 : 경과기간 x status 가로 누적막대 (드릴다운 위) --- */
+let wt0hChart = null;
+
+function renderWt0Panel(show) {
+  const box = document.getElementById("wt0panel");
+  if (!show || !DATA || !(DATA.wt0_status || []).length) {
+    box.style.display = "none";
+    return;
+  }
+  box.style.display = "block";
+
+  const u = WT0_UNIT;
+  const list = DATA.wt0_dist || [];
+  const sts = DATA.wt0_status || [];
+  const tot = list.map(x => (u === "lots" ? x.lots : x.qty) || 0);
 
   const datasets = sts.map(st => ({
     label: st.name,
@@ -469,90 +563,71 @@ function renderWt0() {
     })
   }));
 
-  if (!wt0Chart) {
-    wt0Chart = new Chart(document.getElementById("wt0c"), {
+  if (!wt0hChart) {
+    wt0hChart = new Chart(document.getElementById("wt0hc"), {
       type: "bar",
       data: { labels: [], datasets: [] },
       options: {
+        indexAxis: "y",
         responsive: true, maintainAspectRatio: false, animation: false,
-        layout: { padding: { top: 18 } },
-        plugins: { legend: { display: false },
+        layout: { padding: { right: 60 } },
+        plugins: { legend: { display: true, position: "bottom",
+                             labels: { boxWidth: 10, font: { size: 10 } } },
                    tooltip: { callbacks: { label: (t) => {
-                     const tot = (wt0Chart.$binTot || [])[t.dataIndex] || 0;
+                     const g = (wt0hChart.$tot || [])[t.dataIndex] || 0;
                      const v = t.raw || 0;
-                     const p = tot ? Math.round(v / tot * 100) : 0;
                      return t.dataset.label + " " + nf(v)
-                            + (WT0_UNIT === "lots" ? " lot" : " 매")
-                            + " (" + p + "%)";
+                       + (WT0_UNIT === "lots" ? " lot" : " 매")
+                       + (g ? " (" + Math.round(v / g * 100) + "%)" : "");
                    } } } },
-        scales: { x: { stacked: true, grid: { display: false },
-                       ticks: { font: { size: 10 } } },
-                  y: { stacked: true, display: false, beginAtZero: true,
-                       grace: "20%" } },
+        scales: { x: { stacked: true, beginAtZero: true,
+                       grid: { color: "#F1F2F4" }, ticks: { font: { size: 10 } } },
+                  y: { stacked: true, grid: { display: false },
+                       ticks: { font: { size: 11 } } } },
         onClick: (e, els) => {
           if (!els.length) return;
           const x = (DATA.wt0_dist || [])[els[0].index];
           SEL_WT0 = x.name;
-          openDrill({ wt0: x.name }, x.label, "wt0");
           renderWt0();
+          openDrill({ wt0: x.name }, x.label, "wt0");
         }
       },
       plugins: [{
-        id: "wt0Val",
+        id: "wt0hVal",
         afterDatasetsDraw(ch) {
-          const ctx = ch.ctx;
-          ctx.save();
-          ctx.font = "9px 'Poppins','Noto Sans KR',sans-serif";
-          ctx.textAlign = "center";
-          const tot = ch.$binTot || [];
-
-          // 누적 조각마다 값과 비율. 조각이 얇으면 생략한다.
+          const ctx = ch.ctx; ctx.save();
+          ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
+          ctx.textBaseline = "middle";
+          const g = ch.$tot || [];
           ch.data.datasets.forEach((ds, di) => {
-            const meta = ch.getDatasetMeta(di);
-            if (meta.hidden) { return; }
-            meta.data.forEach((el, k) => {
+            ctx.textAlign = "center";
+            ctx.fillStyle = "#1F2937";
+            ch.getDatasetMeta(di).data.forEach((el, k) => {
               const v = ds.data[k];
               if (!v) { return; }
-              const p = tot[k] ? Math.round(v / tot[k] * 100) : 0;
-              const h = Math.abs(el.base - el.y);
-              if (h < 13) { return; }
-              ctx.fillStyle = "#1F2937";
-              ctx.textBaseline = "middle";
-              ctx.fillText(nf(v) + " (" + p + "%)", el.x, (el.y + el.base) / 2);
+              const w = Math.abs(el.x - el.base);
+              if (w < 46) { return; }        // 좁으면 생략
+              const p = g[k] ? Math.round(v / g[k] * 100) : 0;
+              ctx.fillText(nf(v) + " (" + p + "%)", (el.x + el.base) / 2, el.y);
             });
           });
-
-          // 구간 합계는 막대 위에
-          const top = ch.getDatasetMeta(ch.data.datasets.length - 1);
+          const last = ch.getDatasetMeta(ch.data.datasets.length - 1);
+          ctx.textAlign = "left";
           ctx.fillStyle = "#374151";
-          ctx.textBaseline = "bottom";
-          ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
-          (top ? top.data : []).forEach((el, k) => {
-            if (!tot[k]) { return; }
-            ctx.fillText(nf(tot[k]) + (WT0_UNIT === "lots" ? " lot" : " 매"),
-                         el.x, el.y - 4);
+          (last ? last.data : []).forEach((el, k) => {
+            if (!g[k]) { return; }
+            ctx.fillText(nf(g[k]) + (WT0_UNIT === "lots" ? " lot" : " 매"),
+                         el.x + 6, el.y);
           });
           ctx.restore();
         }
       }]
     });
   }
-
-  wt0Chart.$binTot = binTot;
-  wt0Chart.data.labels = list.map(x => x.label);
-  wt0Chart.data.datasets = datasets;
-  markSelected(wt0Chart, -1);        // 누적막대는 조각 단위 강조를 쓰지 않는다
-  wt0Chart.update();
-
-  // 전 구간 status 요약
-  const gt = sts.reduce((a, x) => a + (u === "lots" ? x.lots : x.qty), 0);
-  document.getElementById("wt0sum").innerHTML = gt
-    ? sts.map(x => {
-        const v = (u === "lots" ? x.lots : x.qty);
-        return `<span class="stchip"><i style="background:${x.color}"></i>`
-             + `${x.name} ${nf(v)}${unit} (${Math.round(v / gt * 100)}%)</span>`;
-      }).join("")
-    : "";
+  wt0hChart.$tot = tot;
+  wt0hChart.data.labels = list.map(x => x.label);
+  wt0hChart.data.datasets = datasets;
+  wt0hChart.update();
 }
 
 /* --- 원인 분석 -------------------------------------------------------------
@@ -918,6 +993,8 @@ const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝�
                           "마지막작업경과_일"]);
 
 function closeDrill() {
+  const p = document.getElementById("wt0panel");
+  if (p) { p.style.display = "none"; }
   DRILL_SRC = ""; DRILL_DATA = null; SORT_KEYS = [];
   HIDE_COLS = {}; DFILT = {}; DFILT_WT = null; dfLast = {}; FCACHE = null;
   COL_ORDER = null;
@@ -932,9 +1009,10 @@ let DRILL_SRC = "";
 
 function clearOtherSelections(src) {
   if (DRILL_SRC === src) { return; }
+  if (!src) { DRILL_SRC = ""; return; }
   // 선택 상태만 지우면 차트에 이전 표시가 남는다. 반드시 다시 그린다.
   if (src !== "cause")  { DRILL_KEY = { i: -1, node: null };
-                          CZ_SEL = { i: -1, path: [] }; }
+                          if (!keepFocus) { CZ_SEL = { i: -1, path: [] }; } }
   if (src !== "wt")     { SEL_WT = null; }
   if (src !== "wt0")    { SEL_WT0 = null; }
   if (src !== "type")   { SEL_TYPE = null; }
@@ -1083,7 +1161,7 @@ function dfLabel(k, n, total) {
   const b = document.getElementById("dfb_" + k);
   if (!b) { return; }
   const t = (DRILL_DATA.cols.find(c => c.k === k) || {}).t || k;
-  const all = (n === 0 || n === total);
+  const all = (n === total);
   b.innerHTML = `<span>${t}${all ? "" : " " + n}</span><span>&#9662;</span>`;
   b.classList.toggle("on", !all);
 }
@@ -1159,15 +1237,40 @@ function colDragStart(ev, k) {
   try { ev.dataTransfer.setData("text/plain", k); } catch (e) { /* 무시 */ }
   ev.target.classList.add("dragging");
 }
-function colDragOver(ev) { ev.preventDefault(); ev.dataTransfer.dropEffect = "move"; }
+function colDragOver(ev) {
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = "move";
+  autoScroll(ev.clientX);           // 가장자리에 오면 표를 밀어준다
+}
+
+// 드래그 중에는 브라우저가 스크롤을 안 해준다. 직접 민다.
+let scrollTimer = null;
+function autoScroll(x) {
+  const box = document.getElementById("drillBody");
+  if (!box) { return; }
+  const r = box.getBoundingClientRect();
+  const EDGE = 60;                  // 가장자리 감지 폭
+  let dx = 0;
+  if (x < r.left + EDGE) { dx = -Math.max(8, (r.left + EDGE - x) / 2); }
+  else if (x > r.right - EDGE) { dx = Math.max(8, (x - (r.right - EDGE)) / 2); }
+
+  if (!dx) { stopScroll(); return; }
+  if (scrollTimer) { return; }
+  scrollTimer = setInterval(() => { box.scrollLeft += dx; }, 16);
+}
+function stopScroll() {
+  if (scrollTimer) { clearInterval(scrollTimer); scrollTimer = null; }
+}
 function colDragEnd(ev) {
+  stopScroll();
   dragKey = null;
   document.querySelectorAll("th.dragging").forEach(x =>
     x.classList.remove("dragging"));
 }
 function colDrop(ev, target) {
   ev.preventDefault();
-  ev.stopPropagation();                       // 드롭으로 정렬이 걸리지 않게
+  ev.stopPropagation();
+  stopScroll();                       // 드롭으로 정렬이 걸리지 않게
   if (!dragKey || dragKey === target) { return; }
   const order = drillCols().map(c => c.k);
   const from = order.indexOf(dragKey);
@@ -1282,6 +1385,7 @@ function reopenDrill() {
 function openDrill(filt, label, src, keepView) {
   LAST_DRILL = { f: filt, l: label, s: src };
   clearOtherSelections(src || "");
+  renderWt0Panel(src === "wt0");      // W/T0 드릴다운일 때만 보인다
   const el = document.getElementById("drill");
   // 곧바로 자리표시자를 그려 '눌리지 않은 것처럼' 보이지 않게 한다.
   el.classList.add("loading");
@@ -1325,18 +1429,24 @@ function openDrill(filt, label, src, keepView) {
 }
 
 /* --- 로딩 --- */
-function loadSummary() {
+function loadSummary(keepFocus) {
   // 라인/lot_type/제품구분이 바뀌면 지금 표는 다른 조건의 결과다.
-  // 그대로 두면 잘못된 데이터를 보게 되므로 선택과 표를 함께 지운다.
-  SEL_WT = null; SEL_WT0 = null; SEL_TYPE = null; SEL_PIE = null;
-  CZ_SEL = { i: -1, path: [] };
-  DRILL_KEY = { i: -1, node: null };
-  closeDrill();
+  // keepFocus 는 좌측 막대를 눌러 원인 분석만 좁히는 경우라 선택을 유지한다.
+  if (!keepFocus) {
+    SEL_WT = null; SEL_WT0 = null; SEL_TYPE = null; SEL_PIE = null;
+    CZ_SEL = { i: -1, path: [] };
+    DRILL_KEY = { i: -1, node: null };
+    closeDrill();
+  }
 
   fetch("/api/summary/?line=" + encodeURIComponent(LINE)
         + "&types=" + encodeURIComponent(selectedTypes().join(","))
         + "&prod1=" + encodeURIComponent(PROD1.join(","))
-        + "&prod2=" + encodeURIComponent(PROD2.join(",")))
+        + "&prod2=" + encodeURIComponent(PROD2.join(","))
+        + "&f_status=" + encodeURIComponent(SEL_PIE || "")
+        + "&f_wt=" + encodeURIComponent(SEL_WT || "")
+        + "&f_wt0=" + encodeURIComponent(SEL_WT0 || "")
+        + "&f_type=" + encodeURIComponent(SEL_TYPE || ""))
     .then(r => r.ok ? r.json() : Promise.reject("HTTP " + r.status))
     .then(d => {
       const err = document.getElementById("err");
@@ -1348,7 +1458,7 @@ function loadSummary() {
       err.textContent = "";
       DATA = d;
       SEL_STATUS = null;
-      CZ_SEL = { i: -1, path: [] };
+      if (!keepFocus) { CZ_SEL = { i: -1, path: [] }; }
       document.getElementById("snapAt").textContent = d.snapshot_at || "-";
       renderProd(d);
       renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
