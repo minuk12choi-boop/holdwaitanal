@@ -362,17 +362,32 @@
   .dfs { display:flex; flex-wrap:wrap; gap:4px; flex:1; }
   .dd.df { position:relative; }
   .dd.df > button { border:1px solid var(--bd); background:#fff; border-radius:5px;
-                    font-size:11px; padding:3px 8px; cursor:pointer;
-                    display:inline-flex; gap:5px; align-items:center;
-                    color:var(--mut); }
+                    font-size:11px; padding:0 8px; cursor:pointer;
+                    gap:5px; color:var(--mut); }
   .dd.df > button.on { background:var(--brand); color:#fff;
                        border-color:var(--brand); }
   .dd.df .menu { left:0; right:auto; top:26px; max-height:260px; overflow:auto;
                  min-width:170px; }
   .dfall { border-bottom:1px solid var(--bd); font-weight:600; }
-  .dfclear { border:1px solid var(--bd); background:#fff; border-radius:5px;
-             font-size:11px; padding:3px 8px; cursor:pointer; color:var(--mut); }
-  .dfclear:hover { background:#F3F4F6; }
+
+  /* 필터가 아니라 '동작' 이므로 배경을 달리해 구분한다. */
+  .dfclear { border:1px solid var(--brand); background:var(--brand); color:#fff;
+             border-radius:5px; font-size:11px; font-weight:600;
+             padding:0 10px; cursor:pointer; white-space:nowrap; }
+  .dfclear:hover { background:var(--brand-on); border-color:var(--brand-on); }
+
+  /* 현재 걸린 정렬 표시 */
+  .sortchip { border:1px solid var(--bd); background:#fff; border-radius:5px;
+              font-size:11px; padding:0 8px; cursor:pointer; color:var(--fg);
+              white-space:nowrap; }
+  .sortchip:hover { background:#F3F4F6; }
+  .sortchip b { color:#DC143C; margin-right:3px; }
+
+  /* 영문/한글이 섞여도 높이가 흔들리지 않게 한 줄 높이를 고정한다. */
+  .dfs { align-items:center; }
+  .dfs > .dfclear, .dfs > .sortchip, .dd.df > button {
+      height:24px; line-height:22px; box-sizing:border-box;
+      display:inline-flex; align-items:center; }
   /* 표 행이 적어 카드가 짧아져도 필터 목록이 잘리지 않게 한다. */
   .detail { overflow:visible; }
   .dtools { overflow:visible; position:relative; z-index:30; }

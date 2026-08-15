@@ -1617,6 +1617,7 @@ def api_lots_live(request):
         "rows": out,
         "cols": [{"k": c, "t": t} for c, t in send],
         "all_cols": [{"k": c, "t": t} for c, t in LOT_DETAIL_COLS],
+        "status_colors": STATUS_COLORS,
         "lots": len(out), "qty": tot_qty,
         "line": line, "snapshot_at": str(snap) if snap else "",
     }, json_dumps_params={"ensure_ascii": False})

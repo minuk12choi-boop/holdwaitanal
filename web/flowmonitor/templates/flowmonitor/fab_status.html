@@ -1125,6 +1125,21 @@ function colDrop(ev, target) {
   renderDrillTable();
 }
 
+function renderDrillSorts() {
+  const box = document.getElementById("drillSorts");
+  if (!box) { return; }
+  const cols = allCols();
+  const name = (k) => (cols.find(c => c.k === k) || {}).t || k;
+  box.innerHTML = `<button class="dfclear" onclick="sortClearAll()">정렬 해제</button>`
+    + (SORT_KEYS.length
+       ? SORT_KEYS.map((s, i) =>
+           `<button class="sortchip" onclick="drillSort('${s.k}')">`
+           + `<b>${i + 1}</b> ${name(s.k)} ${s.dir === 1 ? "▲" : "▼"}</button>`).join("")
+       : `<span class="minittl">컬럼명을 눌러 정렬</span>`);
+}
+
+function sortClearAll() { SORT_KEYS = []; renderDrillTable(); }
+
 function renderDrillTable() {
   const d = DRILL_DATA;
   if (!d) { return; }
@@ -1149,6 +1164,8 @@ function renderDrillTable() {
   const keys = cols.map(c => c.k);
   const isNum = cols.map(c => NUM_COLS.has(c.k));
   const isWt = cols.map(c => c.k === "wt");
+  const isSt = cols.map(c => c.k === "lot_status");
+  const SC = d.status_colors || {};
   const nc = cols.length;
 
   const buf = [];
@@ -1159,13 +1176,15 @@ function renderDrillTable() {
       const raw = r[keys[j]];
       let v = (raw === null || raw === undefined) ? ""
         : (isWt[j] ? Number(raw).toFixed(1) : String(raw));
+      // 상태 셀은 좌측 원차트와 같은 색을 배경으로 쓴다.
+      const bg = isSt[j] && SC[v] ? ' style="background:' + SC[v] + '33"' : "";
       if (v.length > LONG) {
-        buf.push(isNum[j] ? '<td class="num"><span class="c">'
-                          : '<td><span class="c">');
+        buf.push(isNum[j] ? '<td class="num"' + bg + '><span class="c">'
+                          : "<td" + bg + '><span class="c">');
         buf.push(v);
         buf.push("</span></td>");
       } else {
-        buf.push(isNum[j] ? '<td class="num">' : "<td>");
+        buf.push(isNum[j] ? '<td class="num"' + bg + ">" : "<td" + bg + ">");
         buf.push(v);
         buf.push("</td>");
       }
@@ -1177,6 +1196,7 @@ function renderDrillTable() {
   if (cnt) {
     cnt.textContent = nf(rows.length) + " / " + nf((d.rows || []).length) + " 행";
   }
+  renderDrillSorts();
   document.getElementById("drillBody").innerHTML =
     `<table class="grid"><thead><tr>${head}</tr></thead><tbody>`
     + (buf.length ? buf.join("")
@@ -1239,6 +1259,8 @@ function openDrill(filt, label, src, keepView) {
           <div class="chips" id="drillCols"></div></div>
         <div class="drow"><span class="minittl">필터</span>
           <div class="dfs" id="drillFilters"></div></div>
+        <div class="drow"><span class="minittl">정렬</span>
+          <div class="dfs" id="drillSorts"></div></div>
       </div>
       <div class="gridwrap" id="drillBody"></div>`;
     renderDrillHead();
