@@ -1,19 +1,26 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python getdata/diag.py lotwt 1
-
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python getdata/diag.py lotwt 1    
+                                  
 ======================================================================
-lot 1.1 MOVE 매칭 추적
+lot 1 MOVE 매칭 추적
 ======================================================================
-[f3_live] snapshot=2026-08-15 12:47:07
-   line=KFR4 lot='1.1' status=RUN qty=12.0 마지막작업경과일=0.0
+[f3_live] snapshot=2026-08-15 12:57:03
+   line=KFR4 lot='1DFSE01.1' status=RUN qty=12.0 마지막작업경과일=0.0
 
 [f3_move_lot] 화면이 쓰는 업무일 = 2026-08-15
-   2026-08-15 DAY R7 qty=48  <- 화면 대상
-   2026-08-14 SW  R7 qty=96
-   2026-08-13 SW  R7 qty=24
-   2026-08-10 GY  R7 qty=24
-   2026-08-09 SW  R7 qty=48
-   2026-08-08 GY  R7 qty=144
-   2026-08-07 DAY R7 qty=24
-   2026-08-07 SW  R7 qty=48
-   2026-08-05 DAY R7 qty=24
-   2026-08-05 SW  R7 qty=48
+   2026-08-15 DAY KFR7 qty=48  <- 화면 대상
+   2026-08-14 SW  KFR7 qty=96
+   2026-08-13 SW  KFR7 qty=24
+   2026-08-10 GY  KFR7 qty=24
+   2026-08-09 SW  KFR7 qty=48
+   2026-08-08 GY  KFR7 qty=144
+   2026-08-07 DAY KFR7 qty=24
+   2026-08-07 SW  KFR7 qty=48
+   2026-08-05 DAY KFR7 qty=24
+   2026-08-05 SW  KFR7 qty=48
+
+[W/T 계산] MOVE 48 / 재공 12 = 4.00
+   값이 0 이 아닌데 화면이 0 이면 웹이 옛 코드로 떠 있는 것이다.
+   waitress 를 재시작한다.
+
+[MOVE 원천] 최근 구간을 직접 조회하려면:
+   python getdata/get_move.py --hours 24   (재적재 후 다시 확인)
