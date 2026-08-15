@@ -5,10 +5,8 @@
   <div class="summary">
     <div class="gfilter">
       <div class="prodf" style="margin-bottom:8px">
-        <div class="dd" id="dsd">
-          <button onclick="toggleProd('dsd')" id="sdb">날짜 현재 &#9662;</button>
-          <div class="menu" id="sdm"></div>
-        </div>
+        <input type="date" id="snapDate" class="datef"
+               onchange="pickSnapDate(this.value)" title="비우면 현재">
         <div class="dd" id="dsh">
           <button onclick="toggleProd('dsh')" id="shb">SHIFT 현재 &#9662;</button>
           <div class="menu" id="shm"></div>
@@ -194,29 +192,36 @@ let PROD1 = [], PROD2 = [];
 let SNAP_DATE = "", SNAP_SHIFT = "";     // 빈 값이면 현재(f3_live)
 
 // 날짜 / SHIFT 선택. 맨 위 '현재' 가 f3_live 다.
+// SHIFT 기준 시각. f3_history 에 아직 없어도 선택지는 늘 보여준다.
+const SHIFT_AT = { GY: "22:00", SW: "14:00", DAY: "06:00" };
+const SHIFT_LIST = ["GY", "SW", "DAY"];
+
 function renderSnap(d) {
   const snaps = d.snapshots || [];
-  const dates = [];
-  snaps.forEach(x => { if (dates.indexOf(x.biz_date) < 0) dates.push(x.biz_date); });
+  const el = document.getElementById("snapDate");
+  if (el && el.value !== SNAP_DATE) { el.value = SNAP_DATE; }
+  if (el) {
+    const ds = snaps.map(x => x.biz_date).sort();
+    if (ds.length) { el.min = ds[0]; el.max = ds[ds.length - 1]; }
+    el.classList.toggle("on", !!SNAP_DATE);
+  }
 
-  const dm = document.getElementById("sdm");
-  dm.innerHTML = `<label><input type="radio" name="snapd" ${!SNAP_DATE ? "checked" : ""}`
-    + ` onchange="pickSnapDate('')">현재</label>`
-    + dates.map(v => `<label><input type="radio" name="snapd"`
-        + `${SNAP_DATE === v ? " checked" : ""}`
-        + ` onchange="pickSnapDate('${v}')">${v}</label>`).join("");
-  document.getElementById("sdb").innerHTML =
-    `<span>날짜 ${SNAP_DATE || "현재"}</span><span>&#9662;</span>`;
-  document.getElementById("sdb").classList.toggle("on", !!SNAP_DATE);
+  // 그 날짜에 실제로 적재된 shift 는 시각을 함께 보여준다.
+  const have = {};
+  snaps.filter(x => !SNAP_DATE || x.biz_date === SNAP_DATE)
+       .forEach(x => { have[x.shift] = x.at; });
 
-  // SHIFT 는 고른 날짜의 것만. 시각을 함께 보여준다.
-  const list = SNAP_DATE ? snaps.filter(x => x.biz_date === SNAP_DATE) : [];
   const sm = document.getElementById("shm");
-  sm.innerHTML = `<label><input type="radio" name="snaps" ${!SNAP_SHIFT ? "checked" : ""}`
-    + ` onchange="pickSnapShift('')">현재</label>`
-    + list.map(x => `<label><input type="radio" name="snaps"`
-        + `${SNAP_SHIFT === x.shift ? " checked" : ""}`
-        + ` onchange="pickSnapShift('${x.shift}')">${x.shift} (${x.at})</label>`).join("");
+  sm.innerHTML = `<label><input type="radio" name="snaps"`
+    + `${!SNAP_SHIFT ? " checked" : ""} onchange="pickSnapShift('')">현재</label>`
+    + SHIFT_LIST.map(k => {
+        const at = have[k] || SHIFT_AT[k];
+        const off = !have[k] && SNAP_DATE;      // 그 날 데이터가 없는 shift
+        return `<label${off ? ' style="color:var(--mut)"' : ""}>`
+          + `<input type="radio" name="snaps"${SNAP_SHIFT === k ? " checked" : ""}`
+          + `${off ? " disabled" : ""} onchange="pickSnapShift('${k}')">`
+          + `${k} (${at})${off ? " · 없음" : ""}</label>`;
+      }).join("");
   document.getElementById("shb").innerHTML =
     `<span>SHIFT ${SNAP_SHIFT || "현재"}</span><span>&#9662;</span>`;
   document.getElementById("shb").classList.toggle("on", !!SNAP_SHIFT);

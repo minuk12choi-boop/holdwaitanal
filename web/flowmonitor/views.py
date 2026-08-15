@@ -644,6 +644,22 @@ def num_f(v, default=None):
         return default
 
 
+def calc_wt(mv, lot_id, qty, status):
+    """lot 의 W/T.
+
+    MOVE 는 TrackOut 이 끝난 것만 잡히므로, 지금 막 RUN 으로 들어간 lot 은
+    실제로는 진행 중인데 W/T=0 으로 보인다. 그 잡음을 걷어내려고
+    **MOVE 가 없는 RUN 은 한 스텝(=1)** 으로 본다.
+    이렇게 해야 W/T=0 이 '작업 없이 멈춰 있는 재공' 만 남는다.
+    """
+    if not qty:
+        return 0.0
+    wt = mv.get(lot_id, 0.0) / qty
+    if wt <= 0 and str(status or "").upper() == "RUN":
+        return 1.0
+    return wt
+
+
 def num(v, default=0):
     """f3 는 전 컬럼이 문자열이라 qty 가 '20.0' 처럼 올 수 있다.
     int('20.0') 은 ValueError 이므로 float 을 거쳐 변환한다."""
@@ -698,7 +714,7 @@ def _wt_source(biz_date, line):
         """, [biz_date, line, *MOVE_LOT_TYPES])
         for sh, lot, qty, hold, exc, ftp, down, tip, st in cur.fetchall():
             lots.setdefault(sh, {})[lot] = (
-                num(qty), _cause_of(hold, exc, ftp, down, tip, st))
+                num(qty), _cause_of(hold, exc, ftp, down, tip, st), st)
 
         cur.execute("""
             SELECT shift, lot_id, SUM(move_qty)
@@ -742,8 +758,8 @@ def api_lowwt(request):
         mv = moves.get(col, {})
         base = len(lt)
         low_lots, bin_cnt, cause_cnt = 0, {b["key"]: 0 for b in bins}, {}
-        for lot, (qty, cs) in lt.items():
-            wt = (mv.get(lot, 0.0) / qty) if qty else 0.0
+        for lot, (qty, cs, st) in lt.items():
+            wt = calc_wt(mv, lot, qty, st)
             key = _bin_of(wt, max_wt)
             if key is None:
                 continue
@@ -914,7 +930,7 @@ def api_lots(request):
     out = []
     for r in recs:
         qty = num(r.get("qty"))
-        wt = (mv.get(r["lot_id"], 0.0) / qty) if qty else 0.0
+        wt = calc_wt(mv, r["lot_id"], qty, r.get("lot_status"))
         if bin_key and _bin_of(wt, max_wt) != bin_key:
             continue
         if wt_range and _wt_range_key(wt) != wt_range:
@@ -1344,7 +1360,7 @@ def api_summary(request):
         tot["qty"] += q
         _bucket(by_type, r.get("lot_type") or "-", q)
         _bucket(by_status, st, q)
-        wt = (mv.get(r["lot_id"], 0.0) / q) if q else 0.0
+        wt = calc_wt(mv, r["lot_id"], q, r.get("lot_status"))
         _bucket(by_wt, _wt_range_key(wt), q)
         if wt <= 0:
             # W/T=0 재공만 '마지막 작업 이후 경과일' 로 다시 나눈다.
@@ -1757,7 +1773,7 @@ def api_lots_live(request):
             continue
         if prod2 and not p2_sql and (r.get("prod2") or UNCLASSIFIED) not in prod2:
             continue
-        wt = (mv.get(r["lot_id"], 0.0) / q) if q else 0.0
+        wt = calc_wt(mv, r["lot_id"], q, r.get("lot_status"))
         if wt_range and _wt_range_key(wt) != wt_range:
             continue
         if wt0:

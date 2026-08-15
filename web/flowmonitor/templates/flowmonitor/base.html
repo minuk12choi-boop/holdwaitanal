@@ -316,6 +316,12 @@
   .stack i.sel { outline:3px solid #FFD700; outline-offset:-3px;
                  position:relative; z-index:2; filter:saturate(1.6); }
   .prodf { display:flex; gap:8px; margin-bottom:12px; }
+  .datef { flex:1; min-width:0; box-sizing:border-box; padding:7px 10px;
+           border:1px solid var(--bd); border-radius:6px; background:#fff;
+           font-family:var(--f-title); font-weight:700; font-size:13px;
+           color:var(--mut); }
+  .datef.on { background:var(--brand); border-color:var(--brand); color:#fff; }
+  .datef.on::-webkit-calendar-picker-indicator { filter:invert(1); }
   .prodf .dd { flex:1; min-width:0; }
   .prodf .dd > button { width:100%; }
   /* ── 전환 효과 ─────────────────────────────────────────────────────────
