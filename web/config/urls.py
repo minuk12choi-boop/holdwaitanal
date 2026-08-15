@@ -21,6 +21,7 @@ urlpatterns = [
     path("api/lowwt/", views.api_lowwt, name="api_lowwt"),
     path("api/lots/", views.api_lots, name="api_lots"),
     path("api/lots-live/", views.api_lots_live, name="api_lots_live"),
+    path("api/lot-steps/", views.api_lot_steps, name="api_lot_steps"),
     path("api/health/", views.api_health, name="api_health"),
 
     # runserver 는 static 을 자동 서빙하지만 waitress 등 WSGI 서버는 아니다.

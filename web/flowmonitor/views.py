@@ -1108,18 +1108,41 @@ STEP_SCOPED = ("eqpgroup", "eqpgroup_cham", "down", "tip", "recipe_id",
                "module1", "module2", "eqpgroup_cham")
 
 
-def _summary_rows(line, types, extra=None):
+def _hist_snapshots(line):
+    """날짜/shift 선택지. f3_history 의 (biz_date, shift, snapshot_at)."""
+    if not _table_exists("f3_history"):
+        return []
+    with connection.cursor() as cur:
+        cur.execute(
+            "SELECT biz_date, shift, MAX(snapshot_at) FROM f3_history "
+            "WHERE `line`=%s GROUP BY biz_date, shift "
+            "ORDER BY biz_date DESC, MAX(snapshot_at) DESC LIMIT 60", [line])
+        return [{"biz_date": str(r[0]), "shift": r[1],
+                 "at": (r[2].strftime("%H:%M") if hasattr(r[2], "strftime")
+                        else str(r[2])[11:16])}
+                for r in cur.fetchall()]
+
+
+def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
     """현재 스냅샷의 lot 단위 원자료.
 
     SELECT 목록을 손으로 관리하면 컬럼이 늘 때마다 빠뜨린다(실제로
     경과일/fa_object4 가 통째로 NULL 이었다). LOT_DETAIL_COLS 에서 자동 생성한다.
     """
-    snap = _latest_snapshot()
-    if not snap:
-        return [], None
+    # 날짜/shift 를 고르면 과거 스냅샷(f3_history)에서 읽는다.
+    hist = bool(biz_date and shift)
+    table = "f3_history" if hist else "f3_live"
+    if hist:
+        if not _table_exists("f3_history"):
+            return [], None
+        snap = f"{biz_date} {shift}"
+    else:
+        snap = _latest_snapshot()
+        if not snap:
+            return [], None
 
     with connection.cursor() as cur:
-        cur.execute("SELECT * FROM f3_live LIMIT 0")
+        cur.execute(f"SELECT * FROM {table} LIMIT 0")
         have = {d[0] for d in cur.description}
     have_l = {c.lower() for c in have}
 
@@ -1139,7 +1162,13 @@ def _summary_rows(line, types, extra=None):
         else:
             sel.append(f"MIN(`{c}`) AS `{c}`")
 
-    cond, params = "", [snap, line]
+    if hist:
+        where = "biz_date = %s AND shift = %s AND `line` = %s"
+        params = [biz_date, shift, line]
+    else:
+        where = "snapshot_at = %s AND `line` = %s"
+        params = [snap, line]
+    cond = ""
     if types:
         cond = " AND lot_type IN (%s)" % ",".join(["%s"] * len(types))
         params += list(types)
@@ -1154,9 +1183,9 @@ def _summary_rows(line, types, extra=None):
 
     with connection.cursor() as cur:
         cur.execute(f"""
-            SELECT lot_id, {', '.join(sel)}
-            FROM   f3_live
-            WHERE  snapshot_at = %s AND `line` = %s {cond}
+            SELECT lot_id, {', '.join(sel)}, COUNT(*) AS `_steps`
+            FROM   {table}
+            WHERE  {where} {cond}
             GROUP  BY lot_id
         """, params)
         names = [d[0] for d in cur.description]
@@ -1267,11 +1296,13 @@ def api_summary(request):
     f_wt = request.GET.get("f_wt", "")
     f_wt0 = request.GET.get("f_wt0", "")
     f_type = request.GET.get("f_type", "")
+    bdate = request.GET.get("biz_date", "")
+    bshift = request.GET.get("shift", "")
 
     if not _table_exists("f3_live"):
         return JsonResponse({"ready": False, "reason": "f3_live 미적재"})
 
-    rows, snap = _summary_rows(line, types)
+    rows, snap = _summary_rows(line, types, biz_date=bdate, shift=bshift)
     if not rows:
         return JsonResponse({"ready": False, "reason": "이 라인의 스냅샷이 없습니다"})
 
@@ -1394,6 +1425,8 @@ def api_summary(request):
         "snapshot_at": (snap.strftime("%Y-%m-%d %H:%M")
                         if hasattr(snap, "strftime") else str(snap)),
         "types": all_types, "selected_types": types,
+        "snapshots": _hist_snapshots(line),
+        "biz_date": bdate, "shift": bshift,
         "prod1_options": p1_opts, "prod2_options": p2_opts,
         "selected_prod1": prod1, "selected_prod2": prod2,
         "total": tot,
@@ -1622,6 +1655,43 @@ def standards(request):
                            cards_json=json.dumps(cards, ensure_ascii=False)))
 
 
+def api_lot_steps(request):
+    """한 lot 의 모든 스텝(현스텝 + 연속블록).
+
+    표의 재공 수는 lot 단위 집계로 세므로, 여기서 여러 행을 돌려줘도
+    카운트에는 영향이 없다. 화면에서 접었다 펴는 상세일 뿐이다.
+    """
+    line = request.GET.get("line") or DEFAULT_LINE
+    lot = request.GET.get("lot_id") or ""
+    if not lot or not _table_exists("f3_live"):
+        return JsonResponse({"rows": []})
+
+    snap = _latest_snapshot()
+    with connection.cursor() as cur:
+        cur.execute("SELECT * FROM f3_live LIMIT 0")
+        have = {d[0] for d in cur.description}
+    want = [c for c, _ in LOT_DETAIL_COLS if c in have]
+    for extra in ("현스텝", "연속", "order_seq", "de_rank"):
+        if extra in have and extra not in want:
+            want.append(extra)
+
+    with connection.cursor() as cur:
+        cur.execute(
+            f"SELECT {', '.join(f'`{c}`' for c in want)} FROM f3_live "
+            f"WHERE snapshot_at=%s AND `line`=%s AND lot_id=%s "
+            f"ORDER BY CAST(`order_seq` AS SIGNED)"
+            if "order_seq" in want else
+            f"SELECT {', '.join(f'`{c}`' for c in want)} FROM f3_live "
+            f"WHERE snapshot_at=%s AND `line`=%s AND lot_id=%s",
+            [snap, line, lot])
+        names = [d[0] for d in cur.description]
+        rows = [dict(zip(names, r)) for r in cur.fetchall()]
+
+    return JsonResponse({"rows": rows,
+                         "cols": [{"k": c, "t": t} for c, t in LOT_DETAIL_COLS]},
+                        json_dumps_params={"ensure_ascii": False})
+
+
 def api_lots_live(request):
     """FAB현황 드릴다운. 현재 단면(f3_live) 기준.
 
@@ -1638,6 +1708,8 @@ def api_lots_live(request):
     prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
     # 화면에 보이는 컬럼만 실어 보낸다. 응답 크기가 절반 이하로 준다.
     want_cols = [x for x in request.GET.get("cols", "").split(",") if x]
+    bdate = request.GET.get("biz_date", "")
+    bshift = request.GET.get("shift", "")
     lot_type = request.GET.get("lot_type", "")     # 재공 구성 막대에서
     status = request.GET.get("status", "")         # status 원차트에서
     big = request.GET.get("big", "")
@@ -1654,7 +1726,7 @@ def api_lots_live(request):
         "prod1": p1_sql, "prod2": p2_sql,
         "lot_type": [lot_type] if lot_type else None,
         "lot_status": [status] if status else None,
-    })
+    }, biz_date=bdate, shift=bshift)
     mv = _lot_move_map(line)
     rules = _cause_rules()
     ht = _holdtype_rules()
@@ -1699,7 +1771,9 @@ def api_lots_live(request):
         cause = " / ".join(x for x in (b2, m2) if x)
         detail = r.get("cause_detail") or holdtype_of(r, ht)
         rec["cause"] = f"{cause}({detail})" if (cause and detail) else cause
-        out.append({c: rec.get(c) for c in send_keys})
+        row = {c: rec.get(c) for c in send_keys}
+        row["_steps"] = int(r.get("_steps") or 1)
+        out.append(row)
         tot_qty += q
 
     out.sort(key=lambda x: (x["wt"], str(x["lot_id"])))

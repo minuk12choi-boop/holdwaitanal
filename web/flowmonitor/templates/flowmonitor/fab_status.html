@@ -4,6 +4,16 @@
 <div class="layout">
   <div class="summary">
     <div class="gfilter">
+      <div class="prodf" style="margin-bottom:8px">
+        <div class="dd" id="dsd">
+          <button onclick="toggleProd('dsd')" id="sdb">날짜 현재 &#9662;</button>
+          <div class="menu" id="sdm"></div>
+        </div>
+        <div class="dd" id="dsh">
+          <button onclick="toggleProd('dsh')" id="shb">SHIFT 현재 &#9662;</button>
+          <div class="menu" id="shm"></div>
+        </div>
+      </div>
       <div class="lineseg" id="lineseg">
         {% for l in lines %}
           <button data-line="{{ l.line }}" {% if not l.ready %}disabled
@@ -181,6 +191,44 @@ function onTypeCheck() {
 }
 
 let PROD1 = [], PROD2 = [];
+let SNAP_DATE = "", SNAP_SHIFT = "";     // 빈 값이면 현재(f3_live)
+
+// 날짜 / SHIFT 선택. 맨 위 '현재' 가 f3_live 다.
+function renderSnap(d) {
+  const snaps = d.snapshots || [];
+  const dates = [];
+  snaps.forEach(x => { if (dates.indexOf(x.biz_date) < 0) dates.push(x.biz_date); });
+
+  const dm = document.getElementById("sdm");
+  dm.innerHTML = `<label><input type="radio" name="snapd" ${!SNAP_DATE ? "checked" : ""}`
+    + ` onchange="pickSnapDate('')">현재</label>`
+    + dates.map(v => `<label><input type="radio" name="snapd"`
+        + `${SNAP_DATE === v ? " checked" : ""}`
+        + ` onchange="pickSnapDate('${v}')">${v}</label>`).join("");
+  document.getElementById("sdb").innerHTML =
+    `<span>날짜 ${SNAP_DATE || "현재"}</span><span>&#9662;</span>`;
+  document.getElementById("sdb").classList.toggle("on", !!SNAP_DATE);
+
+  // SHIFT 는 고른 날짜의 것만. 시각을 함께 보여준다.
+  const list = SNAP_DATE ? snaps.filter(x => x.biz_date === SNAP_DATE) : [];
+  const sm = document.getElementById("shm");
+  sm.innerHTML = `<label><input type="radio" name="snaps" ${!SNAP_SHIFT ? "checked" : ""}`
+    + ` onchange="pickSnapShift('')">현재</label>`
+    + list.map(x => `<label><input type="radio" name="snaps"`
+        + `${SNAP_SHIFT === x.shift ? " checked" : ""}`
+        + ` onchange="pickSnapShift('${x.shift}')">${x.shift} (${x.at})</label>`).join("");
+  document.getElementById("shb").innerHTML =
+    `<span>SHIFT ${SNAP_SHIFT || "현재"}</span><span>&#9662;</span>`;
+  document.getElementById("shb").classList.toggle("on", !!SNAP_SHIFT);
+}
+
+function pickSnapDate(v) {
+  SNAP_DATE = v;
+  SNAP_SHIFT = "";              // 날짜가 바뀌면 shift 는 다시 고른다
+  loadSummary();
+}
+
+function pickSnapShift(v) { SNAP_SHIFT = v; loadSummary(); }
 
 function toggleProd(id) {
   const el = document.getElementById(id);
@@ -1228,6 +1276,52 @@ function dfClearAll() {
   renderDrillTable();
 }
 
+/* 연속공정 스텝 펼치기 --------------------------------------------------
+   표의 재공 수는 lot 단위 집계라, 여기서 행을 늘려도 카운트는 그대로다.
+----------------------------------------------------------------------- */
+const STEP_CACHE = {};
+
+function toggleSteps(ev, lot) {
+  ev.stopPropagation();
+  const btn = ev.target;
+  const tr = btn.closest("tr");
+  const open = tr.nextElementSibling
+    && tr.nextElementSibling.classList.contains("steprow");
+
+  // 이미 펼쳐져 있으면 접는다
+  let n = tr.nextElementSibling;
+  while (n && n.classList.contains("steprow")) {
+    const x = n; n = n.nextElementSibling; x.remove();
+  }
+  if (open) { btn.textContent = "+"; return; }
+
+  btn.textContent = "−";
+  const draw = (rows) => {
+    const cols = drillCols().filter(c => !HIDE_COLS[c.k]);
+    const cur = tr;
+    const frag = [];
+    rows.forEach(r => {
+      frag.push('<tr class="steprow"><td class="expcol"></td>');
+      cols.forEach(c => {
+        const raw = r[c.k];
+        const v = (raw === null || raw === undefined) ? ""
+          : (c.k === "wt" ? "" : String(raw));
+        frag.push("<td>" + v + "</td>");
+      });
+      frag.push("</tr>");
+    });
+    cur.insertAdjacentHTML("afterend", frag.join(""));
+  };
+
+  if (STEP_CACHE[lot]) { draw(STEP_CACHE[lot]); return; }
+  fetch("/api/lot-steps/?line=" + encodeURIComponent(LINE)
+        + "&lot_id=" + encodeURIComponent(lot))
+    .then(r => r.json()).then(d => {
+      STEP_CACHE[lot] = d.rows || [];
+      draw(STEP_CACHE[lot]);
+    });
+}
+
 /* 컬럼 드래그 정렬 ------------------------------------------------------ */
 let dragKey = null;
 
@@ -1304,7 +1398,7 @@ function renderDrillTable() {
   const cols = drillCols().filter(c => !HIDE_COLS[c.k]);
   const rows = sortedRows();
 
-  const head = cols.map(c => {
+  const head = `<th class="expcol"></th>` + cols.map(c => {
     const i = SORT_KEYS.findIndex(x => x.k === c.k);
     const mark = i < 0 ? ""
       : `<sup class="so">${i + 1}${SORT_KEYS[i].dir === 1 ? "▲" : "▼"}</sup>`;
@@ -1329,7 +1423,15 @@ function renderDrillTable() {
   const buf = [];
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
-    buf.push("<tr>");
+    const lot = r.lot_id;
+    const many = (r._steps || 1) > 1;
+    buf.push('<tr data-lot="' + lot + '">');
+    buf.push('<td class="expcol">');
+    if (many) {
+      buf.push('<span class="expbtn" onclick="toggleSteps(event,\'' + lot
+               + '\')">+</span>');
+    }
+    buf.push("</td>");
     for (let j = 0; j < nc; j++) {
       const raw = r[keys[j]];
       let v = (raw === null || raw === undefined) ? ""
@@ -1358,7 +1460,7 @@ function renderDrillTable() {
   document.getElementById("drillBody").innerHTML =
     `<table class="grid"><thead><tr>${head}</tr></thead><tbody>`
     + (buf.length ? buf.join("")
-       : `<tr><td colspan="${cols.length}" style="color:#6B7280">`
+       : `<tr><td colspan="${cols.length + 1}" style="color:#6B7280">`
          + `해당 조건의 LOT 이 없습니다.</td></tr>`)
     + `</tbody></table>`;
 }
@@ -1394,6 +1496,7 @@ function openDrill(filt, label, src, keepView) {
   smoothTo(el);
   const base = { line: LINE, types: selectedTypes().join(","),
                  prod1: PROD1.join(","), prod2: PROD2.join(","),
+                 biz_date: SNAP_DATE, shift: SNAP_SHIFT,
                  src: src || "",
                  cols: keepView ? visibleKeys().join(",") : "" };
   const q = Object.entries(Object.assign(base, filt || {}))
@@ -1446,12 +1549,15 @@ function loadSummary(keepFocus) {
         + "&f_status=" + encodeURIComponent(SEL_PIE || "")
         + "&f_wt=" + encodeURIComponent(SEL_WT || "")
         + "&f_wt0=" + encodeURIComponent(SEL_WT0 || "")
-        + "&f_type=" + encodeURIComponent(SEL_TYPE || ""))
+        + "&f_type=" + encodeURIComponent(SEL_TYPE || "")
+        + "&biz_date=" + encodeURIComponent(SNAP_DATE)
+        + "&shift=" + encodeURIComponent(SNAP_SHIFT))
     .then(r => r.ok ? r.json() : Promise.reject("HTTP " + r.status))
     .then(d => {
       const err = document.getElementById("err");
       if (!d.ready) {
         err.textContent = d.reason || "데이터 없음";
+        if (d.snapshots) { renderSnap(d); }
         if (d.prod1_options) { renderProd(d); }   // 필터는 되돌릴 수 있어야 한다
         return;
       }
@@ -1460,6 +1566,7 @@ function loadSummary(keepFocus) {
       SEL_STATUS = null;
       if (!keepFocus) { CZ_SEL = { i: -1, path: [] }; }
       document.getElementById("snapAt").textContent = d.snapshot_at || "-";
+      renderSnap(d);
       renderProd(d);
       renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
     })
