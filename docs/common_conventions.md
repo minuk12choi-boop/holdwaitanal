@@ -408,6 +408,19 @@ MOVE 는 라인을 보지 않는다. `move_lot` 은 원천 라인으로 적재�
 어긋나므로, W/T 계산은 **lot_id 로만** 연결한다(`_lot_move_map`).
 MOVE 쪽 라인 분류 체계는 아직 정립 전이라 보류한다.
 
+### 모듈 (기준정보 std_module)
+
+`/standards/` 의 모듈설정으로 `module1` / `module2` 를 채운다(`attach_module`).
+
+```
+line / proc_id            일치 (빈 칸이면 와일드카드)
+start_layer ~ end_layer   layer_id 가 이 범위 (경계 포함)
+start_stepseq ~ end_stepseq  step_seq 가 이 범위
+```
+
+여러 규칙이 맞으면 **지정된 조건이 많은(구체적인) 행이 이긴다.**
+`module2` 가 비어 있으면 `module1` 과 같은 값이 들어간다.
+
 ### 제품구분 (SSPS_PROD_NAME)
 
 `PROD1` / `PROD2` / `DEPT` 를 lot 에 붙인다. 조인 키는 세 개다.

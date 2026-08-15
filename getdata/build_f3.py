@@ -745,6 +745,7 @@ SUMMARY_OUTPUT_COLUMNS = [
     "batch_kind", "eqpline", "eqpgroup", "eqpgroup_cham",
     "tip", "down", "hold", "hold_reason", "exception", "exception_reason",
     "ftp", "ftp_reason", "fa_object4", "prod1", "prod2", "dept", "dest_line_id",
+    "module1", "module2",
 ]
 
 # hold 는 생테이블 조회에 4분이 걸리는데, 실제로 쓰이는 건 현재 재공(mc_lot)에
@@ -945,6 +946,84 @@ def elapsed_days_text(column: str) -> str:
 
 
 PROD_COLS = ("prod1", "prod2", "dept")
+MODULE_COLS = ("module1", "module2")
+
+
+def _std_table(name, cols):
+    """기준정보 테이블을 읽는다. 없으면 빈 목록."""
+    conn = None
+    try:
+        import db_common as DB
+        conn = DB.connect()
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT {', '.join(cols)} FROM {name}")
+            return [dict(zip(cols, r)) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"[STD] {name} 읽기 생략: {type(e).__name__}", flush=True)
+        return []
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _in_range(v, lo, hi):
+    """lo~hi 범위 판정. 경계는 포함하고, 비어 있으면 와일드카드."""
+    if v is None or (isinstance(v, float) and v != v):
+        return lo is None and hi is None
+    t = str(v).strip()
+    if lo not in (None, "") and t < str(lo).strip():
+        return False
+    if hi not in (None, "") and t > str(hi).strip():
+        return False
+    return True
+
+
+def attach_module(f3):
+    """기준정보(std_module)로 module1 / module2 를 채운다.
+
+    빈 칸은 와일드카드다. 여러 행이 맞으면 **더 구체적으로 지정된 행**
+    (빈 칸이 적은 행)이 이긴다.
+    """
+    out = f3.copy()
+    for c in MODULE_COLS:
+        out[c] = pd.NA
+
+    rules = _std_table("std_module",
+                       ["line", "proc_id", "start_layer", "end_layer",
+                        "start_stepseq", "end_stepseq", "module1", "module2"])
+    if not rules:
+        return out
+
+    def spec(r):                       # 지정된 조건 개수 = 구체성
+        return sum(1 for k in ("line", "proc_id", "start_layer", "end_layer",
+                               "start_stepseq", "end_stepseq") if r.get(k))
+
+    rules.sort(key=spec)               # 덜 구체적인 것부터 덮어써 구체적인 것이 남는다
+    hit_total = 0
+    for r in rules:
+        m = pd.Series(True, index=out.index)
+        if r.get("line"):
+            m &= out["line"].astype(str).eq(str(r["line"]))
+        if r.get("proc_id"):
+            m &= out["proc_id"].astype(str).eq(str(r["proc_id"]))
+        if r.get("start_layer") or r.get("end_layer"):
+            m &= out["layer_id"].map(
+                lambda v: _in_range(v, r.get("start_layer"), r.get("end_layer")))
+        if r.get("start_stepseq") or r.get("end_stepseq"):
+            m &= out["step_seq"].map(
+                lambda v: _in_range(v, r.get("start_stepseq"), r.get("end_stepseq")))
+        if not m.any():
+            continue
+        out.loc[m, "module1"] = r["module1"]
+        out.loc[m, "module2"] = r.get("module2") or r["module1"]
+        hit_total = int(out["module1"].notna().sum())
+
+    print(f"[STD] module {hit_total:,}/{len(out):,}행 매칭 (규칙 {len(rules)}건)",
+          flush=True)
+    return out
 
 
 def attach_prod(df_lot, df_prod):
@@ -1460,6 +1539,8 @@ def build_f3(con):
             f."투입경과_일", f."마지막이벤트경과_일", f."스텝도착경과_일",
             f."마지막작업경과_일", f.fa_object4, f.prod1, f.prod2, f.dept,
             f.dest_line_id,
+            CAST(NULL AS VARCHAR) AS module1,
+            CAST(NULL AS VARCHAR) AS module2,
             f.lot_status, f.step_status, f.proc_id, f.de_rank, f."연속",
             f.AREA, f.layer_id, f."현스텝", f.order_seq, f.step_seq, f.step_desc,
             f.recipe_id, f.eqp_type, {'f.batch_kind_agg' if AGGREGATE_BATCH_KIND else 'CAST(f.batch_kind AS VARCHAR)'} AS batch_kind,
@@ -1930,6 +2011,9 @@ def main():
     if SOURCE != "bdq":
         with stage("라인 재분류(dest_line_id)"):
             df_f3 = relabel_lines(df_f3, df_lot)
+
+    with stage("모듈 결합(기준정보)"):
+        df_f3 = attach_module(df_f3)
 
     n_tip = int(df_f3["tip"].notna().sum())
     print(f"[TIP] f3 tip 값 있는 행 = {n_tip:,} / {len(df_f3):,}", flush=True)

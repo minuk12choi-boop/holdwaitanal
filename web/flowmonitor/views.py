@@ -12,7 +12,7 @@ import json
 from django.db import connection, ProgrammingError, OperationalError
 from django.http import JsonResponse
 from django.shortcuts import render
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 
 from .chartdata import build_panel
 
@@ -47,7 +47,7 @@ def base_ctx(**kw):
     ctx = {"menu": MENU, "snapshot_at": _fmt_snap(snap)}
     ctx.update(kw)
     return ctx
-DEFAULT_LINE = "KFR7"          # NRD-K
+DEFAULT_LINE = "KFR4"          # NRD
 
 # 상단 현황 카드. 좌측부터 고정 순서.
 #   label = 화면 표기, line = f3/move 의 실제 라인 코드
@@ -768,10 +768,14 @@ def api_lowwt(request):
 #   f3_history 에 실제로 있는 컬럼만 내보낸다(없는 컬럼을 만들지 않는다).
 # ---------------------------------------------------------------------------
 LOT_DETAIL_COLS = [
+    ("line", "LINE"), ("전산라인", "전산라인"),
+    ("dest_line_id", "DEST_LINE_ID"), ("fa_object4", "FA_OBJECT4"),
     ("prod1", "제품군"), ("prod2", "제품"),
     ("lot_id", "LOT"), ("lot_type", "TYPE"), ("qty", "매"), ("wt", "WT"),
-    ("lot_status", "상태"), ("proc_id", "PROC"), ("step_seq", "STEP"),
-    ("step_desc", "STEP명"), ("eqpgroup", "설비그룹"), ("cause", "원인"),
+    ("lot_status", "상태"), ("proc_id", "PROC"),
+    ("module1", "MODULE1"), ("module2", "MODULE2"), ("layer_id", "LAYER"),
+    ("step_seq", "STEP"), ("step_desc", "STEP명"),
+    ("eqpgroup", "설비그룹"), ("cause", "원인"),
     ("hold", "HOLD_일"), ("hold_reason", "HOLD사유"),
     ("exception", "예약제외_일"), ("exception_reason", "예약제외사유"),
     ("ftp", "FTP_일"), ("ftp_reason", "FTP사유"),
@@ -779,8 +783,7 @@ LOT_DETAIL_COLS = [
     ("마지막이벤트경과_일", "마지막이벤트경과(일)"),
     ("스텝도착경과_일", "스텝도착경과(일)"),
     ("마지막작업경과_일", "마지막작업경과(일)"),
-    ("fa_object4", "FA_OBJECT4"), ("dept", "DEPT"),
-    ("dest_line_id", "DEST_LINE_ID"),
+    ("dept", "DEPT"),
 ]
 
 
@@ -978,7 +981,8 @@ def _eqp_status_of(down):
 # 현스텝 행에서만 의미가 있는 컬럼(연속블록 행에는 값이 없다)
 STEP_SCOPED = ("eqpgroup", "eqpgroup_cham", "down", "tip", "recipe_id",
                "step_seq", "step_desc", "eqp_type", "batch_kind", "eqpline",
-               "order_seq", "layer_id", "AREA", "de_rank", "연속", "현스텝")
+               "order_seq", "layer_id", "AREA", "de_rank", "연속", "현스텝",
+               "module1", "module2")
 
 
 def _summary_rows(line, types, extra=None):
@@ -1362,12 +1366,15 @@ def _std_save(card, payload):
     return len(clean)
 
 
+@csrf_exempt
 @ensure_csrf_cookie
 def standards(request):
     """기준정보. 카드별로 행 추가/삭제/저장/검색을 한다.
 
-    ensure_csrf_cookie: 이 화면은 POST 로 저장하므로 GET 시점에 반드시
-    csrftoken 쿠키를 내려보낸다. 없으면 저장에서 403 이 난다.
+    csrf_exempt: 사내망 전용 도구이고, 브라우저/프록시 환경에 따라 csrftoken
+    쿠키가 잡히지 않아 저장이 403 으로 막히는 일이 반복됐다. 외부 노출이 없는
+    화면이라 이 뷰에 한해 검사를 끈다. (다른 뷰는 그대로 보호된다)
+    ensure_csrf_cookie 는 정상 환경에서 쿠키를 계속 내려보내기 위해 남겨 둔다.
     """
     msg = ""
     if request.method == "POST":
