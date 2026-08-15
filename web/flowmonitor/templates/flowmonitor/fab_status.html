@@ -518,6 +518,17 @@ let DFILT = {};             // 표 자체 필터 {컬럼: Set(값)}
 let DFILT_WT = null;        // WT 는 구간으로 고른다
 let FCACHE = null;          // 필터 결과. 정렬만 바뀌면 재사용한다
 let dfLast = {};            // shift 범위 선택 기준점
+let COL_ORDER = null;       // 사용자가 드래그로 바꾼 컬럼 순서(키 배열)
+
+function drillCols() {
+  const cols = (DRILL_DATA && DRILL_DATA.cols) ? DRILL_DATA.cols : [];
+  if (!COL_ORDER) { return cols; }
+  const by = {};
+  cols.forEach(c => { by[c.k] = c; });
+  const out = COL_ORDER.map(k => by[k]).filter(Boolean);
+  cols.forEach(c => { if (out.indexOf(c) < 0) { out.push(c); } });
+  return out;
+}
 let SEL_WT = null, SEL_WT0 = null, SEL_TYPE = null, SEL_PIE = null;
 
 function czGroup(i) { return (DATA.causes || [])[i] || { name: "", children: [] }; }
@@ -843,6 +854,7 @@ const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝�
 function closeDrill() {
   DRILL_SRC = ""; DRILL_DATA = null; SORT_KEYS = [];
   HIDE_COLS = {}; DFILT = {}; DFILT_WT = null; dfLast = {}; FCACHE = null;
+  COL_ORDER = null;
   document.getElementById("drill").innerHTML =
     `<div class="empty">좌측 <b>재공</b>·<b>status</b>·<b>W/T 분포</b>·
       <b>W/T 0 재공 분포</b> 또는 위 <b>원인 분석</b> 항목을 클릭하면
@@ -941,10 +953,24 @@ function sortedRows() {
 }
 
 /* 컬럼 표시/숨김 ------------------------------------------------------- */
-function toggleCol(k, on) { HIDE_COLS[k] = !on; renderDrillTable(); }
+function toggleCol(k, on) {
+  HIDE_COLS[k] = !on;
+  syncAllColBox();
+  renderDrillTable();
+}
+
+// 전체 체크박스는 '지금 다 보이는가' 를 그대로 반영한다.
+// 끄면 전부 감추고, 켜면 전부 되살린다.
 function showAllCols(on) {
-  (DRILL_DATA.cols || []).forEach(c => { HIDE_COLS[c.k] = !on; });
-  renderDrillHead(); renderDrillTable();
+  drillCols().forEach(c => { HIDE_COLS[c.k] = !on; });
+  renderDrillHead();
+  renderDrillTable();
+}
+
+function syncAllColBox() {
+  const el = document.getElementById("colAll");
+  if (!el) { return; }
+  el.checked = drillCols().every(c => !HIDE_COLS[c.k]);
 }
 
 /* 표 필터 -------------------------------------------------------------- */
@@ -976,6 +1002,8 @@ function dfPick(ev, k, idx) {
   if (sel.size === boxes.length) {                   // 전부 = 필터 없음
     if (target === "wt") { DFILT_WT = null; } else { delete DFILT[k]; }
   } else if (target === "wt") { DFILT_WT = sel; } else { DFILT[k] = sel; }
+  const all = document.querySelector("#dfm_" + k + " input[data-all]");
+  if (all) { all.checked = (sel.size === boxes.length); }
   dfLabel(k, sel.size, boxes.length);
   FCACHE = null;                        // 필터가 바뀌었으니 다시 거른다
   renderDrillTable();
@@ -1003,16 +1031,18 @@ function dfOptions(k) {
 }
 
 function renderDrillHead() {
-  const cols = DRILL_DATA.cols || [];
+  const cols = drillCols();
+  const allOn = cols.every(c => !HIDE_COLS[c.k]);
   document.getElementById("drillCols").innerHTML =
-    `<label><input type="checkbox" checked onchange="showAllCols(this.checked)">`
-    + `<b>전체</b></label>`
+    `<label><input type="checkbox" id="colAll" ${allOn ? "checked" : ""}`
+    + ` onchange="showAllCols(this.checked)"><b>전체</b></label>`
     + cols.map(c => `<label><input type="checkbox"`
         + `${HIDE_COLS[c.k] ? "" : " checked"}`
         + ` onchange="toggleCol('${c.k}',this.checked)">${c.t}</label>`).join("");
 
   document.getElementById("drillFilters").innerHTML =
-    FILTER_COLS.filter(k => cols.some(c => c.k === k)).map(k => {
+    `<button class="dfclear" onclick="dfClearAll()">필터 해제</button>`
+    + FILTER_COLS.filter(k => cols.some(c => c.k === k)).map(k => {
       const opts = dfOptions(k);
       const label = (cols.find(c => c.k === k) || {}).t || k;
       return `<div class="dd df" id="df_${k}">`
@@ -1021,6 +1051,8 @@ function renderDrillHead() {
         + `<div class="menu" id="dfm_${k}">`
         + `<input class="ddq" id="dfq_${k}" type="text" placeholder="검색"`
         + ` oninput="dfSearch('${k}')" onclick="event.stopPropagation()">`
+        + `<label class="dfall"><input type="checkbox" data-all checked`
+        + ` onclick="dfAll(event,'${k}')"><b>ALL</b></label>`
         + opts.map((o, i) => `<label data-opt="${o}"><input type="checkbox"`
             + ` data-opt-i="${i}" value="${o}" checked`
             + ` onclick="dfPick(event,'${k}',${i})">`
@@ -1029,18 +1061,71 @@ function renderDrillHead() {
     }).join("");
 }
 
+// 필터 메뉴의 ALL: 전부 선택 / 전부 해제
+function dfAll(ev, k) {
+  const on = ev.target.checked;
+  const boxes = [...document.querySelectorAll("#dfm_" + k + " input[data-opt-i]")];
+  boxes.forEach(x => { x.checked = on; });
+  const sel = new Set(on ? boxes.map(x => x.value) : []);
+  if (k === "wt") { DFILT_WT = on ? null : sel; }
+  else if (on) { delete DFILT[k]; } else { DFILT[k] = sel; }
+  dfLabel(k, sel.size, boxes.length);
+  FCACHE = null;
+  renderDrillTable();
+}
+
+function dfClearAll() {
+  DFILT = {}; DFILT_WT = null; dfLast = {}; FCACHE = null;
+  renderDrillHead();
+  renderDrillTable();
+}
+
+/* 컬럼 드래그 정렬 ------------------------------------------------------ */
+let dragKey = null;
+
+function colDragStart(ev, k) {
+  dragKey = k;
+  ev.dataTransfer.effectAllowed = "move";
+  try { ev.dataTransfer.setData("text/plain", k); } catch (e) { /* 무시 */ }
+  ev.target.classList.add("dragging");
+}
+function colDragOver(ev) { ev.preventDefault(); ev.dataTransfer.dropEffect = "move"; }
+function colDragEnd(ev) {
+  dragKey = null;
+  document.querySelectorAll("th.dragging").forEach(x =>
+    x.classList.remove("dragging"));
+}
+function colDrop(ev, target) {
+  ev.preventDefault();
+  ev.stopPropagation();                       // 드롭으로 정렬이 걸리지 않게
+  if (!dragKey || dragKey === target) { return; }
+  const order = drillCols().map(c => c.k);
+  const from = order.indexOf(dragKey);
+  const to = order.indexOf(target);
+  if (from < 0 || to < 0) { return; }
+  order.splice(to, 0, order.splice(from, 1)[0]);
+  COL_ORDER = order;
+  dragKey = null;
+  renderDrillHead();
+  renderDrillTable();
+}
+
 function renderDrillTable() {
   const d = DRILL_DATA;
   if (!d) { return; }
-  const cols = (d.cols || []).filter(c => !HIDE_COLS[c.k]);
+  const cols = drillCols().filter(c => !HIDE_COLS[c.k]);
   const rows = sortedRows();
 
   const head = cols.map(c => {
     const i = SORT_KEYS.findIndex(x => x.k === c.k);
     const mark = i < 0 ? ""
       : `<sup class="so">${i + 1}${SORT_KEYS[i].dir === 1 ? "▲" : "▼"}</sup>`;
-    return `<th class="${NUM_COLS.has(c.k) ? "num " : ""}sortable"`
-         + ` onclick="drillSort('${c.k}')">${c.t}${mark}</th>`;
+    return `<th class="${NUM_COLS.has(c.k) ? "num " : ""}sortable" draggable="true"`
+         + ` data-k="${c.k}" onclick="drillSort('${c.k}')"`
+         + ` ondragstart="colDragStart(event,'${c.k}')"`
+         + ` ondragover="colDragOver(event)"`
+         + ` ondrop="colDrop(event,'${c.k}')"`
+         + ` ondragend="colDragEnd(event)">${c.t}${mark}</th>`;
   }).join("");
 
   // 셀마다 <span class="c"> 를 넣으면 DOM 노드가 두 배가 되어 느려진다.
@@ -1121,15 +1206,16 @@ function openDrill(filt, label, src) {
       <div class="bar">
         <div><b>${nf(d.lots || (d.rows || []).length)} LOT</b>
           <b style="margin-left:8px">${nf(d.qty || 0)} 매</b>
-          <span class="path">컬럼명을 누르면 정렬 (1회 오름 · 2회 내림 · 3회 해제)</span>
+          <span class="path" id="drillCount"></span>
+          <span class="path">컬럼명을 누르면 정렬 (1회 오름 · 2회 내림 · 3회 해제)
+            · 컬럼명을 끌어 순서를 바꿀 수 있습니다</span>
         </div>
         <button onclick="closeDrill()">닫기</button></div>
       <div class="dtools">
         <div class="drow"><span class="minittl">컬럼</span>
           <div class="chips" id="drillCols"></div></div>
         <div class="drow"><span class="minittl">필터</span>
-          <div class="dfs" id="drillFilters"></div>
-          <span class="minittl" id="drillCount"></span></div>
+          <div class="dfs" id="drillFilters"></div></div>
       </div>
       <div class="gridwrap" id="drillBody"></div>`;
     renderDrillHead();

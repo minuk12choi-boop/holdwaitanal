@@ -369,6 +369,15 @@
                        border-color:var(--brand); }
   .dd.df .menu { left:0; right:auto; top:26px; max-height:260px; overflow:auto;
                  min-width:170px; }
+  .dfall { border-bottom:1px solid var(--bd); font-weight:600; }
+  .dfclear { border:1px solid var(--bd); background:#fff; border-radius:5px;
+             font-size:11px; padding:3px 8px; cursor:pointer; color:var(--mut); }
+  .dfclear:hover { background:#F3F4F6; }
+  /* 표 행이 적어 카드가 짧아져도 필터 목록이 잘리지 않게 한다. */
+  .detail { overflow:visible; }
+  .dtools { overflow:visible; position:relative; z-index:30; }
+  .grid thead th.dragging { opacity:.45; }
+  .grid thead th[draggable="true"] { cursor:grab; }
 
   .czh { cursor:pointer; }
   .czh span:first-child::after { content:" ▸"; color:var(--mut); font-size:10px; }

@@ -812,6 +812,8 @@ def api_lots(request):
         return JsonResponse({"rows": [], "cols": [], "reason": "미적재"})
 
     rules = _cause_rules()
+    ht = _holdtype_rules()
+
 
     if req_date:
         bd = req_date
@@ -873,7 +875,7 @@ def api_lots(request):
             continue
 
         if big or mid or sub:
-            b2, m2, s2 = classify_lot(r, rules)
+            b2, m2, s2 = classify_lot(r, rules, ht)
             if big and b2 != big:
                 continue
             if mid and (m2 or "") != mid:
@@ -997,6 +999,21 @@ def holdtype_of(r, rules):
     return None
 
 
+def _sub_name(r, ht, kind, reason_col, rules, cat):
+    """소분류 이름. 기준정보 유형이 있으면 그걸 쓴다."""
+    if ht:
+        text = str(r.get(reason_col) or "")
+        line = str(r.get("line") or "")
+        for rule in ht:
+            if rule["line"] and rule["line"] != line:
+                continue
+            if rule["type"] not in ("ALL", kind):
+                continue
+            if text and all(c in text for c in rule["c"]):
+                return rule["name"]
+    return _classify(r.get(reason_col), rules.get(cat, []))
+
+
 def _cause_rules():
     """기준정보의 소분류 규칙. 없으면 빈 목록(=사유 원문을 그대로 유형으로)."""
     if not _table_exists("f3_cause_rules"):
@@ -1115,7 +1132,16 @@ def _bucket(d, key, qty, eld=None):
         c["eln"] += 1            # 값이 있는 lot 수
 
 
-def classify_lot(r, rules):
+def classify_lot(r, rules, ht=None):
+    """대분류 / 중분류 / 소분류.
+
+    소분류는 기준정보(f3_std_holdtype)로 정한 유형을 우선 쓴다.
+    규칙이 없으면 예전처럼 사유 원문을 그대로 쓴다.
+    """
+    return _classify_lot(r, rules, ht)
+
+
+def _classify_lot(r, rules, ht=None):
     """LOT 1건 -> (대분류, 중분류, 소분류후보리스트).
 
     소분류가 설비 단위인 경우 lot 이 여러 설비에 걸릴 수 있어 리스트로 준다.
@@ -1126,7 +1152,7 @@ def classify_lot(r, rules):
 
     if r.get("hold") or st == "HOLD":
         return ("Hold", None,
-                [_classify(r.get("hold_reason"), rules.get("hold", []))])
+                [_sub_name(r, ht, "HOLD", "hold_reason", rules, "hold")])
 
     virtual = "WAIT" in " ".join(
         str(r.get(k) or "") for k in ("recipe_id", "step_seq", "step_desc")).upper()
@@ -1135,10 +1161,11 @@ def classify_lot(r, rules):
             or _eqp_status_of(r.get("down")) or r.get("tip"):
         if r.get("exception"):
             return ("Wait성 진행불가", "예약제외",
-                    [_classify(r.get("exception_reason"), rules.get("exception", []))])
+                    [_sub_name(r, ht, "예약제외", "exception_reason",
+                               rules, "exception")])
         if r.get("ftp"):
             return ("Wait성 진행불가", "FTP",
-                    [_classify(r.get("ftp_reason"), rules.get("ftp", []))])
+                    [_sub_name(r, ht, "FTP", "ftp_reason", rules, "ftp")])
         eqp_st = _eqp_status_of(r.get("down"))
         if eqp_st:
             return ("Wait성 진행불가", "설비이슈", eqps or ["(설비미상)"])
@@ -1200,6 +1227,7 @@ def api_summary(request):
 
     mv = _lot_move_map(line)
     rules = _cause_rules()
+    ht = _holdtype_rules()          # 기준정보 유형이 소분류를 대체한다
 
     tot = {"lots": 0, "qty": 0}
     by_type, by_status, by_wt, by_wt0 = {}, {}, {}, {}
@@ -1218,7 +1246,7 @@ def api_summary(request):
             # W/T=0 재공만 '마지막 작업 이후 경과일' 로 다시 나눈다.
             _bucket(by_wt0, _wt0_bin(num_f(r.get("마지막작업경과_일"))), q)
 
-        big, mid, subs = classify_lot(r, rules)
+        big, mid, subs = classify_lot(r, rules, ht)
         if not big:
             continue
         eld = num_f(r.get("마지막이벤트경과_일"))
@@ -1509,7 +1537,7 @@ def api_lots_live(request):
         if wt0:
             if wt > 0 or _wt0_bin(num_f(r.get("마지막작업경과_일"))) != wt0:
                 continue
-        b2, m2, s2 = classify_lot(r, rules)
+        b2, m2, s2 = classify_lot(r, rules, ht)
         if big and b2 != big:
             continue
         if mid and (m2 or "") != mid:
