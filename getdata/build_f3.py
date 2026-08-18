@@ -1515,6 +1515,15 @@ def build_f3(con):
                     AND COALESCE(fc.issue_count,0) > 0
                     AND COALESCE(fc.issue_count,0) >= COALESCE(fc.path_count,0)
                         THEN 'WAIT(진행불가)'
+                   -- 가상스텝은 설비를 기다리는 게 아니라 진행이 막힌 것이다.
+                   -- 설비그룹 / recipe / step 어디든 WAIT 가 들어가면 가상스텝이다.
+                   WHEN fb."현스텝" = '현스텝' AND fb.status = 'WAIT'
+                    AND (UPPER(COALESCE(fb.eqp_group_raw, '')) LIKE '%WAIT%'
+                      OR UPPER(COALESCE(fb.eqp_id, '')) LIKE '%WAIT%'
+                      OR UPPER(COALESCE(fb.recipe_id, '')) LIKE '%WAIT%'
+                      OR UPPER(COALESCE(fb.step_seq, '')) LIKE '%WAIT%'
+                      OR UPPER(COALESCE(fb.step_desc, '')) LIKE '%WAIT%')
+                        THEN 'WAIT(진행불가)'
                    WHEN fb."현스텝" IS DISTINCT FROM '현스텝'
                     AND fb.status IN ('HOLD','RUN') THEN 'WAIT'
                    ELSE fb.status

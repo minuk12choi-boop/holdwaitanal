@@ -425,6 +425,14 @@ CHAM그룹  TBO404-1        (후보가 그것뿐)
 
 ### 가상스텝 판정
 
+**상태도 `WAIT(진행불가)` 로 매긴다.** 실제 설비를 기다리는 게 아니라
+진행이 막힌 것이므로 `WAIT` 로 두면 원인 분석과 어긋난다
+(`f1_status_base` 의 CASE 에 조건이 있다).
+
+이미 적재된 스냅샷은 `getdata/migrate_virtual_step_status.sql` 로 한 번
+고친다.
+
+
 `eqpgroup` / `eqpgroup_cham` / `recipe_id` / `ppid` / `step_seq` / `step_desc`
 중 **하나라도 `WAIT` 을 포함하면 가상스텝**이다. 실제 설비를 기다리는 게
 아니므로 Bottleneck 이 아니라 `Wait성 진행불가 > 가상스텝 대기` 로 간다.
