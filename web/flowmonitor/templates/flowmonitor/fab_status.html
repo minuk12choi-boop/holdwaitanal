@@ -151,12 +151,10 @@
             <button class="on" id="bu_qty" onclick="setBalUnit('qty')">매</button>
           </span>
           <div class="dd" id="balpick">
-            <button class="rankbtn" id="balexp" onclick="toggleBalExpand('plan')">
-              PLAN 펼치기<span class="cv">▼</span></button>
+            <button class="rankbtn" id="balexp" onclick="balOpenMenu()">
+              펼치기<span class="cv">▼</span></button>
             <div class="menu" id="balmenu"></div>
           </div>
-          <button class="rankbtn" id="balexp2" onclick="toggleBalExpand('prod')">
-            제품 펼치기<span class="cv">▼</span></button>
         </span></div>
       <div class="balpath" id="balpath"></div>
       <div id="balbody"></div>
@@ -769,12 +767,8 @@ function setBalUnit(u) {
   drawBalance();
 }
 
-function toggleBalExpand(by) {
-  if (by && by !== BAL_BY) {          // 기준이 바뀌면 다시 받아온다
-    BAL_BY = by; BAL_PICK = null; BAL_OPEN = true;
-    loadBalance(true);
-    return;
-  }
+// 펼치기 팝업. 기준(제품/PLAN)과 항목을 한 곳에서 고른다.
+function balOpenMenu() {
   const box = document.getElementById("balpick");
   const open = box.classList.contains("open");
   document.querySelectorAll(".dd.open").forEach(d => d.classList.remove("open"));
@@ -783,63 +777,15 @@ function toggleBalExpand(by) {
   box.classList.add("open");
 }
 
-// 펼칠 PLAN 을 고른다. 검색과 전체 선택을 함께 둔다.
-function renderBalMenu() {
-  // 서버가 이미 '메인 우선 -> 이름순' 으로 보낸다. 그 순서를 그대로 쓴다.
-  const list = (BAL_DATA && BAL_DATA.plans) || [];
-  const plans = list.map(p => p.name);
-  const mainOf = {};
-  list.forEach(p => { mainOf[p.name] = !!p.main; });
-  const on = BAL_PICK ? new Set(BAL_PICK) : new Set(plans);
-  document.getElementById("balmenu").innerHTML =
-    `<input class="ddq" id="balq" type="text" placeholder="PLAN 검색"`
-    + ` oninput="balSearch()" onclick="event.stopPropagation()">`
-    + `<label class="dfall"><input type="checkbox"`
-    + `${BAL_PICK === null ? " checked" : ""} onclick="balAll(event)"><b>ALL</b></label>`
-    + plans.map(p => `<label data-opt="${p}"><input type="checkbox" value="${p}"`
-        + `${on.has(p) ? " checked" : ""} onclick="balPick()">`
-        + `${mainOf[p] ? "<b>★ " + p + "</b>" : p}</label>`).join("");
-}
-
-function balSearch() {
-  const q = (document.getElementById("balq").value || "").trim().toLowerCase();
-  document.querySelectorAll("#balmenu label[data-opt]").forEach(el => {
-    const v = (el.getAttribute("data-opt") || "").toLowerCase();
-    el.style.display = (!q || v.indexOf(q) >= 0) ? "" : "none";
-  });
-}
-
-function balAll(ev) {
-  const on = ev.target.checked;
-  document.querySelectorAll("#balmenu input[value]").forEach(x => {
-    x.checked = on;
-  });
-  balPick();
-}
-
-function balPick() {
-  const boxes = [...document.querySelectorAll("#balmenu input[value]")];
-  const sel = boxes.filter(x => x.checked).map(x => x.value);
-  BAL_PICK = (sel.length === boxes.length) ? null : sel;
+// 기준 토글. 제품과 PLAN 을 함께 고르면 '제품 · PLAN' 으로 묶인다.
+function balBy(which, on) {
+  const set = new Set(BAL_BY.split(",").filter(Boolean));
+  if (on) { set.add(which); } else { set.delete(which); }
+  if (!set.size) { set.add(which); }          // 최소 하나는 남긴다
+  BAL_BY = ["prod", "plan"].filter(x => set.has(x)).join(",");
+  BAL_PICK = null;
   BAL_OPEN = true;
-  const btn = document.getElementById(BAL_BY === "prod" ? "balexp2" : "balexp");
-  btn.innerHTML = `${BAL_BY === "prod" ? "제품" : "PLAN"} `
-    + `${BAL_PICK ? BAL_PICK.length + "개" : "전체"}<span class="cv">▲</span>`;
-  btn.classList.add("on");
-  drawBalance();
-}
-
-function balCollapse() {
-  BAL_OPEN = false; BAL_PICK = null;
-  const b1 = document.getElementById("balexp");
-  b1.innerHTML = `PLAN 펼치기<span class="cv">▼</span>`;
-  b1.classList.remove("on");
-  const b2 = document.getElementById("balexp2");
-  if (b2) {
-    b2.innerHTML = `제품 펼치기<span class="cv">▼</span>`;
-    b2.classList.remove("on");
-  }
-  drawBalance();
+  loadBalance(true);
 }
 
 function loadBalance(show) {
@@ -872,7 +818,7 @@ function drawBalance() {
   if (!rows.length) { rows = [{ name: "전체", data: d.total || [] }]; }
 
   // 경로를 눌러 그 단계로 돌아간다.
-  const unit = (BAL_BY === "prod") ? "제품" : "PLAN";
+  const unit = balByName();
   document.getElementById("balpath").innerHTML =
     `<a onclick="balCollapse()">LOT BALANCE</a>`
     + (BAL_LABEL ? ` &gt; <a onclick="dfClear('layer')">${BAL_LABEL}</a>` : "")
@@ -988,15 +934,24 @@ function trdOpenTable(k) {
   syncFromDF();
 }
 
-// 재공 막대: 주간에서 누르면 그 날짜의 SHIFT 추이로 들어간다.
-function trdBarPick(i) {
-  if (TRD_SCOPE !== "week") { return; }
+// 재공 막대
+//   주간  : 그 날짜의 SHIFT 추이로 들어간다
+//   일간  : 그 시점의 재공을 좌측 재공 차트와 같은 방식으로 표에 띄운다
+function trdBarPick(i, ev) {
   const p = (trdChart.$pts || [])[i];
-  if (!p || !p.biz_date) { return; }
-  SNAP_DATE = p.biz_date;
-  TRD_SCOPE = "day";
-  loadTrend();
+  if (!p) { return; }
+  if (TRD_SCOPE === "week" && p.biz_date) {
+    SNAP_DATE = p.biz_date;
+    TRD_SCOPE = "day";
+    loadTrend();
+    loadSummary();
+    return;
+  }
+  // 그 SHIFT 로 화면 전체를 옮기고 조건 없이 전체 LOT 을 본다.
+  if (p.shift) { SNAP_SHIFT = p.shift; } else { SNAP_SHIFT = ""; }
+  dfReset();
   loadSummary();
+  requestAnimationFrame(() => { openDrill({}, "전체", "multi"); });
 }
 
 function loadTrend() {
@@ -1095,7 +1050,9 @@ function renderTrend(d) {
           if (!hit.length) { return; }
           const ds = trdChart.data.datasets[hit[0].datasetIndex];
           if (!ds) { return; }
-          if (ds.yAxisID !== "y2") { trdBarPick(hit[0].index); return; }
+          if (ds.yAxisID !== "y2") {
+            trdBarPick(hit[0].index, e.native || e); return;
+          }
           trdDrill(ds.label);
         }
       },
@@ -1681,6 +1638,8 @@ const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝�
                           "마지막작업경과_일"]);
 
 function closeDrill() {
+  const btn = document.getElementById("clearAllBtn");
+  if (btn) { btn.style.display = "none"; }
   const p = document.getElementById("wt0panel");
   if (p) { p.style.display = "none"; }
   const b = document.getElementById("balpanel");
@@ -1917,6 +1876,11 @@ function renderConds() {
 
 // 조건이 걸린 카드에 테두리와 개수 배지를 준다.
 function markActiveCards() {
+  const btn = document.getElementById("clearAllBtn");
+  if (btn) {
+    const any = Object.keys(DF).length || DF_CAUSE;
+    btn.style.display = any ? "" : "none";
+  }
   const on = {
     wipcard: (DF.type || []).length,
     stcard: (DF.status || []).length,

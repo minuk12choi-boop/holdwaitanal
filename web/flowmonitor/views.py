@@ -1896,9 +1896,9 @@ def api_balance(request):
             if (not prod1 or (r.get("prod1") or UNCLASSIFIED) in prod1)
             and (not prod2 or (r.get("prod2") or UNCLASSIFIED) in prod2)]
 
-    # 무엇으로 나눌지. plan(=proc_id) 또는 prod(제품)
-    by = request.GET.get("by", "plan")
-    gcol = "prod2" if by == "prod" else "proc_id"
+    # 무엇으로 나눌지. 여러 개면 함께 묶는다(예: 제품 + PLAN).
+    by = [x for x in request.GET.get("by", "plan").split(",") if x] or ["plan"]
+    gcols = [("prod2" if x == "prod" else "proc_id") for x in by]
 
     layers, by_plan, total = set(), {}, {}
     for r in rows:
@@ -1908,9 +1908,11 @@ def api_balance(request):
         q = num(r.get("qty"))
         layers.add(lay)
         _bucket(total, lay, q)
-        _bucket(by_plan.setdefault(str(r.get(gcol) or "-"), {}), lay, q)
+        key = " · ".join(str(r.get(c) or "-") for c in gcols)
+        _bucket(by_plan.setdefault(key, {}), lay, q)
 
-    main = _main_plans(line) if by == "plan" else {}
+    # PLAN 단독일 때만 메인 PLAN 우선. 묶여 있으면 이름순.
+    main = _main_plans(line) if by == ["plan"] else {}
     def rank(p):
         return (0 if p in main else 1, main.get(p, 0), p)
 
@@ -1920,7 +1922,7 @@ def api_balance(request):
         "total": [{"lots": total.get(x, {}).get("lots", 0),
                    "qty": total.get(x, {}).get("qty", 0)} for x in xs],
         # 이 순서가 곧 표시 순서다. 메인 PLAN 이 먼저, 그다음 이름 오름차순.
-        "by": by,
+        "by": ",".join(by),
         "plans": [{"name": p, "main": (p in main),
                    "data": [{"lots": by_plan[p].get(x, {}).get("lots", 0),
                              "qty": by_plan[p].get(x, {}).get("qty", 0)}

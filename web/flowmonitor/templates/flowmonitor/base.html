@@ -460,6 +460,11 @@
   .balc { flex:1; min-width:0; height:150px; }
 
   /* 조건 칩 */
+  .hdrbtn { border:1px solid var(--brand); background:var(--brand); color:#fff;
+            border-radius:5px; font-size:11px; font-weight:600; padding:3px 9px;
+            cursor:pointer; margin:0 8px; }
+  .hdrbtn:hover { background:var(--brand-on); border-color:var(--brand-on); }
+
   .fchip { display:inline-flex; align-items:center; gap:4px; height:24px;
            padding:0 6px 0 9px; border:1px solid var(--brand);
            border-radius:999px; background:#EEF2F9; color:var(--brand);
@@ -496,7 +501,10 @@
       <a href="{{ url }}" {% if request.path == url %}class="on"{% endif %}>{{ name }}</a>
     {% endfor %}
   </nav>
-  <div class="meta">문의: <b>minuk12.choi</b> / 적재시각: <b id="snapAt">{{ snapshot_at|default:"-" }}</b></div>
+  <div class="meta">문의: <b>minuk12.choi</b>
+    <button class="hdrbtn" id="clearAllBtn" style="display:none"
+            onclick="dfClearAllConds()">드릴다운 ALL 해제</button>
+    / 적재시각: <b id="snapAt">{{ snapshot_at|default:"-" }}</b></div>
 </header>
 {% block body %}{% endblock %}
 </body>
