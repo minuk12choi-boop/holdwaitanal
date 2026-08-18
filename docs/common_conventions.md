@@ -386,6 +386,29 @@ python getdata/get_move.py --from 2026-08-01 --to 2026-08-10
 python getdata/get_move.py --full
 ```
 
+### 호환설비이슈 (부분 차단)
+
+설비·챔버 후보 중 **일부만** DOWN/TIP 이면 아직 갈 길이 남아 있다.
+진행불가가 아니라 `Wait / 호환설비이슈` 로 본다.
+
+```
+CHAM그룹  TBO403-1, TBO403-4
+설비상태  DOWN: TBO403-1
+TIP      PREVENT: TBO403-1
+-> 상태 WAIT,  제약원인 'Wait / 호환설비이슈'   (TBO403-4 로 갈 수 있다)
+
+CHAM그룹  TBO404-1        (후보가 그것뿐)
+설비상태  DOWN: TBO404-1
+-> 'Wait성 진행불가 / 설비이슈'
+```
+
+막힌 설비 이름은 `설비상태`/`TIP` 문구에서 뽑는다(`_blocked_eqps`).
+`DOWN: 이름(경과일↑)` 형태라 `:` 앞과 `(` 뒤를 걷어낸다.
+비교 기준은 `eqpgroup_cham` 이 있으면 그것, 없으면 `eqpgroup` 이다.
+
+원인 분석 카드는 3칸이라 `Wait` 은 **Bottleneck 카드**에
+`호환설비이슈` 중분류로 담는다.
+
 ### 가상스텝 판정
 
 `eqpgroup` / `eqpgroup_cham` / `recipe_id` / `ppid` / `step_seq` / `step_desc`

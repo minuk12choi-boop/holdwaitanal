@@ -1249,6 +1249,25 @@ def classify_lot(r, rules, ht=None):
     return _classify_lot(r, rules, ht)
 
 
+def _blocked_eqps(r):
+    """설비상태 / TIP 문구에서 막힌 설비·챔버 이름을 뽑는다.
+
+    'DOWN: TBO403-1(0.1일↑)' / 'PREVENT: TBO403-1(6.8일↑)' 형태다.
+    """
+    out = set()
+    for col in ("down", "tip"):
+        txt = str(r.get(col) or "")
+        if not txt:
+            continue
+        for part in txt.split(","):
+            part = part.split(":", 1)[-1]        # 'DOWN: ' 앞부분 제거
+            part = part.split("(", 1)[0]         # 경과일 괄호 제거
+            name = part.strip()
+            if name:
+                out.add(name)
+    return out
+
+
 def _classify_lot(r, rules, ht=None):
     """LOT 1건 -> (대분류, 중분류, 소분류후보리스트).
 
@@ -1257,6 +1276,10 @@ def _classify_lot(r, rules, ht=None):
     """
     st = r.get("lot_status") or "-"
     eqps = [x.strip() for x in str(r.get("eqpgroup") or "").split(",") if x.strip()]
+    # 챔버 단위까지 본다. 일부만 막혔는지 판단하려면 후보 전체를 알아야 한다.
+    chams = [x.strip() for x in str(r.get("eqpgroup_cham") or "").split(",")
+             if x.strip()]
+    cand = chams or eqps
 
     if r.get("hold") or st == "HOLD":
         return ("Hold", None,
@@ -1279,9 +1302,17 @@ def _classify_lot(r, rules, ht=None):
             return ("Wait성 진행불가", "FTP",
                     [_sub_name(r, ht, "FTP", "ftp_reason", rules, "ftp")])
         eqp_st = _eqp_status_of(r.get("down"))
+        blocked = _blocked_eqps(r)
+        # 후보 설비/챔버 중 일부만 막혔으면 아직 갈 길이 남아 있다.
+        # 진행불가가 아니라 '호환설비이슈' 로 본다.
+        partial = bool(cand) and bool(blocked) and not set(cand) <= blocked
         if eqp_st:
+            if partial:
+                return ("Wait", "호환설비이슈", sorted(blocked) or ["(설비미상)"])
             return ("Wait성 진행불가", "설비이슈", eqps or ["(설비미상)"])
         if r.get("tip"):
+            if partial:
+                return ("Wait", "호환설비이슈", sorted(blocked) or ["(설비미상)"])
             return ("Wait성 진행불가", "TIP", eqps or ["(설비미상)"])
         if virtual:
             return ("Wait성 진행불가", "가상스텝 대기", ["가상스텝"])
@@ -1383,6 +1414,8 @@ def api_summary(request):
         big, mid, subs = classify_lot(r, rules, ht)
         if not big:
             continue
+        if big == "Wait":            # 호환설비이슈. Bottleneck 카드에 함께 둔다
+            big, mid = "Bottleneck", mid or "호환설비이슈"
         eld = num_f(r.get("마지막이벤트경과_일"))
         w = 1.0 / len(subs) if subs else 0.0      # 설비 여러 개면 지분으로 나눔
         g = tree.setdefault(big, {"lots": 0.0, "qty": 0.0, "eld": 0.0, "eln": 0,
@@ -1412,6 +1445,8 @@ def api_summary(request):
         return [node(k, v, {"kind": "sub"}) for k, v in items[:limit]]
 
     causes = []
+    # 'Wait' 는 갈 수 있는 설비가 남아 있는 경우다(호환설비이슈).
+    # 원인 분석 차트는 3칸이라 Bottleneck 쪽에 함께 담는다.
     for big in ("Hold", "Wait성 진행불가", "Bottleneck"):
         g = tree.get(big)
         if not g:
