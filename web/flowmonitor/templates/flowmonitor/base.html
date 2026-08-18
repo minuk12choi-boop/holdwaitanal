@@ -310,8 +310,14 @@
   .cz3 { display:grid; grid-template-columns:repeat(3, minmax(190px, 1fr));
          gap:12px; overflow-x:auto; padding-bottom:2px; }
   /* SHIFT 추이 + 원인 분석을 같은 등급 카드로 나란히 */
-  .rowcards { display:flex; gap:10px; align-items:flex-start; }
+  /* 두 카드의 세로를 맞춘다. 추이가 길어지면 원인 분석도 같이 늘어난다. */
+  .rowcards { display:flex; gap:10px; align-items:stretch; }
+  .rowcards > .cell { display:flex; flex-direction:column; }
   .rowcards > .trdcard { flex:0 0 340px; }
+  .rowcards .cz3 { flex:1; align-items:stretch; }
+  .rowcards .czcol { display:flex; flex-direction:column; }
+  .rowcards .czcol > div:last-child { flex:1; min-height:170px; }
+  .rowcards .trdcard > div:last-child { flex:1; min-height:240px; }
   @media (max-width: 1180px) {
     .rowcards { flex-wrap:wrap; }
     .rowcards > .trdcard { flex:1 1 100%; }

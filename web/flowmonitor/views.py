@@ -1678,14 +1678,30 @@ def standards(request):
 SHIFT_SEQ = [("GY", "22:00"), ("DAY", "06:00"), ("SW", "14:00")]
 
 
-def api_trend(request):
-    """shift 추이. x=SHIFT, 막대=재공, 라인=원인 비율.
+def _biz_today(now=None):
+    """업무일. D 는 D-1 22:00 ~ D 22:00 을 덮는다."""
+    now = now or dt.datetime.now()
+    d = now.date()
+    return (d + dt.timedelta(days=1)) if now.hour >= 22 else d
 
-    drill 로 어느 갈래를 파고들지 정한다.
-      (없음)            Hold+Wait / Hold / Wait 비율
-      Hold              Hold 소분류 상위 5
-      Wait성 진행불가    중분류(예약제외/설비이슈/TIP/가상스텝 대기/FTP)
-      Wait성 진행불가|설비이슈  그 중분류의 소분류 상위 5
+
+def _shifts_started(biz_date, now=None):
+    """그 업무일에서 **이미 시작된** SHIFT. 적재 여부와 무관하다."""
+    now = now or dt.datetime.now()
+    d = biz_date if isinstance(biz_date, dt.date) else \
+        dt.datetime.strptime(str(biz_date)[:10], "%Y-%m-%d").date()
+    starts = [("GY", dt.datetime.combine(d - dt.timedelta(days=1), dt.time(22))),
+              ("DAY", dt.datetime.combine(d, dt.time(6))),
+              ("SW", dt.datetime.combine(d, dt.time(14)))]
+    return [k for k, t in starts if t <= now]
+
+
+def api_trend(request):
+    """SHIFT / 날짜 추이. 막대=재공, 라인=원인 비율.
+
+    x 축은 **시계에 맞춰** 만든다. 적재가 안 된 구간도 자리를 비워 둔다.
+      scope=day   그 업무일에서 이미 시작된 SHIFT + 현재
+      scope=week  오늘까지 최근 7일(날짜)
     """
     line = request.GET.get("line") or DEFAULT_LINE
     raw = request.GET.get("types")
@@ -1695,53 +1711,30 @@ def api_trend(request):
     prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
     bdate = request.GET.get("biz_date", "")
     drill = [x for x in request.GET.get("drill", "").split("|") if x]
-    # scope=day 면 x축이 SHIFT, scope=week 면 최근 7일(날짜)
     scope = request.GET.get("scope", "day")
-    wshift = request.GET.get("wshift", "GY")     # 주간 보기에서 볼 SHIFT
+    wshift = request.GET.get("wshift", "GY")
 
     rules, ht = _cause_rules(), _holdtype_rules()
-    mv = _lot_move_map(line)
+    today = _biz_today()
 
     points = []
     if scope == "week":
-        if _table_exists("f3_history"):
-            with connection.cursor() as cur:
-                cur.execute(
-                    "SELECT DISTINCT biz_date FROM f3_history "
-                    "WHERE shift=%s ORDER BY biz_date DESC LIMIT 7", [wshift])
-                days = [str(r[0]) for r in cur.fetchall()][::-1]
-            for dstr in days:
-                points.append({"key": dstr, "label": dstr[5:],
-                               "shift": wshift, "biz_date": dstr})
-        return _trend_points(points, line, types, prod1, prod2, drill,
-                             rules, ht, scope, wshift)
-
-    # 어떤 shift 를 x 축에 놓을지: 이미 적재된 것 + 현재
-    if bdate and _table_exists("f3_history"):
-        with connection.cursor() as cur:
-            cur.execute("SELECT DISTINCT shift FROM f3_history WHERE biz_date=%s",
-                        [bdate])
-            have = {r[0] for r in cur.fetchall()}
-        for sh, at in SHIFT_SEQ:
-            if sh in have:
-                points.append({"key": sh, "label": f"{sh}\n{at}", "shift": sh})
+        for k in range(6, -1, -1):
+            d = today - dt.timedelta(days=k)
+            points.append({"key": str(d), "label": str(d)[5:],
+                           "shift": wshift, "biz_date": str(d)})
     else:
-        with connection.cursor() as cur:
-            cur.execute("SELECT MAX(biz_date) FROM f3_history WHERE `line`=%s",
-                        [line])
-            r = cur.fetchone()
-            today = str(r[0]) if r and r[0] else ""
-        if today and _table_exists("f3_history"):
-            with connection.cursor() as cur:
-                cur.execute("SELECT DISTINCT shift FROM f3_history "
-                            "WHERE biz_date=%s AND `line`=%s", [today, line])
-                have = {x[0] for x in cur.fetchall()}
-            for sh, at in SHIFT_SEQ:
-                if sh in have:
-                    points.append({"key": sh, "label": f"{sh}\n{at}",
-                                   "shift": sh, "biz_date": today})
-    # 현재는 아직 도래하지 않은 shift 자리에 놓는다(맨 뒤 고정이 아니다)
-    points.append({"key": "__now__", "label": "현재", "shift": None})
+        d = bdate or str(today)
+        for sh in _shifts_started(d):
+            at = dict(SHIFT_SEQ)[sh]
+            points.append({"key": sh, "label": f"{sh}\n{at}",
+                           "shift": sh, "biz_date": d})
+        if str(d) == str(today):        # 오늘이면 맨 끝에 현재
+            snap = _latest_snapshot()
+            at = snap.strftime("%H:%M") if hasattr(snap, "strftime") else ""
+            points.append({"key": "__now__", "label": f"현재\n{at}".rstrip(),
+                           "shift": None})
+
     return _trend_points(points, line, types, prod1, prod2, drill,
                          rules, ht, scope, wshift)
 
@@ -1773,6 +1766,16 @@ def _trend_points(points, line, types, prod1, prod2, drill, rules, ht,
                     series["Hold+Wait성"] = series.get("Hold+Wait성", 0) + q
                     series[big] = series.get(big, 0) + q
                 continue
+
+            # Hold+Wait성 은 둘을 합쳐 소분류 상위를 본다
+            if drill[0] == "Hold+Wait성":
+                if big not in ("Hold", "Wait성 진행불가"):
+                    continue
+                key = subs[0] if subs else mid
+                if key:
+                    series[key] = series.get(key, 0) + q
+                continue
+
             if big != drill[0]:
                 continue
             if len(drill) == 1:

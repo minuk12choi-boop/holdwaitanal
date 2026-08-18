@@ -96,7 +96,7 @@
       <div class="trdpath" id="trdpath"></div>
       <span class="seg" id="trdshift" style="display:none"></span>
       <div id="trdlegend" class="trdlg"></div>
-      <div style="height:240px"><canvas id="trdc"></canvas></div>
+      <div><canvas id="trdc"></canvas></div>
     </div>
 
     <div class="cell" style="flex:1;min-width:0;border:1px solid var(--bd);
@@ -109,13 +109,13 @@
       <div class="cz3">
         <div class="czcol"><div class="subttl czh" id="czh0"></div>
           <div id="czp0" class="czpath"></div>
-          <div style="height:170px"><canvas id="czc0"></canvas></div></div>
+          <div><canvas id="czc0"></canvas></div></div>
         <div class="czcol"><div class="subttl czh" id="czh1"></div>
           <div id="czp1" class="czpath"></div>
-          <div style="height:170px"><canvas id="czc1"></canvas></div></div>
+          <div><canvas id="czc1"></canvas></div></div>
         <div class="czcol"><div class="subttl czh" id="czh2"></div>
           <div id="czp2" class="czpath"></div>
-          <div style="height:170px"><canvas id="czc2"></canvas></div></div>
+          <div><canvas id="czc2"></canvas></div></div>
       </div>
     </div>
 
@@ -739,11 +739,22 @@ function trdToggle(k) { TRD_OFF[k] = !TRD_OFF[k]; loadTrend(); }
 
 // 라인 하나를 골라 파고든다. 점을 정확히 찍기 어려워 범례에서도 부른다.
 function trdDrill(k) {
-  if (!k || k === "Hold+Wait성") { return; }   // 합계는 내려갈 곳이 없다
+  if (!k) { return; }
   if (TRD_DRILL.length >= 2) { return; }        // 대분류 > 중분류 까지
-  TRD_DRILL.push(k);
+  TRD_DRILL.push(k);                            // Hold+Wait성 은 둘을 합쳐 본다
   TRD_OFF = {};
   loadTrend();
+}
+
+// 재공 막대: 주간에서 누르면 그 날짜의 SHIFT 추이로 들어간다.
+function trdBarPick(i) {
+  if (TRD_SCOPE !== "week") { return; }
+  const p = (trdChart.$pts || [])[i];
+  if (!p || !p.biz_date) { return; }
+  SNAP_DATE = p.biz_date;
+  TRD_SCOPE = "day";
+  loadTrend();
+  loadSummary();
 }
 
 function loadTrend() {
@@ -760,15 +771,15 @@ function loadTrend() {
 function renderTrend(d) {
   const pts = d.points || [], keys = d.series || [];
 
-  const scopeName = (TRD_SCOPE === "week") ? "최근 7일" : "당일 SHIFT";
-  document.getElementById("trdpath").innerHTML =
-    `<a onclick="trdScope('${TRD_SCOPE === "week" ? "day" : "week"}')">`
-    + `${scopeName}</a>`
-    + (TRD_DRILL.length
-       ? ` &gt; <a onclick="trdGo(0)">전체</a>`
-         + TRD_DRILL.map((x, i) =>
-             ` &gt; <a onclick="trdGo(${i + 1})">${x}</a>`).join("")
-       : `<span style="color:var(--mut);font-weight:400"> · 재공(막대) 비율(라인)`
+  // 계층은 늘 '최근 7일' 에서 시작한다. 지금 위치가 어디인지 바로 보이게.
+  const path = [`<a onclick="trdScope('week')">최근 7일</a>`];
+  if (TRD_SCOPE === "day") { path.push(`<a onclick="trdScope('day')">당일 SHIFT</a>`); }
+  TRD_DRILL.forEach((x, i) => {
+    path.push(`<a onclick="trdGo(${i + 1})">${x}</a>`);
+  });
+  document.getElementById("trdpath").innerHTML = path.join(" &gt; ")
+    + (TRD_DRILL.length ? ""
+       : `<span style="color:var(--mut);font-weight:400"> · 범례를 눌러 파고들기`
          + `</span>`);
 
   // 주간 보기에서만 SHIFT 토글
@@ -788,7 +799,7 @@ function renderTrend(d) {
   // 체크박스는 숨김/표시, 글자는 드릴다운.
   const canDrill = TRD_DRILL.length < 2;
   document.getElementById("trdlegend").innerHTML = keys.map((k, i) => {
-    const drillable = canDrill && k !== "Hold+Wait성";
+    const drillable = canDrill;
     return `<label class="${drillable ? "drill" : ""}">`
       + `<input type="checkbox" ${TRD_OFF[k] ? "" : "checked"}`
       + ` onchange="trdToggle('${k}')">`
@@ -830,10 +841,10 @@ function renderTrend(d) {
         layout: { padding: { top: 8 } },
         scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } },
                   y: { display: false, beginAtZero: true, grace: "140%" },
-                  y2: { position: "right", beginAtZero: true, max: 260,
+                  y2: { position: "right", beginAtZero: true,
                         grid: { display: false },
-                        ticks: { font: { size: 9 }, stepSize: 25,
-                                 callback: (v) => v <= 100 ? v + "%" : "" } } },
+                        ticks: { font: { size: 9 },
+                                 callback: (v) => v + "%" } } },
         onClick: (e) => {
           // interaction 이 index 모드라 els[0] 은 늘 막대다.
           // 실제로 찍은 점을 다시 찾아야 어느 라인인지 알 수 있다.
@@ -841,7 +852,8 @@ function renderTrend(d) {
             e.native || e, "nearest", { intersect: true }, false);
           if (!hit.length) { return; }
           const ds = trdChart.data.datasets[hit[0].datasetIndex];
-          if (!ds || ds.yAxisID !== "y2") { return; }
+          if (!ds) { return; }
+          if (ds.yAxisID !== "y2") { trdBarPick(hit[0].index); return; }
           trdDrill(ds.label);
         }
       },
@@ -883,8 +895,18 @@ function renderTrend(d) {
       }]
     });
   }
+  trdChart.$pts = pts;
   trdChart.data.labels = pts.map(p => p.label);
   trdChart.data.datasets = [bars].concat(lines);
+  // 라인이 바닥에 붙지 않게 그 계열의 최대값 기준으로 축을 잡는다.
+  // 위쪽은 라벨 자리로 비워 둔다(라인 수만큼).
+  let mx = 0;
+  lines.forEach(ds => ds.data.forEach(v => { if (v > mx) { mx = v; } }));
+  const head = 1 + lines.length;                 // 라벨 줄 수
+  trdChart.options.scales.y2.max =
+    Math.max(5, Math.ceil(mx * 1.15 / 5) * 5) * (1 + head * 0.28);
+  trdChart.options.scales.y2.ticks.callback = (v) =>
+    v <= mx * 1.2 ? Math.round(v) + "%" : "";
   trdChart.update();
 }
 
