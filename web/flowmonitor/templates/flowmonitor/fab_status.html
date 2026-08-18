@@ -388,7 +388,7 @@ function setWt0Unit(u) {
   document.getElementById("zu_lots").className = (u === "lots") ? "on" : "";
   document.getElementById("zu_qty").className = (u === "qty") ? "on" : "";
   renderWt0();
-  renderWt0Panel(DRILL_SRC === "wt0");
+  renderWt0Panel(!!(DF.wt0 && DF.wt0.length));
 }
 
 /* --- 재공 --- */
@@ -691,11 +691,19 @@ function renderWt0Panel(show) {
                   y: { stacked: true, grid: { display: false },
                        ticks: { font: { size: 11 } } } },
         onClick: (e, els) => {
-          if (!els.length) return;
+          if (!els.length) { return; }
+          const ev = e.native || e;
           const x = (DATA.wt0_dist || [])[els[0].index];
-          SEL_WT0 = x.name;
-          renderWt0();
-          openDrill({ wt0: x.name }, x.label, "wt0");
+          if (!x) { return; }
+          setCond("wt0", x.name, ev, x.label);
+          // 조각(status)까지 눌렀으면 그 status 도 함께 건다.
+          const hit = wt0hChart.getElementsAtEventForMode(
+            ev, "nearest", { intersect: true }, false);
+          if (hit.length) {
+            const st = wt0hChart.data.datasets[hit[0].datasetIndex];
+            if (st && st.label) { setCond("status", st.label, ev); }
+          }
+          syncFromDF();
         }
       },
       plugins: [{
@@ -733,6 +741,11 @@ function renderWt0Panel(show) {
   wt0hChart.$tot = tot;
   wt0hChart.data.labels = list.map(x => x.label);
   wt0hChart.data.datasets = datasets;
+  // 고른 구간에 테두리. 누적막대라 라벨 기준으로 표시한다.
+  wt0hChart.$selSet = new Set(
+    (DF.wt0 || []).map(k => (list.find(y => y.name === k) || {}).label));
+  markSelected(wt0hChart,
+    list.findIndex(x => (DF.wt0 || []).indexOf(x.name) >= 0));
   wt0hChart.update();
 }
 
@@ -1261,6 +1274,7 @@ function syncFromDF() {
 
   if (DATA) {
     renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
+    renderWt0Panel(!!(DF.wt0 && DF.wt0.length));
   }
   const any = Object.keys(DF).length || DF_CAUSE;
   if (any) { openDrill(dfFilter(), dfTitle(), "multi"); }
@@ -2197,7 +2211,8 @@ function reopenDrill() {
 function openDrill(filt, label, src, keepView) {
   LAST_DRILL = { f: filt, l: label, s: src };
   clearOtherSelections(src || "");
-  renderWt0Panel(src === "wt0");      // W/T0 드릴다운일 때만 보인다
+  // W/T 0 조건이 걸려 있는 동안 계속 보인다(조건 저장소 기준).
+  renderWt0Panel(!!(DF.wt0 && DF.wt0.length) || src === "wt0");
   // 드릴다운이 열리면 LOT BALANCE 도. balance 자체에서 다시 부르지는 않는다.
   if (src !== "balance") {
     BAL_LABEL = label || ""; BAL_SRC = src || "";
