@@ -1959,6 +1959,7 @@ def api_lots_live(request):
     bshift = request.GET.get("shift", "")
     lot_type = request.GET.get("lot_type", "")     # 재공 구성 막대에서
     status = request.GET.get("status", "")         # status 원차트에서
+    layer_id = request.GET.get("layer_id", "")     # LOT BALANCE 막대에서
     big = request.GET.get("big", "")
     mid = request.GET.get("mid", "")
     sub = request.GET.get("sub", "")
@@ -1973,6 +1974,7 @@ def api_lots_live(request):
         "prod1": p1_sql, "prod2": p2_sql,
         "lot_type": [lot_type] if lot_type else None,
         "lot_status": [status] if status else None,
+        "layer_id": [layer_id] if layer_id else None,
     }, biz_date=bdate, shift=bshift)
     mv = _lot_move_map(line)
     rules = _cause_rules()

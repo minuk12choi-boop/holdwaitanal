@@ -145,9 +145,13 @@
             <button id="bu_lots" onclick="setBalUnit('lots')">LOT</button>
             <button class="on" id="bu_qty" onclick="setBalUnit('qty')">매</button>
           </span>
-          <button class="rankbtn" id="balexp" onclick="toggleBalExpand()">
-            PLAN 펼치기<span class="cv">▼</span></button>
+          <div class="dd" id="balpick">
+            <button class="rankbtn" id="balexp" onclick="toggleBalExpand()">
+              PLAN 펼치기<span class="cv">▼</span></button>
+            <div class="menu" id="balmenu"></div>
+          </div>
         </span></div>
+      <div class="balpath" id="balpath"></div>
       <div id="balbody"></div>
     </div>
 
@@ -731,6 +735,9 @@ function renderWt0Panel(show) {
 let BAL_UNIT = "qty";
 let BAL_OPEN = false;
 let BAL_DATA = null;
+let BAL_PICK = null;      // 펼칠 PLAN 목록. null 이면 전부
+let BAL_LABEL = "";       // 어떤 드릴다운에서 왔는지
+let BAL_SRC = "";         // 그 드릴다운의 출처(되돌아갈 때 쓴다)
 const balCharts = [];
 
 function setBalUnit(u) {
@@ -741,11 +748,60 @@ function setBalUnit(u) {
 }
 
 function toggleBalExpand() {
-  BAL_OPEN = !BAL_OPEN;
-  document.getElementById("balexp").innerHTML =
-    (BAL_OPEN ? "PLAN 접기" : "PLAN 펼치기") + `<span class="cv">`
-    + (BAL_OPEN ? "▲" : "▼") + `</span>`;
-  document.getElementById("balexp").classList.toggle("on", BAL_OPEN);
+  const box = document.getElementById("balpick");
+  const open = box.classList.contains("open");
+  document.querySelectorAll(".dd.open").forEach(d => d.classList.remove("open"));
+  if (open) { return; }
+  renderBalMenu();
+  box.classList.add("open");
+}
+
+// 펼칠 PLAN 을 고른다. 검색과 전체 선택을 함께 둔다.
+function renderBalMenu() {
+  const plans = ((BAL_DATA && BAL_DATA.plans) || []).map(p => p.name);
+  const on = BAL_PICK ? new Set(BAL_PICK) : new Set(plans);
+  document.getElementById("balmenu").innerHTML =
+    `<input class="ddq" id="balq" type="text" placeholder="PLAN 검색"`
+    + ` oninput="balSearch()" onclick="event.stopPropagation()">`
+    + `<label class="dfall"><input type="checkbox"`
+    + `${BAL_PICK === null ? " checked" : ""} onclick="balAll(event)"><b>ALL</b></label>`
+    + plans.map(p => `<label data-opt="${p}"><input type="checkbox" value="${p}"`
+        + `${on.has(p) ? " checked" : ""} onclick="balPick()">${p}</label>`).join("");
+}
+
+function balSearch() {
+  const q = (document.getElementById("balq").value || "").trim().toLowerCase();
+  document.querySelectorAll("#balmenu label[data-opt]").forEach(el => {
+    const v = (el.getAttribute("data-opt") || "").toLowerCase();
+    el.style.display = (!q || v.indexOf(q) >= 0) ? "" : "none";
+  });
+}
+
+function balAll(ev) {
+  const on = ev.target.checked;
+  document.querySelectorAll("#balmenu input[value]").forEach(x => {
+    x.checked = on;
+  });
+  balPick();
+}
+
+function balPick() {
+  const boxes = [...document.querySelectorAll("#balmenu input[value]")];
+  const sel = boxes.filter(x => x.checked).map(x => x.value);
+  BAL_PICK = (sel.length === boxes.length) ? null : sel;
+  BAL_OPEN = true;
+  const btn = document.getElementById("balexp");
+  btn.innerHTML = `PLAN ${BAL_PICK ? BAL_PICK.length + "개" : "전체"}`
+    + `<span class="cv">▲</span>`;
+  btn.classList.add("on");
+  drawBalance();
+}
+
+function balCollapse() {
+  BAL_OPEN = false; BAL_PICK = null;
+  const btn = document.getElementById("balexp");
+  btn.innerHTML = `PLAN 펼치기<span class="cv">▼</span>`;
+  btn.classList.remove("on");
   drawBalance();
 }
 
@@ -769,8 +825,18 @@ function drawBalance() {
   const d = BAL_DATA;
   if (!d) { return; }
   const xs = d.layers || [];
-  const rows = BAL_OPEN ? (d.plans || [])
-                        : [{ name: "전체", data: d.total || [] }];
+  let rows = BAL_OPEN ? (d.plans || [])
+                      : [{ name: "전체", data: d.total || [] }];
+  if (BAL_OPEN && BAL_PICK) {
+    const on = new Set(BAL_PICK);
+    rows = rows.filter(r => on.has(r.name));
+  }
+  if (!rows.length) { rows = [{ name: "전체", data: d.total || [] }]; }
+
+  document.getElementById("balpath").innerHTML =
+    `<a onclick="balCollapse()">LOT BALANCE</a>`
+    + (BAL_LABEL ? ` &gt; ${BAL_LABEL}` : "")
+    + (BAL_OPEN ? ` &gt; PLAN ${BAL_PICK ? BAL_PICK.join(", ") : "전체"}` : "");
 
   // 캔버스를 필요한 만큼만 만들고 재사용한다.
   const body = document.getElementById("balbody");
@@ -794,16 +860,26 @@ function drawBalance() {
       balCharts[i] = new Chart(document.getElementById("balc" + i), {
         type: "bar",
         data: { labels: xs, datasets: [{ data: vals, borderRadius: 2,
-                                         backgroundColor: "#6699CC" }] },
+                                         backgroundColor: "#F98B99" }] },
         options: {
           responsive: true, maintainAspectRatio: false, animation: false,
           plugins: { legend: { display: false },
                      tooltip: { callbacks: { label: (t) =>
                        nf(t.raw) + (BAL_UNIT === "lots" ? " lot" : " 매") } } },
           scales: { x: { grid: { display: false },
-                         ticks: { font: { size: 9 }, autoSkip: false,
-                                  maxRotation: 90, minRotation: 90 } },
-                    y: { display: false, beginAtZero: true, grace: "20%" } }
+                         ticks: { font: { size: 7 }, autoSkip: false,
+                                  maxRotation: 90, minRotation: 90,
+                                  padding: 0 } },
+                    y: { display: false, beginAtZero: true, grace: "20%" } },
+          onClick: (e, els) => {
+            if (!els.length) { return; }
+            const lay = xs[els[0].index];
+            const f = Object.assign({}, LAST_DRILL ? LAST_DRILL.f : {},
+                                    { layer_id: lay });
+            const nm = rows[i].name;
+            openDrill(f, [BAL_LABEL, nm === "전체" ? "" : nm, "LAYER " + lay]
+                        .filter(Boolean).join(" > "), "balance");
+          }
         },
         plugins: [{
           id: "balVal" + i,
@@ -859,10 +935,25 @@ function trdToggle(k) { TRD_OFF[k] = !TRD_OFF[k]; loadTrend(); }
 // 라인 하나를 골라 파고든다. 점을 정확히 찍기 어려워 범례에서도 부른다.
 function trdDrill(k) {
   if (!k) { return; }
-  if (TRD_DRILL.length >= 2) { return; }        // 대분류 > 중분류 까지
+  // 더 내려갈 계층이 없으면 그 항목의 LOT 표를 연다.
+  if (TRD_DRILL.length >= 2) { trdOpenTable(k); return; }
   TRD_DRILL.push(k);                            // Hold+Wait성 은 둘을 합쳐 본다
   TRD_OFF = {};
   loadTrend();
+}
+
+// 추이의 말단 항목 -> 드릴다운 표
+function trdOpenTable(k) {
+  const f = {};
+  const p = TRD_DRILL;
+  if (p[0] === "Hold+Wait성") { f.sub = k; }
+  else {
+    f.big = p[0];
+    if (p.length > 1) { f.mid = p[1]; }
+    f.sub = k;
+  }
+  if (TRD_SCOPE === "day") { f.shift = SNAP_SHIFT || ""; }
+  openDrill(f, [].concat(p, [k]).join(" > "), "cause");
 }
 
 // 재공 막대: 주간에서 누르면 그 날짜의 SHIFT 추이로 들어간다.
@@ -1661,6 +1752,14 @@ function dfAll(ev, k) {
 
 function dfClearAll() {
   DFILT = {}; DFILT_WT = null; dfLast = {}; FCACHE = null;
+  // LOT BALANCE 막대로 좁혀 들어온 경우라면 그 조건까지 풀어 준다.
+  if (DRILL_SRC === "balance" && LAST_DRILL && LAST_DRILL.f
+      && LAST_DRILL.f.layer_id) {
+    const f = Object.assign({}, LAST_DRILL.f);
+    delete f.layer_id;
+    openDrill(f, BAL_LABEL, BAL_SRC || "");
+    return;
+  }
   renderDrillHead();
   renderDrillTable();
 }
@@ -1862,6 +1961,7 @@ function renderDrillTable() {
 }
 
 const SRC_TITLE = {
+  balance: "LOT BALANCE 상세",
   cause: "원인 분석 상세", wt: "W/T 분포 상세", wt0: "W/T 0 재공 상세",
   type: "재공 lot_type 상세", status: "status 상세",
 };
@@ -1884,7 +1984,11 @@ function openDrill(filt, label, src, keepView) {
   LAST_DRILL = { f: filt, l: label, s: src };
   clearOtherSelections(src || "");
   renderWt0Panel(src === "wt0");      // W/T0 드릴다운일 때만 보인다
-  loadBalance(true);                  // 드릴다운이 열리면 LOT BALANCE 도
+  // 드릴다운이 열리면 LOT BALANCE 도. balance 자체에서 다시 부르지는 않는다.
+  if (src !== "balance") {
+    BAL_LABEL = label || ""; BAL_SRC = src || "";
+    loadBalance(true);
+  }
   const el = document.getElementById("drill");
   // 곧바로 자리표시자를 그려 '눌리지 않은 것처럼' 보이지 않게 한다.
   el.classList.add("loading");
