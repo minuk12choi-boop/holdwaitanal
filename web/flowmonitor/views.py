@@ -1555,11 +1555,12 @@ STD_CARDS = [
     {"key": "plan", "table": "f3_std_plan", "title": "제품별 메인 PLAN",
      "desc": "메인체크가 켜진 PLAN 이 그 제품의 메인이다. "
              "여러 개면 PLAN 명 오름차순이 우선한다. "
-             "GROUP 이 같은 숫자면 같은 그룹으로 묶인다.",
+             "GROUP 이 같은 숫자면 같은 그룹으로 묶인다. "
+             "PLAN 은 f3 의 PROC_ID 와 같은 값이다.",
      "cols": [
          {"k": "line", "t": "LINE", "type": "select", "opts": "lines", "w": "sm"},
          {"k": "prod2", "t": "제품", "type": "search", "opts": "prod2", "w": "md"},
-         {"k": "plan", "t": "PLAN", "w": "md"},
+         {"k": "plan", "t": "PLAN(PROC_ID)", "w": "md"},
          {"k": "grp", "t": "GROUP", "type": "number", "w": "sm"},
          {"k": "is_main", "t": "메인체크", "type": "check", "w": "sm"},
      ]},
@@ -1860,8 +1861,8 @@ def api_balance(request):
             if (not prod1 or (r.get("prod1") or UNCLASSIFIED) in prod1)
             and (not prod2 or (r.get("prod2") or UNCLASSIFIED) in prod2)]
 
-    # PLAN 컬럼이 f3 에 없으면 제품(prod2)을 대신 쓴다.
-    pcol = "plan" if rows and "plan" in rows[0] else "prod2"
+    # PLAN = proc_id. 원천마다 proc / proc_id / plan / process / process_id
+    # 로 이름만 다를 뿐 같은 값이다. f3 는 proc_id 로 들고 있다.
 
     layers, by_plan, total = set(), {}, {}
     for r in rows:
@@ -1871,7 +1872,7 @@ def api_balance(request):
         q = num(r.get("qty"))
         layers.add(lay)
         _bucket(total, lay, q)
-        _bucket(by_plan.setdefault(str(r.get(pcol) or "-"), {}), lay, q)
+        _bucket(by_plan.setdefault(str(r.get("proc_id") or "-"), {}), lay, q)
 
     main = _main_plans(line)
     def rank(p):

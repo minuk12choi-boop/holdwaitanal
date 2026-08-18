@@ -594,6 +594,18 @@ f3_std_module  f3_std_holdtype  f3_cause_rules
 목록은 `db_common.PROJECT_TABLES` 에 있다.
 이름을 바꾼 이력은 `getdata/migrate_rename_tables.sql` 참조.
 
+### 같은 값, 다른 이름 (PLAN = PROC_ID)
+
+원천마다 이름만 다를 뿐 **모두 같은 값**이다.
+
+```
+proc  =  proc_id  =  plan  =  process  =  process_id
+```
+
+f3 는 `proc_id` 로 들고 있다. 기준정보 `f3_std_plan.plan` 도 이 값이고,
+LOT BALANCE 의 PLAN 구분도 `proc_id` 를 쓴다.
+TIP 원천의 `process` 를 step_path 의 `proc_id` 와 조인하는 것도 같은 이유다.
+
 ### LOT BALANCE
 
 드릴다운 표 위, 추이/원인 분석 아래. x축은 LAYER, y축은 재공(LOT/매 토글,
@@ -608,8 +620,8 @@ B(메인)  25    -   25   25   25
 A        25   25    -   25    -
 ```
 
-맨 위에 오는 PLAN 은 기준정보 `f3_std_plan` 의 **메인체크**가 켜진 것이고,
-여럿이면 PLAN 명 오름차순이다(`_main_plans`).
+PLAN 은 `proc_id` 다. 맨 위에 오는 PLAN 은 기준정보 `f3_std_plan` 의
+**메인체크**가 켜진 것이고, 여럿이면 PLAN 명 오름차순이다(`_main_plans`).
 
 ### 기준정보 저장 위치
 
