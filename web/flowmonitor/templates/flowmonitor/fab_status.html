@@ -118,15 +118,16 @@
           <div><canvas id="czc2"></canvas></div></div>
       </div>
 
-      <!-- 상단 3개는 그대로 두고, 파고든 결과는 그 아래에 전체 폭으로 -->
-      <div id="czdrill" style="display:none;margin-top:10px;
-                               border-top:1px solid var(--bd);padding-top:9px">
-        <div class="subttl"><span id="czdttl"></span>
-          <span class="v" id="czdcnt"></span></div>
-        <div id="czdpath" class="czpath"></div>
-        <div style="height:200px"><canvas id="czdc"></canvas></div>
-      </div>
     </div>
+    </div>
+
+    <!-- 전체 순위는 x축이 길어져 위 카드에 넣으면 안 보인다. 아래 전체 폭으로. -->
+    <div class="cell" id="czdrill" style="display:none;border:1px solid var(--bd);
+         border-radius:6px;padding:11px 12px;margin-bottom:10px">
+      <div class="cellttl"><span id="czdttl"></span>
+        <span class="v" id="czdcnt"></span></div>
+      <div id="czdpath" class="czpath"></div>
+      <div style="height:240px"><canvas id="czdc"></canvas></div>
     </div>
 
     <!-- W/T 0 구간 x status 분해. 폭이 넓어 라벨이 다 보인다. -->
@@ -399,23 +400,41 @@ function renderWip() {
   }
   const tot = d.by_lot_type.reduce((a, x) => a + x.lots, 0) || 1;
   document.getElementById("ws").innerHTML = d.by_lot_type.map((x, k) =>
-    `<i class="${SEL_TYPE === x.name ? 'sel' : ''}"
+    `<i class="${SEL_TYPES.indexOf(x.name) >= 0 ? 'sel' : ''}"
         style="width:${x.lots / tot * 100}%;background:${TYPE_COLORS[k % 5]}"
-        onclick="pickType('${x.name}')" title="${x.name} ${nf(x.lots)} LOT / ${nf(x.qty)} 매"
+        onclick="pickType('${x.name}', event)"
+        title="${x.name} ${nf(x.lots)} LOT / ${nf(x.qty)} 매 (Ctrl 다중선택)"
         ></i>`).join("");
   document.getElementById("wg").innerHTML = d.by_lot_type.map((x, k) =>
     `<span><i style="background:${TYPE_COLORS[k % 5]}"></i>${x.name}
        ${(x.lots / tot * 100).toFixed(0)}%</span>`).join("");
 }
 
-function pickType(name) {
-  SEL_TYPE = (SEL_TYPE === name) ? null : name;
-  renderWip();                       // 선택 표시를 먼저 반영하고
-  requestAnimationFrame(() => {      // 그다음 프레임에 요청을 건다
-    if (SEL_TYPE) { openDrill({ lot_type: name }, name, "type"); }
-    else { closeDrill(); }
+let SEL_TYPES = [];                  // Ctrl 다중선택
+
+function pickType(name, ev) {
+  SEL_TYPES = (SEL_TYPES.length && SEL_TYPE !== null)
+    ? multiPick(SEL_TYPES, name, ev) : [name];
+  if (SEL_TYPE === name && SEL_TYPES.length === 1 && SEL_TYPES[0] === name
+      && !(ev && (ev.ctrlKey || ev.metaKey))) {
+    SEL_TYPE = null; SEL_TYPES = [];      // 같은 것을 다시 누르면 해제
+  } else {
+    SEL_TYPE = SEL_TYPES[SEL_TYPES.length - 1];
+  }
+  renderWip();
+  requestAnimationFrame(() => {
+    if (SEL_TYPES.length) {
+      openDrill({ lot_type: SEL_TYPES.join(",") }, SEL_TYPES.join(", "), "type");
+    } else { closeDrill(); }
     loadSummary(true);
   });
+}
+
+// lot_type 을 가리지 않고 지금 필터 그대로 전부 본다.
+function pickTypeAll() {
+  SEL_TYPE = null; SEL_TYPES = [];
+  renderWip();
+  openDrill({}, "전체", "type");
 }
 
 /* --- status --- */
@@ -534,10 +553,18 @@ function renderWt() {
         onClick: (e, els) => {
           if (!els.length) return;
           const x = DATA.wt_dist[els[0].index];
-          SEL_WT = (SEL_WT === x.name) ? null : x.name;
+          SEL_WTS = (SEL_WT !== null)
+            ? multiPick(SEL_WTS, x.name, e.native || e) : [x.name];
+          if (SEL_WT === x.name && SEL_WTS.length === 1
+              && !((e.native || e).ctrlKey || (e.native || e).metaKey)) {
+            SEL_WT = null; SEL_WTS = [];
+          } else { SEL_WT = SEL_WTS[SEL_WTS.length - 1]; }
           renderWt();
-          if (SEL_WT) { openDrill({ wt_range: x.name }, x.label, "wt"); }
-          else { closeDrill(); }
+          if (SEL_WTS.length) {
+            const lb = SEL_WTS.map(k =>
+              (DATA.wt_dist.find(y => y.name === k) || {}).label || k);
+            openDrill({ wt_range: SEL_WTS.join(",") }, lb.join(", "), "wt");
+          } else { closeDrill(); }
           loadSummary(true);
         }
       },
@@ -560,6 +587,8 @@ function renderWt() {
   wtChart.data.labels = d.wt_dist.map(x => x.label);
   wtChart.data.datasets[0].data = vals;
   wtChart.data.datasets[0].backgroundColor = colors;
+  wtChart.$selSet = new Set(
+    SEL_WTS.map(k => (d.wt_dist.find(y => y.name === k) || {}).label));
   markSelected(wtChart, d.wt_dist.findIndex(x => x.name === SEL_WT));
   wtChart.update();
 }
@@ -593,10 +622,18 @@ function renderWt0() {
         onClick: (e, els) => {
           if (!els.length) return;
           const x = (DATA.wt0_dist || [])[els[0].index];
-          SEL_WT0 = (SEL_WT0 === x.name) ? null : x.name;
+          SEL_WT0S = (SEL_WT0 !== null)
+            ? multiPick(SEL_WT0S, x.name, e.native || e) : [x.name];
+          if (SEL_WT0 === x.name && SEL_WT0S.length === 1
+              && !((e.native || e).ctrlKey || (e.native || e).metaKey)) {
+            SEL_WT0 = null; SEL_WT0S = [];
+          } else { SEL_WT0 = SEL_WT0S[SEL_WT0S.length - 1]; }
           renderWt0();
-          if (SEL_WT0) { openDrill({ wt0: x.name }, x.label, "wt0"); }
-          else { closeDrill(); }
+          if (SEL_WT0S.length) {
+            const lb = SEL_WT0S.map(k =>
+              (list.find(y => y.name === k) || {}).label || k);
+            openDrill({ wt0: SEL_WT0S.join(",") }, lb.join(", "), "wt0");
+          } else { closeDrill(); }
           loadSummary(true);           // 원인 분석을 이 구간으로 좁힌다
         }
       },
@@ -621,6 +658,8 @@ function renderWt0() {
   wt0Chart.data.labels = list.map(x => x.label);
   wt0Chart.data.datasets[0].data = vals;
   wt0Chart.data.datasets[0].backgroundColor = colors;
+  wt0Chart.$selSet = new Set(
+    SEL_WT0S.map(k => (list.find(y => y.name === k) || {}).label));
   markSelected(wt0Chart, list.findIndex(x => x.name === SEL_WT0));
   wt0Chart.update();
 
@@ -1133,7 +1172,16 @@ function renderTrend(d) {
 const czCharts = [null, null, null];
 let czDrill = null;
 let CZ_SEL = { i: -1, path: [] };          // 한 번에 하나만 파고든다
-let DRILL_KEY = { i: -1, node: null };     // 표가 어느 차트·막대에서 나왔는지
+let DRILL_KEY = { i: -1, node: null, list: [] };  // 표가 어느 차트·막대에서 나왔는지
+
+// Ctrl 을 누르고 고르면 같은 차트 안에서 여러 항목을 함께 본다.
+function multiPick(cur, name, ev) {
+  const add = ev && (ev.ctrlKey || ev.metaKey);
+  const list = add ? (cur || []).slice() : [];
+  const at = list.indexOf(name);
+  if (at >= 0) { list.splice(at, 1); } else { list.push(name); }
+  return list.length ? list : [name];
+}
 
 // 드릴다운 표 상태. closeDrill 이 초기 로딩에서도 불리므로 선언을 앞에 둔다.
 let DRILL_DATA = null;      // 현재 표에 뿌린 원자료
@@ -1166,6 +1214,7 @@ function drillCols() {
   return out;
 }
 let SEL_WT = null, SEL_WT0 = null, SEL_TYPE = null, SEL_PIE = null;
+let SEL_WTS = [], SEL_WT0S = [], SEL_PIES = [];
 
 function czGroup(i) { return (DATA.causes || [])[i] || { name: "", children: [] }; }
 
@@ -1193,7 +1242,7 @@ function czLabel(v, max) {
 
 function czReset() {
   CZ_SEL = { i: -1, path: [] };
-  DRILL_KEY = { i: -1, node: null };
+  DRILL_KEY = { i: -1, node: null, list: [] };
   closeDrill();
   renderCause();
 }
@@ -1201,7 +1250,7 @@ function czGo(depth) { CZ_SEL.path = CZ_SEL.path.slice(0, depth); renderCause();
 
 // depth=0 : 상단 요약 차트 -> 경로를 새로 시작
 // depth>0 : 드릴다운 차트   -> 현재 경로에 덧붙임
-function czPick(i, node, depth) {
+function czPick(i, node, depth, ev) {
   if (!node) { return; }
   const leaf = !(node.children && node.children.length);
   if (depth === 0 || CZ_SEL.i !== i) {
@@ -1213,17 +1262,19 @@ function czPick(i, node, depth) {
     // 말단: 차트는 그대로 두고 아래 표만 바꾼다.
     const keep = CZ_SEL.path.slice();
     const f = { big: czGroup(i).name };
-    for (const p of keep) { f[p.kind === "mid" ? "mid" : "sub"] = p.name; }
-    f[node.kind === "mid" ? "mid" : "sub"] = node.name;
-    DRILL_KEY = { i: i, node: node.name };
+    for (const p of keep) { if (p.kind === "mid") { f.mid = p.name; } }
+    const list = (DRILL_KEY.i === i)
+      ? multiPick(DRILL_KEY.list, node.name, ev) : [node.name];
+    f.sub = list.join(",");
+    DRILL_KEY = { i: i, node: list[list.length - 1], list: list };
     renderCause();
     openDrill(f, [czGroup(i).name].concat(keep.map(p => p.name))
-                 .concat([node.name]).join(" > "), "cause");
+                 .concat([list.join(", ")]).join(" > "), "cause");
     return;
   }
 
   CZ_SEL.path.push({ name: node.name, kind: node.kind || "sub" });
-  DRILL_KEY = { i: -1, node: null };
+  DRILL_KEY = { i: -1, node: null, list: [] };
   DRILL_SRC = "cause";
   closeDrill();                 // 단계를 옮기면 이전 표는 무효다
   DRILL_SRC = "cause";
@@ -1283,7 +1334,9 @@ function czBarChart(canvasId, onPick, pluginId) {
                 sc.min = a - 0.68 * range;
                 sc.max = sc.min + range;
               } } },
-      onClick: (e, els) => { if (els.length) { onPick(els[0].index); } },
+      onClick: (e, els) => {
+        if (els.length) { onPick(els[0].index, e.native || e); }
+      },
       interaction: { mode: "index", intersect: false }
     },
     plugins: [{
@@ -1330,8 +1383,22 @@ function strongest(c) {
 const popSelected = {
   id: "popSelected",
   afterDatasetsDraw(chart) {
+    // 여러 개를 고른 경우 전부 표시한다.
+    const many = chart.$selSet;
+    if (many && many.size > 1 && chart.data.labels) {
+      chart.data.labels.forEach((lb, k) => {
+        if (many.has(lb)) { drawSel(chart, k); }
+      });
+      return;
+    }
     const sel = chart.$sel;
     if (sel === undefined || sel === null || sel < 0) { return; }
+    drawSel(chart, sel);
+  }
+};
+
+function drawSel(chart, sel) {
+  {
     const el = (chart.getDatasetMeta(0).data || [])[sel];
     if (!el) { return; }
     const ctx = chart.ctx;
@@ -1382,7 +1449,7 @@ function markSelected(ch, selIdx) {
   ch.$sel = (selIdx === undefined || selIdx === null) ? -1 : selIdx;
 }
 
-function czApply(ch, nodes, u, selName) {
+function czApply(ch, nodes, u, selName, selList) {
   // 값에 따라 농도를 달리하면 1위 막대가 '선택된 것' 처럼 보인다.
   // 선택 표시는 3D 팝업이 전담하므로 막대색은 전부 같은 남색으로 둔다.
   const vals = nodes.map(x => u === "lots" ? x.lots : x.qty);
@@ -1394,7 +1461,9 @@ function czApply(ch, nodes, u, selName) {
     `rgba(240,128,128,${Math.max(1 - 0.11 * i, 0.25).toFixed(2)})`);
   ch.data.datasets[1].data = nodes.map(x =>
     (x.elapsed_d === null || x.elapsed_d === undefined) ? null : x.elapsed_d);
-  markSelected(ch, nodes.findIndex(x => x.name === selName));
+  const on = new Set(selList && selList.length ? selList : [selName]);
+  ch.$selSet = on;
+  markSelected(ch, nodes.findIndex(x => on.has(x.name)));
   ch.update();
 }
 
@@ -1428,9 +1497,7 @@ function renderCause() {
                   && CZ_SEL.path[0].kind !== "all");
     const path = deep ? CZ_SEL.path : [];
     const all = deep ? czNodesAt(i, path) : (g.children || []);
-    const openAll = (CZ_SEL.i === i && CZ_SEL.path.length
-                     && CZ_SEL.path[0].kind === "all");
-    const nodes = openAll ? all.slice(0, CZ_DEEP) : all.slice(0, CZ_TOP);
+    const nodes = all.slice(0, CZ_TOP);
     const more = all.length - nodes.length;
 
     const hd = document.getElementById("czh" + i);
@@ -1439,20 +1506,20 @@ function renderCause() {
       + `${u === "lots" ? " LOT" : " 매"}</span>`;
     hd.onclick = function () { czWhole(i); };      // 제목 = 전체 표
 
-    // 경로 + 그 외 보기
+    // 경로 + 전체 순위 보기(계층과 무관하게 항목이 더 있으면 늘 제공)
     const p = document.getElementById("czp" + i);
+    const rank = (more > 0)
+      ? `<button class="rankbtn" onclick="czShowAll(${i})">전체 순위`
+        + `<span class="cv">▸</span></button>` : "";
     if (deep) {
       p.innerHTML =
         `<span class="czback" onclick="czGo(${path.length - 1})">◀ 뒤로</span>`
         + `<a onclick="czGo(0)">전체</a>`
         + path.map((x, k) =>
-            ` &gt; <a onclick="czGo(${k + 1})">${x.name}</a>`).join("");
-    } else if (more > 0 || openAll) {
-      p.innerHTML = `<button class="rankbtn ${openAll ? "on" : ""}"`
-        + ` onclick="czShowAll(${i})">전체 순위 보기`
-        + `<span class="cv">${openAll ? "▲" : "▼"}</span></button>`;
+            ` &gt; <a onclick="czGo(${k + 1})">${x.name}</a>`).join("")
+        + (rank ? " " + rank : "");
     } else {
-      p.innerHTML = "";
+      p.innerHTML = rank;
     }
 
     if (!czCharts[i]) {
@@ -1462,12 +1529,51 @@ function renderCause() {
                          && CZ_SEL.path[0].kind !== "all") ? 1 : 0),
         "czVal" + i);
     }
-    let sel = null;
-    if (DRILL_KEY.i === i) { sel = DRILL_KEY.node; }
-    czApply(czCharts[i], nodes, u, sel);
+    const selL = (DRILL_KEY.i === i) ? DRILL_KEY.list : null;
+    czApply(czCharts[i], nodes, u, DRILL_KEY.node, selL);
   }
 
-  document.getElementById("czdrill").style.display = "none";
+  renderCzWide();
+}
+
+/* 전체 순위 : 아래 넓은 패널 --------------------------------------------- */
+let CZ_WIDE = null;          // {i, path}
+let czWideChart = null;
+
+function czShowAll(i) {
+  const path = (CZ_SEL.i === i) ? CZ_SEL.path.slice() : [];
+  const same = CZ_WIDE && CZ_WIDE.i === i
+    && CZ_WIDE.path.map(x => x.name).join("|") === path.map(x => x.name).join("|");
+  CZ_WIDE = same ? null : { i: i, path: path };
+  renderCzWide();
+}
+
+function czWideClose() { CZ_WIDE = null; renderCzWide(); }
+
+function renderCzWide() {
+  const box = document.getElementById("czdrill");
+  if (!CZ_WIDE) { box.style.display = "none"; return; }
+
+  const i = CZ_WIDE.i, g = czGroup(i);
+  const nodes = (CZ_WIDE.path.length ? czNodesAt(i, CZ_WIDE.path)
+                                     : (g.children || [])).slice(0, 40);
+  if (!nodes.length) { box.style.display = "none"; return; }
+  box.style.display = "block";
+
+  document.getElementById("czdttl").textContent =
+    [g.name].concat(CZ_WIDE.path.map(x => x.name)).join(" > ") + " 전체 순위";
+  document.getElementById("czdcnt").textContent = nodes.length + "개";
+  document.getElementById("czdpath").innerHTML =
+    `<span class="czback" onclick="czWideClose()">닫기</span>`
+    + `<span class="minittl">막대를 누르면 LOT 상세 · Ctrl 로 여러 개</span>`;
+
+  if (!czWideChart) {
+    czWideChart = czBarChart("czdc",
+      (idx, ev) => czPick(i, (czWideChart.$nodes || [])[idx],
+                          CZ_WIDE.path.length ? 1 : 0, ev), "czdVal");
+  }
+  czApply(czWideChart, nodes, CAUSE_UNIT, DRILL_KEY.node,
+          DRILL_KEY.i === i ? DRILL_KEY.list : null);
 }
 
 /* --- 드릴다운 --- */
@@ -1495,11 +1601,11 @@ function clearOtherSelections(src) {
   if (DRILL_SRC === src) { return; }
   if (!src) { DRILL_SRC = ""; return; }
   // 선택 상태만 지우면 차트에 이전 표시가 남는다. 반드시 다시 그린다.
-  if (src !== "cause")  { DRILL_KEY = { i: -1, node: null };
+  if (src !== "cause")  { DRILL_KEY = { i: -1, node: null, list: [] };
                           CZ_SEL = { i: -1, path: [] }; }
-  if (src !== "wt")     { SEL_WT = null; }
-  if (src !== "wt0")    { SEL_WT0 = null; }
-  if (src !== "type")   { SEL_TYPE = null; }
+  if (src !== "wt")     { SEL_WT = null; SEL_WTS = []; }
+  if (src !== "wt0")    { SEL_WT0 = null; SEL_WT0S = []; }
+  if (src !== "type")   { SEL_TYPE = null; SEL_TYPES = []; }
   if (src !== "status") { SEL_PIE = null; }
   DRILL_SRC = src;
   if (!DATA) { return; }
@@ -2032,8 +2138,9 @@ function loadSummary(keepFocus) {
   // keepFocus 는 좌측 막대를 눌러 원인 분석만 좁히는 경우라 선택을 유지한다.
   if (!keepFocus) {
     SEL_WT = null; SEL_WT0 = null; SEL_TYPE = null; SEL_PIE = null;
+    SEL_TYPES = []; SEL_WTS = []; SEL_WT0S = []; SEL_PIES = [];
     CZ_SEL = { i: -1, path: [] };
-    DRILL_KEY = { i: -1, node: null };
+    DRILL_KEY = { i: -1, node: null, list: [] };
     closeDrill();
   }
 

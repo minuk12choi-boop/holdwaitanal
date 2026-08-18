@@ -1950,20 +1950,24 @@ def api_lots_live(request):
     raw = request.GET.get("types")
     types = ([t for t in raw.split(",") if t] if raw is not None
              else list(DEFAULT_LOT_TYPES))
-    wt_range = request.GET.get("wt_range", "")
-    wt0 = request.GET.get("wt0", "")
+    # Ctrl 다중선택을 위해 쉼표로 여러 값을 받는다.
+    def multi(name):
+        return [x for x in request.GET.get(name, "").split(",") if x]
+
+    wt_range = multi("wt_range")
+    wt0 = multi("wt0")
     prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
     prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
     # 화면에 보이는 컬럼만 실어 보낸다. 응답 크기가 절반 이하로 준다.
     want_cols = [x for x in request.GET.get("cols", "").split(",") if x]
     bdate = request.GET.get("biz_date", "")
     bshift = request.GET.get("shift", "")
-    lot_type = request.GET.get("lot_type", "")     # 재공 구성 막대에서
-    status = request.GET.get("status", "")         # status 원차트에서
-    layer_id = request.GET.get("layer_id", "")     # LOT BALANCE 막대에서
+    lot_type = multi("lot_type")     # 재공 구성 막대에서
+    status = multi("status")         # status 원차트에서
+    layer_id = multi("layer_id")     # LOT BALANCE 막대에서
     big = request.GET.get("big", "")
     mid = request.GET.get("mid", "")
-    sub = request.GET.get("sub", "")
+    subs_want = multi("sub")
 
     if not _table_exists("f3_live"):
         return JsonResponse({"rows": [], "cols": [], "reason": "f3_live 미적재"})
@@ -1973,16 +1977,18 @@ def api_lots_live(request):
     p2_sql = prod2 if prod2 and UNCLASSIFIED not in prod2 else None
     rows, snap = _summary_rows(line, types, {
         "prod1": p1_sql, "prod2": p2_sql,
-        "lot_type": [lot_type] if lot_type else None,
-        "lot_status": [status] if status else None,
-        "layer_id": [layer_id] if layer_id else None,
+        "lot_type": lot_type or None,
+        "lot_status": status or None,
+        "layer_id": layer_id or None,
     }, biz_date=bdate, shift=bshift)
     mv = _lot_move_map(line)
     rules = _cause_rules()
     ht = _holdtype_rules()
 
     # lot_id / wt 는 정렬과 식별에 쓰이므로 화면에서 감춰도 항상 실어 보낸다.
-    pkey = _preset_for(request.GET.get("src", ""), status, big, lot_type,
+    pkey = _preset_for(request.GET.get("src", ""),
+                       status[0] if len(status) == 1 else "",
+                       big, lot_type[0] if len(lot_type) == 1 else "",
                        wt_range, wt0)
     valid = {c for c, _ in LOT_DETAIL_COLS}
     preset = [c for c in DRILL_PRESETS.get(pkey, [])
@@ -2004,17 +2010,17 @@ def api_lots_live(request):
         if prod2 and not p2_sql and (r.get("prod2") or UNCLASSIFIED) not in prod2:
             continue
         wt = calc_wt(mv, r["lot_id"], q, r.get("lot_status"))
-        if wt_range and _wt_range_key(wt) != wt_range:
+        if wt_range and _wt_range_key(wt) not in wt_range:
             continue
         if wt0:
-            if wt > 0 or _wt0_bin(num_f(r.get("마지막작업경과_일"))) != wt0:
+            if wt > 0 or _wt0_bin(num_f(r.get("마지막작업경과_일"))) not in wt0:
                 continue
         b2, m2, s2 = classify_lot(r, rules, ht)
         if big and b2 != big:
             continue
         if mid and (m2 or "") != mid:
             continue
-        if sub and sub not in s2:
+        if subs_want and not any(x in s2 for x in subs_want):
             continue
         rec = dict(r)
         rec["wt"] = round(wt, 2)
