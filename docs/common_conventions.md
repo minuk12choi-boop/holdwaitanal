@@ -386,6 +386,20 @@ python getdata/get_move.py --from 2026-08-01 --to 2026-08-10
 python getdata/get_move.py --full
 ```
 
+### AREA
+
+설비그룹(`eqp_group_raw`) **첫 글자**로 공정 AREA 를 정한다(`area_of`).
+
+| 첫 글자 | AREA | | 첫 글자 | AREA |
+|---|---|---|---|---|
+| E | ETCH | | D | DIFF |
+| P | PHOTO | | W | CLN |
+| M | METRO | | T | CVD |
+| I, F | IMP | | S | METAL |
+| C | CMP | | | |
+
+목록에 없는 글자는 비워 둔다. 매핑을 바꿀 때는 `AREA_MAP` 만 고친다.
+
 ### 호환설비이슈 (부분 차단)
 
 설비·챔버 후보 중 **일부만** DOWN/TIP 이면 아직 갈 길이 남아 있다.

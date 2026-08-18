@@ -945,6 +945,21 @@ def elapsed_days_text(column: str) -> str:
     return "FORMAT('{:.1f}', " + elapsed_days_num(column) + ") || '일↑'"
 
 
+# 설비그룹 첫 글자로 공정 AREA 를 정한다.
+AREA_MAP = {
+    "E": "ETCH", "P": "PHOTO", "M": "METRO", "I": "IMP", "D": "DIFF",
+    "W": "CLN", "F": "IMP", "T": "CVD", "S": "METAL", "C": "CMP",
+}
+
+
+def area_of(series):
+    """설비그룹 -> AREA. 첫 글자로 가른다. 모르는 글자는 비워 둔다."""
+    if series is None:
+        return pd.NA
+    s = pd.Series(series).astype("string").str.strip().str.upper()
+    return s.str[0].map(AREA_MAP)
+
+
 PROD_COLS = ("prod1", "prod2", "dept")
 MODULE_COLS = ("module1", "module2")
 
@@ -1282,7 +1297,7 @@ def expand_with_equipment(scope, df_eqp, df_eqp_group, line):
     )
     out = out.merge(e, on="eqp_id", how="left")
     out = out.rename(columns={"eqp_status": "body_status"})
-    out["AREA"] = pd.NA          # 참조 파이프라인과 동일하게 미제공
+    out["AREA"] = area_of(out.get("eqp_group_raw", out.get("eqp_id")))
     return out
 
 
