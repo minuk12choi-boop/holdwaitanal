@@ -594,6 +594,23 @@ f3_std_module  f3_std_holdtype  f3_cause_rules
 목록은 `db_common.PROJECT_TABLES` 에 있다.
 이름을 바꾼 이력은 `getdata/migrate_rename_tables.sql` 참조.
 
+### LOT BALANCE
+
+드릴다운 표 위, 추이/원인 분석 아래. x축은 LAYER, y축은 재공(LOT/매 토글,
+기본 매). 드릴다운과 같은 조건을 쓴다.
+
+접힌 상태는 **전체 합산 한 줄**, `PLAN 펼치기` 를 누르면 PLAN 별로 나뉜다.
+**x축(LAYER)은 모든 PLAN 이 공유**해 없는 LAYER 는 빈칸으로 비운다.
+
+```
+LAYER   000  001  002  003  004
+B(메인)  25    -   25   25   25
+A        25   25    -   25    -
+```
+
+맨 위에 오는 PLAN 은 기준정보 `f3_std_plan` 의 **메인체크**가 켜진 것이고,
+여럿이면 PLAN 명 오름차순이다(`_main_plans`).
+
 ### 기준정보 저장 위치
 
 `app_db` 안에 있다. `python getdata/db_common.py --init` 으로 만든다.

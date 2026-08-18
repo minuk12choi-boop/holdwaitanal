@@ -136,6 +136,21 @@
       <div style="height:220px"><canvas id="wt0hc"></canvas></div>
     </div>
 
+    <!-- LOT BALANCE : LAYER 별 재공 -->
+    <div class="cell" id="balpanel" style="display:none;border:1px solid var(--bd);
+         border-radius:6px;padding:11px 12px;margin-bottom:10px">
+      <div class="cellttl"><span>LOT BALANCE</span>
+        <span style="display:flex;gap:6px;align-items:center">
+          <span class="seg">
+            <button id="bu_lots" onclick="setBalUnit('lots')">LOT</button>
+            <button class="on" id="bu_qty" onclick="setBalUnit('qty')">매</button>
+          </span>
+          <button class="rankbtn" id="balexp" onclick="toggleBalExpand()">
+            PLAN 펼치기<span class="cv">▼</span></button>
+        </span></div>
+      <div id="balbody"></div>
+    </div>
+
     <div class="detail" id="drill">
       <div class="empty">좌측 <b>W/T 분포</b>·<b>W/T 0 재공 분포</b> 막대나
         위 <b>원인 분석</b> 항목을 클릭하면 해당 LOT 상세가 여기에 표시됩니다.</div>
@@ -709,6 +724,110 @@ function renderWt0Panel(show) {
   wt0hChart.update();
 }
 
+/* --- LOT BALANCE : LAYER 별 재공 --------------------------------------
+   접힌 상태는 전체 합산 한 줄. 펼치면 PLAN 별로 나뉘되 LAYER 는 같은
+   x 위치에 맞춘다(없는 LAYER 는 빈칸). 메인 PLAN 이 맨 위.
+----------------------------------------------------------------------- */
+let BAL_UNIT = "qty";
+let BAL_OPEN = false;
+let BAL_DATA = null;
+const balCharts = [];
+
+function setBalUnit(u) {
+  BAL_UNIT = u;
+  document.getElementById("bu_lots").className = (u === "lots") ? "on" : "";
+  document.getElementById("bu_qty").className = (u === "qty") ? "on" : "";
+  drawBalance();
+}
+
+function toggleBalExpand() {
+  BAL_OPEN = !BAL_OPEN;
+  document.getElementById("balexp").innerHTML =
+    (BAL_OPEN ? "PLAN 접기" : "PLAN 펼치기") + `<span class="cv">`
+    + (BAL_OPEN ? "▲" : "▼") + `</span>`;
+  document.getElementById("balexp").classList.toggle("on", BAL_OPEN);
+  drawBalance();
+}
+
+function loadBalance(show) {
+  const box = document.getElementById("balpanel");
+  if (!show) { box.style.display = "none"; return; }
+  const q = "line=" + encodeURIComponent(LINE)
+    + "&types=" + encodeURIComponent(selectedTypes().join(","))
+    + "&prod1=" + encodeURIComponent(PROD1.join(","))
+    + "&prod2=" + encodeURIComponent(PROD2.join(","))
+    + "&biz_date=" + encodeURIComponent(SNAP_DATE)
+    + "&shift=" + encodeURIComponent(SNAP_SHIFT);
+  fetch("/api/balance/?" + q).then(r => r.json()).then(d => {
+    BAL_DATA = d;
+    box.style.display = (d.layers || []).length ? "block" : "none";
+    drawBalance();
+  });
+}
+
+function drawBalance() {
+  const d = BAL_DATA;
+  if (!d) { return; }
+  const xs = d.layers || [];
+  const rows = BAL_OPEN ? (d.plans || [])
+                        : [{ name: "전체", data: d.total || [] }];
+
+  // 캔버스를 필요한 만큼만 만들고 재사용한다.
+  const body = document.getElementById("balbody");
+  if (body.childElementCount !== rows.length) {
+    balCharts.forEach(c => c && c.destroy());
+    balCharts.length = 0;
+    body.innerHTML = rows.map((r, i) =>
+      `<div class="balrow"><div class="ballab">${r.name}</div>`
+      + `<div class="balc"><canvas id="balc${i}"></canvas></div></div>`).join("");
+  } else {
+    rows.forEach((r, i) => {
+      const el = body.children[i].querySelector(".ballab");
+      if (el) { el.textContent = r.name; }
+    });
+  }
+
+  rows.forEach((r, i) => {
+    const vals = (r.data || []).map(v =>
+      (BAL_UNIT === "lots" ? v.lots : v.qty) || 0);
+    if (!balCharts[i]) {
+      balCharts[i] = new Chart(document.getElementById("balc" + i), {
+        type: "bar",
+        data: { labels: xs, datasets: [{ data: vals, borderRadius: 2,
+                                         backgroundColor: "#6699CC" }] },
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: false,
+          plugins: { legend: { display: false },
+                     tooltip: { callbacks: { label: (t) =>
+                       nf(t.raw) + (BAL_UNIT === "lots" ? " lot" : " 매") } } },
+          scales: { x: { grid: { display: false },
+                         ticks: { font: { size: 9 }, autoSkip: false,
+                                  maxRotation: 90, minRotation: 90 } },
+                    y: { display: false, beginAtZero: true, grace: "20%" } }
+        },
+        plugins: [{
+          id: "balVal" + i,
+          afterDatasetsDraw(ch) {
+            const ctx = ch.ctx; ctx.save();
+            ctx.font = "9px 'Poppins','Noto Sans KR',sans-serif";
+            ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+            ctx.fillStyle = "#374151";
+            ch.getDatasetMeta(0).data.forEach((el, k) => {
+              const v = ch.data.datasets[0].data[k];
+              if (v) { ctx.fillText(kfmt(v), el.x, el.y - 3); }
+            });
+            ctx.restore();
+          }
+        }]
+      });
+    } else {
+      balCharts[i].data.labels = xs;             // x 축은 모든 PLAN 공통
+      balCharts[i].data.datasets[0].data = vals;
+      balCharts[i].update();
+    }
+  });
+}
+
 /* --- SHIFT 추이 : 막대=재공, 라인=원인 비율 --- */
 let trdChart = null;
 let TRD_DRILL = [];          // [] / [대분류] / [대분류, 중분류]
@@ -779,7 +898,7 @@ function renderTrend(d) {
   });
   document.getElementById("trdpath").innerHTML = path.join(" &gt; ")
     + (TRD_DRILL.length ? ""
-       : `<span style="color:var(--mut);font-weight:400"> · 범례를 눌러 파고들기`
+       : `<span style="color:var(--mut);font-weight:400"> · 항목별 상세 보기(범례 클릭)`
          + `</span>`);
 
   // 주간 보기에서만 SHIFT 토글
@@ -1275,6 +1394,8 @@ const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝�
 function closeDrill() {
   const p = document.getElementById("wt0panel");
   if (p) { p.style.display = "none"; }
+  const b = document.getElementById("balpanel");
+  if (b) { b.style.display = "none"; }
   DRILL_SRC = ""; DRILL_DATA = null; SORT_KEYS = [];
   HIDE_COLS = {}; DFILT = {}; DFILT_WT = null; dfLast = {}; FCACHE = null;
   COL_ORDER = null;
@@ -1456,6 +1577,42 @@ function dfOptions(k) {
     set.add(v);
   }
   return [...set].sort((a, b) => a.localeCompare(b, "ko"));
+}
+
+// 보이는 컬럼과 필터·정렬이 적용된 그대로 탭 구분으로 복사한다.
+function copyDrill() {
+  if (!DRILL_DATA) { return; }
+  const cols = drillCols().filter(c => !HIDE_COLS[c.k]);
+  const rows = sortedRows();
+  const line = (r) => cols.map(c => {
+    const v = r[c.k];
+    if (v === null || v === undefined) { return ""; }
+    return c.k === "wt" ? Number(v).toFixed(1) : String(v);
+  }).join("\t");
+  const text = [cols.map(c => c.t).join("\t")]
+    .concat(rows.map(line)).join("\n");
+
+  const done = () => {
+    const el = document.getElementById("drillCount");
+    if (!el) { return; }
+    const keep = el.textContent;
+    el.textContent = nf(rows.length) + "행 복사됨";
+    setTimeout(() => { el.textContent = keep; }, 2000);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+  } else { fallbackCopy(text, done); }
+}
+
+function fallbackCopy(text, done) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); done(); } catch (e) { /* 무시 */ }
+  document.body.removeChild(ta);
 }
 
 function renderDrillHead() {
@@ -1727,6 +1884,7 @@ function openDrill(filt, label, src, keepView) {
   LAST_DRILL = { f: filt, l: label, s: src };
   clearOtherSelections(src || "");
   renderWt0Panel(src === "wt0");      // W/T0 드릴다운일 때만 보인다
+  loadBalance(true);                  // 드릴다운이 열리면 LOT BALANCE 도
   const el = document.getElementById("drill");
   // 곧바로 자리표시자를 그려 '눌리지 않은 것처럼' 보이지 않게 한다.
   el.classList.add("loading");
@@ -1755,7 +1913,9 @@ function openDrill(filt, label, src, keepView) {
           <span class="path">컬럼명을 누르면 정렬 (1회 오름 · 2회 내림 · 3회 해제)
             · 컬럼명을 끌어 순서를 바꿀 수 있습니다</span>
         </div>
-        <button onclick="closeDrill()">닫기</button></div>
+        <span style="margin-left:auto;display:flex;gap:6px">
+          <button onclick="copyDrill()">복사하기</button>
+          <button onclick="closeDrill()">닫기</button></span></div>
       <div class="dtools">
         <div class="drow"><span class="minittl">컬럼</span>
           <div class="chips" id="drillCols"></div></div>

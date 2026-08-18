@@ -155,6 +155,7 @@ PROJECT_TABLES = (
     "f3_live", "f3_history", "f3_history_meta", "f3_load_log",
     "f3_move_shift", "f3_move_daily", "f3_move_lot",
     "f3_std_module", "f3_std_holdtype", "f3_cause_rules",
+    "f3_std_hot", "f3_std_plan",
 )
 
 
@@ -330,6 +331,35 @@ def ensure_standard_schema(conn):
           updated_at DATETIME NULL,
           UNIQUE KEY uq_ht (line, type, condition1, condition2, condition3,
                             type_name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+        # 3) 초HOT 기준
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS f3_std_hot (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          line VARCHAR(16) NULL,
+          grade VARCHAR(16) NULL,
+          condition_1 VARCHAR(128) NULL,
+          condition_2 VARCHAR(128) NULL,
+          condition_3 VARCHAR(128) NULL,
+          type_name VARCHAR(64) NOT NULL,
+          updated_at DATETIME NULL,
+          UNIQUE KEY uq_hot (line, grade, condition_1, condition_2,
+                             condition_3, type_name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+
+        # 4) 제품별 메인 PLAN
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS f3_std_plan (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          line VARCHAR(16) NULL,
+          prod2 VARCHAR(64) NULL,
+          plan VARCHAR(64) NULL,
+          grp VARCHAR(16) NULL,
+          is_main VARCHAR(1) NULL,      -- 'Y' 면 메인
+          updated_at DATETIME NULL,
+          UNIQUE KEY uq_plan (line, prod2, plan, grp, is_main)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
     conn.commit()

@@ -1,7 +1,9 @@
 {% extends "flowmonitor/base.html" %}
 {% block body %}
 <style>
-  .std { padding:16px; }
+  /* 기준정보는 컬럼이 많다. 화면 가로를 다 쓰고 카드는 아래로 쌓는다. */
+  .std { padding:16px; width:100%; box-sizing:border-box; }
+  .std .card { width:100%; }
   /* 편집용 표는 값이 다 보여야 한다. 셀 안 input 이 width:100% 라
      내용에 따른 자동 폭이 안 잡히므로 컬럼별 최소 폭을 직접 준다. */
   .std .grid { width:100%; }
@@ -35,6 +37,7 @@
                    gap:12px; border:1px solid var(--bd); border-radius:8px;
                    background:#F7F8FA; padding:10px 14px; margin-bottom:14px; }
   .std .dirty { color:#B45309; font-size:11px; margin-left:6px; }
+  .std td input.ckcell { width:auto; }
   .std td input, .std td select { width:100%; box-sizing:border-box; border:0;
                                   background:transparent; font-size:12px;
                                   padding:3px 4px; font-family:inherit; }
@@ -79,6 +82,11 @@
       </div>
     </div>
     <div class="bd">
+      {% for col in c.cols %}{% if col.type == "search" %}
+        <datalist id="dl_{{ c.key }}_{{ col.k }}">
+          {% for o in col.opts %}<option value="{{ o }}">{% endfor %}
+        </datalist>
+      {% endif %}{% endfor %}
       <div class="gridwrap"><table class="grid" id="t_{{ c.key }}">
         <thead><tr>
           <th class="ck"><input type="checkbox" onchange="stdAll('{{ c.key }}',this)"></th>
@@ -113,6 +121,22 @@ function esc(v) {
 function cellHtml(card, col, row, r, ci) {
   const v = esc(row[col.k]);
   const pos = `data-card="${card}" data-r="${r}" data-c="${ci}"`;
+
+  if (col.type === "check") {          // 메인체크
+    return `<input type="checkbox" ${pos} class="ckcell"`
+      + `${String(row[col.k] || "") === "Y" ? " checked" : ""}`
+      + ` onchange="stdEdit('${card}',${r},'${col.k}',this.checked?'Y':'')">`;
+  }
+  if (col.type === "number") {         // 숫자만
+    return `<input ${pos} value="${v}" inputmode="numeric"`
+      + ` oninput="this.value=this.value.replace(/[^0-9]/g,'');`
+      + `stdEdit('${card}',${r},'${col.k}',this.value)">`;
+  }
+  if (col.type === "search") {         // 검색 가능한 목록(직접 입력도 됨)
+    const id = `dl_${card}_${col.k}`;
+    return `<input ${pos} value="${v}" list="${id}"`
+      + ` oninput="stdEdit('${card}',${r},'${col.k}',this.value)">`;
+  }
   if (col.type === "select") {
     // noblank 인 컬럼은 빈 선택지를 두지 않는다(TYPE 은 ALL 이 기본).
     const opts = col.noblank ? (col.opts || []) : ["", ...(col.opts || [])];
@@ -212,6 +236,10 @@ document.addEventListener("paste", function (ev) {
       if (col.type === "select" && v && (col.opts || []).indexOf(v) < 0) {
         v = "";                                     // 선택지에 없는 값은 비운다
       }
+      if (col.type === "check") {
+        v = /^(y|yes|true|1|o|v|체크)$/i.test(v) ? "Y" : "";
+      }
+      if (col.type === "number") { v = v.replace(/[^0-9]/g, ""); }
       if (!v && col.default) { v = col.default; }   // 빈 값이면 기본값
 
       DATA[key][r][col.k] = v;

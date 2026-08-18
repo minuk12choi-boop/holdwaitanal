@@ -1540,7 +1540,40 @@ STD_CARDS = [
          {"k": "condition3", "t": "CONDITION3", "w": "lg"},
          {"k": "type_name", "t": "TYPE_NAME", "req": True, "w": "md"},
      ]},
+    {"key": "hot", "table": "f3_std_hot", "title": "초HOT 기준설정",
+     "desc": "GRADE 와 CONDITION 으로 초HOT 유형을 정한다. "
+             "빈 칸은 와일드카드다.",
+     "cols": [
+         {"k": "line", "t": "LINE", "type": "select", "opts": "lines", "w": "sm"},
+         {"k": "grade", "t": "GRADE", "type": "select", "w": "sm",
+          "opts": ["G1", "G2", "G3", "G4", "G5"]},
+         {"k": "condition_1", "t": "CONDITION_1", "w": "lg"},
+         {"k": "condition_2", "t": "CONDITION_2", "w": "lg"},
+         {"k": "condition_3", "t": "CONDITION_3", "w": "lg"},
+         {"k": "type_name", "t": "TYPE_NAME", "req": True, "w": "md"},
+     ]},
+    {"key": "plan", "table": "f3_std_plan", "title": "제품별 메인 PLAN",
+     "desc": "메인체크가 켜진 PLAN 이 그 제품의 메인이다. "
+             "여러 개면 PLAN 명 오름차순이 우선한다. "
+             "GROUP 이 같은 숫자면 같은 그룹으로 묶인다.",
+     "cols": [
+         {"k": "line", "t": "LINE", "type": "select", "opts": "lines", "w": "sm"},
+         {"k": "prod2", "t": "제품", "type": "search", "opts": "prod2", "w": "md"},
+         {"k": "plan", "t": "PLAN", "w": "md"},
+         {"k": "grp", "t": "GROUP", "type": "number", "w": "sm"},
+         {"k": "is_main", "t": "메인체크", "type": "check", "w": "sm"},
+     ]},
 ]
+
+
+def _prod2_options():
+    """제품(PROD2) 선택지. f3_live 에 적재된 값에서 뽑는다."""
+    if not _table_exists("f3_live"):
+        return []
+    with connection.cursor() as cur:
+        cur.execute("SELECT DISTINCT prod2 FROM f3_live "
+                    "WHERE prod2 IS NOT NULL AND prod2 <> '' ORDER BY prod2")
+        return [r[0] for r in cur.fetchall()]
 
 
 def _std_rows(table, cols):
@@ -1660,6 +1693,7 @@ def standards(request):
                 msg = f"{card['title']}: {n}행 저장했습니다."
 
     lines = [c["line"] for c in LINE_CARDS]
+    prod2 = _prod2_options()
     cards = []
     for c in STD_CARDS:
         cols = []
@@ -1667,6 +1701,8 @@ def standards(request):
             col = dict(col)
             if col.get("opts") == "lines":
                 col["opts"] = lines
+            elif col.get("opts") == "prod2":
+                col["opts"] = prod2
             cols.append(col)
         cards.append({**c, "cols": cols, "rows": _std_rows(c["table"], c["cols"])})
 
@@ -1802,6 +1838,67 @@ def _trend_points(points, line, types, prod1, prod2, drill, rules, ht,
         "points": out, "series": order, "drill": drill,
         "scope": scope, "wshift": wshift,
     }, json_dumps_params={"ensure_ascii": False})
+
+
+def api_balance(request):
+    """LOT BALANCE. x=LAYER, y=재공. PLAN 별로 나눌 수도 있다.
+
+    드릴다운 표와 같은 조건을 받아 그 부분집합만 센다.
+    PLAN 순서는 기준정보(f3_std_plan)의 메인체크가 먼저, 그다음 PLAN 명 순.
+    """
+    line = request.GET.get("line") or DEFAULT_LINE
+    raw = request.GET.get("types")
+    types = ([t for t in raw.split(",") if t] if raw is not None
+             else list(DEFAULT_LOT_TYPES))
+    prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
+    prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
+    bdate = request.GET.get("biz_date", "")
+    bshift = request.GET.get("shift", "")
+
+    rows, _ = _summary_rows(line, types, biz_date=bdate, shift=bshift)
+    rows = [r for r in rows
+            if (not prod1 or (r.get("prod1") or UNCLASSIFIED) in prod1)
+            and (not prod2 or (r.get("prod2") or UNCLASSIFIED) in prod2)]
+
+    # PLAN 컬럼이 f3 에 없으면 제품(prod2)을 대신 쓴다.
+    pcol = "plan" if rows and "plan" in rows[0] else "prod2"
+
+    layers, by_plan, total = set(), {}, {}
+    for r in rows:
+        lay = str(r.get("layer_id") or "").strip()
+        if not lay:
+            continue
+        q = num(r.get("qty"))
+        layers.add(lay)
+        _bucket(total, lay, q)
+        _bucket(by_plan.setdefault(str(r.get(pcol) or "-"), {}), lay, q)
+
+    main = _main_plans(line)
+    def rank(p):
+        return (0 if p in main else 1, main.get(p, 0), p)
+
+    xs = sorted(layers)
+    return JsonResponse({
+        "layers": xs,
+        "total": [{"lots": total.get(x, {}).get("lots", 0),
+                   "qty": total.get(x, {}).get("qty", 0)} for x in xs],
+        "plans": [{"name": p,
+                   "data": [{"lots": by_plan[p].get(x, {}).get("lots", 0),
+                             "qty": by_plan[p].get(x, {}).get("qty", 0)}
+                            for x in xs]}
+                  for p in sorted(by_plan, key=rank)],
+    }, json_dumps_params={"ensure_ascii": False})
+
+
+def _main_plans(line):
+    """메인 PLAN -> 우선순위. 메인체크가 여럿이면 PLAN 명 오름차순."""
+    if not _table_exists("f3_std_plan"):
+        return {}
+    with connection.cursor() as cur:
+        cur.execute("SELECT plan FROM f3_std_plan "
+                    "WHERE is_main='Y' AND (line=%s OR line IS NULL OR line='') "
+                    "AND plan IS NOT NULL ORDER BY plan", [line])
+        return {r[0]: i for i, r in enumerate(cur.fetchall())}
 
 
 def api_lot_steps(request):

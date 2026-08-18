@@ -243,7 +243,8 @@
   .cz .none { color:#C4C7CE; font-size:11px; }
 
   /* 기준정보 */
-  .std { padding:18px; max-width:900px; }
+  /* 기준정보는 컬럼이 많아 가로를 다 쓴다. 카드는 아래로 쌓인다. */
+  .std { padding:18px; max-width:none; }
   .std table { border-collapse:collapse; width:100%; font-size:13px;
                margin-bottom:16px; }
   .std th, .std td { border-bottom:1px solid var(--bd); padding:6px 8px;
@@ -441,6 +442,15 @@
   .stchip { font-size:11px; color:var(--fg); display:inline-flex;
             align-items:center; gap:4px; white-space:nowrap; }
   .stchip i { width:9px; height:9px; border-radius:2px; display:inline-block; }
+
+  /* LOT BALANCE : PLAN 을 세로로 쌓고 x축(LAYER)은 서로 맞춘다 */
+  .balrow { display:flex; align-items:stretch; gap:8px; }
+  .balrow + .balrow { border-top:1px solid var(--bd); padding-top:4px;
+                      margin-top:4px; }
+  .ballab { flex:0 0 92px; font-size:11px; font-weight:700; color:var(--brand);
+            display:flex; align-items:center; overflow:hidden;
+            text-overflow:ellipsis; white-space:nowrap; }
+  .balc { flex:1; min-width:0; height:150px; }
 
   .czh { cursor:pointer; }
   .czh span:first-child::after { content:" ▸"; color:var(--mut); font-size:10px; }
