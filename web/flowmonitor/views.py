@@ -1883,7 +1883,8 @@ def api_balance(request):
         "layers": xs,
         "total": [{"lots": total.get(x, {}).get("lots", 0),
                    "qty": total.get(x, {}).get("qty", 0)} for x in xs],
-        "plans": [{"name": p,
+        # 이 순서가 곧 표시 순서다. 메인 PLAN 이 먼저, 그다음 이름 오름차순.
+        "plans": [{"name": p, "main": (p in main),
                    "data": [{"lots": by_plan[p].get(x, {}).get("lots", 0),
                              "qty": by_plan[p].get(x, {}).get("qty", 0)}
                             for x in xs]}

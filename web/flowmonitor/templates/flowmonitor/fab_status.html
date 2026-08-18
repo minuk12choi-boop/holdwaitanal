@@ -117,16 +117,16 @@
           <div id="czp2" class="czpath"></div>
           <div><canvas id="czc2"></canvas></div></div>
       </div>
-    </div>
 
-      <!-- 상단 3개는 그대로 두고, 파고든 결과는 아래에 전체 폭으로 -->
-      <div id="czdrill" style="display:none;margin-top:12px;
-                               border-top:1px solid var(--bd);padding-top:10px">
+      <!-- 상단 3개는 그대로 두고, 파고든 결과는 그 아래에 전체 폭으로 -->
+      <div id="czdrill" style="display:none;margin-top:10px;
+                               border-top:1px solid var(--bd);padding-top:9px">
         <div class="subttl"><span id="czdttl"></span>
           <span class="v" id="czdcnt"></span></div>
         <div id="czdpath" class="czpath"></div>
-        <div style="height:230px"><canvas id="czdc"></canvas></div>
+        <div style="height:200px"><canvas id="czdc"></canvas></div>
       </div>
+    </div>
     </div>
 
     <!-- W/T 0 구간 x status 분해. 폭이 넓어 라벨이 다 보인다. -->
@@ -758,7 +758,11 @@ function toggleBalExpand() {
 
 // 펼칠 PLAN 을 고른다. 검색과 전체 선택을 함께 둔다.
 function renderBalMenu() {
-  const plans = ((BAL_DATA && BAL_DATA.plans) || []).map(p => p.name);
+  // 서버가 이미 '메인 우선 -> 이름순' 으로 보낸다. 그 순서를 그대로 쓴다.
+  const list = (BAL_DATA && BAL_DATA.plans) || [];
+  const plans = list.map(p => p.name);
+  const mainOf = {};
+  list.forEach(p => { mainOf[p.name] = !!p.main; });
   const on = BAL_PICK ? new Set(BAL_PICK) : new Set(plans);
   document.getElementById("balmenu").innerHTML =
     `<input class="ddq" id="balq" type="text" placeholder="PLAN 검색"`
@@ -766,7 +770,8 @@ function renderBalMenu() {
     + `<label class="dfall"><input type="checkbox"`
     + `${BAL_PICK === null ? " checked" : ""} onclick="balAll(event)"><b>ALL</b></label>`
     + plans.map(p => `<label data-opt="${p}"><input type="checkbox" value="${p}"`
-        + `${on.has(p) ? " checked" : ""} onclick="balPick()">${p}</label>`).join("");
+        + `${on.has(p) ? " checked" : ""} onclick="balPick()">`
+        + `${mainOf[p] ? "<b>★ " + p + "</b>" : p}</label>`).join("");
 }
 
 function balSearch() {
@@ -1415,67 +1420,54 @@ function czWhole(i) {
 
 function renderCause() {
   const u = CAUSE_UNIT;
-  const unit = (u === "lots") ? " LOT" : " 매";
 
   for (let i = 0; i < 3; i++) {
     const g = czGroup(i);
-    const all = g.children || [];
-    const nodes = all.slice(0, CZ_TOP);
+    // 이 칸을 파고들었으면 그 단계의 목록을, 아니면 대분류 바로 아래를 그린다.
+    const deep = (CZ_SEL.i === i && CZ_SEL.path.length
+                  && CZ_SEL.path[0].kind !== "all");
+    const path = deep ? CZ_SEL.path : [];
+    const all = deep ? czNodesAt(i, path) : (g.children || []);
+    const openAll = (CZ_SEL.i === i && CZ_SEL.path.length
+                     && CZ_SEL.path[0].kind === "all");
+    const nodes = openAll ? all.slice(0, CZ_DEEP) : all.slice(0, CZ_TOP);
     const more = all.length - nodes.length;
 
     const hd = document.getElementById("czh" + i);
     hd.innerHTML = `<span>${g.name || "-"}</span>`
-      + `<span class="v">전체 ${nf(u === "lots" ? g.lots : g.qty)}${unit}</span>`;
+      + `<span class="v">전체 ${nf(u === "lots" ? g.lots : g.qty)}`
+      + `${u === "lots" ? " LOT" : " 매"}</span>`;
     hd.onclick = function () { czWhole(i); };      // 제목 = 전체 표
 
-    const openAll = (CZ_SEL.i === i && CZ_SEL.path.length
-                     && CZ_SEL.path[0].kind === "all");
-    document.getElementById("czp" + i).innerHTML = more > 0
-      ? `<button class="rankbtn ${openAll ? "on" : ""}"`
+    // 경로 + 그 외 보기
+    const p = document.getElementById("czp" + i);
+    if (deep) {
+      p.innerHTML =
+        `<span class="czback" onclick="czGo(${path.length - 1})">◀ 뒤로</span>`
+        + `<a onclick="czGo(0)">전체</a>`
+        + path.map((x, k) =>
+            ` &gt; <a onclick="czGo(${k + 1})">${x.name}</a>`).join("");
+    } else if (more > 0 || openAll) {
+      p.innerHTML = `<button class="rankbtn ${openAll ? "on" : ""}"`
         + ` onclick="czShowAll(${i})">전체 순위 보기`
-        + `<span class="cv">${openAll ? "▲" : "▼"}</span></button>`
-      : "";
+        + `<span class="cv">${openAll ? "▲" : "▼"}</span></button>`;
+    } else {
+      p.innerHTML = "";
+    }
 
     if (!czCharts[i]) {
       czCharts[i] = czBarChart("czc" + i,
-        (idx) => czPick(i, (czCharts[i].$nodes || [])[idx], 0), "czVal" + i);
+        (idx) => czPick(i, (czCharts[i].$nodes || [])[idx],
+                        (CZ_SEL.i === i && CZ_SEL.path.length
+                         && CZ_SEL.path[0].kind !== "all") ? 1 : 0),
+        "czVal" + i);
     }
-    // 상단 차트의 선택 표시: 파고든 경로의 첫 단계, 또는 표를 띄운 말단 막대
     let sel = null;
-    if (CZ_SEL.i === i && CZ_SEL.path.length && CZ_SEL.path[0].kind !== "all") {
-      sel = CZ_SEL.path[0].name;
-    } else if (DRILL_KEY.i === i) {
-      sel = DRILL_KEY.node;
-    }
+    if (DRILL_KEY.i === i) { sel = DRILL_KEY.node; }
     czApply(czCharts[i], nodes, u, sel);
   }
 
-  // ── 드릴다운 차트 ──────────────────────────────────────────────────
-  const box = document.getElementById("czdrill");
-  if (CZ_SEL.i < 0 || !CZ_SEL.path.length) { box.style.display = "none"; return; }
-
-  const g = czGroup(CZ_SEL.i);
-  const isAll = CZ_SEL.path[0].kind === "all";
-  const nodes = (isAll ? (g.children || [])
-                       : czNodesAt(CZ_SEL.i, CZ_SEL.path)).slice(0, CZ_DEEP);
-
-  if (!nodes.length) { box.style.display = "none"; return; }
-  box.style.display = "block";
-
-  const names = CZ_SEL.path.filter(p => p.kind !== "all").map(p => p.name);
-  document.getElementById("czdttl").textContent =
-    [g.name].concat(names).join(" > ") + (isAll ? " 전체" : "");
-  document.getElementById("czdcnt").textContent = nodes.length + "개";
-  document.getElementById("czdpath").innerHTML =
-    `<span class="czback" onclick="czGo(${Math.max(CZ_SEL.path.length - 1, 0)})">`
-    + `◀ 뒤로</span><a onclick="czReset()">닫기</a>`
-    + names.map((n, k) => ` &gt; <a onclick="czGo(${k + 1})">${n}</a>`).join("");
-
-  if (!czDrill) {
-    czDrill = czBarChart("czdc",
-      (idx) => czPick(CZ_SEL.i, (czDrill.$nodes || [])[idx], 1), "czdVal");
-  }
-  czApply(czDrill, nodes, u, DRILL_KEY.node);
+  document.getElementById("czdrill").style.display = "none";
 }
 
 /* --- 드릴다운 --- */

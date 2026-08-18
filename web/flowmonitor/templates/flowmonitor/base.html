@@ -448,6 +448,10 @@
   .balrow { display:flex; align-items:stretch; gap:8px; }
   .balrow + .balrow { border-top:1px solid var(--bd); padding-top:4px;
                       margin-top:4px; }
+  /* PLAN 선택 팝업이 아래 카드에 가리지 않게 */
+  #balpanel { position:relative; z-index:40; overflow:visible; }
+  #balpick .menu { left:auto; right:0; top:26px; max-height:300px;
+                   overflow:auto; min-width:190px; z-index:70; }
   .balpath { font-size:12px; font-weight:700; color:var(--accent);
              min-height:16px; margin-bottom:4px; }
   .ballab { flex:0 0 92px; font-size:11px; font-weight:700; color:var(--brand);
