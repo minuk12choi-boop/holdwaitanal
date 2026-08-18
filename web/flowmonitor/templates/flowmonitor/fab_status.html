@@ -44,9 +44,13 @@
             <div><b id="wl">-</b><div class="lbl">재공 LOT</div></div>
             <div><b id="wq">-</b><div class="lbl">재공 매</div></div>
           </div>
-          <div class="dd" id="dd">
-            <button onclick="toggleDd()" id="ddb">전체 &#9662;</button>
-            <div class="menu" id="ddm"></div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="rankbtn" onclick="pickTypeAll()"
+                    title="lot_type 을 가리지 않고 전부 본다">전체 보기</button>
+            <div class="dd" id="dd">
+              <button onclick="toggleDd()" id="ddb">전체 &#9662;</button>
+              <div class="menu" id="ddm"></div>
+            </div>
           </div>
         </div>
         <div class="stack" id="ws"></div>
