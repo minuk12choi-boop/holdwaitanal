@@ -459,6 +459,23 @@
             text-overflow:ellipsis; white-space:nowrap; }
   .balc { flex:1; min-width:0; height:150px; }
 
+  /* 조건 칩 */
+  .fchip { display:inline-flex; align-items:center; gap:4px; height:24px;
+           padding:0 6px 0 9px; border:1px solid var(--brand);
+           border-radius:999px; background:#EEF2F9; color:var(--brand);
+           font-size:11px; font-weight:600; white-space:nowrap; }
+  .fchip i { font-style:normal; cursor:pointer; font-size:13px; line-height:1;
+             padding:0 2px; opacity:.7; }
+  .fchip i:hover { opacity:1; color:#B91C1C; }
+
+  /* 조건이 걸린 카드 강조 */
+  .cell.active { box-shadow:0 0 0 2px var(--brand) inset; position:relative; }
+  .cell.active::after { content:attr(data-n); position:absolute; top:6px;
+                        right:8px; min-width:15px; height:15px; padding:0 3px;
+                        border-radius:8px; background:var(--brand); color:#fff;
+                        font-size:10px; font-weight:700; line-height:15px;
+                        text-align:center; }
+
   .czh { cursor:pointer; }
   .czh span:first-child::after { content:" ▸"; color:var(--mut); font-size:10px; }
   .czh:hover span:first-child { text-decoration:underline; }

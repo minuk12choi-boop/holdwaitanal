@@ -37,7 +37,7 @@
     <div id="err" class="err"></div>
 
     <!-- 재공 뷰 -->
-    <div class="cell">
+    <div class="cell" id="wipcard">
       <div class="wip">
         <div class="top">
           <div class="nums">
@@ -59,7 +59,7 @@
     </div>
 
     <!-- status 뷰 -->
-    <div class="cell">
+    <div class="cell" id="stcard">
       <div class="donut">
         <div class="legend" id="lg"></div>
         <div class="cv"><canvas id="dn"></canvas></div>
@@ -68,7 +68,7 @@
     </div>
 
     <!-- WT 분포 뷰 -->
-    <div class="cell">
+    <div class="cell" id="wtcard">
       <div class="cellttl"><span>W/T 분포</span>
         <span class="seg">
           <button id="wu_lots" onclick="setWtUnit('lots')">LOT</button>
@@ -78,7 +78,7 @@
     </div>
 
     <!-- W/T 0 재공 분포 -->
-    <div class="cell">
+    <div class="cell" id="wt0card">
       <div class="cellttl"><span>W/T 0 재공 분포</span>
         <span class="seg">
           <button id="zu_lots" onclick="setWt0Unit('lots')">LOT</button>
@@ -103,7 +103,7 @@
       <div><canvas id="trdc"></canvas></div>
     </div>
 
-    <div class="cell" style="flex:1;min-width:0;border:1px solid var(--bd);
+    <div class="cell" id="czcard" style="flex:1;min-width:0;border:1px solid var(--bd);
                              border-radius:6px;padding:11px 12px;margin-bottom:10px">
       <div class="cellttl"><span>원인 분석</span>
         <span class="seg">
@@ -151,10 +151,12 @@
             <button class="on" id="bu_qty" onclick="setBalUnit('qty')">매</button>
           </span>
           <div class="dd" id="balpick">
-            <button class="rankbtn" id="balexp" onclick="toggleBalExpand()">
+            <button class="rankbtn" id="balexp" onclick="toggleBalExpand('plan')">
               PLAN 펼치기<span class="cv">▼</span></button>
             <div class="menu" id="balmenu"></div>
           </div>
+          <button class="rankbtn" id="balexp2" onclick="toggleBalExpand('prod')">
+            제품 펼치기<span class="cv">▼</span></button>
         </span></div>
       <div class="balpath" id="balpath"></div>
       <div id="balbody"></div>
@@ -417,28 +419,17 @@ function renderWip() {
 let SEL_TYPES = [];                  // Ctrl 다중선택
 
 function pickType(name, ev) {
-  SEL_TYPES = (SEL_TYPES.length && SEL_TYPE !== null)
-    ? multiPick(SEL_TYPES, name, ev) : [name];
-  if (SEL_TYPE === name && SEL_TYPES.length === 1 && SEL_TYPES[0] === name
-      && !(ev && (ev.ctrlKey || ev.metaKey))) {
-    SEL_TYPE = null; SEL_TYPES = [];      // 같은 것을 다시 누르면 해제
-  } else {
-    SEL_TYPE = SEL_TYPES[SEL_TYPES.length - 1];
-  }
-  renderWip();
-  requestAnimationFrame(() => {
-    if (SEL_TYPES.length) {
-      openDrill({ lot_type: SEL_TYPES.join(",") }, SEL_TYPES.join(", "), "type");
-    } else { closeDrill(); }
-    loadSummary(true);
-  });
+  setCond("type", name, ev);
+  syncFromDF();
 }
 
-// lot_type 을 가리지 않고 지금 필터 그대로 전부 본다.
+// lot_type 을 가리지 않고 지금 조건 그대로 전부 본다.
 function pickTypeAll() {
-  SEL_TYPE = null; SEL_TYPES = [];
-  renderWip();
-  openDrill({}, "전체", "type");
+  delete DF.type;
+  syncFromDF();
+  if (!Object.keys(DF).length && !DF_CAUSE) {
+    openDrill({}, "전체", "multi");
+  }
 }
 
 /* --- status --- */
@@ -510,12 +501,8 @@ function renderStatus() {
           const i = els[0].index;
           pickStatus(i);
           const st = DATA.status[i];
-          SEL_PIE = (SEL_PIE === st.name) ? null : st.name;
-          markSelected(dnChart, DATA.status.findIndex(x => x.name === SEL_PIE));
-          dnChart.update();
-          if (SEL_PIE) { openDrill({ status: st.name }, st.name, "status"); }
-          else { closeDrill(); }
-          loadSummary(true);
+          setCond("status", st.name, e.native || e);
+          syncFromDF();
         }
       },
       plugins: [sliceLabels]
@@ -557,19 +544,8 @@ function renderWt() {
         onClick: (e, els) => {
           if (!els.length) return;
           const x = DATA.wt_dist[els[0].index];
-          SEL_WTS = (SEL_WT !== null)
-            ? multiPick(SEL_WTS, x.name, e.native || e) : [x.name];
-          if (SEL_WT === x.name && SEL_WTS.length === 1
-              && !((e.native || e).ctrlKey || (e.native || e).metaKey)) {
-            SEL_WT = null; SEL_WTS = [];
-          } else { SEL_WT = SEL_WTS[SEL_WTS.length - 1]; }
-          renderWt();
-          if (SEL_WTS.length) {
-            const lb = SEL_WTS.map(k =>
-              (DATA.wt_dist.find(y => y.name === k) || {}).label || k);
-            openDrill({ wt_range: SEL_WTS.join(",") }, lb.join(", "), "wt");
-          } else { closeDrill(); }
-          loadSummary(true);
+          setCond("wt", x.name, e.native || e, x.label);
+          syncFromDF();
         }
       },
       plugins: [{
@@ -626,19 +602,8 @@ function renderWt0() {
         onClick: (e, els) => {
           if (!els.length) return;
           const x = (DATA.wt0_dist || [])[els[0].index];
-          SEL_WT0S = (SEL_WT0 !== null)
-            ? multiPick(SEL_WT0S, x.name, e.native || e) : [x.name];
-          if (SEL_WT0 === x.name && SEL_WT0S.length === 1
-              && !((e.native || e).ctrlKey || (e.native || e).metaKey)) {
-            SEL_WT0 = null; SEL_WT0S = [];
-          } else { SEL_WT0 = SEL_WT0S[SEL_WT0S.length - 1]; }
-          renderWt0();
-          if (SEL_WT0S.length) {
-            const lb = SEL_WT0S.map(k =>
-              (list.find(y => y.name === k) || {}).label || k);
-            openDrill({ wt0: SEL_WT0S.join(",") }, lb.join(", "), "wt0");
-          } else { closeDrill(); }
-          loadSummary(true);           // 원인 분석을 이 구간으로 좁힌다
+          setCond("wt0", x.name, e.native || e, x.label);
+          syncFromDF();           // 원인 분석을 이 구간으로 좁힌다
         }
       },
       plugins: [{
@@ -778,7 +743,8 @@ function renderWt0Panel(show) {
 let BAL_UNIT = "qty";
 let BAL_OPEN = false;
 let BAL_DATA = null;
-let BAL_PICK = null;      // 펼칠 PLAN 목록. null 이면 전부
+let BAL_PICK = null;      // 펼칠 목록. null 이면 전부
+let BAL_BY = "plan";      // plan | prod
 let BAL_LABEL = "";       // 어떤 드릴다운에서 왔는지
 let BAL_SRC = "";         // 그 드릴다운의 출처(되돌아갈 때 쓴다)
 const balCharts = [];
@@ -790,7 +756,12 @@ function setBalUnit(u) {
   drawBalance();
 }
 
-function toggleBalExpand() {
+function toggleBalExpand(by) {
+  if (by && by !== BAL_BY) {          // 기준이 바뀌면 다시 받아온다
+    BAL_BY = by; BAL_PICK = null; BAL_OPEN = true;
+    loadBalance(true);
+    return;
+  }
   const box = document.getElementById("balpick");
   const open = box.classList.contains("open");
   document.querySelectorAll(".dd.open").forEach(d => d.classList.remove("open"));
@@ -838,18 +809,23 @@ function balPick() {
   const sel = boxes.filter(x => x.checked).map(x => x.value);
   BAL_PICK = (sel.length === boxes.length) ? null : sel;
   BAL_OPEN = true;
-  const btn = document.getElementById("balexp");
-  btn.innerHTML = `PLAN ${BAL_PICK ? BAL_PICK.length + "개" : "전체"}`
-    + `<span class="cv">▲</span>`;
+  const btn = document.getElementById(BAL_BY === "prod" ? "balexp2" : "balexp");
+  btn.innerHTML = `${BAL_BY === "prod" ? "제품" : "PLAN"} `
+    + `${BAL_PICK ? BAL_PICK.length + "개" : "전체"}<span class="cv">▲</span>`;
   btn.classList.add("on");
   drawBalance();
 }
 
 function balCollapse() {
   BAL_OPEN = false; BAL_PICK = null;
-  const btn = document.getElementById("balexp");
-  btn.innerHTML = `PLAN 펼치기<span class="cv">▼</span>`;
-  btn.classList.remove("on");
+  const b1 = document.getElementById("balexp");
+  b1.innerHTML = `PLAN 펼치기<span class="cv">▼</span>`;
+  b1.classList.remove("on");
+  const b2 = document.getElementById("balexp2");
+  if (b2) {
+    b2.innerHTML = `제품 펼치기<span class="cv">▼</span>`;
+    b2.classList.remove("on");
+  }
   drawBalance();
 }
 
@@ -861,7 +837,8 @@ function loadBalance(show) {
     + "&prod1=" + encodeURIComponent(PROD1.join(","))
     + "&prod2=" + encodeURIComponent(PROD2.join(","))
     + "&biz_date=" + encodeURIComponent(SNAP_DATE)
-    + "&shift=" + encodeURIComponent(SNAP_SHIFT);
+    + "&shift=" + encodeURIComponent(SNAP_SHIFT)
+    + "&by=" + BAL_BY;
   fetch("/api/balance/?" + q).then(r => r.json()).then(d => {
     BAL_DATA = d;
     box.style.display = (d.layers || []).length ? "block" : "none";
@@ -881,10 +858,13 @@ function drawBalance() {
   }
   if (!rows.length) { rows = [{ name: "전체", data: d.total || [] }]; }
 
+  // 경로를 눌러 그 단계로 돌아간다.
+  const unit = (BAL_BY === "prod") ? "제품" : "PLAN";
   document.getElementById("balpath").innerHTML =
     `<a onclick="balCollapse()">LOT BALANCE</a>`
-    + (BAL_LABEL ? ` &gt; ${BAL_LABEL}` : "")
-    + (BAL_OPEN ? ` &gt; PLAN ${BAL_PICK ? BAL_PICK.join(", ") : "전체"}` : "");
+    + (BAL_LABEL ? ` &gt; <a onclick="dfClear('layer')">${BAL_LABEL}</a>` : "")
+    + (BAL_OPEN ? ` &gt; <a onclick="balCollapse()">${unit} `
+                  + `${BAL_PICK ? BAL_PICK.join(", ") : "전체"}</a>` : "");
 
   // 캔버스를 필요한 만큼만 만들고 재사용한다.
   const body = document.getElementById("balbody");
@@ -921,12 +901,8 @@ function drawBalance() {
                     y: { display: false, beginAtZero: true, grace: "20%" } },
           onClick: (e, els) => {
             if (!els.length) { return; }
-            const lay = xs[els[0].index];
-            const f = Object.assign({}, LAST_DRILL ? LAST_DRILL.f : {},
-                                    { layer_id: lay });
-            const nm = rows[i].name;
-            openDrill(f, [BAL_LABEL, nm === "전체" ? "" : nm, "LAYER " + lay]
-                        .filter(Boolean).join(" > "), "balance");
+            setCond("layer", xs[els[0].index], e.native || e);
+            syncFromDF();
           }
         },
         plugins: [{
@@ -992,16 +968,11 @@ function trdDrill(k) {
 
 // 추이의 말단 항목 -> 드릴다운 표
 function trdOpenTable(k) {
-  const f = {};
   const p = TRD_DRILL;
-  if (p[0] === "Hold+Wait성") { f.sub = k; }
-  else {
-    f.big = p[0];
-    if (p.length > 1) { f.mid = p[1]; }
-    f.sub = k;
-  }
-  if (TRD_SCOPE === "day") { f.shift = SNAP_SHIFT || ""; }
-  openDrill(f, [].concat(p, [k]).join(" > "), "cause");
+  DF_CAUSE = (p[0] === "Hold+Wait성")
+    ? { i: -1, big: null, mid: null, subs: [k] }
+    : { i: -1, big: p[0], mid: p.length > 1 ? p[1] : null, subs: [k] };
+  syncFromDF();
 }
 
 // 재공 막대: 주간에서 누르면 그 날짜의 SHIFT 추이로 들어간다.
@@ -1178,13 +1149,123 @@ let czDrill = null;
 let CZ_SEL = { i: -1, path: [] };          // 한 번에 하나만 파고든다
 let DRILL_KEY = { i: -1, node: null, list: [] };  // 표가 어느 차트·막대에서 나왔는지
 
-// Ctrl 을 누르고 고르면 같은 차트 안에서 여러 항목을 함께 본다.
+/* ── 드릴다운 조건 (한 곳에서 관리) ──────────────────────────────────────
+   차트마다 조건을 따로 들고 있으면 무엇이 걸렸는지 알 수 없다.
+   여기 모아 두고 표 위에 칩으로 보여준다.
+
+   클릭 규칙
+     그냥 클릭   그 차트의 조건만 교체(다른 차트 조건은 유지)
+     Ctrl 클릭   같은 차트 안에서 여러 개
+     Alt  클릭   전부 지우고 새로 시작
+     같은 것 재클릭  그 조건 해제
+--------------------------------------------------------------------------- */
+const DF_DEF = [
+  { k: "type",   t: "재공",       param: "lot_type" },
+  { k: "status", t: "STATUS",     param: "status" },
+  { k: "wt",     t: "W/T",        param: "wt_range" },
+  { k: "wt0",    t: "W/T 0",      param: "wt0" },
+  { k: "layer",  t: "LAYER",      param: "layer_id" },
+];
+let DF = {};                 // {키: [값...]}
+let DF_CAUSE = null;         // {big, mid, subs:[], i}
+let DF_LABEL = {};           // 화면 표시용 라벨
+
+function dfReset() { DF = {}; DF_CAUSE = null; DF_LABEL = {}; }
+
+// 같은 차트 안에서의 다중선택. 같은 값을 다시 누르면 빠진다.
 function multiPick(cur, name, ev) {
   const add = ev && (ev.ctrlKey || ev.metaKey);
   const list = add ? (cur || []).slice() : [];
   const at = list.indexOf(name);
   if (at >= 0) { list.splice(at, 1); } else { list.push(name); }
-  return list.length ? list : [name];
+  return list;                       // 비면 해제
+}
+
+function setCond(key, name, ev, label) {
+  if (ev && ev.altKey) { dfReset(); }
+  const same = (DF[key] || []).length === 1 && DF[key][0] === name;
+  const next = (!ev || !(ev.ctrlKey || ev.metaKey)) && same
+    ? [] : multiPick(DF[key], name, ev);
+  if (next.length) { DF[key] = next; } else { delete DF[key]; }
+  if (label) { DF_LABEL[key + ":" + name] = label; }
+  return next;
+}
+
+function dfChipLabel(k, v) { return DF_LABEL[k + ":" + v] || v; }
+
+function dfClear(k, v) {
+  if (k === "cause") { DF_CAUSE = null; }
+  else if (v === undefined) { delete DF[k]; }
+  else {
+    DF[k] = (DF[k] || []).filter(x => x !== v);
+    if (!DF[k].length) { delete DF[k]; }
+  }
+  syncFromDF();
+}
+
+function dfClearAllConds() { dfReset(); syncFromDF(); }
+
+function dfFilter() {
+  const f = {};
+  DF_DEF.forEach(d => { if (DF[d.k]) { f[d.param] = DF[d.k].join(","); } });
+  if (DF_CAUSE) {
+    if (DF_CAUSE.big) { f.big = DF_CAUSE.big; }
+    if (DF_CAUSE.mid) { f.mid = DF_CAUSE.mid; }
+    if (DF_CAUSE.subs && DF_CAUSE.subs.length) {
+      f.sub = DF_CAUSE.subs.join(",");
+    }
+  }
+  return f;
+}
+
+function dfTitle() {
+  const out = [];
+  DF_DEF.forEach(d => {
+    (DF[d.k] || []).forEach(v => out.push(dfChipLabel(d.k, v)));
+  });
+  if (DF_CAUSE) {
+    out.push([DF_CAUSE.big, DF_CAUSE.mid,
+              (DF_CAUSE.subs || []).join(", ")].filter(Boolean).join(" > "));
+  }
+  return out.join(" · ");
+}
+
+function dfChips() {
+  const c = [];
+  DF_DEF.forEach(d => {
+    (DF[d.k] || []).forEach(v => {
+      c.push(`<span class="fchip">${d.t} ${dfChipLabel(d.k, v)}`
+        + `<i onclick="dfClear('${d.k}','${v}')">×</i></span>`);
+    });
+  });
+  if (DF_CAUSE) {
+    const nm = [DF_CAUSE.big, DF_CAUSE.mid,
+                (DF_CAUSE.subs || []).join(", ")].filter(Boolean).join(" > ");
+    c.push(`<span class="fchip">원인 ${nm}<i onclick="dfClear('cause')">×</i></span>`);
+  }
+  if (!c.length) { return ""; }
+  return c.join("")
+    + `<button class="dfclear" onclick="dfClearAllConds()">모두 지우기</button>`;
+}
+
+// 조건이 바뀌면 차트 표시와 표를 함께 맞춘다.
+function syncFromDF() {
+  SEL_TYPES = DF.type || []; SEL_TYPE = SEL_TYPES[SEL_TYPES.length - 1] || null;
+  SEL_WTS = DF.wt || [];     SEL_WT = SEL_WTS[SEL_WTS.length - 1] || null;
+  SEL_WT0S = DF.wt0 || [];   SEL_WT0 = SEL_WT0S[SEL_WT0S.length - 1] || null;
+  SEL_PIE = (DF.status || [])[0] || null;
+  DRILL_KEY = DF_CAUSE
+    ? { i: DF_CAUSE.i, node: (DF_CAUSE.subs || []).slice(-1)[0] || null,
+        list: DF_CAUSE.subs || [] }
+    : { i: -1, node: null, list: [] };
+
+  if (DATA) {
+    renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
+  }
+  const any = Object.keys(DF).length || DF_CAUSE;
+  if (any) { openDrill(dfFilter(), dfTitle(), "multi"); }
+  else { closeDrill(); }
+  loadSummary(true);
 }
 
 // 드릴다운 표 상태. closeDrill 이 초기 로딩에서도 불리므로 선언을 앞에 둔다.
@@ -1264,16 +1345,17 @@ function czPick(i, node, depth, ev) {
 
   if (leaf) {
     // 말단: 차트는 그대로 두고 아래 표만 바꾼다.
+    if (ev && ev.altKey) { dfReset(); }
     const keep = CZ_SEL.path.slice();
-    const f = { big: czGroup(i).name };
-    for (const p of keep) { if (p.kind === "mid") { f.mid = p.name; } }
-    const list = (DRILL_KEY.i === i)
-      ? multiPick(DRILL_KEY.list, node.name, ev) : [node.name];
-    f.sub = list.join(",");
-    DRILL_KEY = { i: i, node: list[list.length - 1], list: list };
-    renderCause();
-    openDrill(f, [czGroup(i).name].concat(keep.map(p => p.name))
-                 .concat([list.join(", ")]).join(" > "), "cause");
+    const mid = (keep.find(p => p.kind === "mid") || {}).name || null;
+    const same = DF_CAUSE && DF_CAUSE.i === i;
+    const cur = same ? (DF_CAUSE.subs || []) : [];
+    const one = cur.length === 1 && cur[0] === node.name;
+    const list = (!(ev && (ev.ctrlKey || ev.metaKey)) && one)
+      ? [] : multiPick(cur, node.name, ev);
+    DF_CAUSE = list.length
+      ? { i: i, big: czGroup(i).name, mid: mid, subs: list } : null;
+    syncFromDF();
     return;
   }
 
@@ -1808,6 +1890,34 @@ function fallbackCopy(text, done) {
   document.body.removeChild(ta);
 }
 
+// 지금 걸린 조건을 칩으로. 각 칩의 x 로 그 조건만 푼다.
+function renderConds() {
+  const el = document.getElementById("drillConds");
+  if (!el) { return; }
+  const html = dfChips();
+  el.innerHTML = html || `<span class="minittl">차트를 눌러 조건을 더한다`
+    + ` · Ctrl 여러 개 · Alt 새로 시작</span>`;
+  markActiveCards();
+}
+
+// 조건이 걸린 카드에 테두리와 개수 배지를 준다.
+function markActiveCards() {
+  const on = {
+    wipcard: (DF.type || []).length,
+    stcard: (DF.status || []).length,
+    wtcard: (DF.wt || []).length,
+    wt0card: (DF.wt0 || []).length,
+    czcard: DF_CAUSE ? (DF_CAUSE.subs || []).length : 0,
+    balpanel: (DF.layer || []).length,
+  };
+  Object.keys(on).forEach(id => {
+    const c = document.getElementById(id);
+    if (!c) { return; }
+    c.classList.toggle("active", !!on[id]);
+    c.setAttribute("data-n", on[id] || "");
+  });
+}
+
 function renderDrillHead() {
   const cols = allCols();
   const allOn = cols.every(c => !HIDE_COLS[c.k]);
@@ -2063,6 +2173,7 @@ function renderDrillTable() {
 }
 
 const SRC_TITLE = {
+  multi: "LOT 상세",
   balance: "LOT BALANCE 상세",
   cause: "원인 분석 상세", wt: "W/T 분포 상세", wt0: "W/T 0 재공 상세",
   type: "재공 lot_type 상세", status: "status 상세",
@@ -2121,8 +2232,10 @@ function openDrill(filt, label, src, keepView) {
         </div>
         <span style="margin-left:auto;display:flex;gap:6px">
           <button onclick="copyDrill()">복사하기</button>
-          <button onclick="closeDrill()">닫기</button></span></div>
+          <button onclick="dfClearAllConds()">닫기</button></span></div>
       <div class="dtools">
+        <div class="drow" id="condrow"><span class="minittl">조건</span>
+          <div class="dfs" id="drillConds"></div></div>
         <div class="drow"><span class="minittl">컬럼</span>
           <div class="chips" id="drillCols"></div></div>
         <div class="drow"><span class="minittl">필터</span>
@@ -2133,6 +2246,7 @@ function openDrill(filt, label, src, keepView) {
       <div class="gridwrap" id="drillBody"></div>`;
     renderDrillHead();
     renderDrillTable();
+    renderConds();
   });
 }
 
