@@ -269,6 +269,8 @@
      ------------------------------------------------------------------- */
   .grid { border-collapse:collapse; width:auto; font-size:12px;
           table-layout:auto; }
+  /* 컬럼이 많은 표는 카드 폭을 넘기지 않고 래퍼 안에서만 가로 스크롤한다. */
+  .farcol .gridwrap { width:100%; max-width:100%; overflow-x:auto; }
   .grid th, .grid td { border:1px solid var(--bd); padding:5px 8px;
                        white-space:nowrap; vertical-align:middle; }
   .grid thead th.sortable { cursor:pointer; user-select:none; }
