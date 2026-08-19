@@ -253,6 +253,81 @@ def diag_lotwt(lot_id):
     print("   python getdata/get_move.py --hours 24   (재적재 후 다시 확인)")
 
 
+def diag_lotst(lot_id):
+    """lot 의 상태가 왜 그렇게 매겨졌는지 추적한다.
+
+    f3 는 lot 단위로 하나의 상태를 갖는데, 그 값은 **현스텝 행**에서 온다.
+    연속블록 행까지 함께 보여 어느 행이 상태를 정했는지 드러낸다.
+    """
+    import db_common as DB
+
+    if not lot_id:
+        print("사용: python getdata/diag.py lotst 7FBAZ12.1")
+        return
+
+    _head(f"lot {lot_id} 상태 판정 추적")
+    conn = DB.connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT MAX(snapshot_at) FROM f3_live")
+            snap = cur.fetchone()[0]
+            cur.execute(
+                "SELECT `현스텝`, `연속`, order_seq, step_seq, layer_id,"
+                " lot_status, step_status, `hold`, hold_reason,"
+                " `exception`, exception_reason, ftp, ftp_reason,"
+                " down, tip, eqpgroup, eqpgroup_cham, recipe_id, step_desc"
+                " FROM f3_live WHERE snapshot_at=%s AND lot_id=%s"
+                " ORDER BY CAST(order_seq AS SIGNED)", [snap, lot_id])
+            names = [d[0] for d in cur.description]
+            rows = [dict(zip(names, r)) for r in cur.fetchall()]
+
+        if not rows:
+            print("해당 lot 이 f3_live 에 없다.")
+            return
+
+        print(f"snapshot={snap}   행 {len(rows)}개 (현스텝 + 연속블록)\n")
+        for r in rows:
+            mark = "★현스텝" if r["현스텝"] == "현스텝" else "  연속  "
+            print(f"{mark} order_seq={r['order_seq']} step={r['step_seq']} "
+                  f"layer={r['layer_id']}")
+            print(f"         lot_status={r['lot_status']!r} "
+                  f"step_status={r['step_status']!r}")
+            flags = [(k, r[k]) for k in
+                     ("hold", "exception", "ftp", "down", "tip") if r[k]]
+            print(f"         플래그: {flags or '없음'}")
+            for k in ("hold_reason", "exception_reason", "ftp_reason"):
+                if r[k]:
+                    print(f"         {k}={r[k]}")
+            print(f"         eqpgroup={r['eqpgroup']} cham={r['eqpgroup_cham']}")
+            print(f"         recipe={r['recipe_id']} desc={r['step_desc']}")
+            print()
+
+        cur_row = next((r for r in rows if r["현스텝"] == "현스텝"), rows[0])
+        print("-" * 70)
+        print("[판정]")
+        st = cur_row["lot_status"]
+        print(f"  f3 가 매긴 상태 = {st!r}")
+        if cur_row["hold"] and st != "HOLD":
+            print("  !! hold 플래그가 있는데 상태가 HOLD 가 아니다.")
+            print("     f1_status_base 의 CASE 순서상 앞선 조건이 먼저 걸렸다.")
+            print("     흔한 원인:")
+            print("       - 가상스텝 판정(설비그룹/recipe/step 에 WAIT 포함)")
+            print("       - 예약제외/FTP 로 모든 path 가 막힘(issue>=path)")
+            txt = " ".join(str(cur_row[k] or "") for k in
+                           ("eqpgroup", "eqpgroup_cham", "recipe_id",
+                            "step_seq", "step_desc")).upper()
+            if "WAIT" in txt:
+                print("     -> 가상스텝 조건에 걸렸다(위 값 중 WAIT 포함).")
+            else:
+                print("     -> 가상스텝은 아니다. path/issue 집계를 확인한다.")
+        elif st == "HOLD":
+            print("  hold 플래그와 상태가 일치한다.")
+        print("\n  원인 분석은 hold 플래그가 있으면 상태와 무관하게 'Hold' 로")
+        print("  분류한다(classify_lot). 그래서 상태 색과 원인이 다를 수 있다.")
+    finally:
+        conn.close()
+
+
 def main():
     what = (sys.argv[1] if len(sys.argv) > 1 else "all").lower()
     if what in ("hold", "all"):
@@ -265,6 +340,8 @@ def main():
         diag_wt()
     if what == "lotwt":
         diag_lotwt(sys.argv[2] if len(sys.argv) > 2 else "")
+    if what == "lotst":
+        diag_lotst(sys.argv[2] if len(sys.argv) > 2 else "")
     if what in ("dates", "all"):
         diag_dates()
 

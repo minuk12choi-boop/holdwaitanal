@@ -958,7 +958,12 @@ function drawBalance() {
                          grace: "20%" } },
           onClick: (e, els) => {
             if (!els.length) { return; }
-            setCond("layer", xs[els[0].index], e.native || e);
+            // 차트는 한 번만 만들고 재사용한다. 생성 시점의 xs 를 붙잡으면
+            // 이후 갱신된 LAYER 와 어긋난다. 지금 라벨을 직접 읽는다.
+            const ch = balCharts[i];
+            const lay = ch.data.labels[els[0].index];
+            if (lay === undefined || lay === null) { return; }
+            setCond("layer", String(lay), e.native || e);
             syncFromDF();
           }
         },
