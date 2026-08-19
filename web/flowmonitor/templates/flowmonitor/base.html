@@ -190,8 +190,11 @@
   .scroll td.num { text-align:right; font-variant-numeric:tabular-nums; }
 
   /* FAB현황 단일 라인 레이아웃 */
-  .layout { display:flex; gap:14px; padding:14px; align-items:flex-start; }
-  .summary { flex:0 0 380px; }
+  /* 좌측 세로축과 우측이 같은 높이로 끝나도록 맞춘다. */
+  .layout { display:flex; gap:14px; padding:14px; align-items:stretch; }
+  .summary { flex:0 0 380px; display:flex; flex-direction:column; }
+  .summary > .cell:last-child { flex:1; display:flex; flex-direction:column; }
+  .summary > .cell:last-child > div:last-child { flex:1; min-height:150px; }
   .summary .cell { border:1px solid var(--bd); border-radius:6px; padding:11px 12px;
                    margin-bottom:10px; }
   /* ── 전역 필터 (라인 + 제품구분) ────────────────────────────────────────
@@ -313,12 +316,13 @@
   .cz3 .czcol > div:last-child { height:150px; }
   /* SHIFT 추이 + 원인 분석을 같은 등급 카드로 나란히 */
   /* 두 카드의 세로를 맞춘다. 추이가 길어지면 원인 분석도 같이 늘어난다. */
-  .rowcards { display:flex; gap:10px; align-items:stretch; }
+  .rowcards { display:flex; gap:10px; align-items:stretch; height:100%; }
   .rowcards > .cell { display:flex; flex-direction:column; }
   .rowcards > .leftcol { flex:0 0 340px; display:flex; flex-direction:column;
                          gap:10px; }
-  .rowcards > .rightcol { flex:1; min-width:0; display:flex;
+  .rowcards > .rightcol { flex:0 0 320px; display:flex;
                           flex-direction:column; gap:10px; }
+  .rowcards > .rightcol:empty { display:none; }
   /* 어느 막대에서 파고들었는지 보이도록 그 칸을 남색으로 두른다. */
   .czcol.czsrc { box-shadow:0 0 0 2px var(--brand) inset; border-radius:6px;
                  padding:4px; position:relative; }
@@ -333,7 +337,7 @@
   @media (max-width: 1180px) {
     .rowcards { flex-wrap:wrap; }
     .rowcards > .leftcol, .rowcards > .rightcol,
-    .rowcards > .trdcard { flex:1 1 100%; }
+    .rowcards > .farcol { flex:1 1 100%; }
   }
   #trdshift { display:inline-flex; width:auto; align-self:flex-start; }
   .trdpath { font-size:12px; font-weight:700; color:var(--accent);

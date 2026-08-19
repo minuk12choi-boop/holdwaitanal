@@ -1308,11 +1308,13 @@ def _classify_lot(r, rules, ht=None):
         partial = bool(cand) and bool(blocked) and not set(cand) <= blocked
         if eqp_st:
             if partial:
-                return ("Wait", "호환설비이슈", sorted(blocked) or ["(설비미상)"])
+                return ("Bottleneck", "호환설비이슈",
+                        sorted(blocked) or ["(설비미상)"])
             return ("Wait성 진행불가", "설비이슈", eqps or ["(설비미상)"])
         if r.get("tip"):
             if partial:
-                return ("Wait", "호환설비이슈", sorted(blocked) or ["(설비미상)"])
+                return ("Bottleneck", "호환설비이슈",
+                        sorted(blocked) or ["(설비미상)"])
             return ("Wait성 진행불가", "TIP", eqps or ["(설비미상)"])
         if virtual:
             return ("Wait성 진행불가", "가상스텝 대기", ["가상스텝"])
@@ -1365,7 +1367,10 @@ def api_summary(request):
     def pv(r, k):
         return r.get(k) or UNCLASSIFIED
 
+    # 가상스텝 등 AREA 가 없는 재공도 고를 수 있어야 한다.
     a_opts = sorted({r.get("AREA") for r in rows if r.get("AREA")})
+    if any(not r.get("AREA") for r in rows):
+        a_opts.append(UNCLASSIFIED)
     p1_opts = sorted({pv(r, "prod1") for r in rows})
     p2_opts = sorted({pv(r, "prod2") for r in rows
                       if not prod1 or pv(r, "prod1") in prod1})
@@ -1421,8 +1426,6 @@ def api_summary(request):
         big, mid, subs = classify_lot(r, rules, ht)
         if not big:
             continue
-        if big == "Wait":            # 호환설비이슈. Bottleneck 카드에 함께 둔다
-            big, mid = "Bottleneck", mid or "호환설비이슈"
         eld = num_f(r.get("마지막이벤트경과_일"))
         w = 1.0 / len(subs) if subs else 0.0      # 설비 여러 개면 지분으로 나눔
         g = tree.setdefault(big, {"lots": 0.0, "qty": 0.0, "eld": 0.0, "eln": 0,
@@ -1496,7 +1499,7 @@ def api_summary(request):
         "by_lot_type": [{"name": k, **by_type[k]}
                         for k in sorted(by_type, key=lot_type_key)],
         "status": status,
-        # 아무것도 안 고른 상태에서 원 우측에 보여 줄 값. HOLD 를 기본으로 둔다.
+        # 원 우측에 보여 줄 기본값. 범례 항목이 아니라 표시용이다.
         "default": (lambda h: {
             "label": "HOLD",
             "pct": round(h["lots"] / tot["lots"] * 100, 1) if tot["lots"] else 0,

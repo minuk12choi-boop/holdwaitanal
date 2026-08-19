@@ -95,20 +95,9 @@
     </div>
   </div>
 
-  <div style="flex:1; min-width:0">
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column">
     <div class="rowcards">
     <div class="leftcol">
-    <div class="cell trdcard" style="flex:0 0 auto;border:1px solid var(--bd);
-                                     border-radius:6px;padding:11px 12px">
-      <div class="cellttl"><span>SHIFT 추이</span>
-        <span class="czback" id="trdback" style="display:none"
-              onclick="trdBack()">◀ 뒤로</span></div>
-      <div class="trdpath" id="trdpath"></div>
-      <span class="seg" id="trdshift" style="display:none"></span>
-      <div id="trdlegend" class="trdlg"></div>
-      <div><canvas id="trdc"></canvas></div>
-    </div>
-
     <div class="cell" id="czcard" style="border:1px solid var(--bd);
                              border-radius:6px;padding:11px 12px;margin-bottom:0">
       <div class="cellttl"><span id="czttl">원인 분석</span>
@@ -153,9 +142,10 @@
       <div style="height:300px"><canvas id="czsc"></canvas></div>
     </div>
     </div>
-    </div>
 
-    <!-- 전체 순위는 x축이 길어져 위 카드에 넣으면 안 보인다. 아래 전체 폭으로. -->
+    <!-- 세 번째 열: 전체 순위 · LOT BALANCE · 드릴다운 표 -->
+    <div class="farcol">
+<!-- 전체 순위는 x축이 길어져 위 카드에 넣으면 안 보인다. 아래 전체 폭으로. -->
     <div class="cell" id="czdrill" style="display:none;border:1px solid var(--bd);
          border-radius:6px;padding:11px 12px;margin-bottom:10px">
       <div class="cellttl"><span id="czdttl"></span>
@@ -199,8 +189,10 @@
 
     <div class="detail" id="drill">
       <div class="empty">좌측 <b>W/T 분포</b>·<b>W/T 0 재공 분포</b> 막대나
-        위 <b>원인 분석</b> 항목을 클릭하면 해당 LOT 상세가 여기에 표시됩니다.</div>
+        <b>원인 분석</b> 항목을 클릭하면 해당 LOT 상세가 여기에 표시됩니다.</div>
     </div>
+    </div>
+  </div>
   </div>
 </div>
 
@@ -529,10 +521,9 @@ function pickDefault() { SEL_STATUS = null; setStatusInfo(); }
 
 function renderStatus() {
   const d = DATA;
+  // 범례는 status 네 개만. 기본 표시(HOLD)는 원 우측에 나온다.
   document.getElementById("lg").innerHTML =
-    `<span onclick="pickDefault()"><i style="background:${BRAND}"></i>`
-    + `${d.default.label}</span>`
-    + d.status.map((st, i) =>
+    d.status.map((st, i) =>
         `<span onclick="pickStatus(${i})"><i style="background:${st.color}"></i>`
         + `${st.name}</span>`).join("");
 
@@ -673,14 +664,34 @@ function renderWt0() {
         id: "wt0Val",
         afterDatasetsDraw(ch) {
           const ctx = ch.ctx; ctx.save();
+          ctx.textAlign = "center";
+          const tot = ch.$tot || [];
+
+          // 조각마다 값과 비율을 두 줄로. 얇으면 생략한다.
+          ctx.font = "9px 'Poppins','Noto Sans KR',sans-serif";
+          ctx.textBaseline = "middle";
+          ch.data.datasets.forEach((ds, di) => {
+            ch.getDatasetMeta(di).data.forEach((el, k) => {
+              const v = ds.data[k];
+              if (!v) { return; }
+              const h = Math.abs(el.base - el.y);
+              if (h < 20) { return; }
+              const p = tot[k] ? Math.round(v / tot[k] * 100) : 0;
+              const cy = (el.y + el.base) / 2;
+              ctx.fillStyle = "#1F2937";
+              ctx.fillText(kfmt(v), el.x, cy - 5);
+              ctx.fillText("(" + p + "%)", el.x, cy + 5);
+            });
+          });
+
+          // 구간 합계는 막대 위에
           ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
-          ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+          ctx.textBaseline = "bottom";
           ctx.fillStyle = "#374151";
           const top = ch.getDatasetMeta(ch.data.datasets.length - 1);
           (top ? top.data : []).forEach((el, k) => {
-            const v = (ch.$tot || [])[k];
-            if (v) {
-              ctx.fillText(kfmt(v) + (WT0_UNIT === "lots" ? "lot" : "매"),
+            if (tot[k]) {
+              ctx.fillText(kfmt(tot[k]) + (WT0_UNIT === "lots" ? "lot" : "매"),
                            el.x, el.y - 4);
             }
           });
@@ -1116,239 +1127,10 @@ function drawBalance() {
   });
 }
 
-/* --- SHIFT 추이 : 막대=재공, 라인=원인 비율 --- */
-let trdChart = null;
-let TRD_DRILL = [];          // [] / [대분류] / [대분류, 중분류]
-let TRD_OFF = {};            // 숨긴 라인
-let TRD_SCOPE = "day";       // day = 그 날의 SHIFT, week = 최근 7일
-let TRD_WSHIFT = "GY";       // 주간 보기에서 볼 SHIFT
-
-const TRD_COLORS = ["#DC143C", "#F08080", "#E8C46A", "#84C09A", "#6699CC"];
-
-// 7300 -> 7.3k
+// 7300 -> 7.3k. 라벨이 길어지지 않게 줄인다.
 function kfmt(v) {
   const n = Number(v) || 0;
   return n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(Math.round(n));
-}
-
-// 뒤로: 원인 계층을 먼저 올라가고, 더 올라갈 게 없으면 일간 -> 주간
-function trdBack() {
-  if (TRD_DRILL.length) { TRD_DRILL.pop(); }
-  else if (TRD_SCOPE === "day") { TRD_SCOPE = "week"; }
-  else { return; }
-  loadTrend();
-}
-
-function trdGo(n) {
-  TRD_DRILL = TRD_DRILL.slice(0, n); dfResetBelow(3); syncFromDF(); loadTrend();
-}
-function trdScope(v) { TRD_SCOPE = v; dfResetBelow(3); syncFromDF(); loadTrend(); }
-function trdWshift(v) { TRD_WSHIFT = v; dfResetBelow(3); syncFromDF(); loadTrend(); }
-function trdToggle(k) { TRD_OFF[k] = !TRD_OFF[k]; loadTrend(); }
-
-// 라인 하나를 골라 파고든다. 점을 정확히 찍기 어려워 범례에서도 부른다.
-function trdDrill(k) {
-  if (!k) { return; }
-  dfResetBelow(3);            // 추이가 바뀌면 원인 분석 이하는 무효
-  // 더 내려갈 계층이 없으면 그 항목의 LOT 표를 연다.
-  if (TRD_DRILL.length >= 2) { trdOpenTable(k); return; }
-  TRD_DRILL.push(k);                            // Hold+Wait성 은 둘을 합쳐 본다
-  TRD_OFF = {};
-  loadTrend();
-}
-
-// 추이의 말단 항목 -> 드릴다운 표
-function trdOpenTable(k) {
-  dfResetBelow(3);
-  const p = TRD_DRILL;
-  DF_CAUSE = (p[0] === "Hold+Wait성")
-    ? { i: -1, big: null, mid: null, subs: [k] }
-    : { i: -1, big: p[0], mid: p.length > 1 ? p[1] : null, subs: [k] };
-  syncFromDF();
-}
-
-// 재공 막대
-//   주간  : 그 날짜의 SHIFT 추이로 들어간다
-//   일간  : 그 시점의 재공을 좌측 재공 차트와 같은 방식으로 표에 띄운다
-function trdBarPick(i, ev) {
-  const p = (trdChart.$pts || [])[i];
-  if (!p) { return; }
-  if (TRD_SCOPE === "week" && p.biz_date) {
-    SNAP_DATE = p.biz_date;
-    TRD_SCOPE = "day";
-    loadTrend();
-    loadSummary();
-    return;
-  }
-  // 그 SHIFT 로 화면 전체를 옮기고 조건 없이 전체 LOT 을 본다.
-  if (p.shift) { SNAP_SHIFT = p.shift; } else { SNAP_SHIFT = ""; }
-  dfReset();
-  loadSummary();
-  requestAnimationFrame(() => { openDrill({}, "전체", "multi"); });
-}
-
-function loadTrend() {
-  const q = "line=" + encodeURIComponent(LINE)
-    + "&types=" + encodeURIComponent(selectedTypes().join(","))
-    + "&prod1=" + encodeURIComponent(PROD1.join(","))
-    + "&prod2=" + encodeURIComponent(PROD2.join(","))
-    + "&area=" + encodeURIComponent(AREAS.join(","))
-    + "&biz_date=" + encodeURIComponent(SNAP_DATE)
-    + "&scope=" + TRD_SCOPE + "&wshift=" + TRD_WSHIFT
-    + "&drill=" + encodeURIComponent(TRD_DRILL.join("|"));
-  fetch("/api/trend/?" + q).then(r => r.json()).then(renderTrend);
-}
-
-function renderTrend(d) {
-  const pts = d.points || [], keys = d.series || [];
-
-  // 계층은 늘 '최근 7일' 에서 시작한다. 지금 위치가 어디인지 바로 보이게.
-  const path = [`<a onclick="trdScope('week')">최근 7일</a>`];
-  if (TRD_SCOPE === "day") { path.push(`<a onclick="trdScope('day')">당일 SHIFT</a>`); }
-  TRD_DRILL.forEach((x, i) => {
-    path.push(`<a onclick="trdGo(${i + 1})">${x}</a>`);
-  });
-  document.getElementById("trdpath").innerHTML = path.join(" &gt; ")
-    + (TRD_DRILL.length ? ""
-       : `<span style="color:var(--mut);font-weight:400"> · 항목별 상세 보기(범례 클릭)`
-         + `</span>`);
-
-  // 주간 보기에서만 SHIFT 토글
-  const sw = document.getElementById("trdshift");
-  if (sw) {
-    sw.style.display = (TRD_SCOPE === "week") ? "" : "none";
-    sw.innerHTML = ["GY", "DAY", "SW"].map(k =>
-      `<button class="${TRD_WSHIFT === k ? "on" : ""}"`
-      + ` onclick="trdWshift('${k}')">${k}</button>`).join("");
-  }
-
-  const bk = document.getElementById("trdback");
-  if (bk) {
-    bk.style.display = (TRD_DRILL.length || TRD_SCOPE === "day") ? "" : "none";
-  }
-
-  // 체크박스는 숨김/표시, 글자는 드릴다운.
-  const canDrill = TRD_DRILL.length < 2;
-  const CM = d.colors || {};
-  document.getElementById("trdlegend").innerHTML =
-    `<label><i style="display:inline-block;width:8px;height:8px;`
-    + `border-radius:2px;background:#C9D3E4"></i> 재공(막대)</label>`
-    + keys.map((k, i) => {
-      const col = CM[k] || TRD_COLORS[i % 5];
-      return `<label class="${canDrill ? "drill" : ""}">`
-        + `<input type="checkbox" ${TRD_OFF[k] ? "" : "checked"}`
-        + ` onchange="trdToggle('${k}')">`
-        + `<i style="display:inline-block;width:8px;height:8px;border-radius:2px;`
-        + `background:${col}"></i>`
-        + `<span ${canDrill ? `onclick="event.preventDefault();trdDrill('${k}')"`
-                            : ""}>${k}</span></label>`;
-    }).join("");
-
-  const bars = { type: "bar", label: "재공", yAxisID: "y", order: 3,
-                 backgroundColor: "#C9D3E4", borderRadius: 3,
-                 data: pts.map(p => p.qty) };
-  const CMAP = d.colors || {};
-  const lines = keys.filter(k => !TRD_OFF[k]).map((k) => {
-    const col = CMAP[k] || TRD_COLORS[keys.indexOf(k) % 5];
-    return {
-      type: "line", label: k, yAxisID: "y2", order: 1,
-      borderColor: col, backgroundColor: "#fff",
-      borderWidth: 2, tension: .25, spanGaps: true,
-      // 가운데가 빈 굵은 점. 크게 해서 찍기 쉽게 한다.
-      pointRadius: 6, pointHoverRadius: 8, pointBorderWidth: 3,
-      pointBorderColor: col, pointBackgroundColor: "#fff",
-      data: pts.map(p => p.qty
-        ? Math.round((p.series[k] || 0) / p.qty * 100) : 0)
-    };
-  });
-
-  if (!trdChart) {
-    trdChart = new Chart(document.getElementById("trdc"), {
-      type: "bar", data: { labels: [], datasets: [] },
-      options: {
-        responsive: true, maintainAspectRatio: false, animation: false,
-        interaction: { mode: "index", intersect: false },
-        plugins: { legend: { display: false },
-                   tooltip: { callbacks: { label: (t) =>
-                     t.dataset.yAxisID === "y2"
-                       ? t.dataset.label + " " + t.raw + "%"
-                       : "재공 " + nf(t.raw) + " 매" } } },
-        // 위쪽 여백에 x축에 맞춘 라벨을 쌓는다. 시각요소와 겹치지 않는다.
-        layout: { padding: { top: 8 } },
-        scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-                  y: { display: false, beginAtZero: true, grace: "140%" },
-                  y2: { position: "right", beginAtZero: true,
-                        grid: { display: false },
-                        ticks: { font: { size: 9 },
-                                 callback: (v) => v + "%" } } },
-        onClick: (e) => {
-          // interaction 이 index 모드라 els[0] 은 늘 막대다.
-          // 실제로 찍은 점을 다시 찾아야 어느 라인인지 알 수 있다.
-          const hit = trdChart.getElementsAtEventForMode(
-            e.native || e, "nearest", { intersect: true }, false);
-          if (!hit.length) { return; }
-          const ds = trdChart.data.datasets[hit[0].datasetIndex];
-          if (!ds) { return; }
-          if (ds.yAxisID !== "y2") {
-            trdBarPick(hit[0].index, e.native || e); return;
-          }
-          trdDrill(ds.label);
-        }
-      },
-      plugins: [{
-        id: "trdLabels",
-        afterDatasetsDraw(ch) {
-          const ctx = ch.ctx;
-          const bars = ch.getDatasetMeta(0).data;
-          if (!bars.length) { return; }
-          ctx.save();
-          ctx.font = "bold 10px 'Poppins','Noto Sans KR',sans-serif";
-          ctx.textAlign = "center";
-
-          // 재공은 막대 끝 위에
-          ctx.textBaseline = "bottom";
-          ctx.fillStyle = "#374151";
-          bars.forEach((el, k) => {
-            const v = ch.data.datasets[0].data[k];
-            if (v) { ctx.fillText(kfmt(v) + "매", el.x, el.y - 3); }
-          });
-
-          // 라인 값은 점 옆에. 같은 x 에서 큰 값이 위로 가게 정렬한다.
-          for (let k = 0; k < bars.length; k++) {
-            const items = [];
-            for (let di = 1; di < ch.data.datasets.length; di++) {
-              const ds = ch.data.datasets[di];
-              const el = ch.getDatasetMeta(di).data[k];
-              const v = ds.data[k];
-              if (el && v !== null && v !== undefined) {
-                items.push({ v: v, y: el.y, x: el.x, c: ds.borderColor });
-              }
-            }
-            items.sort((a, b) => b.v - a.v);       // 큰 값이 위
-            items.forEach((it, n) => {
-              ctx.fillStyle = it.c;
-              ctx.textBaseline = n === 0 ? "bottom" : "top";
-              ctx.fillText(it.v + "%", it.x, it.y + (n === 0 ? -6 : 6));
-            });
-          }
-          ctx.restore();
-        }
-      }]
-    });
-  }
-  trdChart.$pts = pts;
-  trdChart.data.labels = pts.map(p => p.label);
-  trdChart.data.datasets = [bars].concat(lines);
-  // 라인이 바닥에 붙지 않게 그 계열의 최대값 기준으로 축을 잡는다.
-  // 위쪽은 라벨 자리로 비워 둔다(라인 수만큼).
-  let mx = 0;
-  lines.forEach(ds => ds.data.forEach(v => { if (v > mx) { mx = v; } }));
-  const head = 1 + lines.length;                 // 라벨 줄 수
-  trdChart.options.scales.y2.max =
-    Math.max(5, Math.ceil(mx * 1.15 / 5) * 5) * (1 + head * 0.28);
-  trdChart.options.scales.y2.ticks.callback = (v) =>
-    v <= mx * 1.2 ? Math.round(v) + "%" : "";
-  trdChart.update();
 }
 
 /* --- 원인 분석 -------------------------------------------------------------
@@ -1994,7 +1776,9 @@ function renderCauseAll() {
   // 라벨을 두 줄로. Chart.js 는 배열을 주면 줄바꿈해 그린다.
   czApply(czOneChart, nodes, u, DRILL_KEY.node,
           DF_CAUSE ? DF_CAUSE.subs : null);
-  czOneChart.data.labels = nodes.map(n => [n.name, "─", n.$big]);
+  const SHORT = { "Bottleneck": "B/N", "Wait성 진행불가": "Wait(불가)" };
+  czOneChart.data.labels =
+    nodes.map(n => [n.name, "─", SHORT[n.$big] || n.$big]);
   czOneChart.$selSet = new Set(
     (DF_CAUSE ? DF_CAUSE.subs : []) || []);
   czOneChart.update();
@@ -2748,7 +2532,6 @@ function loadSummary(keepFocus) {
       renderSnap(d);
       renderProd(d);
       renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
-      loadTrend();
     })
     .catch(e => { document.getElementById("err").textContent = "조회 실패: " + e; });
 }
