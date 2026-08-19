@@ -1359,7 +1359,7 @@ def api_summary(request):
 
     # lot_type 목록은 필터와 무관하게 전체에서 뽑아야 토글이 유지된다
     all_rows, _ = _summary_rows(line, [])
-    all_types = sorted({(r.get("lot_type") or "-") for r in all_rows}, key=lot_type_key)
+    all_types = sort_lot_types({(r.get("lot_type") or "-") for r in all_rows})
     # 제품구분 선택지는 lot_type 필터까지만 반영한다(자기 자신은 제외해야 목록이 안 줄어든다)
     def pv(r, k):
         return r.get(k) or UNCLASSIFIED
@@ -1600,6 +1600,18 @@ STD_CARDS = [
          {"k": "is_main", "t": "메인체크", "type": "check", "w": "sm"},
      ]},
 ]
+
+
+LOT_TYPE_ORDER = ["PP", "PB", "PG", "EG", "EE", "HH"]
+
+
+def sort_lot_types(vals):
+    """lot_type 은 업무 순서가 있다. 나머지는 이름순."""
+    def key(v):
+        u = str(v).upper()
+        return (LOT_TYPE_ORDER.index(u) if u in LOT_TYPE_ORDER
+                else len(LOT_TYPE_ORDER), str(v))
+    return sorted(vals, key=key)
 
 
 def _prod2_options():
@@ -1877,56 +1889,94 @@ def _trend_points(points, line, types, prod1, prod2, drill, rules, ht,
 
 
 def api_balance(request):
-    """LOT BALANCE. x=LAYER, y=재공. PLAN 별로 나눌 수도 있다.
+    """LOT BALANCE. x=LAYER, y=재공. status 로 쌓고 PLAN/제품으로 나눈다.
 
-    드릴다운 표와 같은 조건을 받아 그 부분집합만 센다.
-    PLAN 순서는 기준정보(f3_std_plan)의 메인체크가 먼저, 그다음 PLAN 명 순.
+    드릴다운 표와 같은 조건을 받는다(그래야 표와 그림이 맞는다).
     """
     line = request.GET.get("line") or DEFAULT_LINE
     raw = request.GET.get("types")
     types = ([t for t in raw.split(",") if t] if raw is not None
              else list(DEFAULT_LOT_TYPES))
-    prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
-    prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
+
+    def multi(name):
+        return [x for x in request.GET.get(name, "").split(",") if x]
+
+    prod1, prod2 = multi("prod1"), multi("prod2")
     bdate = request.GET.get("biz_date", "")
     bshift = request.GET.get("shift", "")
+    # 표와 같은 조건
+    f_type, f_status = multi("lot_type"), multi("status")
+    wt_range, wt0 = multi("wt_range"), multi("wt0")
+    big = request.GET.get("big", "")
+    mid = request.GET.get("mid", "")
+    subs_want = multi("sub")
 
-    rows, _ = _summary_rows(line, types, biz_date=bdate, shift=bshift)
-    rows = [r for r in rows
-            if (not prod1 or (r.get("prod1") or UNCLASSIFIED) in prod1)
-            and (not prod2 or (r.get("prod2") or UNCLASSIFIED) in prod2)]
-
-    # 무엇으로 나눌지. 여러 개면 함께 묶는다(예: 제품 + PLAN).
     by = [x for x in request.GET.get("by", "plan").split(",") if x] or ["plan"]
     gcols = [("prod2" if x == "prod" else "proc_id") for x in by]
 
+    rows, _ = _summary_rows(line, types, biz_date=bdate, shift=bshift)
+    mv = _lot_move_map(line)
+    rules, ht = _cause_rules(), _holdtype_rules()
+
     layers, by_plan, total = set(), {}, {}
     for r in rows:
+        if prod1 and (r.get("prod1") or UNCLASSIFIED) not in prod1:
+            continue
+        if prod2 and (r.get("prod2") or UNCLASSIFIED) not in prod2:
+            continue
+        st = r.get("lot_status") or "-"
+        if f_type and (r.get("lot_type") or "-") not in f_type:
+            continue
+        if f_status and st not in f_status:
+            continue
+        q = num(r.get("qty"))
+        wt = calc_wt(mv, r["lot_id"], q, st)
+        if wt_range and _wt_range_key(wt) not in wt_range:
+            continue
+        if wt0 and (wt > 0
+                    or _wt0_bin(num_f(r.get("마지막작업경과_일"))) not in wt0):
+            continue
+        if big or mid or subs_want:
+            b2, m2, s2 = classify_lot(r, rules, ht)
+            if big and b2 != big:
+                continue
+            if mid and (m2 or "") != mid:
+                continue
+            if subs_want and not any(x in s2 for x in subs_want):
+                continue
+
         lay = str(r.get("layer_id") or "").strip()
         if not lay:
             continue
-        q = num(r.get("qty"))
         layers.add(lay)
-        _bucket(total, lay, q)
+        _bucket(total.setdefault(lay, {}), st, q)
         key = " · ".join(str(r.get(c) or "-") for c in gcols)
-        _bucket(by_plan.setdefault(key, {}), lay, q)
+        _bucket(by_plan.setdefault(key, {}).setdefault(lay, {}), st, q)
 
-    # PLAN 단독일 때만 메인 PLAN 우선. 묶여 있으면 이름순.
     main = _main_plans(line) if by == ["plan"] else {}
+
     def rank(p):
         return (0 if p in main else 1, main.get(p, 0), p)
 
     xs = sorted(layers)
+    sts = [x for x in STATUS_ORDER
+           if any(x in total.get(l, {}) for l in xs)]
+
+    def pack(src):
+        return {st: [int(round(src.get(l, {}).get(st, {}).get("qty", 0)))
+                     for l in xs] for st in sts}
+
+    def packl(src):
+        return {st: [int(round(src.get(l, {}).get(st, {}).get("lots", 0)))
+                     for l in xs] for st in sts}
+
     return JsonResponse({
-        "layers": xs,
-        "total": [{"lots": total.get(x, {}).get("lots", 0),
-                   "qty": total.get(x, {}).get("qty", 0)} for x in xs],
-        # 이 순서가 곧 표시 순서다. 메인 PLAN 이 먼저, 그다음 이름 오름차순.
-        "by": ",".join(by),
+        "layers": xs, "by": ",".join(by),
+        "status": [{"name": x, "color": STATUS_COLORS.get(x, "#9CA3AF")}
+                   for x in sts],
+        "total": {"qty": pack(total), "lots": packl(total)},
         "plans": [{"name": p, "main": (p in main),
-                   "data": [{"lots": by_plan[p].get(x, {}).get("lots", 0),
-                             "qty": by_plan[p].get(x, {}).get("qty", 0)}
-                            for x in xs]}
+                   "qty": pack(by_plan[p]), "lots": packl(by_plan[p])}
                   for p in sorted(by_plan, key=rank)],
     }, json_dumps_params={"ensure_ascii": False})
 
@@ -2077,6 +2127,9 @@ def api_lots_live(request):
         "cols": [{"k": c, "t": t} for c, t in send],
         "all_cols": [{"k": c, "t": t} for c, t in LOT_DETAIL_COLS],
         "preset": preset,
+        # 필터 목록 정렬 힌트. 없는 값은 이름순으로 뒤에 붙인다.
+        "order": {"lot_type": LOT_TYPE_ORDER,
+                  "proc_id": list(_main_plans(line).keys())},
         "status_colors": STATUS_COLORS,
         "lots": len(out), "qty": tot_qty,
         "line": line, "snapshot_at": str(snap) if snap else "",
