@@ -1002,6 +1002,7 @@ function loadBalance(show) {
     box.style.display = (d.layers || []).length ? "block" : "none";
     balSyncBtns();
     drawBalance();
+    resizeCharts();
     if (BAL_OPEN_ID) {
       renderBalMenu(BAL_OPEN_ID === "balpick" ? "prod" : "plan");
       document.getElementById(BAL_OPEN_ID).classList.add("open");
@@ -1724,7 +1725,23 @@ function syncRightCol() {
   const col = document.querySelector(".rowcards > .rightcol");
   if (!col) { return; }
   const any = [...col.children].some(c => c.style.display !== "none");
+  const was = col.style.display;
   col.style.display = any ? "" : "none";
+  // 열이 생기거나 사라지면 나머지 열의 폭이 바뀐다. 차트를 다시 맞춘다.
+  if (was !== col.style.display) { resizeCharts(); }
+}
+
+// 보이는 모든 차트를 컨테이너 폭에 다시 맞춘다.
+function resizeCharts() {
+  requestAnimationFrame(() => {
+    if (!window.Chart || !Chart.instances) {
+      [wtChart, wt0Chart, wt0hChart, dnChart, czOneChart, czSideChart,
+       czWideChart].concat(czCharts, balCharts)
+        .forEach(c => { if (c && c.resize) { c.resize(); } });
+      return;
+    }
+    Object.values(Chart.instances).forEach(c => { if (c) { c.resize(); } });
+  });
 }
 
 function renderCzSide() {
@@ -1836,7 +1853,23 @@ function syncRightCol() {
   const col = document.querySelector(".rowcards > .rightcol");
   if (!col) { return; }
   const any = [...col.children].some(c => c.style.display !== "none");
+  const was = col.style.display;
   col.style.display = any ? "" : "none";
+  // 열이 생기거나 사라지면 나머지 열의 폭이 바뀐다. 차트를 다시 맞춘다.
+  if (was !== col.style.display) { resizeCharts(); }
+}
+
+// 보이는 모든 차트를 컨테이너 폭에 다시 맞춘다.
+function resizeCharts() {
+  requestAnimationFrame(() => {
+    if (!window.Chart || !Chart.instances) {
+      [wtChart, wt0Chart, wt0hChart, dnChart, czOneChart, czSideChart,
+       czWideChart].concat(czCharts, balCharts)
+        .forEach(c => { if (c && c.resize) { c.resize(); } });
+      return;
+    }
+    Object.values(Chart.instances).forEach(c => { if (c) { c.resize(); } });
+  });
 }
 
 function renderCzSide() {
@@ -2523,6 +2556,7 @@ function openDrill(filt, label, src, keepView) {
     renderDrillHead();
     renderDrillTable();
     renderConds();
+    resizeCharts();
   });
 }
 

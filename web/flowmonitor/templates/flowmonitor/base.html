@@ -193,6 +193,10 @@
   /* 좌측 세로축과 우측이 같은 높이로 끝나도록 맞춘다. */
   /* 가로 스크롤이 생기지 않게 각 단계마다 min-width:0 을 준다.
      flex 아이템은 기본 min-width:auto 라 내용 폭만큼 부풀어 오른다. */
+  /* Chart.js 는 canvas 에 픽셀 폭을 인라인으로 박는다. 열이 좁아져도 그 값이
+     남아 페이지를 오른쪽으로 늘린다. 반드시 부모 폭으로 묶는다. */
+  canvas { max-width:100% !important; display:block; }
+
   .layout { display:flex; gap:14px; padding:14px; align-items:stretch;
             min-width:0; max-width:100%; box-sizing:border-box; }
   .maincol { flex:1 1 0; min-width:0; width:0; display:flex;
