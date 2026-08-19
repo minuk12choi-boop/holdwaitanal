@@ -107,3 +107,23 @@ class TemplateJsTest(SimpleTestCase):
             called = set(re.findall(r"(?:^|[^\w.$])([a-z][\w$]*)\s*\(", code))
             missing = sorted(called - defs - self.BUILTIN)
             self.assertEqual(missing, [], f"{name}: 정의 없는 호출 {missing}")
+
+    # JS 가 만들어 내는 id(템플릿 문자열 안에서 조립)는 정적으로 못 찾는다.
+    DYNAMIC_IDS = {
+        "df_", "dfb_", "dfm_", "dfq_", "balc", "balq", "czh", "czp", "czc",
+        "cz", "p", "d",
+    }
+
+    def test_element_ids_exist(self):
+        """getElementById 로 찾는 id 가 마크업에 있는지 본다.
+
+        요소를 빼먹으면 innerHTML 대입에서 조용히 죽는다.
+        """
+        base = (TPL_DIR / "base.html").read_text(encoding="utf-8")
+        for name in PAGES:
+            html, js = self._js(name)
+            # 공통 요소는 base.html 에 있다. 함께 본다.
+            have = set(re.findall(r'id="([\w-]+)"', html + base))
+            want = set(re.findall(r'getElementById\(\s*"([\w-]+)"\s*\)', js))
+            missing = sorted(w for w in want if w not in have)
+            self.assertEqual(missing, [], f"{name}: 없는 id 참조 {missing}")
