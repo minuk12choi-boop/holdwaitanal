@@ -127,3 +127,23 @@ class TemplateJsTest(SimpleTestCase):
             want = set(re.findall(r'getElementById\(\s*"([\w-]+)"\s*\)', js))
             missing = sorted(w for w in want if w not in have)
             self.assertEqual(missing, [], f"{name}: 없는 id 참조 {missing}")
+
+    # 이 규칙이 빠지면 flex 열이 내용만큼 부풀어 페이지에 가로 스크롤이 생긴다.
+    REQUIRED_CSS = [
+        ".rowcards > .farcol",
+        "flex:1 1 0; width:0; min-width:0",
+        ".rowcards > .leftcol",
+        ".leftcol > #czcard",
+        ".maincol",
+        "canvas { max-width:100% !important",
+        ".farcol .gridwrap",
+    ]
+
+    def test_layout_rules_present(self):
+        """레이아웃을 잡아 주는 CSS 가 남아 있는지 본다.
+
+        블록 치환 중 규칙이 사라져 가로 스크롤이 생긴 적이 여러 번 있었다.
+        """
+        css = (TPL_DIR / "base.html").read_text(encoding="utf-8")
+        missing = [r for r in self.REQUIRED_CSS if r not in css]
+        self.assertEqual(missing, [], f"base.html: 사라진 CSS {missing}")

@@ -330,36 +330,37 @@
   .cz3 .czcol > div:last-child { flex:1; min-height:110px; }
   /* SHIFT 추이 + 원인 분석을 같은 등급 카드로 나란히 */
   /* 두 카드의 세로를 맞춘다. 추이가 길어지면 원인 분석도 같이 늘어난다. */
-  /* 원인 분석은 좌측 세로축과 높이를 맞춘다. 우측 열과는 맞추지 않는다. */
-  /* 부모의 남는 높이를 받아 좌측 컬럼이 끝까지 늘어난다. */
+  /* ── 3열 배치 ─────────────────────────────────────────────────────────
+     원인 분석(고정) | 드릴다운 중분류(고정) | 나머지 전부
+     마지막 열은 flex-basis 0 으로 두어야 내용이 열을 넓히지 못한다.
+     min-width:auto 가 기본이라 반드시 0 으로 덮어쓴다.
+  ------------------------------------------------------------------- */
   .rowcards { display:flex; gap:10px; align-items:flex-start;
               flex:1; min-height:0; min-width:0; }
-  .rowcards > .leftcol { align-self:stretch; }
+
+  .rowcards > .leftcol { flex:0 0 340px; align-self:stretch;
+                         display:flex; flex-direction:column; gap:10px;
+                         min-width:0; }
   /* 원인 분석 카드가 좌측 컬럼의 남는 높이를 모두 차지한다. */
   .leftcol > #czcard { flex:1; display:flex; flex-direction:column;
                        min-height:0; }
-  .rowcards > .cell { display:flex; flex-direction:column; }
-  .rowcards > .leftcol { flex:0 0 340px; display:flex; flex-direction:column;
-                         gap:10px; }
-  /* 드릴다운 중에만 자리를 차지한다. 비어 있으면 폭 0 이라 여백이 안 생긴다.
-     :empty 는 자식 div 가 있으면 안 먹으므로 폭을 자식이 정하게 둔다. */
-  .rowcards > .rightcol { flex:0 0 auto; display:flex;
+
+  /* 드릴다운 중에만 자리를 차지한다(JS 가 보이기/숨기기를 정한다). */
+  .rowcards > .rightcol { flex:0 0 320px; display:flex;
                           flex-direction:column; gap:10px; min-width:0; }
-  .rowcards > .rightcol > .cell { width:320px; max-width:100%; }
-  .rowcards > .rightcol:not(:has(> .cell:not([style*="display:none"]))) {
-    display:none;
-  }
+
+  .rowcards > .farcol { flex:1 1 0; width:0; min-width:0;
+                        display:flex; flex-direction:column; gap:10px; }
+  .farcol > * { min-width:0; max-width:100%; box-sizing:border-box; }
   /* 어느 막대에서 파고들었는지 보이도록 그 칸을 남색으로 두른다. */
   .czcol.czsrc { box-shadow:0 0 0 2px var(--brand) inset; border-radius:6px;
                  padding:4px; position:relative; }
   .czcol.czsrc::after { content:"▶"; position:absolute; right:-9px; top:50%;
                         transform:translateY(-50%); color:var(--brand);
                         font-size:11px; }
-  .rowcards > .trdcard { flex:0 0 340px; }
   .rowcards .cz3 { flex:1; align-items:stretch; }
   .rowcards .czcol { display:flex; flex-direction:column; }
-  .rowcards .czcol > div:last-child { flex:1; min-height:170px; }
-  .rowcards .trdcard > div:last-child { flex:1; min-height:240px; }
+  .rowcards .czcol > div:last-child { flex:1; min-height:110px; }
   @media (max-width: 1180px) {
     .rowcards { flex-wrap:wrap; }
     .rowcards > .leftcol, .rowcards > .rightcol,
