@@ -1365,15 +1365,18 @@ def api_summary(request):
     def pv(r, k):
         return r.get(k) or UNCLASSIFIED
 
+    a_opts = sorted({r.get("AREA") for r in rows if r.get("AREA")})
     p1_opts = sorted({pv(r, "prod1") for r in rows})
     p2_opts = sorted({pv(r, "prod2") for r in rows
                       if not prod1 or pv(r, "prod1") in prod1})
     rows = [r for r in rows
             if (not prod1 or pv(r, "prod1") in prod1)
-            and (not prod2 or pv(r, "prod2") in prod2)]
+            and (not prod2 or pv(r, "prod2") in prod2)
+            and (not areas or (r.get("AREA") or UNCLASSIFIED) in areas)]
     if not rows:
         return JsonResponse({"ready": False, "reason": "선택한 제품구분에 해당하는 재공이 없습니다",
-                             "prod1_options": p1_opts, "prod2_options": p2_opts},
+                             "prod1_options": p1_opts, "prod2_options": p2_opts,
+                             "area_options": a_opts},
                             json_dumps_params={"ensure_ascii": False})
 
     mv = _lot_move_map(line)
@@ -1487,6 +1490,7 @@ def api_summary(request):
         "snapshots": _hist_snapshots(line),
         "biz_date": bdate, "shift": bshift,
         "prod1_options": p1_opts, "prod2_options": p2_opts,
+        "area_options": a_opts,
         "selected_prod1": prod1, "selected_prod2": prod2,
         "total": tot,
         "by_lot_type": [{"name": k, **by_type[k]}
