@@ -94,6 +94,15 @@ class TemplateJsTest(SimpleTestCase):
         "afterDataLimits", "afterFit", "callback", "onPick", "label", "title",
     }
 
+    def test_no_duplicate_function_defs(self):
+        """같은 함수가 두 번 정의되면 나중 것이 이겨 조용히 오작동한다."""
+        for name in PAGES:
+            _, js = self._js(name)
+            code = self._strip_literals(js)
+            names = re.findall(r"function\s+([A-Za-z_$][\w$]*)\s*\(", code)
+            dup = sorted({n for n in names if names.count(n) > 1})
+            self.assertEqual(dup, [], f"{name}: 중복 정의 {dup}")
+
     def test_no_missing_functions(self):
         """호출하는데 정의가 없는 함수를 잡는다.
 

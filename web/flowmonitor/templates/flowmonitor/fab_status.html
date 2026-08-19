@@ -155,12 +155,6 @@
     </div>
 
     <!-- W/T 0 구간 x status 분해. 폭이 넓어 라벨이 다 보인다. -->
-    <div class="cell" id="wt0panel" style="display:none;border:1px solid var(--bd);
-         border-radius:6px;padding:11px 12px;margin-bottom:10px">
-      <div class="cellttl"><span>W/T 0 재공 · 경과기간 × STATUS</span></div>
-      <div style="height:220px"><canvas id="wt0hc"></canvas></div>
-    </div>
-
     <!-- LOT BALANCE : LAYER 별 재공 -->
     <div class="cell" id="balpanel" style="display:none;border:1px solid var(--bd);
          border-radius:6px;padding:11px 12px;margin-bottom:10px">
@@ -435,7 +429,6 @@ function setWt0Unit(u) {
   document.getElementById("zu_lots").className = (u === "lots") ? "on" : "";
   document.getElementById("zu_qty").className = (u === "qty") ? "on" : "";
   renderWt0();
-  renderWt0Panel(!!(DF.wt0 && DF.wt0.length));
 }
 
 /* --- 재공 --- */
@@ -718,6 +711,9 @@ function renderWt0() {
   wt0Chart.data.datasets = datasets;
   wt0Chart.$selSet = new Set(
     (DF.wt0 || []).map(k => (list.find(y => y.name === k) || {}).label));
+  // status 조건이 함께 걸렸으면 그 계열에 테두리를 그린다.
+  const stSel = (DF.status || [])[0];
+  wt0Chart.$selDs = stSel ? Math.max(0, sts.findIndex(x => x.name === stSel)) : 0;
   markSelected(wt0Chart, list.findIndex(x => (DF.wt0 || []).indexOf(x.name) >= 0));
   wt0Chart.update();
 
@@ -734,110 +730,6 @@ function renderWt0() {
 }
 
 /* --- W/T 0 : 경과기간 x status 가로 누적막대 (드릴다운 위) --- */
-let wt0hChart = null;
-
-function renderWt0Panel(show) {
-  const box = document.getElementById("wt0panel");
-  if (!show || !DATA || !(DATA.wt0_status || []).length) {
-    box.style.display = "none";
-    return;
-  }
-  box.style.display = "block";
-
-  const u = WT0_UNIT;
-  const list = DATA.wt0_dist || [];
-  const sts = DATA.wt0_status || [];
-  const tot = list.map(x => (u === "lots" ? x.lots : x.qty) || 0);
-
-  const datasets = sts.map(st => ({
-    label: st.name,
-    backgroundColor: st.color,
-    borderWidth: 0,
-    data: list.map(x => {
-      const v = (x.by_status || {})[st.name];
-      return v ? (u === "lots" ? v.lots : v.qty) : 0;
-    })
-  }));
-
-  if (!wt0hChart) {
-    wt0hChart = new Chart(document.getElementById("wt0hc"), {
-      type: "bar",
-      data: { labels: [], datasets: [] },
-      options: {
-        indexAxis: "y",
-        responsive: true, maintainAspectRatio: false, animation: false,
-        layout: { padding: { right: 60 } },
-        plugins: { legend: { display: true, position: "bottom",
-                             labels: { boxWidth: 10, font: { size: 10 } } },
-                   tooltip: { callbacks: { label: (t) => {
-                     const g = (wt0hChart.$tot || [])[t.dataIndex] || 0;
-                     const v = t.raw || 0;
-                     return t.dataset.label + " " + nf(v)
-                       + (WT0_UNIT === "lots" ? " lot" : " 매")
-                       + (g ? " (" + Math.round(v / g * 100) + "%)" : "");
-                   } } } },
-        scales: { x: { stacked: true, beginAtZero: true,
-                       grid: { color: "#F1F2F4" }, ticks: { font: { size: 10 } } },
-                  y: { stacked: true, grid: { display: false },
-                       ticks: { font: { size: 11 } } } },
-        onClick: (e, els) => {
-          if (!els.length) { return; }
-          const ev = e.native || e;
-          const x = (DATA.wt0_dist || [])[els[0].index];
-          if (!x) { return; }
-          setCond("wt0", x.name, ev, x.label);
-          // 조각(status)까지 눌렀으면 그 status 도 함께 건다.
-          const hit = wt0hChart.getElementsAtEventForMode(
-            ev, "nearest", { intersect: true }, false);
-          if (hit.length) {
-            const st = wt0hChart.data.datasets[hit[0].datasetIndex];
-            if (st && st.label) { setCond("status", st.label, ev, null, true); }
-          }
-          syncFromDF();
-        }
-      },
-      plugins: [{
-        id: "wt0hVal",
-        afterDatasetsDraw(ch) {
-          const ctx = ch.ctx; ctx.save();
-          ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
-          ctx.textBaseline = "middle";
-          const g = ch.$tot || [];
-          ch.data.datasets.forEach((ds, di) => {
-            ctx.textAlign = "center";
-            ctx.fillStyle = "#1F2937";
-            ch.getDatasetMeta(di).data.forEach((el, k) => {
-              const v = ds.data[k];
-              if (!v) { return; }
-              const w = Math.abs(el.x - el.base);
-              if (w < 46) { return; }        // 좁으면 생략
-              const p = g[k] ? Math.round(v / g[k] * 100) : 0;
-              ctx.fillText(nf(v) + " (" + p + "%)", (el.x + el.base) / 2, el.y);
-            });
-          });
-          const last = ch.getDatasetMeta(ch.data.datasets.length - 1);
-          ctx.textAlign = "left";
-          ctx.fillStyle = "#374151";
-          (last ? last.data : []).forEach((el, k) => {
-            if (!g[k]) { return; }
-            ctx.fillText(nf(g[k]) + (WT0_UNIT === "lots" ? " lot" : " 매"),
-                         el.x + 6, el.y);
-          });
-          ctx.restore();
-        }
-      }]
-    });
-  }
-  wt0hChart.$tot = tot;
-  wt0hChart.data.labels = list.map(x => x.label);
-  wt0hChart.data.datasets = datasets;
-  // 고른 구간에 테두리. 누적막대라 라벨 기준으로 표시한다.
-  wt0hChart.$selSet = new Set(
-    (DF.wt0 || []).map(k => (list.find(y => y.name === k) || {}).label));
-  markSelected(wt0hChart,
-    list.findIndex(x => (DF.wt0 || []).indexOf(x.name) >= 0));
-  wt0hChart.update();
-}
 
 /* --- LOT BALANCE : LAYER 별 재공 --------------------------------------
    접힌 상태는 전체 합산 한 줄. 펼치면 PLAN 별로 나뉘되 LAYER 는 같은
@@ -861,24 +753,16 @@ function setBalUnit(u) {
 }
 
 // 펼치기 팝업. 기준(제품/PLAN)과 항목을 한 곳에서 고른다.
-function balOpenMenu() {
-  const box = document.getElementById("balpick");
-  const open = box.classList.contains("open");
-  document.querySelectorAll(".dd.open").forEach(d => d.classList.remove("open"));
-  if (open) { return; }
-  renderBalMenu();
-  box.classList.add("open");
-}
+
 
 // 기준 토글. 제품과 PLAN 을 함께 고르면 '제품 · PLAN' 으로 묶인다.
-function balBy(which, on) {
-  const set = new Set(BAL_BY.split(",").filter(Boolean));
-  if (on) { set.add(which); } else { set.delete(which); }
-  if (!set.size) { set.add(which); }          // 최소 하나는 남긴다
-  BAL_BY = ["prod", "plan"].filter(x => set.has(x)).join(",");
-  BAL_PICK = null;
-  BAL_OPEN = true;
-  loadBalance(true);
+// 경로에서 원인 계층을 눌러 그 단계로 되돌아간다.
+function czBackTo(level) {
+  if (!DF_CAUSE) { return; }
+  if (level === "big") { DF_CAUSE = null; }
+  else { DF_CAUSE = { i: DF_CAUSE.i, big: DF_CAUSE.big, mid: null, subs: [] }; }
+  dfResetBelow(4);
+  syncFromDF();
 }
 
 function balByName() {
@@ -1029,11 +913,30 @@ function drawBalance() {
 
   // 경로를 눌러 그 단계로 돌아간다.
   const unit = balByName();
-  document.getElementById("balpath").innerHTML =
-    `<a onclick="balCollapse()">LOT BALANCE</a>`
-    + (BAL_LABEL ? ` &gt; <a onclick="dfClear('layer')">${BAL_LABEL}</a>` : "")
-    + (BAL_OPEN ? ` &gt; <a onclick="balCollapse()">${unit} `
-                  + `${BAL_PICK ? BAL_PICK.join(", ") : "전체"}</a>` : "");
+  // 상위 조건은 각 단계를 눌러 되돌아갈 수 있어야 한다.
+  const steps = [`<a onclick="dfClearAllConds()">LOT BALANCE</a>`];
+  if (DF_CAUSE) {
+    if (DF_CAUSE.big) {
+      steps.push(`<a onclick="czBackTo('big')">${DF_CAUSE.big}</a>`);
+    }
+    if (DF_CAUSE.mid) {
+      steps.push(`<a onclick="czBackTo('mid')">${DF_CAUSE.mid}</a>`);
+    }
+    (DF_CAUSE.subs || []).forEach(x => {
+      steps.push(`<a onclick="czBackTo('mid')">${x}</a>`);
+    });
+  }
+  DF_DEF.forEach(dd => {
+    (DF[dd.k] || []).forEach(v => {
+      steps.push(`<a onclick="dfClear('${dd.k}','${v}')">`
+        + `${dfChipLabel(dd.k, v)}</a>`);
+    });
+  });
+  if (BAL_OPEN) {
+    steps.push(`<a onclick="balCollapse()">${unit} `
+      + `${BAL_PICK ? BAL_PICK.join(", ") : "전체"}</a>`);
+  }
+  document.getElementById("balpath").innerHTML = steps.join(" &gt; ");
 
   // 캔버스를 필요한 만큼만 만들고 재사용한다.
   const body = document.getElementById("balbody");
@@ -1091,13 +994,20 @@ function drawBalance() {
           id: "balVal" + i,
           afterDatasetsDraw(ch) {
             const ctx = ch.ctx; ctx.save();
-            ctx.font = "9px 'Poppins','Noto Sans KR',sans-serif";
-            ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+            ctx.font = "bold 9px 'Poppins','Noto Sans KR',sans-serif";
             ctx.fillStyle = "#374151";
             const top = ch.getDatasetMeta(ch.data.datasets.length - 1);
             (top ? top.data : []).forEach((el, k) => {
               const v = (ch.$tot || [])[k];
-              if (v) { ctx.fillText(kfmt(v), el.x, el.y - 3); }
+              if (!v) { return; }
+              // x축 라벨과 같은 방향(시계방향 90도)으로 세워 쓴다.
+              ctx.save();
+              ctx.translate(el.x, el.y - 4);
+              ctx.rotate(-Math.PI / 2);
+              ctx.textAlign = "left";
+              ctx.textBaseline = "middle";
+              ctx.fillText(kfmt(v), 0, 0);
+              ctx.restore();
             });
             ctx.restore();
           },
@@ -1139,6 +1049,9 @@ function drawBalance() {
     }
     balCharts[i].$tot = tot;
     balCharts[i].$selSet = new Set(DF.layer || []);
+    const stS = (DF.status || [])[0];
+    balCharts[i].$selDs = stS
+      ? Math.max(0, sts.findIndex(x => x.name === stS)) : 0;
     markSelected(balCharts[i],
       xs.findIndex(x => (DF.layer || []).indexOf(x) >= 0));
     balCharts[i].update();
@@ -1311,8 +1224,7 @@ function syncFromDF() {
 
   if (DATA) {
     renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
-    renderWt0Panel(!!(DF.wt0 && DF.wt0.length));
-  }
+    }
   const any = Object.keys(DF).length || DF_CAUSE;
   if (any) { openDrill(dfFilter(), dfTitle(), "multi"); }
   else { closeDrill(); }
@@ -1563,10 +1475,13 @@ const popSelected = {
 
 function drawSel(chart, sel) {
   {
-    const el = (chart.getDatasetMeta(0).data || [])[sel];
+    // 누적막대는 어느 계열을 골랐는지가 중요하다($selDs 로 알려 준다).
+    const di = (chart.$selDs === undefined || chart.$selDs === null)
+      ? 0 : chart.$selDs;
+    const el = (chart.getDatasetMeta(di).data || [])[sel];
     if (!el) { return; }
     const ctx = chart.ctx;
-    const bg = chart.data.datasets[0].backgroundColor;
+    const bg = chart.data.datasets[di].backgroundColor;
     const fill = strongest(Array.isArray(bg) ? bg[sel] : bg);
 
     ctx.save();
@@ -1635,13 +1550,7 @@ const CZ_TOP = 5;        // 상단 요약 차트
 const CZ_DEEP = 15;      // 드릴다운 차트
 
 // 전체 순위 보기 = 상위 5개 제한 없이 차트로 펼친다
-function czShowAll(i) {
-  const on = (CZ_SEL.i === i && CZ_SEL.path.length
-              && CZ_SEL.path[0].kind === "all");
-  CZ_SEL = on ? { i: -1, path: [] }
-              : { i: i, path: [{ name: "__ALL__", kind: "all" }] };
-  renderCause();
-}
+
 
 // 소제목 클릭 = 그 대분류 전체를 드릴다운 표로
 function czWhole(i) {
@@ -1721,115 +1630,23 @@ function renderCause() {
    어느 막대에서 왔는지 남색 테두리로 표시한다.
 --------------------------------------------------------------------- */
 // 우측 열은 안의 카드가 하나라도 보일 때만 자리를 차지한다.
-function syncRightCol() {
-  const col = document.querySelector(".rowcards > .rightcol");
-  if (!col) { return; }
-  const any = [...col.children].some(c => c.style.display !== "none");
-  const was = col.style.display;
-  col.style.display = any ? "" : "none";
-  // 열이 생기거나 사라지면 나머지 열의 폭이 바뀐다. 차트를 다시 맞춘다.
-  if (was !== col.style.display) { resizeCharts(); }
-}
+
 
 /* 레이아웃 진단 --------------------------------------------------------
    화면 오른쪽을 넘는 요소를 재서 서버 로그로 보낸다.
    콘솔 복사가 어려울 때 터미널에서 바로 확인한다.
    호출: 주소창에 ?debug=layout 을 붙이거나 콘솔에서 checkLayout()
 ----------------------------------------------------------------------- */
-function selOf(el) {
-  if (!el || el === document.documentElement) { return "html"; }
-  let t = el.tagName.toLowerCase();
-  if (el.id) { t += "#" + el.id; }
-  else if (el.className && typeof el.className === "string") {
-    const c = el.className.trim().split(/\s+/)[0];
-    if (c) { t += "." + c; }
-  }
-  return t;
-}
 
-function checkLayout() {
-  const vw = document.documentElement.clientWidth;
-  const items = [];
-  document.querySelectorAll("body *").forEach(el => {
-    const r = el.getBoundingClientRect();
-    if (r.width === 0 && r.height === 0) { return; }
-    const over = Math.round(r.right - vw);
-    if (over > 1) {
-      items.push({ over: over, sel: selOf(el),
-                   w: Math.round(r.width),
-                   parent: selOf(el.parentElement) });
-    }
-  });
-  // 바깥쪽(폭이 큰 것)부터 본다. 대개 첫 줄이 원인이다.
-  items.sort((a, b) => b.w - a.w);
-  fetch("/api/debug-layout/", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ vw: vw,
-                           sw: document.documentElement.scrollWidth,
-                           items: items })
-  });
-  return items.length + "개 초과. 서버 터미널을 확인하세요.";
-}
+
+
 
 // 보이는 모든 차트를 컨테이너 폭에 다시 맞춘다.
-function resizeCharts() {
-  requestAnimationFrame(() => {
-    if (!window.Chart || !Chart.instances) {
-      [wtChart, wt0Chart, wt0hChart, dnChart, czOneChart, czSideChart,
-       czWideChart].concat(czCharts, balCharts)
-        .forEach(c => { if (c && c.resize) { c.resize(); } });
-      return;
-    }
-    Object.values(Chart.instances).forEach(c => { if (c) { c.resize(); } });
-  });
-}
 
-function renderCzSide() {
-  const box = document.getElementById("czside");
-  // 전체 제약 모드면 그 차트가 이 자리를 쓴다.
-  if (CAUSE_MODE === "all") { box.style.display = "none"; return; }
-  if (!CZ_SIDE) { box.style.display = "none"; return; }
 
-  const i = CZ_SIDE.i, g = czGroup(i);
-  const nodes = czNodesAt(i, CZ_SIDE.path).slice(0, 20);
-  if (!nodes.length) { box.style.display = "none"; return; }
-  box.style.display = "";
 
-  document.getElementById("czsttl").textContent =
-    [g.name].concat(CZ_SIDE.path.map(x => x.name)).join(" > ");
-  document.getElementById("czspath").innerHTML =
-    (CZ_SIDE.path.length > 1
-      ? `<span class="czback" onclick="czSideBack()">◀ 뒤로</span>` : "")
-    + `<span class="minittl">상위 ${nodes.length}개 · 막대를 누르면 LOT 상세`
-    + `</span>`;
 
-  if (!czSideChart) {
-    czSideChart = czBarChart("czsc", (idx, ev) => {
-      const n = (czSideChart.$nodes || [])[idx];
-      if (!n) { return; }
-      if (czNodesAt(CZ_SIDE.i, CZ_SIDE.path.concat(
-            [{ name: n.name, kind: n.kind || "sub" }])).length) {
-        CZ_SIDE = { i: CZ_SIDE.i,
-                    path: CZ_SIDE.path.concat(
-                      [{ name: n.name, kind: n.kind || "sub" }]) };
-        CZ_SEL = { i: CZ_SIDE.i, path: CZ_SIDE.path.slice() };
-        renderCause();
-        return;
-      }
-      czPick(CZ_SIDE.i, n, 1, ev);
-    }, "czsVal");
-  }
-  czApply(czSideChart, nodes, CAUSE_UNIT, DRILL_KEY.node,
-          DF_CAUSE ? DF_CAUSE.subs : null);
-}
 
-function czSideBack() {
-  if (!CZ_SIDE || CZ_SIDE.path.length <= 1) { czSideClose(); return; }
-  CZ_SIDE.path = CZ_SIDE.path.slice(0, -1);
-  CZ_SEL = { i: CZ_SIDE.i, path: CZ_SIDE.path.slice() };
-  renderCause();
-}
 
 /* 전체 제약 : 세 대분류를 합쳐 상위 15 ------------------------------------
    x축은 두 줄이다. 위가 더 아래 계층(중·소분류), 아래가 대분류.
@@ -2055,8 +1872,6 @@ const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝�
 function closeDrill() {
   const btn = document.getElementById("clearAllBtn");
   if (btn) { btn.style.display = "none"; }
-  const p = document.getElementById("wt0panel");
-  if (p) { p.style.display = "none"; }
   const b = document.getElementById("balpanel");
   if (b) { b.style.display = "none"; }
   DRILL_SRC = ""; DRILL_DATA = null; SORT_KEYS = [];
@@ -2586,7 +2401,6 @@ function openDrill(filt, label, src, keepView) {
   LAST_DRILL = { f: filt, l: label, s: src };
   clearOtherSelections(src || "");
   // W/T 0 조건이 걸려 있는 동안 계속 보인다(조건 저장소 기준).
-  renderWt0Panel(!!(DF.wt0 && DF.wt0.length) || src === "wt0");
   // 드릴다운이 열리면 LOT BALANCE 도. balance 자체에서 다시 부르지는 않는다.
   if (src !== "balance") {
     BAL_LABEL = label || ""; BAL_SRC = src || "";
