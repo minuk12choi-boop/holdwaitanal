@@ -100,16 +100,10 @@
     <div class="leftcol">
     <div class="cell" id="czcard" style="border:1px solid var(--bd);
                              border-radius:6px;padding:11px 12px;margin-bottom:0">
-      <div class="cellttl"><span id="czttl">원인 분석</span>
-        <span style="display:flex;gap:6px;align-items:center">
-          <span class="seg">
-            <button class="on" id="cm_3" onclick="setCauseMode('split')">대분류 3</button>
-            <button id="cm_all" onclick="setCauseMode('all')">전체 제약</button>
-          </span>
-          <span class="seg">
-            <button id="cu_lots" onclick="setCauseUnit('lots')">LOT</button>
-            <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
-          </span>
+      <div class="cellttl"><span>원인 분석</span>
+        <span class="seg">
+          <button id="cu_lots" onclick="setCauseUnit('lots')">LOT</button>
+          <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
         </span></div>
       <div class="cz3" id="cz3">
         <div class="czcol"><div class="subttl czh" id="czh0"></div>
@@ -125,15 +119,8 @@
     </div>
     </div>
 
-    <!-- 우측: 전체 제약 -> 그 아래 드릴다운 중분류 -->
+    <!-- 우측: 원인 분석에서 파고든 중분류 차트 (드릴다운 중에만 보인다) -->
     <div class="rightcol">
-    <div class="cell" id="czone" style="display:none;border:1px solid var(--bd);
-         border-radius:6px;padding:11px 12px">
-      <div class="cellttl"><span>전체 제약</span></div>
-      <div id="czp9" class="czpath"></div>
-      <div style="height:300px"><canvas id="czc9"></canvas></div>
-    </div>
-
     <div class="cell" id="czside" style="flex:1;min-width:0;display:none;
          border:1px solid var(--bd);border-radius:6px;padding:11px 12px">
       <div class="cellttl"><span id="czsttl"></span>
@@ -215,23 +202,12 @@ let TYPE_PREF = (() => {
   return ["PP", "PG"];
 })();
 let CAUSE_UNIT = "qty";
-let CAUSE_MODE = "split";      // split = 대분류 3칸, all = 전체 제약 합산
-let czOneChart = null;
 let CZ_SIDE = null;            // 우측 드릴다운 중분류 차트 {i, path}
 let czSideChart = null;
 
 function czSideClose() { CZ_SIDE = null; CZ_SEL = { i: -1, path: [] };
                          renderCause(); }
 
-function setCauseMode(m) {
-  CAUSE_MODE = m;
-  document.getElementById("cm_3").className = (m === "split") ? "on" : "";
-  document.getElementById("cm_all").className = (m === "all") ? "on" : "";
-  document.getElementById("czttl").textContent =
-    (m === "all") ? "전체 제약" : "원인 분석";
-  CZ_WIDE = null; CZ_SIDE = null;
-  renderCause();
-}
 let WT0_UNIT = "qty";
 let dnChart = null;
 
@@ -1564,11 +1540,6 @@ function czWhole(i) {
 
 function renderCause() {
   const u = CAUSE_UNIT;
-  document.getElementById("czone").style.display =
-    (CAUSE_MODE === "all") ? "" : "none";
-  document.getElementById("cz3").style.display =
-    (CAUSE_MODE === "all") ? "none" : "";
-  if (CAUSE_MODE === "all") { renderCauseAll(); }
   syncRightCol();
 
   for (let i = 0; i < 3; i++) {
@@ -1651,42 +1622,6 @@ function renderCause() {
 /* 전체 제약 : 세 대분류를 합쳐 상위 15 ------------------------------------
    x축은 두 줄이다. 위가 더 아래 계층(중·소분류), 아래가 대분류.
 --------------------------------------------------------------------------- */
-function renderCauseAll() {
-  const u = CAUSE_UNIT;
-  const all = [];
-  for (let i = 0; i < 3; i++) {
-    const g = czGroup(i);
-    (g.children || []).forEach(n => {
-      all.push(Object.assign({}, n, { $big: g.name, $i: i }));
-    });
-  }
-  all.sort((a, b) => (u === "lots" ? b.lots - a.lots : b.qty - a.qty));
-  const nodes = all.slice(0, 20);
-
-  document.getElementById("czp9").innerHTML = nodes.length
-    ? `<span class="minittl">세 대분류 합산 상위 ${nodes.length}개`
-      + ` · 막대를 누르면 파고든다</span>`
-    : `<span class="minittl">표시할 항목이 없습니다.</span>`;
-
-  if (!czOneChart) {
-    czOneChart = czBarChart("czc9", (idx, ev) => {
-      const n = (czOneChart.$nodes || [])[idx];
-      if (!n) { return; }
-      CZ_SEL = { i: n.$i, path: [] };
-      czPick(n.$i, n, 0, ev);          // 하위가 있으면 아래 차트로 이어진다
-    }, "czVal9");
-  }
-  // 라벨을 두 줄로. Chart.js 는 배열을 주면 줄바꿈해 그린다.
-  czApply(czOneChart, nodes, u, DRILL_KEY.node,
-          DF_CAUSE ? DF_CAUSE.subs : null);
-  const SHORT = { "Bottleneck": "B/N", "Wait성 진행불가": "Wait(불가)" };
-  czOneChart.data.labels =
-    nodes.map(n => [n.name, "─", SHORT[n.$big] || n.$big]);
-  czOneChart.$selSet = new Set(
-    (DF_CAUSE ? DF_CAUSE.subs : []) || []);
-  czOneChart.update();
-}
-
 /* 전체 순위 : 아래 넓은 패널 --------------------------------------------- */
 let CZ_WIDE = null;          // {i, path}
 let czWideChart = null;
@@ -1762,8 +1697,8 @@ function checkLayout() {
 function resizeCharts() {
   requestAnimationFrame(() => {
     if (!window.Chart || !Chart.instances) {
-      [wtChart, wt0Chart, wt0hChart, dnChart, czOneChart, czSideChart,
-       czWideChart].concat(czCharts, balCharts)
+      [wtChart, wt0Chart, dnChart, czSideChart, czWideChart]
+        .concat(czCharts, balCharts)
         .forEach(c => { if (c && c.resize) { c.resize(); } });
       return;
     }
@@ -1773,8 +1708,6 @@ function resizeCharts() {
 
 function renderCzSide() {
   const box = document.getElementById("czside");
-  // 전체 제약 모드면 그 차트가 이 자리를 쓴다.
-  if (CAUSE_MODE === "all") { box.style.display = "none"; return; }
   if (!CZ_SIDE) { box.style.display = "none"; return; }
 
   const i = CZ_SIDE.i, g = czGroup(i);
