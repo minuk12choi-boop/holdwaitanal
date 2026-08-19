@@ -651,6 +651,25 @@ f3 는 `proc_id` 로 들고 있다. 기준정보 `f3_std_plan.plan` 도 이 값�
 LOT BALANCE 의 PLAN 구분도 `proc_id` 를 쓴다.
 TIP 원천의 `process` 를 step_path 의 `proc_id` 와 조인하는 것도 같은 이유다.
 
+### 레이아웃 진단 (가로 스크롤이 생길 때)
+
+브라우저 콘솔 복사가 번거로워, 화면에서 넘치는 요소를 **서버 터미널**로 보낸다.
+
+```
+http://<주소>/main/?debug=layout      페이지를 열면 자동으로 잰다
+콘솔에서 checkLayout()                 원할 때 다시 잰다
+```
+
+터미널에 이렇게 찍힌다.
+
+```
+[LAYOUT] viewport=1920  scrollWidth=3200  초과=1280px
+    1280px  div#drill        w=3100   parent=div.farcol
+```
+
+**폭이 큰 것부터** 나오므로 대개 첫 줄이 원인이다.
+`/api/debug-layout/` 이 받아서 출력한다.
+
 ### 화면 3열 배치
 
 ```

@@ -2026,6 +2026,28 @@ def _main_plans(line):
         return {r[0]: i for i, r in enumerate(cur.fetchall())}
 
 
+@csrf_exempt
+def api_debug_layout(request):
+    """브라우저에서 잰 레이아웃 초과 정보를 서버 로그로 찍는다.
+
+    콘솔 복사가 어려워, 화면에서 넘치는 요소를 여기로 보내 터미널에서 본다.
+    """
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        data = {}
+    print("\n" + "=" * 70, flush=True)
+    print("[LAYOUT] viewport=%s  scrollWidth=%s  초과=%spx"
+          % (data.get("vw"), data.get("sw"),
+             (data.get("sw") or 0) - (data.get("vw") or 0)), flush=True)
+    for it in (data.get("items") or [])[:25]:
+        print("  %6spx  %-38s w=%-7s parent=%s"
+              % (it.get("over"), it.get("sel"), it.get("w"),
+                 it.get("parent")), flush=True)
+    print("=" * 70 + "\n", flush=True)
+    return JsonResponse({"ok": True})
+
+
 def api_lot_steps(request):
     """한 lot 의 모든 스텝(현스텝 + 연속블록).
 
