@@ -123,6 +123,33 @@ class TemplateJsTest(SimpleTestCase):
         "cz", "p", "d",
     }
 
+    # 대문자로만 쓰는 상수는 선언이 사라지면 첫 사용에서 바로 죽는다.
+    JS_GLOBALS = {
+        "Math", "JSON", "Object", "Array", "Set", "Map", "Date", "String",
+        "Number", "Boolean", "Promise", "RegExp", "Error", "NaN", "Infinity",
+        "Chart", "DATA",
+        "GY", "DAY", "SW",          # SHIFT 이름(문자열 리터럴)
+    }
+
+    def test_no_missing_identifiers(self):
+        """UPPER_SNAKE 상수가 선언 없이 쓰이는지 본다.
+
+        블록 치환 중 선언만 날아가면 ReferenceError 로 화면이 멈춘다.
+        """
+        for name in PAGES:
+            _, js = self._js(name)
+            code = self._strip_literals(js)
+            # let A = 1, B = 2; 처럼 한 줄에 여러 개를 선언하기도 한다.
+            declared = set()
+            for stmt in re.findall(r"(?:^|[\s;{(])(?:const|let|var)\s+([^;\n]+)",
+                                   code):
+                declared |= set(re.findall(r"([A-Za-z_$][\w$]*)\s*=", stmt))
+                declared |= set(re.findall(r"^\s*([A-Za-z_$][\w$]*)\s*$", stmt))
+            declared |= set(re.findall(r"function\s+([A-Za-z_$][\w$]*)", code))
+            used = set(re.findall(r"(?<![\w.$])([A-Z][A-Z0-9_]{2,})\b", code))
+            missing = sorted(used - declared - self.JS_GLOBALS)
+            self.assertEqual(missing, [], f"{name}: 선언 없는 상수 {missing}")
+
     def test_element_ids_exist(self):
         """getElementById 로 찾는 id 가 마크업에 있는지 본다.
 

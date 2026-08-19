@@ -1279,6 +1279,103 @@ function czGo(depth) { CZ_SEL.path = CZ_SEL.path.slice(0, depth); renderCause();
 
 // depth=0 : 상단 요약 차트 -> 경로를 새로 시작
 // depth>0 : 드릴다운 차트   -> 현재 경로에 덧붙임
+const SEL_COLOR = "#FFD700";
+
+const CZ_TOP = 5;
+
+const CZ_DEEP = 15;
+
+const CZ_SCALE_X = {
+  grid: { display: false },
+  ticks: { font: { size: 9 }, autoSkip: false, maxRotation: 0, minRotation: 0,
+           callback: function (v) {
+             const lb = this.chart.data.labels[v];
+             // 배열이면 두 줄 라벨이다(전체 제약). 각 줄만 줄여 준다.
+             if (Array.isArray(lb)) { return lb.map(x => czLabel(x, 10)); }
+             return czLabel(this.getLabelForValue(v), 10);
+           } }
+};
+
+const popSelected = {
+  id: "popSelected",
+  afterDatasetsDraw(chart) {
+    // 여러 개를 고른 경우 전부 표시한다.
+    const many = chart.$selSet;
+    if (many && many.size > 1 && chart.data.labels) {
+      chart.data.labels.forEach((lb, k) => {
+        if (many.has(lb)) { drawSel(chart, k); }
+      });
+      return;
+    }
+    const sel = chart.$sel;
+    if (sel === undefined || sel === null || sel < 0) { return; }
+    drawSel(chart, sel);
+  }
+};
+
+if (window.Chart) { Chart.register(popSelected); }
+
+function strongest(c) {
+  if (typeof c !== "string") { return c; }
+  const i = c.indexOf("(");
+  const j = c.lastIndexOf(")");
+  if (i > 0 && j > i && c.slice(0, i).trim().toLowerCase().indexOf("rgb") === 0) {
+    const p = c.slice(i + 1, j).split(",").map(x => x.trim());
+    if (p.length >= 3) { return "rgb(" + p[0] + ", " + p[1] + ", " + p[2] + ")"; }
+  }
+  return c;
+}
+
+function drawSel(chart, sel) {
+  {
+    // 누적막대는 어느 계열을 골랐는지가 중요하다($selDs 로 알려 준다).
+    const di = (chart.$selDs === undefined || chart.$selDs === null)
+      ? 0 : chart.$selDs;
+    const el = (chart.getDatasetMeta(di).data || [])[sel];
+    if (!el) { return; }
+    const ctx = chart.ctx;
+    const bg = chart.data.datasets[di].backgroundColor;
+    const fill = strongest(Array.isArray(bg) ? bg[sel] : bg);
+
+    ctx.save();
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = SEL_COLOR;
+    ctx.lineWidth = 3;
+    ctx.lineJoin = "round";
+
+    if (el.outerRadius !== undefined) {          // 원차트 조각
+      ctx.beginPath();
+      ctx.arc(el.x, el.y, el.outerRadius - 1.5, el.startAngle, el.endAngle);
+      ctx.arc(el.x, el.y, el.innerRadius + 1.5, el.endAngle, el.startAngle, true);
+      ctx.closePath();
+      ctx.fill();                                // 계열 최강색으로 다시 채우고
+      ctx.stroke();
+    } else {                                     // 막대
+      // 가로막대(indexAxis:'y')와 세로막대는 width/height/base 의미가 다르다.
+      // 두 경우를 나눠 실제 막대와 정확히 겹치게 그린다.
+      const p = el.getProps(["x", "y", "base", "width", "height"], true);
+      const horiz = (chart.options.indexAxis === "y");
+      let x0, y0, w, h;
+      if (horiz) {
+        x0 = Math.min(p.base, p.x);
+        w  = Math.abs(p.x - p.base);
+        h  = p.height || 0;
+        y0 = p.y - h / 2;
+      } else {
+        y0 = Math.min(p.base, p.y);
+        h  = Math.abs(p.base - p.y);
+        w  = p.width || 0;
+        x0 = p.x - w / 2;
+      }
+      const in_ = 1.5;                           // 선 굵기의 절반만큼 안쪽으로
+      ctx.fillRect(x0, y0, w, h);                // 계열 최강색으로 다시 채우고
+      ctx.strokeRect(x0 + in_, y0 + in_,
+                     Math.max(w - in_ * 2, 1), Math.max(h - in_ * 2, 1));
+    }
+    ctx.restore();
+  }
+}
+
 function czBarChart(canvasId, onPick, pluginId) {
   return new Chart(document.getElementById(canvasId), {
     type: "bar",
