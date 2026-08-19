@@ -337,9 +337,14 @@
   .rowcards > .cell { display:flex; flex-direction:column; }
   .rowcards > .leftcol { flex:0 0 340px; display:flex; flex-direction:column;
                          gap:10px; }
-  .rowcards > .rightcol { flex:0 0 320px; display:flex;
-                          flex-direction:column; gap:10px; }
-  .rowcards > .rightcol:empty { display:none; }
+  /* 드릴다운 중에만 자리를 차지한다. 비어 있으면 폭 0 이라 여백이 안 생긴다.
+     :empty 는 자식 div 가 있으면 안 먹으므로 폭을 자식이 정하게 둔다. */
+  .rowcards > .rightcol { flex:0 0 auto; display:flex;
+                          flex-direction:column; gap:10px; min-width:0; }
+  .rowcards > .rightcol > .cell { width:320px; max-width:100%; }
+  .rowcards > .rightcol:not(:has(> .cell:not([style*="display:none"]))) {
+    display:none;
+  }
   /* 어느 막대에서 파고들었는지 보이도록 그 칸을 남색으로 두른다. */
   .czcol.czsrc { box-shadow:0 0 0 2px var(--brand) inset; border-radius:6px;
                  padding:4px; position:relative; }

@@ -1659,6 +1659,7 @@ function renderCause() {
   document.getElementById("cz3").style.display =
     (CAUSE_MODE === "all") ? "none" : "";
   if (CAUSE_MODE === "all") { renderCauseAll(); }
+  syncRightCol();
 
   for (let i = 0; i < 3; i++) {
     const g = czGroup(i);
@@ -1710,6 +1711,7 @@ function renderCause() {
   }
 
   renderCzSide();
+  syncRightCol();
   renderCzWide();
 }
 
@@ -1717,6 +1719,14 @@ function renderCause() {
    상위 차트를 그대로 두고 그 하위를 옆에 새로 띄운다.
    어느 막대에서 왔는지 남색 테두리로 표시한다.
 --------------------------------------------------------------------- */
+// 우측 열은 안의 카드가 하나라도 보일 때만 자리를 차지한다.
+function syncRightCol() {
+  const col = document.querySelector(".rowcards > .rightcol");
+  if (!col) { return; }
+  const any = [...col.children].some(c => c.style.display !== "none");
+  col.style.display = any ? "" : "none";
+}
+
 function renderCzSide() {
   const box = document.getElementById("czside");
   // 전체 제약 모드면 그 차트가 이 자리를 쓴다.
@@ -1813,6 +1823,7 @@ function czShowAll(i) {
     && CZ_WIDE.path.map(x => x.name).join("|") === path.map(x => x.name).join("|");
   CZ_WIDE = same ? null : { i: i, path: path };
   renderCzSide();
+  syncRightCol();
   renderCzWide();
 }
 
@@ -1820,6 +1831,14 @@ function czShowAll(i) {
    상위 차트를 그대로 두고 그 하위를 옆에 새로 띄운다.
    어느 막대에서 왔는지 남색 테두리로 표시한다.
 --------------------------------------------------------------------- */
+// 우측 열은 안의 카드가 하나라도 보일 때만 자리를 차지한다.
+function syncRightCol() {
+  const col = document.querySelector(".rowcards > .rightcol");
+  if (!col) { return; }
+  const any = [...col.children].some(c => c.style.display !== "none");
+  col.style.display = any ? "" : "none";
+}
+
 function renderCzSide() {
   const box = document.getElementById("czside");
   // 전체 제약 모드면 그 차트가 이 자리를 쓴다.
