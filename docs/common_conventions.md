@@ -651,6 +651,22 @@ f3 는 `proc_id` 로 들고 있다. 기준정보 `f3_std_plan.plan` 도 이 값�
 LOT BALANCE 의 PLAN 구분도 `proc_id` 를 쓴다.
 TIP 원천의 `process` 를 step_path 의 `proc_id` 와 조인하는 것도 같은 이유다.
 
+### 화면 3열 배치
+
+```
+[좌측 380px]        [원인 분석 300px]  [중분류 320px]  [나머지]
+ 필터 · 재공                              (드릴 중에만)   LOT BALANCE
+ status · W/T                                            전체 순위
+ W/T 0                                                   드릴다운 표
+```
+
+**좌측 세로축과 원인 분석 카드의 높이를 맞춘다**(`.leftcol { align-self: stretch }`).
+원인 분석 안의 세 차트는 `grid-template-rows: repeat(3, 1fr)` 로 남는 높이를
+균등하게 나눈다. 우측 열은 이 높이에 맞추지 않는다.
+
+우측 열은 `flex: 1 1 0; overflow: hidden` 으로 화면 밖으로 늘어나지 않게 하고,
+컬럼이 많은 드릴다운 표는 카드 안에서 가로 스크롤한다.
+
 ### 드릴다운 계층 (중요)
 
 위를 고르면 **아래는 모두 리셋**된다. 아래가 위를 바꾸지는 못한다.
@@ -664,6 +680,9 @@ TIP 원천의 `process` 를 step_path 의 `proc_id` 와 조인하는 것도 같�
 | 5 | 원인 분석 전체보기 |
 | 6 | LOT BALANCE |
 | 7 | 드릴다운 표 |
+
+누적막대는 **구간과 조각(status)을 한 번에** 건다. 이때만 같은 계층 정리를
+건너뛴다(`setCond(..., keepPeers=true)`).
 
 **같은 계층에서 다른 차트를 누르면 그것만 남기고 리셋**된다
 (`dfClearPeers`). Ctrl 은 같은 차트 안에서만 여러 개다.

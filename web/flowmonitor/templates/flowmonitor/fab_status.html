@@ -512,8 +512,9 @@ function setStatusInfo() {
     `<div class="nm" style="color:${s.color}">${s.label}</div>
      <div class="pc">${s.pct.toFixed(1)}%</div>
      <div class="sub">${nf(s.lots)} LOT &middot; ${nf(s.qty)} 매</div>`;
+  // 범례에서 기본값 항목을 뺐으므로 인덱스가 그대로 대응한다.
   document.querySelectorAll("#lg span").forEach((el, k) =>
-    el.classList.toggle("on", k === (SEL_STATUS === null ? 0 : SEL_STATUS + 1)));
+    el.classList.toggle("on", k === SEL_STATUS));
 }
 
 function pickStatus(i) { SEL_STATUS = (SEL_STATUS === i) ? null : i; setStatusInfo(); }
@@ -654,9 +655,17 @@ function renderWt0() {
                        grace: "18%" } },
         onClick: (e, els) => {
           if (!els.length) { return; }
+          const ev = e.native || e;
           const x = (DATA.wt0_dist || [])[els[0].index];
           if (!x) { return; }
-          setCond("wt0", x.name, e.native || e, x.label);
+          setCond("wt0", x.name, ev, x.label);
+          // 누적막대라 어느 조각(status)을 눌렀는지도 함께 건다.
+          const hit = wt0Chart.getElementsAtEventForMode(
+            ev, "nearest", { intersect: true }, false);
+          if (hit.length) {
+            const ds = wt0Chart.data.datasets[hit[0].datasetIndex];
+            if (ds && ds.label) { setCond("status", ds.label, ev, null, true); }
+          }
           syncFromDF();
         }
       },
@@ -778,7 +787,7 @@ function renderWt0Panel(show) {
             ev, "nearest", { intersect: true }, false);
           if (hit.length) {
             const st = wt0hChart.data.datasets[hit[0].datasetIndex];
-            if (st && st.label) { setCond("status", st.label, ev); }
+            if (st && st.label) { setCond("status", st.label, ev, null, true); }
           }
           syncFromDF();
         }
@@ -1203,7 +1212,7 @@ function multiPick(cur, name, ev) {
   return list;                       // 비면 해제
 }
 
-function setCond(key, name, ev, label) {
+function setCond(key, name, ev, label, keepPeers) {
   const add = ev && (ev.ctrlKey || ev.metaKey);
   const same = (DF[key] || []).length === 1 && DF[key][0] === name;
   let next;
@@ -1215,7 +1224,8 @@ function setCond(key, name, ev, label) {
     next = [name];                   // 그 차트의 조건만 교체
   }
   const lv = DF_LV[key] || 9;
-  if (!add) { dfClearPeers(key, lv); }   // 같은 계층은 새로 고른 것만 남긴다
+  // keepPeers: 한 번의 클릭으로 두 조건을 함께 거는 경우(누적막대의 조각 등)
+  if (!add && !keepPeers) { dfClearPeers(key, lv); }
   if (next.length) { DF[key] = next; } else { delete DF[key]; }
   if (label) { DF_LABEL[key + ":" + name] = label; }
   dfResetBelow(lv);                      // 아래 계층은 무효가 된다

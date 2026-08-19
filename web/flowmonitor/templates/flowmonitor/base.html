@@ -312,11 +312,16 @@
   /* 항상 1 x 3. 폭이 모자라면 세로로 쌓지 말고 가로 스크롤한다. */
   /* SHIFT 추이 + 대분류 3개 = 4등분. 좁으면 세로로 쌓지 말고 가로 스크롤. */
   /* 원인 분석은 SHIFT 추이 아래에 3행 1열로 쌓는다. */
-  .cz3 { display:grid; grid-template-columns:1fr; gap:10px; }
-  .cz3 .czcol > div:last-child { height:150px; }
+  /* 세 차트가 남는 높이를 균등하게 나눈다. */
+  .cz3 { display:grid; grid-template-columns:1fr;
+         grid-template-rows:repeat(3, 1fr); gap:10px; flex:1; min-height:0; }
+  .cz3 .czcol { display:flex; flex-direction:column; min-height:0; }
+  .cz3 .czcol > div:last-child { flex:1; min-height:110px; }
   /* SHIFT 추이 + 원인 분석을 같은 등급 카드로 나란히 */
   /* 두 카드의 세로를 맞춘다. 추이가 길어지면 원인 분석도 같이 늘어난다. */
-  .rowcards { display:flex; gap:10px; align-items:stretch; height:100%; }
+  /* 원인 분석은 좌측 세로축과 높이를 맞춘다. 우측 열과는 맞추지 않는다. */
+  .rowcards { display:flex; gap:10px; align-items:flex-start; height:100%; }
+  .rowcards > .leftcol { align-self:stretch; }
   .rowcards > .cell { display:flex; flex-direction:column; }
   .rowcards > .leftcol { flex:0 0 340px; display:flex; flex-direction:column;
                          gap:10px; }
