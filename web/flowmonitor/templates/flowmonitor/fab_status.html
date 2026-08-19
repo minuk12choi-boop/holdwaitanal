@@ -151,10 +151,17 @@
             <button class="on" id="bu_qty" onclick="setBalUnit('qty')">매</button>
           </span>
           <div class="dd" id="balpick">
-            <button class="rankbtn" id="balexp" onclick="balOpenMenu()">
-              펼치기<span class="cv">▼</span></button>
-            <div class="menu" id="balmenu"></div>
+            <button class="rankbtn" id="balexpProd" onclick="balOpenMenu('prod')">
+              제품 펼치기<span class="cv">▼</span></button>
+            <div class="menu" id="balmenuProd"></div>
           </div>
+          <div class="dd" id="balpick2">
+            <button class="rankbtn" id="balexpPlan" onclick="balOpenMenu('plan')">
+              PLAN 펼치기<span class="cv">▼</span></button>
+            <div class="menu" id="balmenuPlan"></div>
+          </div>
+          <button class="rankbtn" id="balfold" style="display:none"
+                  onclick="balCollapse()">접기</button>
         </span></div>
       <div class="balpath" id="balpath"></div>
       <div id="balbody"></div>
@@ -755,7 +762,8 @@ let BAL_UNIT = "qty";
 let BAL_OPEN = false;
 let BAL_DATA = null;
 let BAL_PICK = null;      // 펼칠 목록. null 이면 전부
-let BAL_BY = "plan";      // plan | prod
+let BAL_BY = "";          // "" 면 접힘. prod / plan / prod,plan
+let BAL_OPEN_ID = null;   // 받아온 뒤 열어 둘 메뉴
 let BAL_LABEL = "";       // 어떤 드릴다운에서 왔는지
 let BAL_SRC = "";         // 그 드릴다운의 출처(되돌아갈 때 쓴다)
 const balCharts = [];
@@ -789,65 +797,104 @@ function balBy(which, on) {
 }
 
 function balByName() {
-  return BAL_BY.split(",").map(x => x === "prod" ? "제품" : "PLAN").join(" · ");
+  return BAL_BY.split(",").filter(Boolean)
+    .map(x => x === "prod" ? "제품" : "PLAN").join(" · ");
 }
 
-// 펼치기 팝업 내용. 기준(제품/PLAN)과 항목을 함께 고른다.
-function renderBalMenu() {
+// 제품 / PLAN 을 각각 켜고 끈다. 둘 다 켜면 '제품 · PLAN' 으로 묶인다.
+function balOpenMenu(which) {
+  const id = (which === "prod") ? "balpick" : "balpick2";
+  const box = document.getElementById(id);
+  const open = box.classList.contains("open");
+  document.querySelectorAll(".dd.open").forEach(d => d.classList.remove("open"));
+  if (open) { return; }
+  if (BAL_BY.split(",").indexOf(which) < 0) {   // 아직 안 켠 기준이면 켠다
+    balBy(which, true, id);
+    return;
+  }
+  renderBalMenu(which);
+  box.classList.add("open");
+}
+
+function balBy(which, on, openId) {
+  const set = new Set(BAL_BY.split(",").filter(Boolean));
+  if (on) { set.add(which); } else { set.delete(which); }
+  BAL_BY = ["prod", "plan"].filter(x => set.has(x)).join(",");
+  BAL_PICK = null;
+  BAL_OPEN = !!BAL_BY;
+  BAL_OPEN_ID = openId || null;                 // 받아온 뒤 그 메뉴를 연다
+  loadBalance(true);
+}
+
+function renderBalMenu(which) {
   const list = (BAL_DATA && BAL_DATA.plans) || [];
-  const by = new Set(BAL_BY.split(","));
   const plans = list.map(p => p.name);
   const mainOf = {};
   list.forEach(p => { mainOf[p.name] = !!p.main; });
   const on = BAL_PICK ? new Set(BAL_PICK) : new Set(plans);
+  const mid = (which === "prod") ? "Prod" : "Plan";
 
-  document.getElementById("balmenu").innerHTML =
-    `<label class="dfall"><input type="checkbox" ${by.has("prod") ? "checked" : ""}`
-    + ` onclick="balBy('prod', this.checked)"><b>제품으로 나누기</b></label>`
-    + `<label class="dfall"><input type="checkbox" ${by.has("plan") ? "checked" : ""}`
-    + ` onclick="balBy('plan', this.checked)"><b>PLAN 으로 나누기</b></label>`
-    + `<input class="ddq" id="balq" type="text" placeholder="검색"`
-    + ` oninput="balSearch()" onclick="event.stopPropagation()">`
+  document.getElementById("balmenu" + mid).innerHTML =
+    `<label class="dfall"><input type="checkbox" checked`
+    + ` onclick="balBy('${which}', this.checked)">`
+    + `<b>${which === "prod" ? "제품" : "PLAN"} 으로 나누기</b></label>`
+    + `<input class="ddq" id="balq${mid}" type="text" placeholder="검색"`
+    + ` oninput="balSearch('${mid}')" onclick="event.stopPropagation()">`
     + `<label class="dfall"><input type="checkbox"`
-    + `${BAL_PICK === null ? " checked" : ""} onclick="balAll(event)"><b>ALL</b></label>`
+    + `${BAL_PICK === null ? " checked" : ""} onclick="balAll(event,'${mid}')">`
+    + `<b>ALL</b></label>`
     + plans.map(p => `<label data-opt="${p}"><input type="checkbox" value="${p}"`
-        + `${on.has(p) ? " checked" : ""} onclick="balPick()">`
+        + `${on.has(p) ? " checked" : ""} onclick="balPick('${mid}')">`
         + `${mainOf[p] ? "<b>★ " + p + "</b>" : p}</label>`).join("");
 }
 
-function balSearch() {
-  const q = (document.getElementById("balq").value || "").trim().toLowerCase();
-  document.querySelectorAll("#balmenu label[data-opt]").forEach(el => {
+function balSearch(mid) {
+  const q = (document.getElementById("balq" + mid).value || "")
+    .trim().toLowerCase();
+  document.querySelectorAll("#balmenu" + mid + " label[data-opt]").forEach(el => {
     const v = (el.getAttribute("data-opt") || "").toLowerCase();
     el.style.display = (!q || v.indexOf(q) >= 0) ? "" : "none";
   });
 }
 
-function balAll(ev) {
+function balAll(ev, mid) {
   const on = ev.target.checked;
-  document.querySelectorAll("#balmenu input[value]").forEach(x => {
+  document.querySelectorAll("#balmenu" + mid + " input[value]").forEach(x => {
     x.checked = on;
   });
-  balPick();
+  balPick(mid);
 }
 
-function balPick() {
-  const boxes = [...document.querySelectorAll("#balmenu input[value]")];
+function balPick(mid) {
+  const boxes = [...document.querySelectorAll("#balmenu" + mid + " input[value]")];
   const sel = boxes.filter(x => x.checked).map(x => x.value);
   BAL_PICK = (sel.length === boxes.length) ? null : sel;
   BAL_OPEN = true;
-  const btn = document.getElementById("balexp");
-  btn.innerHTML = `${balByName()} ${BAL_PICK ? BAL_PICK.length + "개" : "전체"}`
-    + `<span class="cv">▲</span>`;
-  btn.classList.add("on");
+  balSyncBtns();
   drawBalance();
 }
 
+function balSyncBtns() {
+  const by = new Set(BAL_BY.split(",").filter(Boolean));
+  const set = (id, key, name) => {
+    const b = document.getElementById(id);
+    if (!b) { return; }
+    const on = by.has(key);
+    b.innerHTML = `${name} ${on ? (BAL_PICK ? BAL_PICK.length + "개" : "전체")
+                              : "펼치기"}<span class="cv">${on ? "▲" : "▼"}</span>`;
+    b.classList.toggle("on", on);
+  };
+  set("balexpProd", "prod", "제품");
+  set("balexpPlan", "plan", "PLAN");
+  const f = document.getElementById("balfold");
+  if (f) { f.style.display = BAL_OPEN ? "" : "none"; }
+}
+
+// 펼치기 자체를 해제한다.
 function balCollapse() {
-  BAL_OPEN = false; BAL_PICK = null;
-  const b = document.getElementById("balexp");
-  b.innerHTML = `펼치기<span class="cv">▼</span>`;
-  b.classList.remove("on");
+  BAL_OPEN = false; BAL_PICK = null; BAL_BY = "";
+  balSyncBtns();
+  document.querySelectorAll(".dd.open").forEach(d => d.classList.remove("open"));
   drawBalance();
 }
 
@@ -857,7 +904,7 @@ function loadBalance(show) {
   const base = Object.assign({
     line: LINE, types: selectedTypes().join(","),
     prod1: PROD1.join(","), prod2: PROD2.join(","),
-    biz_date: SNAP_DATE, shift: SNAP_SHIFT, by: BAL_BY
+    biz_date: SNAP_DATE, shift: SNAP_SHIFT, by: (BAL_BY || "plan")
   }, dfFilter());
   delete base.layer_id;                 // LAYER 는 이 차트의 x축이라 뺀다
   const q = Object.entries(base)
@@ -866,7 +913,13 @@ function loadBalance(show) {
   fetch("/api/balance/?" + q).then(r => r.json()).then(d => {
     BAL_DATA = d;
     box.style.display = (d.layers || []).length ? "block" : "none";
+    balSyncBtns();
     drawBalance();
+    if (BAL_OPEN_ID) {
+      renderBalMenu(BAL_OPEN_ID === "balpick" ? "prod" : "plan");
+      document.getElementById(BAL_OPEN_ID).classList.add("open");
+      BAL_OPEN_ID = null;
+    }
   });
 }
 
@@ -930,7 +983,8 @@ function drawBalance() {
                        t.dataset.label + " " + nf(t.raw)
                        + (BAL_UNIT === "lots" ? " lot" : " 매") } } },
           scales: { x: { stacked: true, grid: { display: false },
-                         ticks: { font: { size: 7 }, autoSkip: false,
+                         ticks: { color: "#111827", autoSkip: false,
+                                  font: { size: 8, weight: "700" },
                                   maxRotation: 90, minRotation: 90,
                                   padding: 0 } },
                     y: { stacked: true, display: false, beginAtZero: true,
@@ -1401,6 +1455,7 @@ function czPick(i, node, depth, ev) {
   const leaf = !(node.children && node.children.length);
   if (depth === 0 || CZ_SEL.i !== i) {
     CZ_SEL = { i: i, path: [] };        // 다른 막대를 누르면 이전 경로는 버린다
+    if (CZ_WIDE && CZ_WIDE.i !== i) { CZ_WIDE = null; }   // 전체보기도 닫는다
   }
   CZ_SEL.path = CZ_SEL.path.filter(p => p.kind !== "all");
 
@@ -1423,10 +1478,16 @@ function czPick(i, node, depth, ev) {
   }
 
   CZ_SEL.path.push({ name: node.name, kind: node.kind || "sub" });
+  // 하위가 하나도 없으면 더 내려갈 곳이 없다. 그 자리에서 표를 연다.
+  if (!czNodesAt(i, CZ_SEL.path).length) {
+    const mid2 = (CZ_SEL.path.find(p => p.kind === "mid") || {}).name || null;
+    const leaf = CZ_SEL.path[CZ_SEL.path.length - 1].name;
+    DF_CAUSE = { i: i, big: czGroup(i).name, mid: mid2, subs: [leaf] };
+    syncFromDF();
+    return;
+  }
   DRILL_KEY = { i: -1, node: null, list: [] };
-  DRILL_SRC = "cause";
   closeDrill();                 // 단계를 옮기면 이전 표는 무효다
-  DRILL_SRC = "cause";
   renderCause();
 }
 
@@ -1690,7 +1751,8 @@ let CZ_WIDE = null;          // {i, path}
 let czWideChart = null;
 
 function czShowAll(i) {
-  const path = (CZ_SEL.i === i) ? CZ_SEL.path.slice() : [];
+  if (CZ_SEL.i !== i) { CZ_SEL = { i: i, path: [] }; }
+  const path = CZ_SEL.path.slice();
   const same = CZ_WIDE && CZ_WIDE.i === i
     && CZ_WIDE.path.map(x => x.name).join("|") === path.map(x => x.name).join("|");
   CZ_WIDE = same ? null : { i: i, path: path };
