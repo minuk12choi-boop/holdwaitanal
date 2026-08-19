@@ -67,3 +67,43 @@ class TemplateJsTest(SimpleTestCase):
             for line in code.splitlines():
                 depth += line.count("{") - line.count("}")
             self.assertEqual(depth, 0, f"{name}: 닫히지 않은 블록")
+
+    BUILTIN = {
+        "if", "for", "while", "switch", "catch", "return", "function", "typeof",
+        "fetch", "parseInt", "parseFloat", "isNaN", "isFinite", "setTimeout",
+        "setInterval", "clearInterval", "clearTimeout", "requestAnimationFrame",
+        "encodeURIComponent", "console", "map", "filter", "forEach", "join",
+        "split", "push", "indexOf", "slice", "replace", "toFixed", "toUpperCase",
+        "toLowerCase", "trim", "find", "findIndex", "sort", "localeCompare",
+        "has", "add", "get", "set", "querySelectorAll", "getElementById",
+        "addEventListener", "then", "json", "update", "draw", "fill", "stroke",
+        "save", "restore", "arc", "beginPath", "closePath", "fillRect",
+        "strokeRect", "fillText", "getProps", "getDatasetMeta", "concat",
+        "substring", "substr", "startsWith", "matchAll", "values", "entries",
+        "keys", "reduce", "some", "every", "includes", "padStart", "contains",
+        "toLocaleTimeString", "toLocaleString", "remove", "toggle", "register",
+        "stopPropagation", "translate", "cos", "sin", "max", "min", "abs",
+        "round", "floor", "ceil", "apply", "of", "from", "click", "destroy",
+        "closest", "insertAdjacentHTML", "querySelector", "splice", "pop",
+        "getElementsAtEventForMode", "createElement", "appendChild",
+        "removeChild", "select", "execCommand", "writeText", "setData",
+        "preventDefault", "getBoundingClientRect", "setAttribute",
+        "getAttribute", "toISOString", "setMinutes", "getMinutes", "getHours",
+        "var", "not", "at", "done", "name", "rgba", "num", "nf",
+        "afterDatasetsDraw", "beforeDatasetsDraw", "afterDraw", "beforeDraw",
+        "afterDataLimits", "afterFit", "callback", "onPick", "label", "title",
+    }
+
+    def test_no_missing_functions(self):
+        """호출하는데 정의가 없는 함수를 잡는다.
+
+        블록을 통째로 치환하다 정의만 날아가는 사고가 반복됐다.
+        그런 경우 화면이 조용히 멈추므로 여기서 걸러 낸다.
+        """
+        for name in PAGES:
+            _, js = self._js(name)
+            code = self._strip_literals(js)
+            defs = set(re.findall(r"function\s+([A-Za-z_$][\w$]*)\s*\(", code))
+            called = set(re.findall(r"(?:^|[^\w.$])([a-z][\w$]*)\s*\(", code))
+            missing = sorted(called - defs - self.BUILTIN)
+            self.assertEqual(missing, [], f"{name}: 정의 없는 호출 {missing}")
