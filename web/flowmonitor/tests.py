@@ -142,6 +142,7 @@ class TemplateJsTest(SimpleTestCase):
         ".rowcards > .farcol",
         "flex:1 1 0; width:0; min-width:0",
         ".rowcards > .leftcol",
+        "align-items:flex-start",
         ".leftcol > #czcard",
         ".maincol",
         "canvas { max-width:100% !important",

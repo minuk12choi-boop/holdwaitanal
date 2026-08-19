@@ -673,13 +673,15 @@ http://<주소>/main/?debug=layout      페이지를 열면 자동으로 잰다
 ### 화면 3열 배치
 
 ```
-[좌측 380px]        [원인 분석 300px]  [중분류 320px]  [나머지]
- 필터 · 재공                              (드릴 중에만)   LOT BALANCE
- status · W/T                                            전체 순위
- W/T 0                                                   드릴다운 표
+[좌측 380px]      [원인 분석 340px]   [나머지]
+ 필터 · 재공                           중분류 드릴다운 (드릴 중에만)
+ status · W/T                          LOT BALANCE
+ W/T 0                                 전체 순위 · 드릴다운 표
 ```
 
-**좌측 세로축과 원인 분석 카드의 높이를 맞춘다**(`.leftcol { align-self: stretch }`).
+**좌측 세로축과 원인 분석 카드의 높이만 맞춘다.** 우측 열이 길어져도 따라
+늘어나면 안 되므로 `.layout` 은 `align-items: flex-start` 로 두고,
+높이 맞춤은 `syncLeftHeight()` 가 좌측 높이를 읽어 지정한다.
 원인 분석 안의 세 차트는 `grid-template-rows: repeat(3, 1fr)` 로 남는 높이를
 균등하게 나눈다. 우측 열은 이 높이에 맞추지 않는다.
 

@@ -197,13 +197,14 @@
      남아 페이지를 오른쪽으로 늘린다. 반드시 부모 폭으로 묶는다. */
   canvas { max-width:100% !important; display:block; }
 
-  .layout { display:flex; gap:14px; padding:14px; align-items:stretch;
+  /* 우측이 길어져도 좌측이 따라 늘어나지 않게 flex-start 로 둔다.
+     좌측 세로축과 원인 분석의 높이 맞춤은 syncLeftHeight() 가 한다. */
+  .layout { display:flex; gap:14px; padding:14px; align-items:flex-start;
             min-width:0; max-width:100%; box-sizing:border-box; }
   .maincol { flex:1 1 0; min-width:0; width:0; display:flex;
              flex-direction:column; }
   .summary { flex:0 0 380px; display:flex; flex-direction:column; }
-  .summary > .cell:last-child { flex:1; display:flex; flex-direction:column; }
-  .summary > .cell:last-child > div:last-child { flex:1; min-height:150px; }
+
   .summary .cell { border:1px solid var(--bd); border-radius:6px; padding:11px 12px;
                    margin-bottom:10px; }
   /* ── 전역 필터 (라인 + 제품구분) ────────────────────────────────────────
@@ -338,16 +339,12 @@
   .rowcards { display:flex; gap:10px; align-items:flex-start;
               flex:1; min-height:0; min-width:0; }
 
-  .rowcards > .leftcol { flex:0 0 340px; align-self:stretch;
-                         display:flex; flex-direction:column; gap:10px;
-                         min-width:0; }
+  .rowcards > .leftcol { flex:0 0 340px; display:flex; flex-direction:column;
+                         gap:10px; min-width:0; }
   /* 원인 분석 카드가 좌측 컬럼의 남는 높이를 모두 차지한다. */
   .leftcol > #czcard { flex:1; display:flex; flex-direction:column;
                        min-height:0; }
 
-  /* 드릴다운 중에만 자리를 차지한다(JS 가 보이기/숨기기를 정한다). */
-  .rowcards > .rightcol { flex:0 0 320px; display:flex;
-                          flex-direction:column; gap:10px; min-width:0; }
 
   .rowcards > .farcol { flex:1 1 0; width:0; min-width:0;
                         display:flex; flex-direction:column; gap:10px; }
@@ -363,8 +360,7 @@
   .rowcards .czcol > div:last-child { flex:1; min-height:110px; }
   @media (max-width: 1180px) {
     .rowcards { flex-wrap:wrap; }
-    .rowcards > .leftcol, .rowcards > .rightcol,
-    .rowcards > .farcol { flex:1 1 100%; }
+    .rowcards > .leftcol, .rowcards > .farcol { flex:1 1 100%; }
   }
   #trdshift { display:inline-flex; width:auto; align-self:flex-start; }
   .trdpath { font-size:12px; font-weight:700; color:var(--accent);

@@ -119,19 +119,15 @@
     </div>
     </div>
 
-    <!-- 우측: 원인 분석에서 파고든 중분류 차트 (드릴다운 중에만 보인다) -->
-    <div class="rightcol">
-    <div class="cell" id="czside" style="flex:1;min-width:0;display:none;
+    <!-- 세 번째 열: 전체 순위 · LOT BALANCE · 드릴다운 표 -->
+    <div class="farcol">
+    <div class="cell" id="czside" style="display:none;
          border:1px solid var(--bd);border-radius:6px;padding:11px 12px">
       <div class="cellttl"><span id="czsttl"></span>
         <span class="czback" onclick="czSideClose()">닫기</span></div>
       <div id="czspath" class="czpath"></div>
       <div style="height:300px"><canvas id="czsc"></canvas></div>
     </div>
-    </div>
-
-    <!-- 세 번째 열: 전체 순위 · LOT BALANCE · 드릴다운 표 -->
-    <div class="farcol">
 <!-- 전체 순위는 x축이 길어져 위 카드에 넣으면 안 보인다. 아래 전체 폭으로. -->
     <div class="cell" id="czdrill" style="display:none;border:1px solid var(--bd);
          border-radius:6px;padding:11px 12px;margin-bottom:10px">
@@ -1540,17 +1536,17 @@ function czWhole(i) {
 
 function renderCause() {
   const u = CAUSE_UNIT;
-  syncRightCol();
 
   for (let i = 0; i < 3; i++) {
     const g = czGroup(i);
     // 이 칸을 파고들었으면 그 단계의 목록을, 아니면 대분류 바로 아래를 그린다.
-    const deep = (CZ_SEL.i === i && CZ_SEL.path.length
-                  && CZ_SEL.path[0].kind !== "all");
-    const path = deep ? CZ_SEL.path : [];
-    const all = deep ? czNodesAt(i, path) : (g.children || []);
+    // 대분류 차트는 늘 그 바로 아래 단계만 보여 준다.
+    // 파고든 결과는 오른쪽 중분류 차트(#czside)에 따로 나온다.
+    const all = g.children || [];
     const nodes = all.slice(0, CZ_TOP);
     const more = all.length - nodes.length;
+    const deep = false;
+    const path = [];
 
     const hd = document.getElementById("czh" + i);
     hd.innerHTML = `<span>${g.name || "-"}</span>`
@@ -1576,9 +1572,7 @@ function renderCause() {
 
     if (!czCharts[i]) {
       czCharts[i] = czBarChart("czc" + i,
-        (idx) => czPick(i, (czCharts[i].$nodes || [])[idx],
-                        (CZ_SEL.i === i && CZ_SEL.path.length
-                         && CZ_SEL.path[0].kind !== "all") ? 1 : 0),
+        (idx, ev) => czPick(i, (czCharts[i].$nodes || [])[idx], 0, ev),
         "czVal" + i);
     }
     const selL = (DRILL_KEY.i === i) ? DRILL_KEY.list : null;
@@ -1592,7 +1586,6 @@ function renderCause() {
   }
 
   renderCzSide();
-  syncRightCol();
   renderCzWide();
 }
 
@@ -1633,7 +1626,6 @@ function czShowAll(i) {
     && CZ_WIDE.path.map(x => x.name).join("|") === path.map(x => x.name).join("|");
   CZ_WIDE = same ? null : { i: i, path: path };
   renderCzSide();
-  syncRightCol();
   renderCzWide();
 }
 
@@ -1641,15 +1633,17 @@ function czShowAll(i) {
    상위 차트를 그대로 두고 그 하위를 옆에 새로 띄운다.
    어느 막대에서 왔는지 남색 테두리로 표시한다.
 --------------------------------------------------------------------- */
-// 우측 열은 안의 카드가 하나라도 보일 때만 자리를 차지한다.
-function syncRightCol() {
-  const col = document.querySelector(".rowcards > .rightcol");
-  if (!col) { return; }
-  const any = [...col.children].some(c => c.style.display !== "none");
-  const was = col.style.display;
-  col.style.display = any ? "" : "none";
-  // 열이 생기거나 사라지면 나머지 열의 폭이 바뀐다. 차트를 다시 맞춘다.
-  if (was !== col.style.display) { resizeCharts(); }
+// 좌측 세로축(필터~W/T 0)과 원인 분석 카드의 높이를 맞춘다.
+// 우측 열 높이와는 무관하게 둔다.
+function syncLeftHeight() {
+  const sm = document.querySelector(".summary");
+  const lc = document.querySelector(".rowcards > .leftcol");
+  if (!sm || !lc) { return; }
+  const h = sm.offsetHeight;
+  if (h > 0 && lc.style.height !== h + "px") {
+    lc.style.height = h + "px";
+    resizeCharts();
+  }
 }
 
 /* 레이아웃 진단 --------------------------------------------------------
@@ -2432,6 +2426,7 @@ function loadSummary(keepFocus) {
       renderSnap(d);
       renderProd(d);
       renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
+      requestAnimationFrame(syncLeftHeight);
       if (location.search.indexOf("debug=layout") >= 0) {
         setTimeout(checkLayout, 800);      // 차트가 그려진 뒤에 잰다
       }
