@@ -302,7 +302,13 @@ def diag_lotst(lot_id):
             print(f"         recipe={r['recipe_id']} desc={r['step_desc']}")
             print()
 
+        # 웹이 lot 단위로 접을 때 쓰는 값(현스텝 행)과 비교한다.
         cur_row = next((r for r in rows if r["현스텝"] == "현스텝"), rows[0])
+        others = {r["lot_status"] for r in rows
+                  if r["현스텝"] != "현스텝" and r["lot_status"]}
+        if others - {cur_row["lot_status"]}:
+            print("[참고] 연속블록 행의 상태:", sorted(others))
+            print("       웹 표는 현스텝 행 값을 쓴다. 다르면 화면과 대조한다.\n")
         print("-" * 70)
         print("[판정]")
         st = cur_row["lot_status"]

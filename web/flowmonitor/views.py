@@ -1118,10 +1118,15 @@ def _eqp_status_of(down):
 
 
 # 현스텝 행에서만 의미가 있는 컬럼(연속블록 행에는 값이 없다)
+# lot 단위로 접을 때 **현스텝 행의 값**을 써야 하는 컬럼.
+# 여기 없으면 전 행의 MIN() 이 되어 연속블록 값이 섞인다.
 STEP_SCOPED = ("eqpgroup", "eqpgroup_cham", "down", "tip", "recipe_id",
                "step_seq", "step_desc", "eqp_type", "batch_kind", "eqpline",
                "order_seq", "layer_id", "AREA", "de_rank", "연속", "현스텝",
-               "module1", "module2", "eqpgroup_cham")
+               "module1", "module2",
+               "lot_status", "step_status",
+               "hold", "hold_reason", "exception", "exception_reason",
+               "ftp", "ftp_reason", "cause_detail")
 
 
 def _hist_snapshots(line):
@@ -1178,7 +1183,9 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
         if c == "qty":
             sel.append("MIN(CAST(`qty` AS SIGNED)) AS `qty`")
         elif c in STEP_SCOPED:
-            sel.append(f"MIN(CASE WHEN `현스텝`='현스텝' THEN `{c}` END) AS `{c}`")
+            # 현스텝 행이 없는 lot 도 있어 전체 MIN 으로 보완한다.
+            sel.append(f"COALESCE(MIN(CASE WHEN `현스텝`='현스텝' THEN `{c}` END),"
+                       f" MIN(`{c}`)) AS `{c}`")
         else:
             sel.append(f"MIN(`{c}`) AS `{c}`")
 
