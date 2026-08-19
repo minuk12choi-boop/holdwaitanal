@@ -191,7 +191,12 @@
 
   /* FAB현황 단일 라인 레이아웃 */
   /* 좌측 세로축과 우측이 같은 높이로 끝나도록 맞춘다. */
-  .layout { display:flex; gap:14px; padding:14px; align-items:stretch; }
+  /* 가로 스크롤이 생기지 않게 각 단계마다 min-width:0 을 준다.
+     flex 아이템은 기본 min-width:auto 라 내용 폭만큼 부풀어 오른다. */
+  .layout { display:flex; gap:14px; padding:14px; align-items:stretch;
+            min-width:0; max-width:100%; box-sizing:border-box; }
+  .maincol { flex:1 1 0; min-width:0; width:0; display:flex;
+             flex-direction:column; }
   .summary { flex:0 0 380px; display:flex; flex-direction:column; }
   .summary > .cell:last-child { flex:1; display:flex; flex-direction:column; }
   .summary > .cell:last-child > div:last-child { flex:1; min-height:150px; }
@@ -320,8 +325,13 @@
   /* SHIFT 추이 + 원인 분석을 같은 등급 카드로 나란히 */
   /* 두 카드의 세로를 맞춘다. 추이가 길어지면 원인 분석도 같이 늘어난다. */
   /* 원인 분석은 좌측 세로축과 높이를 맞춘다. 우측 열과는 맞추지 않는다. */
-  .rowcards { display:flex; gap:10px; align-items:flex-start; height:100%; }
+  /* 부모의 남는 높이를 받아 좌측 컬럼이 끝까지 늘어난다. */
+  .rowcards { display:flex; gap:10px; align-items:flex-start;
+              flex:1; min-height:0; min-width:0; }
   .rowcards > .leftcol { align-self:stretch; }
+  /* 원인 분석 카드가 좌측 컬럼의 남는 높이를 모두 차지한다. */
+  .leftcol > #czcard { flex:1; display:flex; flex-direction:column;
+                       min-height:0; }
   .rowcards > .cell { display:flex; flex-direction:column; }
   .rowcards > .leftcol { flex:0 0 340px; display:flex; flex-direction:column;
                          gap:10px; }

@@ -95,7 +95,7 @@
     </div>
   </div>
 
-  <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+  <div class="maincol">
     <div class="rowcards">
     <div class="leftcol">
     <div class="cell" id="czcard" style="border:1px solid var(--bd);
@@ -646,9 +646,13 @@ function renderWt0() {
         responsive: true, maintainAspectRatio: false, animation: false,
         layout: { padding: { top: 16 } },
         plugins: { legend: { display: false },
-                   tooltip: { callbacks: { label: (t) =>
-                     t.dataset.label + " " + nf(t.raw)
-                     + (WT0_UNIT === "lots" ? " lot" : " 매") } } },
+                   tooltip: { callbacks: { label: (t) => {
+                     const g = (wt0Chart.$tot || [])[t.dataIndex] || 0;
+                     const v = t.raw || 0;
+                     return t.dataset.label + " " + nf(v)
+                       + (WT0_UNIT === "lots" ? " lot" : " 매")
+                       + (g ? " (" + Math.round(v / g * 100) + "%)" : "");
+                   } } } },
         scales: { x: { stacked: true, grid: { display: false },
                        ticks: { font: { size: 10 } } },
                   y: { stacked: true, display: false, beginAtZero: true,
@@ -1062,9 +1066,13 @@ function drawBalance() {
         options: {
           responsive: true, maintainAspectRatio: false, animation: false,
           plugins: { legend: { display: false },
-                     tooltip: { callbacks: { label: (t) =>
-                       t.dataset.label + " " + nf(t.raw)
-                       + (BAL_UNIT === "lots" ? " lot" : " 매") } } },
+                     tooltip: { callbacks: { label: (t) => {
+                       const g = (balCharts[i].$tot || [])[t.dataIndex] || 0;
+                       const v = t.raw || 0;
+                       return t.dataset.label + " " + nf(v)
+                         + (BAL_UNIT === "lots" ? " lot" : " 매")
+                         + (g ? " (" + Math.round(v / g * 100) + "%)" : "");
+                     } } } },
           scales: { x: { stacked: true, grid: { display: false },
                          ticks: { color: "#111827", autoSkip: false,
                                   font: { size: 8, weight: "700" },
