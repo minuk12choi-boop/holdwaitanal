@@ -1080,7 +1080,8 @@ DF_LV.cause = 4;              // 원인 분석
 function dfResetBelow(lv) {
   Object.keys(DF).forEach(k => { if ((DF_LV[k] || 9) > lv) { delete DF[k]; } });
   if (DF_LV.cause > lv) { DF_CAUSE = null; }
-  if (lv < 5) { CZ_WIDE = null; }          // 전체보기
+  // 원인 분석(4)보다 위를 고르면 그 아래 시각화도 전부 접는다.
+  if (lv < 5) { CZ_WIDE = null; CZ_SIDE = null; CZ_SEL = { i: -1, path: [] }; }
   if (lv < 6) { BAL_BY = ""; BAL_OPEN = false; BAL_PICK = null; }
 }
 
@@ -1095,7 +1096,10 @@ let DF = {};                 // {키: [값...]}
 let DF_CAUSE = null;         // {big, mid, subs:[], i}
 let DF_LABEL = {};           // 화면 표시용 라벨
 
-function dfReset() { DF = {}; DF_CAUSE = null; DF_LABEL = {}; }
+function dfReset() {
+  DF = {}; DF_CAUSE = null; DF_LABEL = {};
+  CZ_SIDE = null; CZ_WIDE = null; CZ_SEL = { i: -1, path: [] };
+}
 
 // 같은 차트 안에서의 다중선택. 같은 값을 다시 누르면 빠진다.
 function multiPick(cur, name, ev) {
@@ -1272,19 +1276,21 @@ function czGo(depth) { CZ_SEL.path = CZ_SEL.path.slice(0, depth); renderCause();
 // depth>0 : 드릴다운 차트   -> 현재 경로에 덧붙임
 function czPick(i, node, depth, ev) {
   if (!node) { return; }
+  const add = ev && (ev.ctrlKey || ev.metaKey);
   const leaf = !(node.children && node.children.length);
-  if (depth === 0 || CZ_SEL.i !== i) {
-    CZ_SEL = { i: i, path: [] };        // 다른 막대를 누르면 이전 경로는 버린다
-    if (CZ_WIDE && CZ_WIDE.i !== i) { CZ_WIDE = null; }   // 전체보기도 닫는다
+
+  // Ctrl 이 아니면 이전 드릴다운은 모두 버린다(같은 차트 안이라도).
+  if (!add) {
+    if (CZ_SIDE && CZ_SIDE.i !== i) { CZ_SIDE = null; }
+    if (CZ_WIDE && CZ_WIDE.i !== i) { CZ_WIDE = null; }
   }
+  if (depth === 0 && !add) { CZ_SEL = { i: i, path: [] }; }
   CZ_SEL.path = CZ_SEL.path.filter(p => p.kind !== "all");
 
   if (leaf) {
-    // 말단: 차트는 그대로 두고 아래 표만 바꾼다.
-    const keep = CZ_SEL.path.slice();
-    const mid = (keep.find(p => p.kind === "mid") || {}).name || null;
-    const add = ev && (ev.ctrlKey || ev.metaKey);
-    // Ctrl 이면 다른 대분류 차트의 선택과도 합쳐 본다.
+    // 더 쪼갤 게 없다. 중분류 차트를 만들지 않고 바로 표/LOT BALANCE 로 간다.
+    const mid = (CZ_SEL.path.find(p => p.kind === "mid") || {}).name
+      || (node.kind === "mid" ? node.name : null);
     const same = DF_CAUSE && (add || DF_CAUSE.i === i);
     const cur = same ? (DF_CAUSE.subs || []) : [];
     const one = cur.length === 1 && cur[0] === node.name;
@@ -1293,238 +1299,26 @@ function czPick(i, node, depth, ev) {
     else if (one) { list = []; }
     else { list = [node.name]; }
     if (!add) { dfClearPeers("cause", 4); }
-    // 여러 대분류를 함께 고르면 big/mid 로는 못 좁힌다. 소분류만 쓴다.
     const cross = add && DF_CAUSE && DF_CAUSE.i !== i;
     DF_CAUSE = list.length
       ? (cross ? { i: i, big: null, mid: null, subs: list }
                : { i: i, big: czGroup(i).name, mid: mid, subs: list })
       : null;
-    dfResetBelow(4);                 // 전체보기 / LOT BALANCE / 표는 다시 잡는다
-    syncFromDF();
-    return;
-  }
-
-  CZ_SEL.path.push({ name: node.name, kind: node.kind || "sub" });
-  // 하위가 있으면 옆에 새 차트로 띄운다(대분류 차트는 그대로 둔다).
-  if (czNodesAt(i, CZ_SEL.path).length) {
-    CZ_SIDE = { i: i, path: CZ_SEL.path.slice() };
     dfResetBelow(4);
-    renderCause();
-    return;
-  }
-  if (!czNodesAt(i, CZ_SEL.path).length) {
-    const mid2 = (CZ_SEL.path.find(p => p.kind === "mid") || {}).name || null;
-    const leaf = CZ_SEL.path[CZ_SEL.path.length - 1].name;
-    DF_CAUSE = { i: i, big: czGroup(i).name, mid: mid2, subs: [leaf] };
     syncFromDF();
     return;
   }
-  DRILL_KEY = { i: -1, node: null, list: [] };
-  closeDrill();                 // 단계를 옮기면 이전 표는 무효다
-  renderCause();
+
+  // 하위가 있다. 대분류 차트는 그대로 두고 중분류 차트를 띄운다.
+  CZ_SEL = { i: i, path: [{ name: node.name, kind: node.kind || "sub" }] };
+  CZ_SIDE = { i: i, path: CZ_SEL.path.slice() };
+  CZ_WIDE = null;
+  DF_CAUSE = { i: i, big: czGroup(i).name,
+               mid: node.kind === "mid" ? node.name : null, subs: [] };
+  dfResetBelow(4);
+  syncFromDF();
 }
 
-// x축 라벨을 세로(시계방향 90도)로 세우고 길면 줄인다.
-const CZ_SCALE_X = {
-  grid: { display: false },
-  ticks: { font: { size: 9 }, autoSkip: false, maxRotation: 0, minRotation: 0,
-           callback: function (v) {
-             const lb = this.chart.data.labels[v];
-             // 배열이면 두 줄 라벨이다(전체 제약). 각 줄만 줄여 준다.
-             if (Array.isArray(lb)) { return lb.map(x => czLabel(x, 10)); }
-             return czLabel(this.getLabelForValue(v), 10);
-           } }
-};
-
-function czBarChart(canvasId, onPick, pluginId) {
-  return new Chart(document.getElementById(canvasId), {
-    type: "bar",
-    data: { labels: [], datasets: [
-      { data: [], borderRadius: 3, order: 2, yAxisID: "y" },
-      // 경과일 평균(일/lot). 막대 위에 겹치지 않게 별도 축을 쓴다.
-      { type: "line", data: [], order: 1, yAxisID: "y2",
-        borderColor: "#B4504F", backgroundColor: "#B4504F",
-        borderWidth: 2, pointRadius: 3, pointHoverRadius: 4,
-        tension: 0.25, spanGaps: true }
-    ] },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: false,
-      layout: { padding: { top: 16 } },
-      plugins: { legend: { display: false },
-                 tooltip: { callbacks: {
-                   title: (t) => (t[0].chart.$nodes[t[0].dataIndex] || {}).name,
-                   label: (t) => {
-                     const x = t.chart.$nodes[t.dataIndex] || {};
-                     if (t.datasetIndex === 1) {
-                       return "경과 평균 " + (x.elapsed_d == null ? "-"
-                              : x.elapsed_d.toFixed(1) + " 일/lot");
-                     }
-                     return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
-                   } } } },
-      // 막대와 라인을 세로로 분리한다.
-      //   막대 : 바닥 ~ 50%      (라벨은 그 바로 위)
-      //   라인 : 68% ~ 90%       (라벨은 그 위)
-      // 두 대역 사이 여백이 있어 막대·라인·라벨이 서로 겹치지 않는다.
-      scales: {
-        x: CZ_SCALE_X,
-        y: { display: false, beginAtZero: true,
-             afterDataLimits: (sc) => { sc.max = (sc.max || 1) / 0.50; } },
-        y2: { display: false, position: "right",
-              afterDataLimits: (sc) => {
-                let a = sc.min, b = sc.max;
-                if (!isFinite(a) || !isFinite(b)) { return; }
-                if (b - a < 1e-9) {
-                  const pad = Math.abs(b) * 0.5 || 1;   // 값이 하나뿐이거나 0
-                  a = b - pad;
-                }
-                // a -> 68%, b -> 90% 위치에 오도록 축 범위를 역산
-                const range = (b - a) / 0.22;
-                sc.min = a - 0.68 * range;
-                sc.max = sc.min + range;
-              } } },
-      onClick: (e, els) => {
-        if (els.length) { onPick(els[0].index, e.native || e); }
-      },
-      interaction: { mode: "index", intersect: false }
-    },
-    plugins: [{
-      id: pluginId,
-      afterDatasetsDraw(ch) {
-        const ctx = ch.ctx; ctx.save();
-        ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
-        ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-        ctx.fillStyle = "#374151";
-        const unit = (CAUSE_UNIT === "lots") ? " lot" : " 매";
-        ch.getDatasetMeta(0).data.forEach((el, k) => {
-          ctx.fillText(nf(ch.data.datasets[0].data[k]) + unit, el.x, el.y - 4);
-        });
-        ctx.fillStyle = "#B4504F";
-        ch.getDatasetMeta(1).data.forEach((el, k) => {
-          const v = ch.data.datasets[1].data[k];
-          if (v === null || v === undefined) { return; }
-          ctx.fillText(v.toFixed(1) + " 일/lot", el.x, el.y - 7);
-        });
-        ctx.restore();
-      }
-    }]
-  });
-}
-
-/* 선택된 요소를 굵은 테두리로 표시한다(발광 없음).
-   Chart.register 로 전역 등록하므로 앞으로 만드는 차트도 자동 적용된다.
-   각 차트는 ch.$sel 에 선택 인덱스(없으면 -1)만 넣으면 된다. */
-const SEL_COLOR = "#FFD700";
-
-// 선택된 요소는 자기 계열에서 가장 진한 색으로 채운다.
-// rgba(...) 는 알파를 1 로, 그 외(hex 등)는 그대로 쓴다.
-function strongest(c) {
-  if (typeof c !== "string") { return c; }
-  const i = c.indexOf("(");
-  const j = c.lastIndexOf(")");
-  if (i > 0 && j > i && c.slice(0, i).trim().toLowerCase().indexOf("rgb") === 0) {
-    const p = c.slice(i + 1, j).split(",").map(x => x.trim());
-    if (p.length >= 3) { return "rgb(" + p[0] + ", " + p[1] + ", " + p[2] + ")"; }
-  }
-  return c;
-}
-
-const popSelected = {
-  id: "popSelected",
-  afterDatasetsDraw(chart) {
-    // 여러 개를 고른 경우 전부 표시한다.
-    const many = chart.$selSet;
-    if (many && many.size > 1 && chart.data.labels) {
-      chart.data.labels.forEach((lb, k) => {
-        if (many.has(lb)) { drawSel(chart, k); }
-      });
-      return;
-    }
-    const sel = chart.$sel;
-    if (sel === undefined || sel === null || sel < 0) { return; }
-    drawSel(chart, sel);
-  }
-};
-
-function drawSel(chart, sel) {
-  {
-    // 누적막대는 어느 계열을 골랐는지가 중요하다($selDs 로 알려 준다).
-    const di = (chart.$selDs === undefined || chart.$selDs === null)
-      ? 0 : chart.$selDs;
-    const el = (chart.getDatasetMeta(di).data || [])[sel];
-    if (!el) { return; }
-    const ctx = chart.ctx;
-    const bg = chart.data.datasets[di].backgroundColor;
-    const fill = strongest(Array.isArray(bg) ? bg[sel] : bg);
-
-    ctx.save();
-    ctx.fillStyle = fill;
-    ctx.strokeStyle = SEL_COLOR;
-    ctx.lineWidth = 3;
-    ctx.lineJoin = "round";
-
-    if (el.outerRadius !== undefined) {          // 원차트 조각
-      ctx.beginPath();
-      ctx.arc(el.x, el.y, el.outerRadius - 1.5, el.startAngle, el.endAngle);
-      ctx.arc(el.x, el.y, el.innerRadius + 1.5, el.endAngle, el.startAngle, true);
-      ctx.closePath();
-      ctx.fill();                                // 계열 최강색으로 다시 채우고
-      ctx.stroke();
-    } else {                                     // 막대
-      // 가로막대(indexAxis:'y')와 세로막대는 width/height/base 의미가 다르다.
-      // 두 경우를 나눠 실제 막대와 정확히 겹치게 그린다.
-      const p = el.getProps(["x", "y", "base", "width", "height"], true);
-      const horiz = (chart.options.indexAxis === "y");
-      let x0, y0, w, h;
-      if (horiz) {
-        x0 = Math.min(p.base, p.x);
-        w  = Math.abs(p.x - p.base);
-        h  = p.height || 0;
-        y0 = p.y - h / 2;
-      } else {
-        y0 = Math.min(p.base, p.y);
-        h  = Math.abs(p.base - p.y);
-        w  = p.width || 0;
-        x0 = p.x - w / 2;
-      }
-      const in_ = 1.5;                           // 선 굵기의 절반만큼 안쪽으로
-      ctx.fillRect(x0, y0, w, h);                // 계열 최강색으로 다시 채우고
-      ctx.strokeRect(x0 + in_, y0 + in_,
-                     Math.max(w - in_ * 2, 1), Math.max(h - in_ * 2, 1));
-    }
-    ctx.restore();
-  }
-};
-if (window.Chart) { Chart.register(popSelected); }
-
-function markSelected(ch, selIdx) {
-  ch.$sel = (selIdx === undefined || selIdx === null) ? -1 : selIdx;
-}
-
-function czApply(ch, nodes, u, selName, selList) {
-  // 값에 따라 농도를 달리하면 1위 막대가 '선택된 것' 처럼 보인다.
-  // 선택 표시는 3D 팝업이 전담하므로 막대색은 전부 같은 남색으로 둔다.
-  const vals = nodes.map(x => u === "lots" ? x.lots : x.qty);
-  ch.$nodes = nodes;
-  ch.data.labels = nodes.map(x => x.name);
-  ch.data.datasets[0].data = vals;
-  // 안 좋은 지표라 적색 계열(#F08080). 상위일수록 진하다(값 내림차순으로 온다).
-  ch.data.datasets[0].backgroundColor = nodes.map((_, i) =>
-    `rgba(240,128,128,${Math.max(1 - 0.11 * i, 0.25).toFixed(2)})`);
-  ch.data.datasets[1].data = nodes.map(x =>
-    (x.elapsed_d === null || x.elapsed_d === undefined) ? null : x.elapsed_d);
-  const on = new Set(selList && selList.length ? selList : [selName]);
-  ch.$selSet = on;
-  markSelected(ch, nodes.findIndex(x => on.has(x.name)));
-  ch.update();
-}
-
-const CZ_TOP = 5;        // 상단 요약 차트
-const CZ_DEEP = 15;      // 드릴다운 차트
-
-// 전체 순위 보기 = 상위 5개 제한 없이 차트로 펼친다
-
-
-// 소제목 클릭 = 그 대분류 전체를 드릴다운 표로
 function czWhole(i) {
   // 조건 저장소를 거쳐야 LOT BALANCE 등 하위가 함께 좁혀진다.
   dfClearPeers("cause", 4);
@@ -1576,13 +1370,19 @@ function renderCause() {
         "czVal" + i);
     }
     const selL = (DRILL_KEY.i === i) ? DRILL_KEY.list : null;
-    // 이 칸에서 파고들었으면 그 막대를 표시해 연결 관계를 보인다.
+    // 이 칸에서 파고들었으면(중분류 차트든 표든) 연결 관계를 보인다.
+    const srcHere = (CZ_SIDE && CZ_SIDE.i === i)
+      || (CZ_WIDE && CZ_WIDE.i === i)
+      || (DF_CAUSE && DF_CAUSE.i === i);
     if (CZ_SIDE && CZ_SIDE.i === i) {
       czCharts[i].$selSet = new Set([CZ_SIDE.path[0].name]);
+    } else if (DF_CAUSE && DF_CAUSE.i === i) {
+      czCharts[i].$selSet = new Set(
+        (DF_CAUSE.mid ? [DF_CAUSE.mid] : []).concat(DF_CAUSE.subs || []));
     } else { czCharts[i].$selSet = null; }
     czApply(czCharts[i], nodes, u, DRILL_KEY.node, selL);
     const col = document.getElementById("czh" + i).parentNode;
-    col.classList.toggle("czsrc", !!(CZ_SIDE && CZ_SIDE.i === i));
+    col.classList.toggle("czsrc", !!srcHere);
   }
 
   renderCzSide();
@@ -1620,6 +1420,9 @@ let CZ_WIDE = null;          // {i, path}
 let czWideChart = null;
 
 function czShowAll(i) {
+  // 다른 카드에서 열려 있던 것은 닫는다(리셋 규칙).
+  if (CZ_WIDE && CZ_WIDE.i !== i) { CZ_WIDE = null; }
+  if (CZ_SIDE && CZ_SIDE.i !== i) { CZ_SIDE = null; }
   if (CZ_SEL.i !== i) { CZ_SEL = { i: i, path: [] }; }
   const path = CZ_SEL.path.slice();
   const same = CZ_WIDE && CZ_WIDE.i === i
@@ -1730,7 +1533,10 @@ function renderCzSide() {
         renderCause();
         return;
       }
+      const keep = CZ_SIDE;
       czPick(CZ_SIDE.i, n, 1, ev);
+      CZ_SIDE = keep;              // 말단을 골라도 이 차트는 남는다
+      renderCzSide();
     }, "czsVal");
   }
   czApply(czSideChart, nodes, CAUSE_UNIT, DRILL_KEY.node,
@@ -1777,15 +1583,24 @@ function renderCzWide() {
     czWideChart = czBarChart("czdc", (idx, ev) => {
       const n = (czWideChart.$nodes || [])[idx];
       if (!n) { return; }
-      // 하위가 있으면 이 차트에서 그대로 파고든다.
+      const i2 = CZ_WIDE.i;
+      // 하위가 있으면 이 차트에서 그대로 파고든다(차트는 유지).
       if (n.children && n.children.length) {
         CZ_WIDE.path = CZ_WIDE.path.concat(
           [{ name: n.name, kind: n.kind || "sub" }]);
-        CZ_SEL = { i: CZ_WIDE.i, path: CZ_WIDE.path.slice() };
-        renderCause();
+        CZ_SEL = { i: i2, path: CZ_WIDE.path.slice() };
+        DF_CAUSE = { i: i2, big: czGroup(i2).name,
+                     mid: (CZ_WIDE.path.find(p => p.kind === "mid") || {}).name
+                          || null, subs: [] };
+        dfResetBelow(4);
+        syncFromDF();
         return;
       }
-      czPick(CZ_WIDE.i, n, CZ_WIDE.path.length ? 1 : 0, ev);
+      // 말단이면 표만 바꾼다. 이 차트는 그대로 둔다.
+      const keep = CZ_WIDE;
+      czPick(i2, n, 1, ev);
+      CZ_WIDE = keep;
+      renderCzWide();
     }, "czdVal");
   }
   czApply(czWideChart, nodes, CAUSE_UNIT, DRILL_KEY.node,

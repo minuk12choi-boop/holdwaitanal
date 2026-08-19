@@ -352,9 +352,10 @@
   /* 어느 막대에서 파고들었는지 보이도록 그 칸을 남색으로 두른다. */
   .czcol.czsrc { box-shadow:0 0 0 2px var(--brand) inset; border-radius:6px;
                  padding:4px; position:relative; }
-  .czcol.czsrc::after { content:"▶"; position:absolute; right:-9px; top:50%;
+  /* 무엇을 파고들었는지 보이도록 그 칸에서 오른쪽으로 이어지는 표시. */
+  .czcol.czsrc::after { content:"▶"; position:absolute; right:-11px; top:50%;
                         transform:translateY(-50%); color:var(--brand);
-                        font-size:11px; }
+                        font-size:12px; font-weight:700; }
   .rowcards .cz3 { flex:1; align-items:stretch; }
   .rowcards .czcol { display:flex; flex-direction:column; }
   .rowcards .czcol > div:last-child { flex:1; min-height:110px; }
