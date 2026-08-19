@@ -1919,6 +1919,7 @@ def api_balance(request):
     rules, ht = _cause_rules(), _holdtype_rules()
 
     layers, by_plan, total = set(), {}, {}
+    lay_mod = {}          # LAYER -> 모듈. x축 아래 경계 표시에 쓴다
     for r in rows:
         if prod1 and (r.get("prod1") or UNCLASSIFIED) not in prod1:
             continue
@@ -1949,6 +1950,9 @@ def api_balance(request):
         if not lay:
             continue
         layers.add(lay)
+        mod = r.get("module1")
+        if mod:
+            lay_mod.setdefault(lay, mod)
         _bucket(total.setdefault(lay, {}), st, q)
         key = " · ".join(str(r.get(c) or "-") for c in gcols)
         _bucket(by_plan.setdefault(key, {}).setdefault(lay, {}), st, q)
@@ -1970,8 +1974,19 @@ def api_balance(request):
         return {st: [int(round(src.get(l, {}).get(st, {}).get("lots", 0)))
                      for l in xs] for st in sts}
 
+    # 같은 모듈이 이어지는 구간을 묶는다.
+    bands, cur = [], None
+    for i2, l in enumerate(xs):
+        m = lay_mod.get(l)
+        if cur and cur["name"] == m:
+            cur["to"] = i2
+        else:
+            cur = {"name": m, "from": i2, "to": i2}
+            bands.append(cur)
+    bands = [b for b in bands if b["name"]]
+
     return JsonResponse({
-        "layers": xs, "by": ",".join(by),
+        "layers": xs, "by": ",".join(by), "modules": bands,
         "status": [{"name": x, "color": STATUS_COLORS.get(x, "#9CA3AF")}
                    for x in sts],
         "total": {"qty": pack(total), "lots": packl(total)},

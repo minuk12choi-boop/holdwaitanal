@@ -809,7 +809,7 @@ function balOpenMenu(which) {
   document.querySelectorAll(".dd.open").forEach(d => d.classList.remove("open"));
   if (open) { return; }
   if (BAL_BY.split(",").indexOf(which) < 0) {   // 아직 안 켠 기준이면 켠다
-    balBy(which, true, id);
+    balBy(which, true, id);                     // 목록만 받아 온다(아직 접힘)
     return;
   }
   renderBalMenu(which);
@@ -820,9 +820,10 @@ function balBy(which, on, openId) {
   const set = new Set(BAL_BY.split(",").filter(Boolean));
   if (on) { set.add(which); } else { set.delete(which); }
   BAL_BY = ["prod", "plan"].filter(x => set.has(x)).join(",");
-  BAL_PICK = null;
-  BAL_OPEN = !!BAL_BY;
-  BAL_OPEN_ID = openId || null;                 // 받아온 뒤 그 메뉴를 연다
+  // 축을 켰다고 바로 펼치지 않는다. 목록에서 고르면 그때 나뉜다.
+  BAL_PICK = [];
+  BAL_OPEN = false;
+  BAL_OPEN_ID = openId || null;
   loadBalance(true);
 }
 
@@ -869,7 +870,8 @@ function balPick(mid) {
   const boxes = [...document.querySelectorAll("#balmenu" + mid + " input[value]")];
   const sel = boxes.filter(x => x.checked).map(x => x.value);
   BAL_PICK = (sel.length === boxes.length) ? null : sel;
-  BAL_OPEN = true;
+  // 하나도 안 고르면 합산 한 줄로 돌아간다. 축(BAL_BY)은 그대로 둔다.
+  BAL_OPEN = (BAL_PICK === null) || BAL_PICK.length > 0;
   balSyncBtns();
   drawBalance();
 }
@@ -930,7 +932,7 @@ function drawBalance() {
   let rows = BAL_OPEN ? (d.plans || [])
                       : [{ name: "전체", qty: (d.total || {}).qty,
                            lots: (d.total || {}).lots }];
-  if (BAL_OPEN && BAL_PICK) {
+  if (BAL_OPEN && BAL_PICK && BAL_PICK.length) {
     const on = new Set(BAL_PICK);
     rows = rows.filter(r => on.has(r.name));
   }
@@ -1006,6 +1008,36 @@ function drawBalance() {
             (top ? top.data : []).forEach((el, k) => {
               const v = (ch.$tot || [])[k];
               if (v) { ctx.fillText(kfmt(v), el.x, el.y - 3); }
+            });
+            ctx.restore();
+          },
+          // x축 아래에 모듈 구간을 선으로 나누고 가운데에 이름을 쓴다.
+          afterDraw(ch) {
+            const bands = (BAL_DATA && BAL_DATA.modules) || [];
+            if (!bands.length) { return; }
+            const meta = ch.getDatasetMeta(0).data;
+            if (!meta.length) { return; }
+            const ctx = ch.ctx;
+            const y = ch.chartArea.bottom;
+            const h = ch.height;
+            const half = (meta.length > 1)
+              ? Math.abs(meta[1].x - meta[0].x) / 2
+              : (ch.chartArea.right - ch.chartArea.left) / 2;
+            ctx.save();
+            ctx.font = "bold 9px 'Poppins','Noto Sans KR',sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "bottom";
+            ctx.strokeStyle = "#9CA3AF";
+            ctx.lineWidth = 1;
+            bands.forEach(b => {
+              const a = meta[b.from], z = meta[b.to];
+              if (!a || !z) { return; }
+              const x1 = a.x - half, x2 = z.x + half;
+              ctx.beginPath();                    // 구간 경계
+              ctx.moveTo(x2, y); ctx.lineTo(x2, h - 2);
+              ctx.stroke();
+              ctx.fillStyle = "#374151";          // 가운데 이름
+              ctx.fillText(b.name, (x1 + x2) / 2, h - 3);
             });
             ctx.restore();
           }
@@ -1264,13 +1296,32 @@ let DRILL_KEY = { i: -1, node: null, list: [] };  // 표가 어느 차트·막�
      Ctrl 클릭       같은 차트 안에서 여러 개
      같은 것 재클릭   해제
 --------------------------------------------------------------------------- */
+/* 계층(lv). 위를 고르면 아래는 모두 리셋된다. 아래가 위를 바꾸지는 못한다.
+     1  좌측 최상단 필터(날짜/SHIFT/라인/제품군/제품/lot_type)
+     2  좌측 차트(재공막대·status 원·W/T·W/T 0)
+     3  상단 차트(SHIFT 추이·원인 분석)
+     4  원인 분석 전체보기
+     5  LOT BALANCE
+     6  드릴다운 표
+   같은 계층끼리는 함께 걸린다(AND). */
 const DF_DEF = [
-  { k: "type",   t: "재공",       param: "lot_type" },
-  { k: "status", t: "STATUS",     param: "status" },
-  { k: "wt",     t: "W/T",        param: "wt_range" },
-  { k: "wt0",    t: "W/T 0",      param: "wt0" },
-  { k: "layer",  t: "LAYER",      param: "layer_id" },
+  { k: "type",   t: "재공",   param: "lot_type", lv: 2 },
+  { k: "status", t: "STATUS", param: "status",   lv: 2 },
+  { k: "wt",     t: "W/T",    param: "wt_range", lv: 2 },
+  { k: "wt0",    t: "W/T 0",  param: "wt0",      lv: 2 },
+  { k: "layer",  t: "LAYER",  param: "layer_id", lv: 5 },
 ];
+const DF_LV = {};
+DF_DEF.forEach(d => { DF_LV[d.k] = d.lv; });
+DF_LV.cause = 3;              // 원인 분석 / 추이
+
+// 이 계층보다 아래의 조건을 모두 지운다.
+function dfResetBelow(lv) {
+  Object.keys(DF).forEach(k => { if ((DF_LV[k] || 9) > lv) { delete DF[k]; } });
+  if (DF_LV.cause > lv) { DF_CAUSE = null; }
+  if (lv < 4) { CZ_WIDE = null; }          // 전체보기
+  if (lv < 5) { BAL_BY = ""; BAL_OPEN = false; BAL_PICK = null; }
+}
 let DF = {};                 // {키: [값...]}
 let DF_CAUSE = null;         // {big, mid, subs:[], i}
 let DF_LABEL = {};           // 화면 표시용 라벨
@@ -1295,13 +1346,11 @@ function setCond(key, name, ev, label) {
   } else if (same) {
     next = [];                       // 같은 것을 다시 누르면 해제
   } else {
-    const keepLabel = DF_LABEL;      // 새로 시작한다
-    dfReset();
-    DF_LABEL = keepLabel;
-    next = [name];
+    next = [name];                   // 그 차트의 조건만 교체
   }
   if (next.length) { DF[key] = next; } else { delete DF[key]; }
   if (label) { DF_LABEL[key + ":" + name] = label; }
+  dfResetBelow(DF_LV[key] || 9);     // 아래 계층은 무효가 된다
   return next;
 }
 
@@ -1470,9 +1519,10 @@ function czPick(i, node, depth, ev) {
     let list;
     if (add) { list = multiPick(cur, node.name, ev); }
     else if (one) { list = []; }
-    else { dfReset(); list = [node.name]; }   // 새로 시작
+    else { list = [node.name]; }
     DF_CAUSE = list.length
       ? { i: i, big: czGroup(i).name, mid: mid, subs: list } : null;
+    dfResetBelow(3);                 // LOT BALANCE / 표는 다시 잡는다
     syncFromDF();
     return;
   }
@@ -1833,20 +1883,8 @@ let DRILL_SRC = "";
 function clearOtherSelections(src) {
   if (DRILL_SRC === src) { return; }
   if (!src) { DRILL_SRC = ""; return; }
-  // 선택 상태만 지우면 차트에 이전 표시가 남는다. 반드시 다시 그린다.
-  if (src !== "cause")  { DRILL_KEY = { i: -1, node: null, list: [] };
-                          CZ_SEL = { i: -1, path: [] }; }
-  if (src !== "wt")     { SEL_WT = null; SEL_WTS = []; }
-  if (src !== "wt0")    { SEL_WT0 = null; SEL_WT0S = []; }
-  if (src !== "type")   { SEL_TYPE = null; SEL_TYPES = []; }
-  if (src !== "status") { SEL_PIE = null; }
+  // 표시는 syncFromDF 가 맞춘다. 여기서는 출처만 기록한다.
   DRILL_SRC = src;
-  if (!DATA) { return; }
-  if (src !== "wt")     { renderWt(); }
-  if (src !== "wt0")    { renderWt0(); }
-  if (src !== "type")   { renderWip(); }
-  if (src !== "status") { renderStatus(); }
-  if (src !== "cause")  { renderCause(); }
 }
 
 // 표 안에서 필터를 걸 컬럼
@@ -2416,6 +2454,9 @@ function loadSummary(keepFocus) {
   // 라인/lot_type/제품구분이 바뀌면 지금 표는 다른 조건의 결과다.
   // keepFocus 는 좌측 막대를 눌러 원인 분석만 좁히는 경우라 선택을 유지한다.
   if (!keepFocus) {
+    // 레벨 1(날짜/SHIFT/라인/제품구분/lot_type) 이 바뀌면 아래는 전부 리셋
+    dfReset();
+    dfResetBelow(1);
     SEL_WT = null; SEL_WT0 = null; SEL_TYPE = null; SEL_PIE = null;
     SEL_TYPES = []; SEL_WTS = []; SEL_WT0S = []; SEL_PIES = [];
     CZ_SEL = { i: -1, path: [] };
