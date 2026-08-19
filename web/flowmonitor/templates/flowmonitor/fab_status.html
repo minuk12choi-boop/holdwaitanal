@@ -105,12 +105,22 @@
 
     <div class="cell" id="czcard" style="flex:1;min-width:0;border:1px solid var(--bd);
                              border-radius:6px;padding:11px 12px;margin-bottom:10px">
-      <div class="cellttl"><span>원인 분석</span>
-        <span class="seg">
-          <button id="cu_lots" onclick="setCauseUnit('lots')">LOT</button>
-          <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
+      <div class="cellttl"><span id="czttl">원인 분석</span>
+        <span style="display:flex;gap:6px;align-items:center">
+          <span class="seg">
+            <button class="on" id="cm_3" onclick="setCauseMode('split')">대분류 3</button>
+            <button id="cm_all" onclick="setCauseMode('all')">전체 제약</button>
+          </span>
+          <span class="seg">
+            <button id="cu_lots" onclick="setCauseUnit('lots')">LOT</button>
+            <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
+          </span>
         </span></div>
-      <div class="cz3">
+      <div id="czone" style="display:none">
+        <div id="czp9" class="czpath"></div>
+        <div style="height:210px"><canvas id="czc9"></canvas></div>
+      </div>
+      <div class="cz3" id="cz3">
         <div class="czcol"><div class="subttl czh" id="czh0"></div>
           <div id="czp0" class="czpath"></div>
           <div><canvas id="czc0"></canvas></div></div>
@@ -199,6 +209,20 @@ let TYPE_PREF = (() => {
   return ["PP", "PG"];
 })();
 let CAUSE_UNIT = "qty";
+let CAUSE_MODE = "split";      // split = 대분류 3칸, all = 전체 제약 합산
+let czOneChart = null;
+
+function setCauseMode(m) {
+  CAUSE_MODE = m;
+  document.getElementById("cm_3").className = (m === "split") ? "on" : "";
+  document.getElementById("cm_all").className = (m === "all") ? "on" : "";
+  document.getElementById("czttl").textContent =
+    (m === "all") ? "전체 제약" : "원인 분석";
+  document.getElementById("cz3").style.display = (m === "all") ? "none" : "";
+  document.getElementById("czone").style.display = (m === "all") ? "" : "none";
+  CZ_WIDE = null;
+  renderCause();
+}
 let WT0_UNIT = "qty";
 let dnChart = null;
 
@@ -1078,14 +1102,17 @@ function trdBack() {
   loadTrend();
 }
 
-function trdGo(n) { TRD_DRILL = TRD_DRILL.slice(0, n); loadTrend(); }
-function trdScope(v) { TRD_SCOPE = v; loadTrend(); }
-function trdWshift(v) { TRD_WSHIFT = v; loadTrend(); }
+function trdGo(n) {
+  TRD_DRILL = TRD_DRILL.slice(0, n); dfResetBelow(3); syncFromDF(); loadTrend();
+}
+function trdScope(v) { TRD_SCOPE = v; dfResetBelow(3); syncFromDF(); loadTrend(); }
+function trdWshift(v) { TRD_WSHIFT = v; dfResetBelow(3); syncFromDF(); loadTrend(); }
 function trdToggle(k) { TRD_OFF[k] = !TRD_OFF[k]; loadTrend(); }
 
 // 라인 하나를 골라 파고든다. 점을 정확히 찍기 어려워 범례에서도 부른다.
 function trdDrill(k) {
   if (!k) { return; }
+  dfResetBelow(3);            // 추이가 바뀌면 원인 분석 이하는 무효
   // 더 내려갈 계층이 없으면 그 항목의 LOT 표를 연다.
   if (TRD_DRILL.length >= 2) { trdOpenTable(k); return; }
   TRD_DRILL.push(k);                            // Hold+Wait성 은 둘을 합쳐 본다
@@ -1095,6 +1122,7 @@ function trdDrill(k) {
 
 // 추이의 말단 항목 -> 드릴다운 표
 function trdOpenTable(k) {
+  dfResetBelow(3);
   const p = TRD_DRILL;
   DF_CAUSE = (p[0] === "Hold+Wait성")
     ? { i: -1, big: null, mid: null, subs: [k] }
@@ -1299,11 +1327,13 @@ let DRILL_KEY = { i: -1, node: null, list: [] };  // 표가 어느 차트·막�
 /* 계층(lv). 위를 고르면 아래는 모두 리셋된다. 아래가 위를 바꾸지는 못한다.
      1  좌측 최상단 필터(날짜/SHIFT/라인/제품군/제품/lot_type)
      2  좌측 차트(재공막대·status 원·W/T·W/T 0)
-     3  상단 차트(SHIFT 추이·원인 분석)
-     4  원인 분석 전체보기
-     5  LOT BALANCE
-     6  드릴다운 표
-   같은 계층끼리는 함께 걸린다(AND). */
+     3  SHIFT 추이  (과거를 포함한 시계열이라 원인 분석보다 위다)
+     4  원인 분석
+     5  원인 분석 전체보기
+     6  LOT BALANCE
+     7  드릴다운 표
+   같은 계층에서 다른 차트를 누르면 **그것만 남기고 리셋**한다
+   (Ctrl 은 같은 차트 안에서만 여러 개). */
 const DF_DEF = [
   { k: "type",   t: "재공",   param: "lot_type", lv: 2 },
   { k: "status", t: "STATUS", param: "status",   lv: 2 },
@@ -1313,14 +1343,22 @@ const DF_DEF = [
 ];
 const DF_LV = {};
 DF_DEF.forEach(d => { DF_LV[d.k] = d.lv; });
-DF_LV.cause = 3;              // 원인 분석 / 추이
+DF_LV.cause = 4;              // 원인 분석
 
 // 이 계층보다 아래의 조건을 모두 지운다.
 function dfResetBelow(lv) {
   Object.keys(DF).forEach(k => { if ((DF_LV[k] || 9) > lv) { delete DF[k]; } });
   if (DF_LV.cause > lv) { DF_CAUSE = null; }
-  if (lv < 4) { CZ_WIDE = null; }          // 전체보기
-  if (lv < 5) { BAL_BY = ""; BAL_OPEN = false; BAL_PICK = null; }
+  if (lv < 5) { CZ_WIDE = null; }          // 전체보기
+  if (lv < 6) { BAL_BY = ""; BAL_OPEN = false; BAL_PICK = null; }
+}
+
+// 같은 계층의 다른 차트 조건을 지운다.
+function dfClearPeers(key, lv) {
+  Object.keys(DF).forEach(k => {
+    if (k !== key && (DF_LV[k] || 9) === lv) { delete DF[k]; }
+  });
+  if (key !== "cause" && DF_LV.cause === lv) { DF_CAUSE = null; }
 }
 let DF = {};                 // {키: [값...]}
 let DF_CAUSE = null;         // {big, mid, subs:[], i}
@@ -1348,9 +1386,11 @@ function setCond(key, name, ev, label) {
   } else {
     next = [name];                   // 그 차트의 조건만 교체
   }
+  const lv = DF_LV[key] || 9;
+  if (!add) { dfClearPeers(key, lv); }   // 같은 계층은 새로 고른 것만 남긴다
   if (next.length) { DF[key] = next; } else { delete DF[key]; }
   if (label) { DF_LABEL[key + ":" + name] = label; }
-  dfResetBelow(DF_LV[key] || 9);     // 아래 계층은 무효가 된다
+  dfResetBelow(lv);                      // 아래 계층은 무효가 된다
   return next;
 }
 
@@ -1520,9 +1560,10 @@ function czPick(i, node, depth, ev) {
     if (add) { list = multiPick(cur, node.name, ev); }
     else if (one) { list = []; }
     else { list = [node.name]; }
+    if (!add) { dfClearPeers("cause", 4); }
     DF_CAUSE = list.length
       ? { i: i, big: czGroup(i).name, mid: mid, subs: list } : null;
-    dfResetBelow(3);                 // LOT BALANCE / 표는 다시 잡는다
+    dfResetBelow(4);                 // 전체보기 / LOT BALANCE / 표는 다시 잡는다
     syncFromDF();
     return;
   }
@@ -1545,7 +1586,12 @@ function czPick(i, node, depth, ev) {
 const CZ_SCALE_X = {
   grid: { display: false },
   ticks: { font: { size: 9 }, autoSkip: false, maxRotation: 0, minRotation: 0,
-           callback: function (v) { return czLabel(this.getLabelForValue(v), 10); } }
+           callback: function (v) {
+             const lb = this.chart.data.labels[v];
+             // 배열이면 두 줄 라벨이다(전체 제약). 각 줄만 줄여 준다.
+             if (Array.isArray(lb)) { return lb.map(x => czLabel(x, 10)); }
+             return czLabel(this.getLabelForValue(v), 10);
+           } }
 };
 
 function czBarChart(canvasId, onPick, pluginId) {
@@ -1749,6 +1795,7 @@ function czWhole(i) {
 
 function renderCause() {
   const u = CAUSE_UNIT;
+  if (CAUSE_MODE === "all") { renderCauseAll(); return; }
 
   for (let i = 0; i < 3; i++) {
     const g = czGroup(i);
@@ -1794,6 +1841,41 @@ function renderCause() {
   }
 
   renderCzWide();
+}
+
+/* 전체 제약 : 세 대분류를 합쳐 상위 15 ------------------------------------
+   x축은 두 줄이다. 위가 더 아래 계층(중·소분류), 아래가 대분류.
+--------------------------------------------------------------------------- */
+function renderCauseAll() {
+  const u = CAUSE_UNIT;
+  const all = [];
+  for (let i = 0; i < 3; i++) {
+    const g = czGroup(i);
+    (g.children || []).forEach(n => {
+      all.push(Object.assign({}, n, { $big: g.name, $i: i }));
+    });
+  }
+  all.sort((a, b) => (u === "lots" ? b.lots - a.lots : b.qty - a.qty));
+  const nodes = all.slice(0, 15);
+
+  document.getElementById("czp9").innerHTML = nodes.length
+    ? `<span class="minittl">세 대분류 합산 상위 ${nodes.length}개`
+      + ` · 막대를 누르면 파고든다</span>`
+    : `<span class="minittl">표시할 항목이 없습니다.</span>`;
+
+  if (!czOneChart) {
+    czOneChart = czBarChart("czc9", (idx, ev) => {
+      const n = (czOneChart.$nodes || [])[idx];
+      if (n) { czPick(n.$i, n, 0, ev); }
+    }, "czVal9");
+  }
+  // 라벨을 두 줄로. Chart.js 는 배열을 주면 줄바꿈해 그린다.
+  czApply(czOneChart, nodes, u, DRILL_KEY.node,
+          DF_CAUSE ? DF_CAUSE.subs : null);
+  czOneChart.data.labels = nodes.map(n => [n.name, "─────", n.$big]);
+  czOneChart.$selSet = new Set(
+    (DF_CAUSE ? DF_CAUSE.subs : []) || []);
+  czOneChart.update();
 }
 
 /* 전체 순위 : 아래 넓은 패널 --------------------------------------------- */
