@@ -1342,6 +1342,7 @@ def api_summary(request):
              else list(DEFAULT_LOT_TYPES))
     prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
     prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
+    areas = [x for x in request.GET.get("area", "").split(",") if x]
     # 좌측에서 막대/조각을 고르면 원인 분석만 그 부분집합으로 다시 센다.
     f_status = request.GET.get("f_status", "")
     f_wt = request.GET.get("f_wt", "")
@@ -1385,6 +1386,9 @@ def api_summary(request):
     tree = {}
 
     for r in rows:
+        # AREA 는 최상단 필터(레벨 1)라 좌측 차트까지 모두 좁힌다.
+        if areas and (r.get("AREA") or UNCLASSIFIED) not in areas:
+            continue
         q = num(r.get("qty"))
         st = r.get("lot_status") or "-"
         tot["lots"] += 1
@@ -1488,12 +1492,14 @@ def api_summary(request):
         "by_lot_type": [{"name": k, **by_type[k]}
                         for k in sorted(by_type, key=lot_type_key)],
         "status": status,
-        "default": {
-            "label": "HOLD+진행불가",
-            "pct": round(sum(x["lots"] for x in blocked) / tot["lots"] * 100, 1)
-                   if tot["lots"] else 0,
-            "lots": sum(x["lots"] for x in blocked),
-            "qty": sum(x["qty"] for x in blocked)},
+        # 아무것도 안 고른 상태에서 원 우측에 보여 줄 값. HOLD 를 기본으로 둔다.
+        "default": (lambda h: {
+            "label": "HOLD",
+            "pct": round(h["lots"] / tot["lots"] * 100, 1) if tot["lots"] else 0,
+            "lots": h["lots"], "qty": h["qty"],
+            "color": STATUS_COLORS["HOLD"],
+        })(next((x for x in status if x["name"] == "HOLD"),
+                {"lots": 0, "qty": 0})),
         "wt0_bins": WT0_BINS,
         "wt0_dist": [{"name": b["key"], "label": b["label"],
                       **by_wt0.get(b["key"], {"lots": 0, "qty": 0}),
@@ -1793,6 +1799,7 @@ def api_trend(request):
              else list(DEFAULT_LOT_TYPES))
     prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
     prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
+    areas = [x for x in request.GET.get("area", "").split(",") if x]
     bdate = request.GET.get("biz_date", "")
     drill = [x for x in request.GET.get("drill", "").split("|") if x]
     scope = request.GET.get("scope", "day")
@@ -1847,7 +1854,6 @@ def _trend_points(points, line, types, prod1, prod2, drill, rules, ht,
                 continue
             if not drill:
                 if big in ("Hold", "Wait성 진행불가"):
-                    series["Hold+Wait성"] = series.get("Hold+Wait성", 0) + q
                     series[big] = series.get(big, 0) + q
                 continue
 
@@ -1878,12 +1884,15 @@ def _trend_points(points, line, types, prod1, prod2, drill, rules, ht,
     for x in out:
         for k, v in x["series"].items():
             tot[k] = tot.get(k, 0) + v
-    order = ["Hold+Wait성", "Hold", "Wait성 진행불가"] if not drill else \
+    order = ["Hold", "Wait성 진행불가"] if not drill else \
         [k for k, _ in sorted(tot.items(), key=lambda kv: -kv[1])[:5]]
     order = [k for k in order if k in tot]
 
     return JsonResponse({
         "points": out, "series": order, "drill": drill,
+        # 라인 색. Hold/Wait성 은 status 색을 그대로 쓴다.
+        "colors": {"Hold": STATUS_COLORS["HOLD"],
+                   "Wait성 진행불가": STATUS_COLORS["WAIT(진행불가)"]},
         "scope": scope, "wshift": wshift,
     }, json_dumps_params={"ensure_ascii": False})
 
@@ -1902,6 +1911,7 @@ def api_balance(request):
         return [x for x in request.GET.get(name, "").split(",") if x]
 
     prod1, prod2 = multi("prod1"), multi("prod2")
+    areas = multi("area")
     bdate = request.GET.get("biz_date", "")
     bshift = request.GET.get("shift", "")
     # 표와 같은 조건
@@ -1924,6 +1934,8 @@ def api_balance(request):
         if prod1 and (r.get("prod1") or UNCLASSIFIED) not in prod1:
             continue
         if prod2 and (r.get("prod2") or UNCLASSIFIED) not in prod2:
+            continue
+        if areas and (r.get("AREA") or UNCLASSIFIED) not in areas:
             continue
         st = r.get("lot_status") or "-"
         if f_type and (r.get("lot_type") or "-") not in f_type:
@@ -2062,6 +2074,7 @@ def api_lots_live(request):
     wt0 = multi("wt0")
     prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
     prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
+    areas = [x for x in request.GET.get("area", "").split(",") if x]
     # 화면에 보이는 컬럼만 실어 보낸다. 응답 크기가 절반 이하로 준다.
     want_cols = [x for x in request.GET.get("cols", "").split(",") if x]
     bdate = request.GET.get("biz_date", "")
@@ -2081,6 +2094,7 @@ def api_lots_live(request):
     p2_sql = prod2 if prod2 and UNCLASSIFIED not in prod2 else None
     rows, snap = _summary_rows(line, types, {
         "prod1": p1_sql, "prod2": p2_sql,
+        "AREA": areas or None,
         "lot_type": lot_type or None,
         "lot_status": status or None,
         "layer_id": layer_id or None,

@@ -8,6 +8,7 @@
         <label class="datef" id="datefw">
           <span id="snapDateLb">-</span>
           <input type="date" id="snapDate"
+                 onclick="if(this.showPicker){try{this.showPicker();}catch(e){}}"
                  onchange="pickSnapDate(this.value)" title="비우면 최신">
         </label>
         <div class="dd" id="dsh">
@@ -92,8 +93,9 @@
 
   <div style="flex:1; min-width:0">
     <div class="rowcards">
-    <div class="cell trdcard" style="border:1px solid var(--bd);border-radius:6px;
-                                     padding:11px 12px;margin-bottom:10px">
+    <div class="leftcol">
+    <div class="cell trdcard" style="flex:0 0 auto;border:1px solid var(--bd);
+                                     border-radius:6px;padding:11px 12px">
       <div class="cellttl"><span>SHIFT 추이</span>
         <span class="czback" id="trdback" style="display:none"
               onclick="trdBack()">◀ 뒤로</span></div>
@@ -103,8 +105,8 @@
       <div><canvas id="trdc"></canvas></div>
     </div>
 
-    <div class="cell" id="czcard" style="flex:1;min-width:0;border:1px solid var(--bd);
-                             border-radius:6px;padding:11px 12px;margin-bottom:10px">
+    <div class="cell" id="czcard" style="border:1px solid var(--bd);
+                             border-radius:6px;padding:11px 12px;margin-bottom:0">
       <div class="cellttl"><span id="czttl">원인 분석</span>
         <span style="display:flex;gap:6px;align-items:center">
           <span class="seg">
@@ -116,10 +118,6 @@
             <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
           </span>
         </span></div>
-      <div id="czone" style="display:none">
-        <div id="czp9" class="czpath"></div>
-        <div style="height:210px"><canvas id="czc9"></canvas></div>
-      </div>
       <div class="cz3" id="cz3">
         <div class="czcol"><div class="subttl czh" id="czh0"></div>
           <div id="czp0" class="czpath"></div>
@@ -131,7 +129,25 @@
           <div id="czp2" class="czpath"></div>
           <div><canvas id="czc2"></canvas></div></div>
       </div>
+    </div>
+    </div>
 
+    <!-- 우측: 전체 제약 -> 그 아래 드릴다운 중분류 -->
+    <div class="rightcol">
+    <div class="cell" id="czone" style="display:none;border:1px solid var(--bd);
+         border-radius:6px;padding:11px 12px">
+      <div class="cellttl"><span>전체 제약</span></div>
+      <div id="czp9" class="czpath"></div>
+      <div style="height:300px"><canvas id="czc9"></canvas></div>
+    </div>
+
+    <div class="cell" id="czside" style="flex:1;min-width:0;display:none;
+         border:1px solid var(--bd);border-radius:6px;padding:11px 12px">
+      <div class="cellttl"><span id="czsttl"></span>
+        <span class="czback" onclick="czSideClose()">닫기</span></div>
+      <div id="czspath" class="czpath"></div>
+      <div style="height:300px"><canvas id="czsc"></canvas></div>
+    </div>
     </div>
     </div>
 
@@ -211,6 +227,11 @@ let TYPE_PREF = (() => {
 let CAUSE_UNIT = "qty";
 let CAUSE_MODE = "split";      // split = 대분류 3칸, all = 전체 제약 합산
 let czOneChart = null;
+let CZ_SIDE = null;            // 우측 드릴다운 중분류 차트 {i, path}
+let czSideChart = null;
+
+function czSideClose() { CZ_SIDE = null; CZ_SEL = { i: -1, path: [] };
+                         renderCause(); }
 
 function setCauseMode(m) {
   CAUSE_MODE = m;
@@ -218,9 +239,7 @@ function setCauseMode(m) {
   document.getElementById("cm_all").className = (m === "all") ? "on" : "";
   document.getElementById("czttl").textContent =
     (m === "all") ? "전체 제약" : "원인 분석";
-  document.getElementById("cz3").style.display = (m === "all") ? "none" : "";
-  document.getElementById("czone").style.display = (m === "all") ? "" : "none";
-  CZ_WIDE = null;
+  CZ_WIDE = null; CZ_SIDE = null;
   renderCause();
 }
 let WT0_UNIT = "qty";
@@ -258,7 +277,7 @@ function onTypeCheck() {
   loadSummary();
 }
 
-let PROD1 = [], PROD2 = [];
+let PROD1 = [], PROD2 = [], AREAS = [];
 let SNAP_DATE = "", SNAP_SHIFT = "";     // 빈 값이면 현재(f3_live)
 
 // 날짜 / SHIFT 선택. 맨 위 '현재' 가 f3_live 다.
@@ -323,7 +342,7 @@ function toggleProd(id) {
   if (!open) { el.classList.add("open"); }
 }
 
-const PROD_LABEL = { 1: "제품군", 2: "제품" };
+const PROD_LABEL = { 1: "제품군", 2: "제품", 3: "AREA" };
 
 // ALL 은 목록 맨 위의 전체 선택 스위치다.
 // 내부적으로는 "선택 없음 = 전체" 로 다루므로, ALL 이 켜지면 빈 배열로 둔다.
@@ -343,7 +362,9 @@ function prodPicked(which, isAll) {
   // 그때 빈 배열로 보내면 서버가 전체로 보고 다시 다 체크되어 되돌아간다.
   // 하나도 안 고른 동안에는 조회하지 않고 UI 상태만 유지한다.
   const eff = (sel.length === opts.length) ? [] : sel;
-  if (which === 1) { PROD1 = eff; PROD2 = []; } else { PROD2 = eff; }
+  if (which === 1) { PROD1 = eff; PROD2 = []; }
+  else if (which === 2) { PROD2 = eff; }
+  else { AREAS = eff; }
   if (sel.length === 0) {
     document.getElementById("p" + which + "b").innerHTML =
       `<span>${PROD_LABEL[which]} 선택 없음</span><span>&#9662;</span>`;
@@ -387,6 +408,7 @@ function renderProd(d) {
   };
   fill(1, d.prod1_options, PROD1);
   fill(2, d.prod2_options, PROD2);
+  fill(3, d.area_options, AREAS);
 }
 
 function pickLine(line) {
@@ -394,7 +416,7 @@ function pickLine(line) {
   document.querySelectorAll("#lineseg button").forEach(b =>
     b.classList.toggle("on", b.dataset.line === line));
   document.getElementById("ddm").innerHTML = "";   // 라인마다 lot_type 이 다를 수 있다
-  PROD1 = []; PROD2 = [];                          // 제품구분도 라인별로 다르다
+  PROD1 = []; PROD2 = []; AREAS = [];              // 제품구분도 라인별로 다르다
   loadSummary();
 }
 
@@ -486,7 +508,7 @@ function setStatusInfo() {
   const d = DATA;
   const s = (SEL_STATUS === null)
     ? { label: d.default.label, pct: d.default.pct, lots: d.default.lots,
-        qty: d.default.qty, color: BRAND }
+        qty: d.default.qty, color: d.default.color || BRAND }
     : { label: d.status[SEL_STATUS].name, pct: d.status[SEL_STATUS].pct,
         lots: d.status[SEL_STATUS].lots, qty: d.status[SEL_STATUS].qty,
         color: d.status[SEL_STATUS].color };
@@ -609,30 +631,38 @@ function renderWt0() {
   const d = DATA, u = WT0_UNIT;
   const list = d.wt0_dist || [];
   const sts = d.wt0_status || [];
-  const unit = (u === "lots") ? " lot" : " 매";
-  const vals = list.map(x => u === "lots" ? x.lots : x.qty);
-  const colors = list.map((_, i) =>
-    `rgba(220,20,60,${Math.min(0.25 + 0.1 * i, 1).toFixed(2)})`);
+  const unit = (u === "lots") ? "lot" : "매";
+
+  const datasets = sts.map(st => ({
+    label: st.name, backgroundColor: st.color, borderWidth: 0,
+    data: list.map(x => {
+      const v = (x.by_status || {})[st.name];
+      return v ? (u === "lots" ? v.lots : v.qty) : 0;
+    })
+  }));
+  const tot = list.map(x => (u === "lots" ? x.lots : x.qty) || 0);
 
   if (!wt0Chart) {
     wt0Chart = new Chart(document.getElementById("wt0c"), {
       type: "bar",
-      data: { labels: [], datasets: [{ data: [], borderRadius: 3 }] },
+      data: { labels: [], datasets: [] },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
         layout: { padding: { top: 16 } },
         plugins: { legend: { display: false },
-                   tooltip: { callbacks: { label: (t) => {
-                     const x = (DATA.wt0_dist || [])[t.dataIndex] || {};
-                     return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
-                   } } } },
-        scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-                  y: { display: false, beginAtZero: true, grace: "18%" } },
+                   tooltip: { callbacks: { label: (t) =>
+                     t.dataset.label + " " + nf(t.raw)
+                     + (WT0_UNIT === "lots" ? " lot" : " 매") } } },
+        scales: { x: { stacked: true, grid: { display: false },
+                       ticks: { font: { size: 10 } } },
+                  y: { stacked: true, display: false, beginAtZero: true,
+                       grace: "18%" } },
         onClick: (e, els) => {
-          if (!els.length) return;
+          if (!els.length) { return; }
           const x = (DATA.wt0_dist || [])[els[0].index];
+          if (!x) { return; }
           setCond("wt0", x.name, e.native || e, x.label);
-          syncFromDF();           // 원인 분석을 이 구간으로 좁힌다
+          syncFromDF();
         }
       },
       plugins: [{
@@ -642,33 +672,36 @@ function renderWt0() {
           ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
           ctx.textAlign = "center"; ctx.textBaseline = "bottom";
           ctx.fillStyle = "#374151";
-          ch.getDatasetMeta(0).data.forEach((el, k) => {
-            const v = ch.data.datasets[0].data[k];
-            if (!v) { return; }
-            ctx.fillText(nf(v) + (WT0_UNIT === "lots" ? " lot" : " 매"),
-                         el.x, el.y - 4);
+          const top = ch.getDatasetMeta(ch.data.datasets.length - 1);
+          (top ? top.data : []).forEach((el, k) => {
+            const v = (ch.$tot || [])[k];
+            if (v) {
+              ctx.fillText(kfmt(v) + (WT0_UNIT === "lots" ? "lot" : "매"),
+                           el.x, el.y - 4);
+            }
           });
           ctx.restore();
         }
       }]
     });
   }
+  wt0Chart.$tot = tot;
   wt0Chart.data.labels = list.map(x => x.label);
-  wt0Chart.data.datasets[0].data = vals;
-  wt0Chart.data.datasets[0].backgroundColor = colors;
+  wt0Chart.data.datasets = datasets;
   wt0Chart.$selSet = new Set(
-    SEL_WT0S.map(k => (list.find(y => y.name === k) || {}).label));
-  markSelected(wt0Chart, list.findIndex(x => x.name === SEL_WT0));
+    (DF.wt0 || []).map(k => (list.find(y => y.name === k) || {}).label));
+  markSelected(wt0Chart, list.findIndex(x => (DF.wt0 || []).indexOf(x.name) >= 0));
   wt0Chart.update();
 
-  // 전 구간 status 비율 (누적막대 대신 글자로 남긴다)
+  // 전체 status 비율. 한 줄에 들어가게 k 표기를 쓴다.
   const gt = sts.reduce((a, x) => a + (u === "lots" ? x.lots : x.qty), 0);
   document.getElementById("wt0sum").innerHTML = gt
-    ? sts.map(x => {
-        const v = (u === "lots" ? x.lots : x.qty);
-        return `<span class="stchip"><i style="background:${x.color}"></i>`
-             + `${x.name} ${nf(v)}${unit} (${Math.round(v / gt * 100)}%)</span>`;
-      }).join("")
+    ? `<span class="stchip"><b>전체</b></span>`
+      + sts.map(x => {
+          const v = (u === "lots" ? x.lots : x.qty);
+          return `<span class="stchip"><i style="background:${x.color}"></i>`
+            + `${x.name} ${kfmt(v)}${unit}(${Math.round(v / gt * 100)}%)</span>`;
+        }).join("")
     : "";
 }
 
@@ -929,7 +962,7 @@ function loadBalance(show) {
   if (!show) { box.style.display = "none"; return; }
   const base = Object.assign({
     line: LINE, types: selectedTypes().join(","),
-    prod1: PROD1.join(","), prod2: PROD2.join(","),
+    prod1: PROD1.join(","), prod2: PROD2.join(","), area: AREAS.join(","),
     biz_date: SNAP_DATE, shift: SNAP_SHIFT, by: (BAL_BY || "plan")
   }, dfFilter());
   delete base.layer_id;                 // LAYER 는 이 차트의 x축이라 뺀다
@@ -1155,6 +1188,7 @@ function loadTrend() {
     + "&types=" + encodeURIComponent(selectedTypes().join(","))
     + "&prod1=" + encodeURIComponent(PROD1.join(","))
     + "&prod2=" + encodeURIComponent(PROD2.join(","))
+    + "&area=" + encodeURIComponent(AREAS.join(","))
     + "&biz_date=" + encodeURIComponent(SNAP_DATE)
     + "&scope=" + TRD_SCOPE + "&wshift=" + TRD_WSHIFT
     + "&drill=" + encodeURIComponent(TRD_DRILL.join("|"));
@@ -1191,22 +1225,27 @@ function renderTrend(d) {
 
   // 체크박스는 숨김/표시, 글자는 드릴다운.
   const canDrill = TRD_DRILL.length < 2;
-  document.getElementById("trdlegend").innerHTML = keys.map((k, i) => {
-    const drillable = canDrill;
-    return `<label class="${drillable ? "drill" : ""}">`
-      + `<input type="checkbox" ${TRD_OFF[k] ? "" : "checked"}`
-      + ` onchange="trdToggle('${k}')">`
-      + `<i style="display:inline-block;width:8px;height:8px;border-radius:2px;`
-      + `background:${TRD_COLORS[i % 5]}"></i>`
-      + `<span ${drillable ? `onclick="event.preventDefault();trdDrill('${k}')"`
-                           : ""}>${k}</span></label>`;
-  }).join("");
+  const CM = d.colors || {};
+  document.getElementById("trdlegend").innerHTML =
+    `<label><i style="display:inline-block;width:8px;height:8px;`
+    + `border-radius:2px;background:#C9D3E4"></i> 재공(막대)</label>`
+    + keys.map((k, i) => {
+      const col = CM[k] || TRD_COLORS[i % 5];
+      return `<label class="${canDrill ? "drill" : ""}">`
+        + `<input type="checkbox" ${TRD_OFF[k] ? "" : "checked"}`
+        + ` onchange="trdToggle('${k}')">`
+        + `<i style="display:inline-block;width:8px;height:8px;border-radius:2px;`
+        + `background:${col}"></i>`
+        + `<span ${canDrill ? `onclick="event.preventDefault();trdDrill('${k}')"`
+                            : ""}>${k}</span></label>`;
+    }).join("");
 
   const bars = { type: "bar", label: "재공", yAxisID: "y", order: 3,
                  backgroundColor: "#C9D3E4", borderRadius: 3,
                  data: pts.map(p => p.qty) };
+  const CMAP = d.colors || {};
   const lines = keys.filter(k => !TRD_OFF[k]).map((k) => {
-    const col = TRD_COLORS[keys.indexOf(k) % 5];
+    const col = CMAP[k] || TRD_COLORS[keys.indexOf(k) % 5];
     return {
       type: "line", label: k, yAxisID: "y2", order: 1,
       borderColor: col, backgroundColor: "#fff",
@@ -1256,35 +1295,38 @@ function renderTrend(d) {
         id: "trdLabels",
         afterDatasetsDraw(ch) {
           const ctx = ch.ctx;
-          const xs = ch.getDatasetMeta(0).data;      // 막대 = x 기준
-          if (!xs.length) { return; }
+          const bars = ch.getDatasetMeta(0).data;
+          if (!bars.length) { return; }
           ctx.save();
-          ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
+          ctx.font = "bold 10px 'Poppins','Noto Sans KR',sans-serif";
           ctx.textAlign = "center";
-          ctx.textBaseline = "top";
-          const top = ch.chartArea.top + 2;
-          const lh = 12;
 
-          xs.forEach((el, k) => {
-            // 1행: 재공
-            ctx.fillStyle = "#374151";
-            ctx.fillText(kfmt(ch.data.datasets[0].data[k]) + "매", el.x, top);
-            // 2행부터: 라인별 색 네모 + 비율
-            let row = 1;
+          // 재공은 막대 끝 위에
+          ctx.textBaseline = "bottom";
+          ctx.fillStyle = "#374151";
+          bars.forEach((el, k) => {
+            const v = ch.data.datasets[0].data[k];
+            if (v) { ctx.fillText(kfmt(v) + "매", el.x, el.y - 3); }
+          });
+
+          // 라인 값은 점 옆에. 같은 x 에서 큰 값이 위로 가게 정렬한다.
+          for (let k = 0; k < bars.length; k++) {
+            const items = [];
             for (let di = 1; di < ch.data.datasets.length; di++) {
               const ds = ch.data.datasets[di];
+              const el = ch.getDatasetMeta(di).data[k];
               const v = ds.data[k];
-              if (v === null || v === undefined) { continue; }
-              const y = top + row * lh;
-              ctx.fillStyle = ds.borderColor;
-              ctx.fillRect(el.x - 22, y + 2, 7, 7);
-              ctx.fillStyle = ds.borderColor;
-              ctx.textAlign = "left";
-              ctx.fillText(v + "%", el.x - 12, y);
-              ctx.textAlign = "center";
-              row++;
+              if (el && v !== null && v !== undefined) {
+                items.push({ v: v, y: el.y, x: el.x, c: ds.borderColor });
+              }
             }
-          });
+            items.sort((a, b) => b.v - a.v);       // 큰 값이 위
+            items.forEach((it, n) => {
+              ctx.fillStyle = it.c;
+              ctx.textBaseline = n === 0 ? "bottom" : "top";
+              ctx.fillText(it.v + "%", it.x, it.y + (n === 0 ? -6 : 6));
+            });
+          }
           ctx.restore();
         }
       }]
@@ -1553,7 +1595,8 @@ function czPick(i, node, depth, ev) {
     const keep = CZ_SEL.path.slice();
     const mid = (keep.find(p => p.kind === "mid") || {}).name || null;
     const add = ev && (ev.ctrlKey || ev.metaKey);
-    const same = DF_CAUSE && DF_CAUSE.i === i;
+    // Ctrl 이면 다른 대분류 차트의 선택과도 합쳐 본다.
+    const same = DF_CAUSE && (add || DF_CAUSE.i === i);
     const cur = same ? (DF_CAUSE.subs || []) : [];
     const one = cur.length === 1 && cur[0] === node.name;
     let list;
@@ -1561,15 +1604,25 @@ function czPick(i, node, depth, ev) {
     else if (one) { list = []; }
     else { list = [node.name]; }
     if (!add) { dfClearPeers("cause", 4); }
+    // 여러 대분류를 함께 고르면 big/mid 로는 못 좁힌다. 소분류만 쓴다.
+    const cross = add && DF_CAUSE && DF_CAUSE.i !== i;
     DF_CAUSE = list.length
-      ? { i: i, big: czGroup(i).name, mid: mid, subs: list } : null;
+      ? (cross ? { i: i, big: null, mid: null, subs: list }
+               : { i: i, big: czGroup(i).name, mid: mid, subs: list })
+      : null;
     dfResetBelow(4);                 // 전체보기 / LOT BALANCE / 표는 다시 잡는다
     syncFromDF();
     return;
   }
 
   CZ_SEL.path.push({ name: node.name, kind: node.kind || "sub" });
-  // 하위가 하나도 없으면 더 내려갈 곳이 없다. 그 자리에서 표를 연다.
+  // 하위가 있으면 옆에 새 차트로 띄운다(대분류 차트는 그대로 둔다).
+  if (czNodesAt(i, CZ_SEL.path).length) {
+    CZ_SIDE = { i: i, path: CZ_SEL.path.slice() };
+    dfResetBelow(4);
+    renderCause();
+    return;
+  }
   if (!czNodesAt(i, CZ_SEL.path).length) {
     const mid2 = (CZ_SEL.path.find(p => p.kind === "mid") || {}).name || null;
     const leaf = CZ_SEL.path[CZ_SEL.path.length - 1].name;
@@ -1787,15 +1840,21 @@ function czShowAll(i) {
 
 // 소제목 클릭 = 그 대분류 전체를 드릴다운 표로
 function czWhole(i) {
-  const g = czGroup(i);
-  DRILL_KEY = { i: -1, node: null };
-  renderCause();
-  openDrill({ big: g.name }, g.name + " 전체", "cause");
+  // 조건 저장소를 거쳐야 LOT BALANCE 등 하위가 함께 좁혀진다.
+  dfClearPeers("cause", 4);
+  DF_CAUSE = { i: i, big: czGroup(i).name, mid: null, subs: [] };
+  CZ_SEL = { i: -1, path: [] };
+  dfResetBelow(4);
+  syncFromDF();
 }
 
 function renderCause() {
   const u = CAUSE_UNIT;
-  if (CAUSE_MODE === "all") { renderCauseAll(); return; }
+  document.getElementById("czone").style.display =
+    (CAUSE_MODE === "all") ? "" : "none";
+  document.getElementById("cz3").style.display =
+    (CAUSE_MODE === "all") ? "none" : "";
+  if (CAUSE_MODE === "all") { renderCauseAll(); }
 
   for (let i = 0; i < 3; i++) {
     const g = czGroup(i);
@@ -1837,10 +1896,67 @@ function renderCause() {
         "czVal" + i);
     }
     const selL = (DRILL_KEY.i === i) ? DRILL_KEY.list : null;
+    // 이 칸에서 파고들었으면 그 막대를 표시해 연결 관계를 보인다.
+    if (CZ_SIDE && CZ_SIDE.i === i) {
+      czCharts[i].$selSet = new Set([CZ_SIDE.path[0].name]);
+    } else { czCharts[i].$selSet = null; }
     czApply(czCharts[i], nodes, u, DRILL_KEY.node, selL);
+    const col = document.getElementById("czh" + i).parentNode;
+    col.classList.toggle("czsrc", !!(CZ_SIDE && CZ_SIDE.i === i));
   }
 
+  renderCzSide();
   renderCzWide();
+}
+
+/* 우측 드릴다운 중분류 차트 --------------------------------------------
+   상위 차트를 그대로 두고 그 하위를 옆에 새로 띄운다.
+   어느 막대에서 왔는지 남색 테두리로 표시한다.
+--------------------------------------------------------------------- */
+function renderCzSide() {
+  const box = document.getElementById("czside");
+  // 전체 제약 모드면 그 차트가 이 자리를 쓴다.
+  if (CAUSE_MODE === "all") { box.style.display = "none"; return; }
+  if (!CZ_SIDE) { box.style.display = "none"; return; }
+
+  const i = CZ_SIDE.i, g = czGroup(i);
+  const nodes = czNodesAt(i, CZ_SIDE.path).slice(0, 20);
+  if (!nodes.length) { box.style.display = "none"; return; }
+  box.style.display = "";
+
+  document.getElementById("czsttl").textContent =
+    [g.name].concat(CZ_SIDE.path.map(x => x.name)).join(" > ");
+  document.getElementById("czspath").innerHTML =
+    (CZ_SIDE.path.length > 1
+      ? `<span class="czback" onclick="czSideBack()">◀ 뒤로</span>` : "")
+    + `<span class="minittl">상위 ${nodes.length}개 · 막대를 누르면 LOT 상세`
+    + `</span>`;
+
+  if (!czSideChart) {
+    czSideChart = czBarChart("czsc", (idx, ev) => {
+      const n = (czSideChart.$nodes || [])[idx];
+      if (!n) { return; }
+      if (czNodesAt(CZ_SIDE.i, CZ_SIDE.path.concat(
+            [{ name: n.name, kind: n.kind || "sub" }])).length) {
+        CZ_SIDE = { i: CZ_SIDE.i,
+                    path: CZ_SIDE.path.concat(
+                      [{ name: n.name, kind: n.kind || "sub" }]) };
+        CZ_SEL = { i: CZ_SIDE.i, path: CZ_SIDE.path.slice() };
+        renderCause();
+        return;
+      }
+      czPick(CZ_SIDE.i, n, 1, ev);
+    }, "czsVal");
+  }
+  czApply(czSideChart, nodes, CAUSE_UNIT, DRILL_KEY.node,
+          DF_CAUSE ? DF_CAUSE.subs : null);
+}
+
+function czSideBack() {
+  if (!CZ_SIDE || CZ_SIDE.path.length <= 1) { czSideClose(); return; }
+  CZ_SIDE.path = CZ_SIDE.path.slice(0, -1);
+  CZ_SEL = { i: CZ_SIDE.i, path: CZ_SIDE.path.slice() };
+  renderCause();
 }
 
 /* 전체 제약 : 세 대분류를 합쳐 상위 15 ------------------------------------
@@ -1856,7 +1972,7 @@ function renderCauseAll() {
     });
   }
   all.sort((a, b) => (u === "lots" ? b.lots - a.lots : b.qty - a.qty));
-  const nodes = all.slice(0, 15);
+  const nodes = all.slice(0, 20);
 
   document.getElementById("czp9").innerHTML = nodes.length
     ? `<span class="minittl">세 대분류 합산 상위 ${nodes.length}개`
@@ -1866,13 +1982,15 @@ function renderCauseAll() {
   if (!czOneChart) {
     czOneChart = czBarChart("czc9", (idx, ev) => {
       const n = (czOneChart.$nodes || [])[idx];
-      if (n) { czPick(n.$i, n, 0, ev); }
+      if (!n) { return; }
+      CZ_SEL = { i: n.$i, path: [] };
+      czPick(n.$i, n, 0, ev);          // 하위가 있으면 아래 차트로 이어진다
     }, "czVal9");
   }
   // 라벨을 두 줄로. Chart.js 는 배열을 주면 줄바꿈해 그린다.
   czApply(czOneChart, nodes, u, DRILL_KEY.node,
           DF_CAUSE ? DF_CAUSE.subs : null);
-  czOneChart.data.labels = nodes.map(n => [n.name, "─────", n.$big]);
+  czOneChart.data.labels = nodes.map(n => [n.name, "─", n.$big]);
   czOneChart.$selSet = new Set(
     (DF_CAUSE ? DF_CAUSE.subs : []) || []);
   czOneChart.update();
@@ -1888,7 +2006,58 @@ function czShowAll(i) {
   const same = CZ_WIDE && CZ_WIDE.i === i
     && CZ_WIDE.path.map(x => x.name).join("|") === path.map(x => x.name).join("|");
   CZ_WIDE = same ? null : { i: i, path: path };
+  renderCzSide();
   renderCzWide();
+}
+
+/* 우측 드릴다운 중분류 차트 --------------------------------------------
+   상위 차트를 그대로 두고 그 하위를 옆에 새로 띄운다.
+   어느 막대에서 왔는지 남색 테두리로 표시한다.
+--------------------------------------------------------------------- */
+function renderCzSide() {
+  const box = document.getElementById("czside");
+  // 전체 제약 모드면 그 차트가 이 자리를 쓴다.
+  if (CAUSE_MODE === "all") { box.style.display = "none"; return; }
+  if (!CZ_SIDE) { box.style.display = "none"; return; }
+
+  const i = CZ_SIDE.i, g = czGroup(i);
+  const nodes = czNodesAt(i, CZ_SIDE.path).slice(0, 20);
+  if (!nodes.length) { box.style.display = "none"; return; }
+  box.style.display = "";
+
+  document.getElementById("czsttl").textContent =
+    [g.name].concat(CZ_SIDE.path.map(x => x.name)).join(" > ");
+  document.getElementById("czspath").innerHTML =
+    (CZ_SIDE.path.length > 1
+      ? `<span class="czback" onclick="czSideBack()">◀ 뒤로</span>` : "")
+    + `<span class="minittl">상위 ${nodes.length}개 · 막대를 누르면 LOT 상세`
+    + `</span>`;
+
+  if (!czSideChart) {
+    czSideChart = czBarChart("czsc", (idx, ev) => {
+      const n = (czSideChart.$nodes || [])[idx];
+      if (!n) { return; }
+      if (czNodesAt(CZ_SIDE.i, CZ_SIDE.path.concat(
+            [{ name: n.name, kind: n.kind || "sub" }])).length) {
+        CZ_SIDE = { i: CZ_SIDE.i,
+                    path: CZ_SIDE.path.concat(
+                      [{ name: n.name, kind: n.kind || "sub" }]) };
+        CZ_SEL = { i: CZ_SIDE.i, path: CZ_SIDE.path.slice() };
+        renderCause();
+        return;
+      }
+      czPick(CZ_SIDE.i, n, 1, ev);
+    }, "czsVal");
+  }
+  czApply(czSideChart, nodes, CAUSE_UNIT, DRILL_KEY.node,
+          DF_CAUSE ? DF_CAUSE.subs : null);
+}
+
+function czSideBack() {
+  if (!CZ_SIDE || CZ_SIDE.path.length <= 1) { czSideClose(); return; }
+  CZ_SIDE.path = CZ_SIDE.path.slice(0, -1);
+  CZ_SEL = { i: CZ_SIDE.i, path: CZ_SIDE.path.slice() };
+  renderCause();
 }
 
 function czWideClose() { CZ_WIDE = null; renderCzWide(); }
@@ -2491,6 +2660,7 @@ function openDrill(filt, label, src, keepView) {
   smoothTo(el);
   const base = { line: LINE, types: selectedTypes().join(","),
                  prod1: PROD1.join(","), prod2: PROD2.join(","),
+                 area: AREAS.join(","),
                  biz_date: SNAP_DATE, shift: SNAP_SHIFT,
                  src: src || "",
                  cols: keepView ? visibleKeys().join(",") : "" };
@@ -2550,6 +2720,7 @@ function loadSummary(keepFocus) {
         + "&types=" + encodeURIComponent(selectedTypes().join(","))
         + "&prod1=" + encodeURIComponent(PROD1.join(","))
         + "&prod2=" + encodeURIComponent(PROD2.join(","))
+        + "&area=" + encodeURIComponent(AREAS.join(","))
         + "&f_status=" + encodeURIComponent(SEL_PIE || "")
         + "&f_wt=" + encodeURIComponent(SEL_WT || "")
         + "&f_wt0=" + encodeURIComponent(SEL_WT0 || "")

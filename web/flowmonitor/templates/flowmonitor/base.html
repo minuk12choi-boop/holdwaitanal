@@ -308,12 +308,23 @@
   /* ── 원인 분석 (대분류 3개 차트) ──────────────────────────────────────── */
   /* 항상 1 x 3. 폭이 모자라면 세로로 쌓지 말고 가로 스크롤한다. */
   /* SHIFT 추이 + 대분류 3개 = 4등분. 좁으면 세로로 쌓지 말고 가로 스크롤. */
-  .cz3 { display:grid; grid-template-columns:repeat(3, minmax(190px, 1fr));
-         gap:12px; overflow-x:auto; padding-bottom:2px; }
+  /* 원인 분석은 SHIFT 추이 아래에 3행 1열로 쌓는다. */
+  .cz3 { display:grid; grid-template-columns:1fr; gap:10px; }
+  .cz3 .czcol > div:last-child { height:150px; }
   /* SHIFT 추이 + 원인 분석을 같은 등급 카드로 나란히 */
   /* 두 카드의 세로를 맞춘다. 추이가 길어지면 원인 분석도 같이 늘어난다. */
   .rowcards { display:flex; gap:10px; align-items:stretch; }
   .rowcards > .cell { display:flex; flex-direction:column; }
+  .rowcards > .leftcol { flex:0 0 340px; display:flex; flex-direction:column;
+                         gap:10px; }
+  .rowcards > .rightcol { flex:1; min-width:0; display:flex;
+                          flex-direction:column; gap:10px; }
+  /* 어느 막대에서 파고들었는지 보이도록 그 칸을 남색으로 두른다. */
+  .czcol.czsrc { box-shadow:0 0 0 2px var(--brand) inset; border-radius:6px;
+                 padding:4px; position:relative; }
+  .czcol.czsrc::after { content:"▶"; position:absolute; right:-9px; top:50%;
+                        transform:translateY(-50%); color:var(--brand);
+                        font-size:11px; }
   .rowcards > .trdcard { flex:0 0 340px; }
   .rowcards .cz3 { flex:1; align-items:stretch; }
   .rowcards .czcol { display:flex; flex-direction:column; }
@@ -321,6 +332,7 @@
   .rowcards .trdcard > div:last-child { flex:1; min-height:240px; }
   @media (max-width: 1180px) {
     .rowcards { flex-wrap:wrap; }
+    .rowcards > .leftcol, .rowcards > .rightcol,
     .rowcards > .trdcard { flex:1 1 100%; }
   }
   #trdshift { display:inline-flex; width:auto; align-self:flex-start; }
@@ -340,7 +352,9 @@
   /* 재공 구성 막대 등 canvas 가 아닌 요소의 선택 표시(차트의 3D 팝업과 동일 개념) */
   .stack i.sel { outline:3px solid #FFD700; outline-offset:-3px;
                  position:relative; z-index:2; filter:saturate(1.6); }
-  .prodf { display:flex; gap:8px; margin-bottom:12px; }
+  .prodf { display:flex; gap:6px; margin-bottom:12px; }
+  .prodf > .dd { flex:1; min-width:0; }
+  .prodf > .dd > button { width:100%; }
   /* 캘린더 입력. 표기는 26-08-15 로 짧게 보여주고 실제 입력은 겹쳐 둔다. */
   .datef { flex:1; min-width:0; position:relative; box-sizing:border-box;
            padding:7px 10px; border:1px solid var(--bd); border-radius:6px;
@@ -348,8 +362,9 @@
            font-size:13px; color:var(--mut); cursor:pointer;
            display:flex; align-items:center; }
   .datef::after { content:"\1F4C5"; margin-left:auto; font-size:12px; }
+  /* 라벨 전체를 눌러도 바로 열리도록 입력을 위에 깔아 둔다. */
   .datef > input { position:absolute; inset:0; opacity:0; width:100%;
-                   height:100%; border:0; cursor:pointer; }
+                   height:100%; border:0; cursor:pointer; z-index:1; }
   .datef.on { background:var(--brand); border-color:var(--brand); color:#fff; }
   .prodf .dd { flex:1; min-width:0; }
   .prodf .dd > button { width:100%; }
