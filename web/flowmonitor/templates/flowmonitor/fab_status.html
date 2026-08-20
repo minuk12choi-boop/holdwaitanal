@@ -1654,15 +1654,22 @@ const BIG_SHORT = { "Wait성 진행불가": "Wait(불가)", "Bottleneck": "B/N" 
 
 function renderCauseAllBar() {
   const u = CAUSE_UNIT;
+  // 대분류마다 상위 N 개씩 뽑아 한 대분류가 화면을 독점하지 않게 한다.
+  // (Hold 는 사유가 120여 개, Bottleneck 은 설비가 200여 개다)
+  const PER_BIG = 8;
   const items = [];
   for (let i = 0; i < 3; i++) {
     const g = czGroup(i);
-    (g.children || []).forEach(n => {
-      items.push(Object.assign({}, n, { $big: g.name, $i: i }));
-    });
+    (g.children || [])
+      .slice()
+      .sort((a, b) => (u === "lots" ? b.lots - a.lots : b.qty - a.qty))
+      .slice(0, PER_BIG)
+      .forEach(n => {
+        items.push(Object.assign({}, n, { $big: g.name, $i: i }));
+      });
   }
   items.sort((a, b) => (u === "lots" ? b.lots - a.lots : b.qty - a.qty));
-  const nodes = items.slice(0, 22);
+  const nodes = items;
 
   const vals = nodes.map(n => u === "lots" ? n.lots : n.qty);
   const eld = nodes.map(n => (n.eln ? +(n.eld / n.eln).toFixed(1) : null));
@@ -1701,8 +1708,9 @@ function renderCauseAllBar() {
                         callback: function (v) {
                           const n = (czAllChart.$nodes || [])[v] || {};
                           // 위: 대분류, 아래: 중분류(길면 줄임)
+                          const nm = String(n.name || "").trim() || "(빈 값)";
                           return [BIG_SHORT[n.$big] || n.$big,
-                                  czLabel(n.name, 12)];
+                                  czLabel(nm, 14)];
                         } } }
         },
         onClick: (e) => {

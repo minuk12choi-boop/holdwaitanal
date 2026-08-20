@@ -334,7 +334,7 @@ def diag_lotst(lot_id):
         conn.close()
 
 
-def diag_tree(line):
+def diag_tree(line=""):
     """지금 데이터로 만들어지는 **원인 분류 체계 전체**를 찍는다.
 
     어느 항목에 하위가 있고(=드릴다운 가능) 어디가 말단인지 한눈에 본다.
@@ -349,6 +349,7 @@ def diag_tree(line):
     django.setup()
     from flowmonitor import views as V
 
+    line = line or V.DEFAULT_LINE
     _head(f"원인 분류 체계 ({line})")
     rows, snap = V._summary_rows(line, list(V.DEFAULT_LOT_TYPES))
     if not rows:
@@ -372,6 +373,7 @@ def diag_tree(line):
         m["lots"] += 1
         m["qty"] += q
         for sname in (subs or ["(소분류 없음)"]):
+            sname = str(sname).strip() or "(빈 값)"
             sc = m["sub"].setdefault(sname, {"lots": 0, "qty": 0})
             sc["lots"] += 1
             sc["qty"] += q

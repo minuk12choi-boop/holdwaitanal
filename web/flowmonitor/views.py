@@ -1353,7 +1353,9 @@ def _classify_lot(r, rules, ht=None):
         blocked = _blocked_eqps(r)
         if blocked and cand and not set(cand) <= blocked:
             return ("Bottleneck", "호환설비이슈", sorted(blocked))
-        return ("Bottleneck", None, eqps or ["(설비미상)"])
+        # 중분류를 비워 두면 설비 200여 개가 대분류 바로 아래에 붙어
+        # 다른 대분류와 계층이 어긋난다. '설비대기' 로 한 겹 둔다.
+        return ("Bottleneck", "설비대기", eqps or ["(설비미상)"])
 
     return (None, None, [])
 
