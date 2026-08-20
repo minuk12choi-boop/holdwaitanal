@@ -1924,11 +1924,6 @@ function renderCause() {
 // 우측 열은 안의 카드가 하나라도 보일 때만 자리를 차지한다.
 
 
-/* 레이아웃 진단 --------------------------------------------------------
-   화면 오른쪽을 넘는 요소를 재서 서버 로그로 보낸다.
-   콘솔 복사가 어려울 때 터미널에서 바로 확인한다.
-   호출: 주소창에 ?debug=layout 을 붙이거나 콘솔에서 checkLayout()
------------------------------------------------------------------------ */
 
 
 
@@ -2047,6 +2042,35 @@ function syncLeftHeight() {
     lc.style.height = h + "px";
     resizeCharts();
   }
+}
+
+/* 클릭 진단 ------------------------------------------------------------
+   어느 막대·조각을 눌렀는지 서버 터미널에 남긴다.
+   주소에 ?debug=pick 을 붙이면 켜진다.
+--------------------------------------------------------------------- */
+const DBG_PICK = location.search.indexOf("debug=pick") >= 0;
+
+function logPick(what, chart, ev, els, hit) {
+  const box = chart.canvas.getBoundingClientRect();
+  const nm = (h) => chart.data.datasets[h.datasetIndex].label;
+  const items = [
+    { sel: what + " 클릭",
+      note: `커서=(${Math.round(ev.clientX - box.left)},`
+        + `${Math.round(ev.clientY - box.top)})` },
+    { sel: "  Chart.js 기본(els)",
+      note: (els && els.length)
+        ? `index=${els[0].index} ds=${els[0].datasetIndex} ${nm(els[0])}`
+        : "없음" },
+    { sel: "  실제 얹힌 조각(hit)",
+      note: (hit && hit.length)
+        ? `index=${hit[0].index} ds=${hit[0].datasetIndex} ${nm(hit[0])}`
+        : "없음  -> 조각 밖(막대 위 여백)을 눌렀다" },
+    { sel: "  적용된 조건", note: JSON.stringify(DF) },
+  ];
+  fetch("/api/debug-layout/", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind: "overlap", items: items })
+  });
 }
 
 /* 레이아웃 진단 --------------------------------------------------------
