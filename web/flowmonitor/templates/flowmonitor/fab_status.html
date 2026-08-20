@@ -667,18 +667,22 @@ function renderWt0() {
                   y: { stacked: true, display: false, beginAtZero: true,
                        grace: "18%" } },
         onClick: (e, els) => {
-          if (!els.length) { return; }
           const ev = e.native || e;
-          const x = (DATA.wt0_dist || [])[els[0].index];
-          if (!x) { return; }
-          setCond("wt0", x.name, ev, x.label);
-          // 누적막대라 어느 조각(status)을 눌렀는지도 함께 건다.
+          // els 는 Chart.js 기본 모드가 고른 것이라 누른 조각과 다를 수 있다.
+          // 커서가 실제로 얹힌 조각을 먼저 찾는다.
           const hit = wt0Chart.getElementsAtEventForMode(
             ev, "nearest", { intersect: true }, false);
+          const idx = hit.length ? hit[0].index
+                                 : (els.length ? els[0].index : -1);
+          if (idx < 0) { return; }
+          const x = (DATA.wt0_dist || [])[idx];
+          if (!x) { return; }
+          setCond("wt0", x.name, ev, x.label);
           if (hit.length) {
             const ds = wt0Chart.data.datasets[hit[0].datasetIndex];
             if (ds && ds.label) { setCond("status", ds.label, ev); }
           }
+          if (DBG_PICK) { logPick("W/T 0", wt0Chart, ev, els, hit); }
           syncFromDF();
         }
       },
@@ -1009,6 +1013,7 @@ function drawBalance() {
               const ds = ch.data.datasets[hit[0].datasetIndex];
               if (ds && ds.label) { setCond("status", ds.label, ev); }
             }
+            if (DBG_PICK) { logPick("LOT BALANCE", ch, ev, els, hit); }
             syncFromDF();
           }
         },
