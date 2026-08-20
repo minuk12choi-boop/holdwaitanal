@@ -85,8 +85,14 @@
   .dd .menu label:hover { background:#F3F4F6; border-radius:3px; }
 
   /* 상태 원차트 */
-  .donut canvas { position:relative; z-index:2; }
-  .donut .pickinfo { position:relative; z-index:1; }
+  /* 화면 최상단에 뜨는 툴팁. 어떤 카드에도 가리지 않는다. */
+  .htip { position:absolute; z-index:9999; pointer-events:none; opacity:0;
+          background:rgba(17,24,39,.94); color:#fff; font-size:11px;
+          padding:5px 9px; border-radius:5px; white-space:nowrap;
+          display:flex; align-items:center; gap:6px;
+          transition:opacity .08s; }
+  .htip i { width:9px; height:9px; border-radius:2px; display:inline-block; }
+  .htip b { color:#FFD700; }
   .donut { display:flex; align-items:center; gap:10px; }
   .donut .cv { width:112px; height:112px; flex:0 0 112px; }
   .legend { display:flex; flex-direction:column; gap:6px; flex:0 0 auto; }
@@ -353,7 +359,8 @@
   .farcol > * { min-width:0; max-width:100%; box-sizing:border-box; }
   /* 어느 막대에서 파고들었는지 보이도록 그 칸을 남색으로 두른다. */
   .czcol.czsrc { box-shadow:0 0 0 2px var(--brand) inset; border-radius:6px;
-                 padding:4px; position:relative; }
+                 padding:7px 9px; position:relative; }
+  .cz3 .czcol { padding:7px 9px; }        /* 선택 전후로 폭이 흔들리지 않게 */
   /* 무엇을 파고들었는지 보이도록 그 칸에서 오른쪽으로 이어지는 표시. */
   .czcol.czsrc::after { content:"▶"; position:absolute; right:-11px; top:50%;
                         transform:translateY(-50%); color:var(--brand);

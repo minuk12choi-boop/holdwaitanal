@@ -150,6 +150,9 @@ class TemplateJsTest(SimpleTestCase):
             missing = sorted(used - declared - self.JS_GLOBALS)
             self.assertEqual(missing, [], f"{name}: 선언 없는 상수 {missing}")
 
+    # JS 가 만들어 붙이는 요소는 마크업에 없다.
+    JS_MADE_IDS = {"dntip"}
+
     def test_element_ids_exist(self):
         """getElementById 로 찾는 id 가 마크업에 있는지 본다.
 
@@ -161,7 +164,8 @@ class TemplateJsTest(SimpleTestCase):
             # 공통 요소는 base.html 에 있다. 함께 본다.
             have = set(re.findall(r'id="([\w-]+)"', html + base))
             want = set(re.findall(r'getElementById\(\s*"([\w-]+)"\s*\)', js))
-            missing = sorted(w for w in want if w not in have)
+            missing = sorted(w for w in want
+                             if w not in have and w not in self.JS_MADE_IDS)
             self.assertEqual(missing, [], f"{name}: 없는 id 참조 {missing}")
 
     # 이 규칙이 빠지면 flex 열이 내용만큼 부풀어 페이지에 가로 스크롤이 생긴다.

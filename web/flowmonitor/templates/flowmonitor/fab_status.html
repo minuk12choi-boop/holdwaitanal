@@ -479,8 +479,36 @@ function setStatusInfo() {
     el.classList.toggle("on", k === SEL_STATUS));
 }
 
-function pickStatus(i) { SEL_STATUS = (SEL_STATUS === i) ? null : i; setStatusInfo(); }
-function pickDefault() { SEL_STATUS = null; setStatusInfo(); }
+// 범례 클릭도 조건 저장소를 거친다(원차트 조각 클릭과 같은 동작).
+function pickStatus(i) {
+  const st = (DATA.status || [])[i];
+  if (!st) { return; }
+  setCond("status", st.name, null);
+  syncFromDF();
+}
+
+// 원차트 전용 HTML 툴팁. body 에 붙여 어떤 요소에도 가리지 않는다.
+function dnTooltip(ctx) {
+  let el = document.getElementById("dntip");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "dntip";
+    el.className = "htip";
+    document.body.appendChild(el);
+  }
+  const tt = ctx.tooltip;
+  if (!tt || tt.opacity === 0) { el.style.opacity = "0"; return; }
+
+  const i = (tt.dataPoints && tt.dataPoints[0]) ? tt.dataPoints[0].dataIndex : -1;
+  const st = ((ctx.chart.$status || [])[i]) || {};
+  el.innerHTML = `<i style="background:${st.color}"></i>${st.name}`
+    + `<b>${st.pct}%</b>${nf(st.lots)} LOT · ${nf(st.qty)} 매`;
+
+  const box = ctx.chart.canvas.getBoundingClientRect();
+  el.style.opacity = "1";
+  el.style.left = (box.left + window.pageXOffset + tt.caretX + 12) + "px";
+  el.style.top = (box.top + window.pageYOffset + tt.caretY - 10) + "px";
+}
 
 function renderStatus() {
   const d = DATA;
@@ -499,12 +527,10 @@ function renderStatus() {
                            borderWidth: 0 }] },
       options: {
         responsive: true, maintainAspectRatio: false, cutout: 0, animation: false,
+        // 기본 툴팁은 canvas 안에 그려져 우측 글자에 가리거나 잘린다.
+        // 화면 최상단에 뜨는 HTML 툴팁을 쓴다.
         plugins: { legend: { display: false },
-                   tooltip: { callbacks: { label: (t) => {
-                     const st = (t.chart.$status || [])[t.dataIndex] || {};
-                     return st.name + "  " + st.pct + "% / " + nf(st.lots) + " LOT / "
-                            + nf(st.qty) + " 매";
-                   } } } },
+                   tooltip: { enabled: false, external: dnTooltip } },
         onClick: (e, els) => {
           if (!els.length) return;
           const i = els[0].index;
@@ -1486,8 +1512,9 @@ function czPick(i, node, depth, ev) {
   if (depth === 0 && !add) { CZ_SEL = { i: i, path: [] }; }
   CZ_SEL.path = CZ_SEL.path.filter(p => p.kind !== "all");
 
-  if (leaf) {
-    // 더 쪼갤 게 없다. 중분류 차트를 만들지 않고 바로 표/LOT BALANCE 로 간다.
+  // Ctrl 이면 하위가 있어도 파고들지 않고 '함께 보기' 로 다룬다.
+  if (leaf || add) {
+    // 중분류 차트를 만들지 않고 바로 표/LOT BALANCE 로 간다.
     const mid = (CZ_SEL.path.find(p => p.kind === "mid") || {}).name
       || (node.kind === "mid" ? node.name : null);
     const same = DF_CAUSE && (add || DF_CAUSE.i === i);
@@ -2448,7 +2475,10 @@ function loadSummary(keepFocus) {
       }
       err.textContent = "";
       DATA = d;
-      SEL_STATUS = null;
+      // 선택은 DF.status 가 정한다. 여기서 지우면 기본값으로 되돌아간다.
+      const pie = (DF.status || [])[0] || null;
+      SEL_STATUS = pie ? d.status.findIndex(x => x.name === pie) : null;
+      if (SEL_STATUS < 0) { SEL_STATUS = null; }
       if (!keepFocus) { CZ_SEL = { i: -1, path: [] }; }
       document.getElementById("snapAt").textContent = d.snapshot_at || "-";
       renderSnap(d);
