@@ -1283,6 +1283,23 @@ def classify_lot(r, rules, ht=None):
     return _classify_lot(r, rules, ht)
 
 
+def _eqp_ids(r):
+    """이 lot 이 걸린 실제 설비 ID 목록.
+
+    설비그룹(eqpgroup)은 묶음 이름이고, 챔버까지 있는 eqpgroup_cham 이
+    설비 단위다. 둘 다 없으면 빈 목록.
+    """
+    out = []
+    for col in ("eqpgroup_cham", "eqpgroup"):
+        txt = str(r.get(col) or "")
+        if not txt:
+            continue
+        out = [x.strip() for x in txt.split(",") if x.strip()]
+        if col == "eqpgroup_cham" and out:
+            return out
+    return out
+
+
 def _blocked_eqps(r):
     """설비상태 / TIP 문구에서 막힌 설비·챔버 이름을 뽑는다.
 
@@ -1467,10 +1484,21 @@ def api_summary(request):
         m = g["mid"].setdefault(mkey, {"lots": 0.0, "qty": 0.0, "eld": 0.0,
                                        "eln": 0, "sub": {}})
         _add(m, 1, q, eld)
+        # 설비 단위 소분류는 그 아래에 실제 설비 ID 를 한 겹 더 둔다.
+        eqp_ids = _eqp_ids(r) if big in ("Bottleneck", "Wait성 진행불가") else []
         for sname in subs:
             sc = m["sub"].setdefault(sname, {"lots": 0.0, "qty": 0.0,
-                                             "eld": 0.0, "eln": 0})
+                                             "eld": 0.0, "eln": 0, "eqp": {}})
+            sc.setdefault("eqp", {})
             _add(sc, w, q * w, eld)
+            # 소분류 이름이 곧 설비그룹인 경우, 그 그룹의 설비 ID 로 나눈다.
+            ids = [x for x in eqp_ids if x.startswith(sname)] or eqp_ids
+            if ids and sname != "(설비미상)":
+                w2 = w / len(ids)
+                for eid in ids:
+                    ec = sc["eqp"].setdefault(eid, {"lots": 0.0, "qty": 0.0,
+                                                    "eld": 0.0, "eln": 0})
+                    _add(ec, w2, q * w2, eld)
 
     def node(name, v, extra=None):
         n = v.get("eln") or 0
@@ -1482,9 +1510,21 @@ def api_summary(request):
         return d
 
     def subs_of(m, limit=SUB_MAX):
-        """소분류 목록. 화면이 상위 몇 개만 그릴지는 클라이언트가 정한다."""
+        """소분류 목록. 화면이 상위 몇 개만 그릴지는 클라이언트가 정한다.
+
+        설비 ID 가 둘 이상이면 그 아래 단계(children)로 붙여 더 파고들게 한다.
+        """
         items = sorted(m["sub"].items(), key=lambda kv: (-kv[1]["qty"], kv[0]))
-        return [node(k, v, {"kind": "sub"}) for k, v in items[:limit]]
+        out = []
+        for k, v in items[:limit]:
+            extra = {"kind": "sub"}
+            eq = v.get("eqp") or {}
+            if len(eq) > 1:
+                eqs = sorted(eq.items(), key=lambda kv: (-kv[1]["qty"], kv[0]))
+                extra["children"] = [node(a, b, {"kind": "eqp"})
+                                     for a, b in eqs[:limit]]
+            out.append(node(k, v, extra))
+        return out
 
     causes = []
     # 'Wait' 는 갈 수 있는 설비가 남아 있는 경우다(호환설비이슈).

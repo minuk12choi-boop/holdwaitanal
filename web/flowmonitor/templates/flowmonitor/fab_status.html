@@ -1574,10 +1574,13 @@ let CZ_ASK = null;
 function czAsk(i, basePath, node, ev) {
   CZ_ASK = { i: i, base: basePath.slice(), node: node };
   const el = document.getElementById("czask");
+  const kids = czNodesAt(i, basePath.concat(
+    [{ name: node.name, kind: node.kind || "sub" }])).length;
   el.innerHTML =
-    `<div class="askttl">${node.name}</div>`
+    `<span class="askx" onclick="czAskClose()">×</span>`
+    + `<div class="askttl">${node.name}</div>`
     + `<button onclick="czAskGo('all')">전체 보기</button>`
-    + `<button onclick="czAskGo('deep')">세부 요소 보기</button>`;
+    + `<button onclick="czAskGo('deep')">세부 요소 보기 (${kids})</button>`;
   el.style.display = "block";
   // 누른 자리 근처에 띄운다.
   const x = (ev && ev.clientX) || 0;
