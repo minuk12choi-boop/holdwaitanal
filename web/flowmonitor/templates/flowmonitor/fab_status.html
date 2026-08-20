@@ -101,19 +101,19 @@
     <div class="cell" id="czcard" style="border:1px solid var(--bd);
                              border-radius:6px;padding:11px 12px;margin-bottom:0">
       <div class="cellttl"><span>원인 분석</span>
-        <span class="v" id="czup"></span>
-        <span style="display:flex;gap:6px;align-items:center">
-          <span class="seg">
-            <button class="on" id="cv_split" onclick="setCauseView('split')"
-                    title="Hold / Wait성 / Bottleneck 을 따로 본다">STATUS별</button>
-            <button id="cv_all" onclick="setCauseView('all')"
-                    title="셋을 합쳐 가로막대로 본다">전체보기</button>
-          </span>
-          <span class="seg">
-            <button id="cu_lots" onclick="setCauseUnit('lots')">LOT</button>
-            <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
-          </span>
-        </span></div>
+        <span class="v" id="czup"></span></div>
+      <div class="cztools">
+        <span class="seg">
+          <button class="on" id="cv_split" onclick="setCauseView('split')"
+                  title="Hold / Wait성 / Bottleneck 을 따로 본다">STATUS별</button>
+          <button id="cv_all" onclick="setCauseView('all')"
+                  title="셋을 합쳐 가로막대로 본다">전체보기</button>
+        </span>
+        <span class="seg">
+          <button id="cu_lots" onclick="setCauseUnit('lots')">LOT</button>
+          <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
+        </span>
+      </div>
       <div id="czallw" style="display:none;flex:1;min-height:0">
         <div class="czpath" id="czallp"></div>
         <div class="czallbox"><div id="czallh"><canvas id="czall"></canvas></div></div>
@@ -1169,6 +1169,20 @@ function setCond(key, name, ev, label, keepPeers) {
 function dfChipLabel(k, v) { return DF_LABEL[k + ":" + v] || v; }
 
 // 원인 조건 이름. OR 로 묶였으면 'A 또는 B' 로 보여 준다.
+// 지금 선택된 원인 항목 이름들. 막대 테두리 표시에 쓴다.
+function causeSelNames(i) {
+  if (!DF_CAUSE) { return new Set(); }
+  const list = DF_CAUSE.or
+    || (DF_CAUSE.subs || []).map(x => ({ big: DF_CAUSE.big,
+                                         mid: DF_CAUSE.mid, sub: x }));
+  const out = new Set();
+  list.forEach(x => {
+    if (i !== undefined && x.big && x.big !== czGroup(i).name) { return; }
+    out.add(x.sub || x.mid);          // 소분류가 없으면 중분류가 선택 대상
+  });
+  return out;
+}
+
 function causeName() {
   if (!DF_CAUSE) { return ""; }
   if (DF_CAUSE.or) {
@@ -1190,7 +1204,13 @@ function dfClear(k, v) {
   syncFromDF();
 }
 
-function dfClearAllConds() { dfReset(); syncFromDF(); }
+function dfClearAllConds() {
+  dfReset();
+  CZ_STACK = []; CZ_WIDE = null; CZ_SEL = { i: -1, path: [] };
+  DRILL_KEY = { i: -1, node: null, list: [] };
+  czAskClose();
+  syncFromDF();
+}
 
 function dfFilter() {
   const f = {};
@@ -1258,6 +1278,7 @@ function syncFromDF() {
   const any = Object.keys(DF).length || DF_CAUSE;
   if (any) { openDrill(dfFilter(), dfTitle(), "multi"); }
   else { closeDrill(); }
+  markActiveCards();      // 표가 없어도 카드 강조는 항상 맞춘다
   loadSummary(true);
 }
 
@@ -1521,6 +1542,43 @@ function markSelected(ch, selIdx) {
   ch.$sel = (selIdx === undefined || selIdx === null) ? -1 : selIdx;
 }
 
+// 이 대분류에서 지금 파고든 경로. 다른 차트 경로를 물려받지 않는다.
+function basePathOf(i) {
+  const st = CZ_STACK.filter(x => x.i === i).slice(-1)[0];
+  if (st) { return st.path.slice(); }
+  if (CZ_WIDE && CZ_WIDE.i === i) { return CZ_WIDE.path.slice(); }
+  return [];
+}
+
+// 항목 하나를 조건으로 건다. OR 목록은 늘 (대분류, 중분류, 소분류) 3쌍이다.
+function czSelect(i, basePath, node, ev) {
+  const add = ev && (ev.ctrlKey || ev.metaKey);
+  const path = basePath.concat([{ name: node.name, kind: node.kind || "sub" }]);
+  const midP = path.find(p => p.kind === "mid");
+  const pick = {
+    big: czGroup(i).name,
+    mid: midP ? midP.name : null,
+    // 고른 것이 중분류면 소분류는 비운다(그 중분류 전체를 뜻한다).
+    sub: (node.kind === "mid") ? null : node.name,
+  };
+  const ck = (x) => [x.big || "", x.mid || "", x.sub || ""].join(">");
+
+  let or;
+  if (add && DF_CAUSE) {
+    const prev = DF_CAUSE.or || [];
+    const at = prev.findIndex(x => ck(x) === ck(pick));
+    or = at >= 0 ? prev.filter((_, k) => k !== at) : prev.concat([pick]);
+  } else {
+    const only = DF_CAUSE && DF_CAUSE.or && DF_CAUSE.or.length === 1
+      && ck(DF_CAUSE.or[0]) === ck(pick);
+    or = only ? [] : [pick];      // 같은 것을 다시 누르면 해제
+    dfClearPeers("cause", 4);
+  }
+  DF_CAUSE = or.length ? { i: i, or: or } : null;
+  dfResetBelow(4, true);
+  syncFromDF();
+}
+
 function czPick(i, node, depth, ev) {
   if (!node) { return; }
   const add = ev && (ev.ctrlKey || ev.metaKey);
@@ -1534,39 +1592,13 @@ function czPick(i, node, depth, ev) {
   if (depth === 0 && !add) { CZ_SEL = { i: i, path: [] }; }
   CZ_SEL.path = CZ_SEL.path.filter(p => p.kind !== "all");
 
-  // Ctrl 이면 하위가 있어도 파고들지 않고 '함께 보기' 로 다룬다.
-  if (leaf || add) {
-    // 중분류 차트를 만들지 않고 바로 표/LOT BALANCE 로 간다.
-    const mid = (CZ_SEL.path.find(p => p.kind === "mid") || {}).name
-      || (node.kind === "mid" ? node.name : null);
-    const same = DF_CAUSE && (add || DF_CAUSE.i === i);
-    const cur = same ? (DF_CAUSE.subs || []) : [];
-    const one = cur.length === 1 && cur[0] === node.name;
-    let list;
-    if (add) { list = multiPick(cur, node.name, ev); }
-    else if (one) { list = []; }
-    else { list = [node.name]; }
-    if (!add) { dfClearPeers("cause", 4); }
-    const pick = { big: czGroup(i).name, mid: mid, sub: node.name };
-    if (add && DF_CAUSE) {
-      // 이미 고른 것들에 더한다(OR).
-      const prev = DF_CAUSE.or || (DF_CAUSE.subs || []).map(x => ({
-        big: DF_CAUSE.big, mid: DF_CAUSE.mid, sub: x }));
-      const ck = (x) => [x.big, x.mid, x.sub].join(">");
-      const at = prev.findIndex(x => ck(x) === ck(pick));
-      const or = at >= 0 ? prev.filter((_, k) => k !== at) : prev.concat([pick]);
-      DF_CAUSE = or.length ? { i: i, or: or } : null;
-    } else {
-      DF_CAUSE = list.length
-        ? { i: i, big: pick.big, mid: mid, subs: list } : null;
-    }
-    dfResetBelow(4, true);     // 떠 있는 차트는 두고 표만 바꾼다
-    syncFromDF();
+  if (leaf) {
+    czSelect(i, basePathOf(i), node, ev);
     return;
   }
 
-  // 하위가 있다. 무엇을 보고 싶은지 물어본다.
-  czAsk(i, [], node, ev);
+  // 하위가 있다. Ctrl 이어도 무엇을 볼지 물어본다(둘 다 고를 수 있어야 한다).
+  czAsk(i, basePathOf(i), node, ev);
 }
 
 /* 하위가 있는 항목: 전체로 볼지, 세부로 파고들지 고른다 -----------------
@@ -1575,7 +1607,9 @@ function czPick(i, node, depth, ev) {
 let CZ_ASK = null;
 
 function czAsk(i, basePath, node, ev) {
-  CZ_ASK = { i: i, base: basePath.slice(), node: node };
+  // Ctrl 여부를 기억한다. 팝업에서 고른 뒤에도 '함께 보기' 가 유지된다.
+  CZ_ASK = { i: i, base: basePath.slice(), node: node,
+             add: !!(ev && (ev.ctrlKey || ev.metaKey)) };
   const el = document.getElementById("czask");
   const kids = czNodesAt(i, basePath.concat(
     [{ name: node.name, kind: node.kind || "sub" }])).length;
@@ -1600,27 +1634,19 @@ function czAskClose() {
 
 function czAskGo(mode) {
   if (!CZ_ASK) { return; }
-  const { i, base, node } = CZ_ASK;
+  const { i, base, node, add } = CZ_ASK;
   const path = base.concat([{ name: node.name, kind: node.kind || "sub" }]);
-  const mid = (path.find(p => p.kind === "mid") || {}).name || null;
   czAskClose();
 
-  dfClearPeers("cause", 4);
-  if (mode === "all") {
-    // 그 항목 전체. 차트는 더 만들지 않고 표/LOT BALANCE 로 간다.
-    CZ_STACK = CZ_STACK.slice(0, base.length);
-    DF_CAUSE = node.kind === "mid"
-      ? { i: i, big: czGroup(i).name, mid: node.name, subs: [] }
-      : { i: i, big: czGroup(i).name, mid: mid, subs: [node.name] };
-  } else {
+  if (mode === "deep") {
     // 세부 요소. 아래에 차트를 하나 더 쌓는다.
-    CZ_STACK = CZ_STACK.slice(0, base.length).concat([{ i: i, path: path }]);
+    CZ_STACK = CZ_STACK.filter(x => x.i !== i || x.path.length < base.length)
+      .concat([{ i: i, path: path }]);
     CZ_SEL = { i: i, path: path.slice() };
-    DF_CAUSE = { i: i, big: czGroup(i).name, mid: mid, subs: [] };
+    CZ_WIDE = null;
   }
-  CZ_WIDE = null;
-  dfResetBelow(4, true);      // 방금 쌓은 차트는 지키고 아래만 정리한다
-  syncFromDF();
+  // 전체 보기든 세부 보기든 '그 항목을 골랐다' 는 사실은 같다.
+  czSelect(i, base, node, add ? { ctrlKey: true } : null);
 }
 
 function czWhole(i) {
@@ -1761,7 +1787,7 @@ function renderCauseAllBar() {
   czAllChart.data.datasets[0].data = vals;
   czAllChart.data.datasets[0].backgroundColor = colors;
   czAllChart.data.datasets[1].data = eld;
-  const on = new Set((DF_CAUSE && DF_CAUSE.subs) || []);
+  const on = causeSelNames();
   czAllChart.$selSet = on;
   markSelected(czAllChart, nodes.findIndex(n => on.has(n.name)));
   czAllChart.update();
@@ -1821,15 +1847,13 @@ function renderCause() {
     }
     const selL = (DRILL_KEY.i === i) ? DRILL_KEY.list : null;
     // 이 칸에서 파고들었으면(중분류 차트든 표든) 연결 관계를 보인다.
-    const srcHere = (CZ_STACK.length && CZ_STACK[0].i === i)
+    const srcHere = CZ_STACK.some(x => x.i === i)
       || (CZ_WIDE && CZ_WIDE.i === i)
-      || (DF_CAUSE && DF_CAUSE.i === i);
-    if (CZ_STACK.length && CZ_STACK[0].i === i) {
-      czCharts[i].$selSet = new Set([CZ_STACK[0].path[0].name]);
-    } else if (DF_CAUSE && DF_CAUSE.i === i) {
-      czCharts[i].$selSet = new Set(
-        (DF_CAUSE.mid ? [DF_CAUSE.mid] : []).concat(DF_CAUSE.subs || []));
-    } else { czCharts[i].$selSet = null; }
+      || causeSelNames(i).size > 0;
+    // 이 대분류에서 고른 것 + 파고든 것 모두 테두리로 표시한다.
+    const marks = causeSelNames(i);
+    CZ_STACK.filter(x => x.i === i).forEach(x => marks.add(x.path[0].name));
+    czCharts[i].$selSet = marks.size ? marks : null;
     czApply(czCharts[i], nodes, u, DRILL_KEY.node, selL);
     const col = document.getElementById("czh" + i).parentNode;
     col.classList.toggle("czsrc", !!srcHere);
@@ -1931,8 +1955,9 @@ function renderCzStack() {
         renderCzStack();
       }, "czsVal" + n);
     }
-    czApply(czStackCharts[n], nodes, CAUSE_UNIT, DRILL_KEY.node,
-            DF_CAUSE ? DF_CAUSE.subs : null);
+    czStackCharts[n].$selSet = causeSelNames(step.i);
+    czApply(czStackCharts[n], nodes, CAUSE_UNIT, null,
+            [...causeSelNames(step.i)]);
   });
 }
 
@@ -2048,6 +2073,37 @@ function checkOverlap() {
       });
     });
   });
+  // 좌측 세로축과 원인 분석 카드의 아래선이 맞는지도 함께 잰다.
+  const sm = document.querySelector(".summary");
+  const lc = document.querySelector(".rowcards > .leftcol");
+  const cz = document.getElementById("czcard");
+  if (sm && lc && cz) {
+    const a = sm.getBoundingClientRect();
+    const b = lc.getBoundingClientRect();
+    const c = cz.getBoundingClientRect();
+    items.push({ sel: "── 높이 정렬 ──", note: "" });
+    items.push({ sel: "summary(좌측 전체)",
+                 note: `top=${Math.round(a.top)} bottom=${Math.round(a.bottom)}`
+                   + ` h=${Math.round(a.height)}` });
+    items.push({ sel: "leftcol(원인 분석 열)",
+                 note: `top=${Math.round(b.top)} bottom=${Math.round(b.bottom)}`
+                   + ` h=${Math.round(b.height)}` });
+    items.push({ sel: "czcard(원인 분석 카드)",
+                 note: `top=${Math.round(c.top)} bottom=${Math.round(c.bottom)}`
+                   + ` h=${Math.round(c.height)}` });
+    const gap = Math.round(c.bottom - a.bottom);
+    items.push({ sel: "아래선 차이",
+                 note: `${gap}px  `
+                   + (Math.abs(gap) <= 2 ? "맞음"
+                      : (gap > 0 ? "원인 분석이 더 아래로 내려감"
+                                 : "원인 분석이 더 짧음")) });
+    // 내부 차트 높이
+    document.querySelectorAll(".cz3 > .czcol").forEach((el, k) => {
+      const r = el.getBoundingClientRect();
+      items.push({ sel: `  cz3 칸 ${k}`, note: `h=${Math.round(r.height)}` });
+    });
+  }
+
   fetch("/api/debug-layout/", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ kind: "overlap", items: items })
@@ -2371,7 +2427,7 @@ function markActiveCards() {
     stcard: (DF.status || []).length,
     wtcard: (DF.wt || []).length,
     wt0card: (DF.wt0 || []).length,
-    czcard: DF_CAUSE ? (DF_CAUSE.subs || []).length : 0,
+    czcard: causeSelNames().size,
     balpanel: (DF.layer || []).length,
   };
   Object.keys(on).forEach(id => {

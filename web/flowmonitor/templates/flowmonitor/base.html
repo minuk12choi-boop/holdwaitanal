@@ -350,6 +350,15 @@
   /* 원인 분석은 SHIFT 추이 아래에 3행 1열로 쌓는다. */
   /* 세 차트가 남는 높이를 균등하게 나눈다. */
   /* 전체보기(가로막대)도 카드의 남는 높이를 모두 쓴다. */
+  /* 토글은 제목 아래 한 줄로. 제목 글자 공간을 뺏지 않는다. */
+  .cztools { display:flex; gap:6px; align-items:center; flex:0 0 auto;
+             margin-bottom:6px; }
+  /* 제목 옆 계층 표시가 길어도 줄바꿈되지 않게 한 줄로 흘린다. */
+  #czcard > .cellttl { flex-wrap:nowrap; }
+  #czcard > .cellttl > span:first-child { flex:0 0 auto; }
+  #czup { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;
+          white-space:nowrap; text-align:right; }
+
   #czallw { display:flex; flex-direction:column; min-height:0; }
   /* 항목이 많으면 캔버스가 길어진다. 카드 안에서만 스크롤한다. */
   .czallbox { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; }
