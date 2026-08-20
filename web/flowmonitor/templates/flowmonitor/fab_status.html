@@ -115,7 +115,8 @@
           </span>
         </span></div>
       <div id="czallw" style="display:none;flex:1;min-height:0">
-        <div style="height:100%"><canvas id="czall"></canvas></div>
+        <div class="czpath" id="czallp"></div>
+        <div class="czallbox"><div id="czallh"><canvas id="czall"></canvas></div></div>
       </div>
       <div class="cz3" id="cz3">
         <div class="czcol"><div class="subttl czh" id="czh0"></div>
@@ -1636,6 +1637,7 @@ const STATUS_TONE = {
 };
 
 let CAUSE_VIEW = "split";
+let CAUSE_ALL_TOP = 20;        // 전체보기에 세울 항목 수
 let czAllChart = null;
 
 function setCauseView(v) {
@@ -1652,24 +1654,21 @@ function setCauseView(v) {
 // 대분류 이름을 짧게. y축 폭을 아낀다.
 const BIG_SHORT = { "Wait성 진행불가": "Wait(불가)", "Bottleneck": "B/N" };
 
+function setCauseAllTop(n) { CAUSE_ALL_TOP = n; renderCauseAllBar(); }
+
 function renderCauseAllBar() {
   const u = CAUSE_UNIT;
-  // 대분류마다 상위 N 개씩 뽑아 한 대분류가 화면을 독점하지 않게 한다.
-  // (Hold 는 사유가 120여 개, Bottleneck 은 설비가 200여 개다)
-  const PER_BIG = 8;
+  // 세 대분류를 한데 놓고 값 순으로 줄 세운다.
+  // 한쪽으로 쏠리면 그것이 곧 답이다. 대분류별로 나눠 뽑지 않는다.
   const items = [];
   for (let i = 0; i < 3; i++) {
     const g = czGroup(i);
-    (g.children || [])
-      .slice()
-      .sort((a, b) => (u === "lots" ? b.lots - a.lots : b.qty - a.qty))
-      .slice(0, PER_BIG)
-      .forEach(n => {
-        items.push(Object.assign({}, n, { $big: g.name, $i: i }));
-      });
+    (g.children || []).forEach(n => {
+      items.push(Object.assign({}, n, { $big: g.name, $i: i }));
+    });
   }
   items.sort((a, b) => (u === "lots" ? b.lots - a.lots : b.qty - a.qty));
-  const nodes = items;
+  const nodes = items.slice(0, CAUSE_ALL_TOP);
 
   const vals = nodes.map(n => u === "lots" ? n.lots : n.qty);
   const eld = nodes.map(n => (n.eln ? +(n.eld / n.eln).toFixed(1) : null));
@@ -1737,6 +1736,19 @@ function renderCauseAllBar() {
       }]
     });
   }
+
+  const p = document.getElementById("czallp");
+  if (p) {
+    p.innerHTML = `<span class="minittl">상위 ${nodes.length} / 전체 `
+      + `${items.length}개 · </span>`
+      + [20, 40, 80].map(n =>
+          `<button class="rankbtn ${CAUSE_ALL_TOP === n ? "on" : ""}"`
+          + ` onclick="setCauseAllTop(${n})">${n}</button>`).join("");
+  }
+
+  // 한 항목당 최소 높이를 주고, 넘치면 카드 안에서 세로 스크롤한다.
+  const hbox = document.getElementById("czallh");
+  if (hbox) { hbox.style.height = Math.max(240, nodes.length * 26) + "px"; }
 
   czAllChart.$nodes = nodes;
   czAllChart.data.labels = nodes.map((_, k) => k);
