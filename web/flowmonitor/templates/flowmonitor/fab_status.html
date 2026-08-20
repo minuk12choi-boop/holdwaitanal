@@ -677,11 +677,14 @@ function renderWt0() {
           if (idx < 0) { return; }
           const x = (DATA.wt0_dist || [])[idx];
           if (!x) { return; }
-          setCond("wt0", x.name, ev, x.label);
-          if (hit.length) {
-            const ds = wt0Chart.data.datasets[hit[0].datasetIndex];
-            if (ds && ds.label) { setCond("status", ds.label, ev); }
-          }
+          const seg = hit.length
+            ? (wt0Chart.data.datasets[hit[0].datasetIndex] || {}).label : null;
+          // 구간과 조각을 한 쌍으로 본다. 완전히 같은 쌍을 다시 누를 때만 해제.
+          const samePair = (DF.wt0 || []).length === 1 && DF.wt0[0] === x.name
+            && (!seg || ((DF.status || []).length === 1
+                         && DF.status[0] === seg));
+          setCond("wt0", x.name, ev, x.label, !samePair);
+          if (seg) { setCond("status", seg, ev, null, !samePair); }
           if (DBG_PICK) { logPick("W/T 0", wt0Chart, ev, els, hit); }
           syncFromDF();
         }
@@ -1005,14 +1008,17 @@ function drawBalance() {
             const ev = e.native || e;
             const lay = ch.data.labels[els[0].index];
             if (lay === undefined || lay === null) { return; }
-            setCond("layer", String(lay), ev);
-            // 누적막대라 조각 색은 status 다. 같은 필드에 함께 건다.
+            // 누적막대라 조각 색은 status 다. 구간과 한 쌍으로 다룬다.
             const hit = ch.getElementsAtEventForMode(
               ev, "nearest", { intersect: true }, false);
-            if (hit.length) {
-              const ds = ch.data.datasets[hit[0].datasetIndex];
-              if (ds && ds.label) { setCond("status", ds.label, ev); }
-            }
+            const seg = hit.length
+              ? (ch.data.datasets[hit[0].datasetIndex] || {}).label : null;
+            const samePair = (DF.layer || []).length === 1
+              && DF.layer[0] === String(lay)
+              && (!seg || ((DF.status || []).length === 1
+                           && DF.status[0] === seg));
+            setCond("layer", String(lay), ev, null, !samePair);
+            if (seg) { setCond("status", seg, ev, null, !samePair); }
             if (DBG_PICK) { logPick("LOT BALANCE", ch, ev, els, hit); }
             syncFromDF();
           }
@@ -1174,13 +1180,15 @@ function multiPick(cur, name, ev) {
   return list;                       // 비면 해제
 }
 
-function setCond(key, name, ev, label) {
+// noToggle: 한 번의 클릭으로 두 필드를 함께 거는 경우(누적막대의 구간+조각).
+//   구간이 같아도 조각이 다르면 '다시 누른 것' 이 아니다. 해제하면 안 된다.
+function setCond(key, name, ev, label, noToggle) {
   const add = ev && (ev.ctrlKey || ev.metaKey);
   const same = (DF[key] || []).length === 1 && DF[key][0] === name;
   let next;
   if (add) {
     next = multiPick(DF[key], name, ev);
-  } else if (same) {
+  } else if (same && !noToggle) {
     next = [];                       // 같은 것을 다시 누르면 해제
   } else {
     next = [name];                   // 그 축의 값만 교체(다른 축은 유지)
