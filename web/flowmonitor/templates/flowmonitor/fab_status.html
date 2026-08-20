@@ -1090,12 +1090,18 @@ let DRILL_KEY = { i: -1, node: null, list: [] };  // 표가 어느 차트·막�
      7  드릴다운 표
    같은 계층에서 다른 차트를 누르면 **그것만 남기고 리셋**한다
    (Ctrl 은 같은 차트 안에서만 여러 개). */
+/* one: 한 LOT 이 그 값 중 **하나만** 가질 수 있는 조건.
+        (상태는 HOLD 이면서 동시에 WAIT 일 수 없다)
+        이런 조건을 여럿 고르면 AND 는 언제나 0 이므로 **OR** 로 본다.
+        서버도 쉼표 목록을 IN 절로 받아 OR 로 처리한다.
+   many: 한 LOT 이 여러 값에 걸칠 수 있는 조건은 지금 없다.
+        (있다면 AND 가 뜻을 가지므로 여기서 구분한다) */
 const DF_DEF = [
-  { k: "type",   t: "재공",   param: "lot_type", lv: 2 },
-  { k: "status", t: "STATUS", param: "status",   lv: 2 },
-  { k: "wt",     t: "W/T",    param: "wt_range", lv: 2 },
-  { k: "wt0",    t: "W/T 0",  param: "wt0",      lv: 2 },
-  { k: "layer",  t: "LAYER",  param: "layer_id", lv: 5 },
+  { k: "type",   t: "재공",   param: "lot_type", lv: 2, one: true },
+  { k: "status", t: "STATUS", param: "status",   lv: 2, one: true },
+  { k: "wt",     t: "W/T",    param: "wt_range", lv: 2, one: true },
+  { k: "wt0",    t: "W/T 0",  param: "wt0",      lv: 2, one: true },
+  { k: "layer",  t: "LAYER",  param: "layer_id", lv: 5, one: true },
 ];
 const DF_LV = {};
 DF_DEF.forEach(d => { DF_LV[d.k] = d.lv; });
@@ -1240,11 +1246,17 @@ function dfFilter() {
   return f;
 }
 
+// 한 조건 안의 여러 값은 '또는'(같은 계층이라 AND 가 성립하지 않는다).
+// 서로 다른 조건끼리는 '·' 로 잇는다(이쪽은 AND 다).
+function dfOneName(d) {
+  const vs = (DF[d.k] || []).map(v => dfChipLabel(d.k, v));
+  if (!vs.length) { return ""; }
+  return d.t + " " + (vs.length > 1 ? vs.join(" 또는 ") : vs[0]);
+}
+
 function dfTitle() {
   const out = [];
-  DF_DEF.forEach(d => {
-    (DF[d.k] || []).forEach(v => out.push(dfChipLabel(d.k, v)));
-  });
+  DF_DEF.forEach(d => { const n = dfOneName(d); if (n) { out.push(n); } });
   if (DF_CAUSE) { out.push(causeName()); }
   return out.join(" · ");
 }
@@ -1252,10 +1264,12 @@ function dfTitle() {
 function dfChips() {
   const c = [];
   DF_DEF.forEach(d => {
-    (DF[d.k] || []).forEach(v => {
-      c.push(`<span class="fchip">${d.t} ${dfChipLabel(d.k, v)}`
-        + `<i onclick="dfClear('${d.k}','${v}')">×</i></span>`);
-    });
+    const vs = DF[d.k] || [];
+    if (!vs.length) { return; }
+    // 값이 여럿이면 '또는' 으로 한 칩에 묶는다(AND 가 아니다).
+    const body = vs.map(v => dfChipLabel(d.k, v)).join(" 또는 ");
+    c.push(`<span class="fchip">${d.t} ${body}`
+      + `<i onclick="dfClear('${d.k}')">×</i></span>`);
   });
   if (DF_CAUSE) {
     c.push(`<span class="fchip">원인 ${causeName()}`
@@ -1820,13 +1834,15 @@ function renderCause() {
   // 상위 계층(좌측 차트)에서 좁혀진 조건을 제목 옆에 보여 준다.
   const up = document.getElementById("czup");
   if (up) {
+    // 좌측 차트 조건은 서로 다른 축이라 '>' 가 아니라 '·' 로 잇는다.
     const parts = [];
     DF_DEF.forEach(dd => {
       if ((DF_LV[dd.k] || 9) < 4) {
-        (DF[dd.k] || []).forEach(v => parts.push(dfChipLabel(dd.k, v)));
+        const n = dfOneName(dd);
+        if (n) { parts.push(n); }
       }
     });
-    up.textContent = parts.length ? "전체 > " + parts.join(" > ") : "";
+    up.textContent = parts.length ? parts.join(" · ") : "";
   }
 
   for (let i = 0; i < 3; i++) {
