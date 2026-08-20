@@ -371,8 +371,7 @@
                         transform:translateY(-50%); color:var(--brand);
                         font-size:12px; font-weight:700; }
   .rowcards .cz3 { flex:1; align-items:stretch; }
-  .rowcards .czcol { display:flex; flex-direction:column; }
-  .rowcards .czcol > div:last-child { flex:1; min-height:110px; }
+
   @media (max-width: 1180px) {
     .rowcards { flex-wrap:wrap; }
     .rowcards > .leftcol, .rowcards > .farcol { flex:1 1 100%; }
@@ -387,10 +386,10 @@
   .trdlg label { font-size:10px; display:inline-flex; align-items:center;
                  gap:2px; cursor:pointer; white-space:nowrap; }
   .trdlg label.drill { text-decoration:underline dotted; }
-  /* 그래프 사이 세로 경계 */
-  .cz3 > .czcol { padding:0 10px; border-right:1px solid var(--bd); }
-  .cz3 > .czcol:first-child { padding-left:0; }
-  .cz3 > .czcol:last-child { border-right:0; padding-right:0; }
+  /* 원인 분석은 세로 3행이다. 경계는 아래쪽에 긋고 여백은 사방으로 준다.
+     (가로 3열이던 시절의 좌우 padding 규칙이 남아 테두리와 글자가 겹쳤다) */
+  .cz3 > .czcol { padding:8px 10px; border-bottom:1px solid var(--bd); }
+  .cz3 > .czcol:last-child { border-bottom:0; }
   /* 재공 구성 막대 등 canvas 가 아닌 요소의 선택 표시(차트의 3D 팝업과 동일 개념) */
   .stack i.sel { outline:3px solid #FFD700; outline-offset:-3px;
                  position:relative; z-index:2; filter:saturate(1.6); }

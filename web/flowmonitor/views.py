@@ -1148,12 +1148,20 @@ def _hist_snapshots(line):
                 for r in cur.fetchall()]
 
 
+_ROWS_CACHE = {}          # (스냅샷, 조건) -> rows. 같은 스냅샷이면 재사용한다.
+
+
 def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
     """현재 스냅샷의 lot 단위 원자료.
 
     SELECT 목록을 손으로 관리하면 컬럼이 늘 때마다 빠뜨린다(실제로
     경과일/fa_object4 가 통째로 NULL 이었다). LOT_DETAIL_COLS 에서 자동 생성한다.
     """
+    # 같은 스냅샷·조건이면 다시 읽지 않는다. 좌측을 누를 때마다
+    # 원인 분석이 전체를 재조회해 1초 넘게 걸리던 문제를 없앤다.
+    ckey = (line, tuple(types or ()), biz_date, shift,
+            tuple(sorted((k, tuple(v or ())) for k, v in (extra or {}).items())))
+
     # 날짜/shift 를 고르면 과거 스냅샷(f3_history)에서 읽는다.
     hist = bool(biz_date and shift)
     table = "f3_history" if hist else "f3_live"
@@ -1165,6 +1173,9 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
         snap = _latest_snapshot()
         if not snap:
             return [], None
+    hit = _ROWS_CACHE.get(ckey)
+    if hit and hit[0] == snap:
+        return hit[1], snap
 
     with connection.cursor() as cur:
         cur.execute(f"SELECT * FROM {table} LIMIT 0")
@@ -1216,7 +1227,12 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
             GROUP  BY lot_id
         """, params)
         names = [d[0] for d in cur.description]
-        return [dict(zip(names, r)) for r in cur.fetchall()], snap
+        rows = [dict(zip(names, r)) for r in cur.fetchall()]
+
+    if len(_ROWS_CACHE) > 40:          # 스냅샷이 바뀌면 낡은 것은 버린다
+        _ROWS_CACHE.clear()
+    _ROWS_CACHE[ckey] = (snap, rows)
+    return rows, snap
 
 
 _MV_CACHE = {}
