@@ -346,6 +346,10 @@
   /* SHIFT 추이 + 대분류 3개 = 4등분. 좁으면 세로로 쌓지 말고 가로 스크롤. */
   /* 원인 분석은 SHIFT 추이 아래에 3행 1열로 쌓는다. */
   /* 세 차트가 남는 높이를 균등하게 나눈다. */
+  /* 전체보기(가로막대)도 카드의 남는 높이를 모두 쓴다. */
+  #czallw { display:flex; flex-direction:column; }
+  #czallw > div { flex:1; min-height:260px; }
+
   .cz3 { display:grid; grid-template-columns:1fr;
          grid-template-rows:repeat(3, 1fr); gap:10px; flex:1; min-height:0; }
   /* padding 은 선택 여부와 무관하게 늘 준다(선택 시 폭이 흔들리지 않게).

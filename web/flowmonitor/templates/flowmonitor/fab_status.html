@@ -102,10 +102,21 @@
                              border-radius:6px;padding:11px 12px;margin-bottom:0">
       <div class="cellttl"><span>원인 분석</span>
         <span class="v" id="czup"></span>
-        <span class="seg">
-          <button id="cu_lots" onclick="setCauseUnit('lots')">LOT</button>
-          <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
+        <span style="display:flex;gap:6px;align-items:center">
+          <span class="seg">
+            <button class="on" id="cv_split" onclick="setCauseView('split')"
+                    title="Hold / Wait성 / Bottleneck 을 따로 본다">STATUS별</button>
+            <button id="cv_all" onclick="setCauseView('all')"
+                    title="셋을 합쳐 가로막대로 본다">전체보기</button>
+          </span>
+          <span class="seg">
+            <button id="cu_lots" onclick="setCauseUnit('lots')">LOT</button>
+            <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
+          </span>
         </span></div>
+      <div id="czallw" style="display:none;flex:1;min-height:0">
+        <div style="height:100%"><canvas id="czall"></canvas></div>
+      </div>
       <div class="cz3" id="cz3">
         <div class="czcol"><div class="subttl czh" id="czh0"></div>
           <div id="czp0" class="czpath"></div>
@@ -1614,6 +1625,122 @@ function czWhole(i) {
   syncFromDF();
 }
 
+/* 전체보기 : 셋을 합쳐 가로막대로 --------------------------------------
+   카드가 세로로 길어 x/y 를 뒤집는다. y축 라벨은 '대분류' 줄바꿈 '중분류'.
+--------------------------------------------------------------------- */
+// 대분류별 막대 색. 원인 분석 카드의 색 계열을 따른다.
+const STATUS_TONE = {
+  "Hold": "#F08080",
+  "Wait성 진행불가": "#E8C46A",
+  "Bottleneck": "#84C09A",
+};
+
+let CAUSE_VIEW = "split";
+let czAllChart = null;
+
+function setCauseView(v) {
+  CAUSE_VIEW = v;
+  document.getElementById("cv_split").className = (v === "split") ? "on" : "";
+  document.getElementById("cv_all").className = (v === "all") ? "on" : "";
+  document.getElementById("cz3").style.display = (v === "all") ? "none" : "";
+  document.getElementById("czallw").style.display = (v === "all") ? "" : "none";
+  CZ_STACK = []; CZ_WIDE = null;
+  renderCause();
+  resizeCharts();
+}
+
+// 대분류 이름을 짧게. y축 폭을 아낀다.
+const BIG_SHORT = { "Wait성 진행불가": "Wait(불가)", "Bottleneck": "B/N" };
+
+function renderCauseAllBar() {
+  const u = CAUSE_UNIT;
+  const items = [];
+  for (let i = 0; i < 3; i++) {
+    const g = czGroup(i);
+    (g.children || []).forEach(n => {
+      items.push(Object.assign({}, n, { $big: g.name, $i: i }));
+    });
+  }
+  items.sort((a, b) => (u === "lots" ? b.lots - a.lots : b.qty - a.qty));
+  const nodes = items.slice(0, 22);
+
+  const vals = nodes.map(n => u === "lots" ? n.lots : n.qty);
+  const eld = nodes.map(n => (n.eln ? +(n.eld / n.eln).toFixed(1) : null));
+  const mx = Math.max(1, ...vals);
+  const colors = nodes.map(n => (STATUS_TONE[n.$big] || "#F08080"));
+
+  if (!czAllChart) {
+    czAllChart = new Chart(document.getElementById("czall"), {
+      type: "bar",
+      data: { labels: [], datasets: [
+        { data: [], borderRadius: 3, order: 2, xAxisID: "x" },
+        { type: "line", data: [], order: 1, xAxisID: "x2",
+          borderColor: "#B4504F", backgroundColor: "#B4504F",
+          borderWidth: 2, pointRadius: 3, tension: .25, spanGaps: true }
+      ] },
+      options: {
+        indexAxis: "y",                    // 시계방향 90도 회전
+        responsive: true, maintainAspectRatio: false, animation: false,
+        layout: { padding: { right: 46 } },
+        plugins: { legend: { display: false },
+                   tooltip: { callbacks: { label: (t) => {
+                     const n = (czAllChart.$nodes || [])[t.dataIndex] || {};
+                     if (t.dataset.xAxisID === "x2") {
+                       return "평균 경과 " + t.raw + "일";
+                     }
+                     return n.$big + " > " + n.name + "  "
+                       + nf(n.lots) + " LOT / " + nf(n.qty) + " 매";
+                   } } } },
+        scales: {
+          x: { display: false, beginAtZero: true,
+               afterDataLimits: (sc) => { sc.max = (sc.max || 1) / 0.78; } },
+          x2: { display: false, position: "top", beginAtZero: true,
+                afterDataLimits: (sc) => { sc.max = (sc.max || 1) * 2.6; } },
+          y: { grid: { display: false },
+               ticks: { autoSkip: false, font: { size: 9 },
+                        callback: function (v) {
+                          const n = (czAllChart.$nodes || [])[v] || {};
+                          // 위: 대분류, 아래: 중분류(길면 줄임)
+                          return [BIG_SHORT[n.$big] || n.$big,
+                                  czLabel(n.name, 12)];
+                        } } }
+        },
+        onClick: (e) => {
+          const hit = czAllChart.getElementsAtEventForMode(
+            e.native || e, "nearest", { intersect: false }, false);
+          if (!hit.length) { return; }
+          const n = (czAllChart.$nodes || [])[hit[0].index];
+          if (n) { czPick(n.$i, n, 0, e.native || e); }
+        }
+      },
+      plugins: [{
+        id: "czAllVal",
+        afterDatasetsDraw(ch) {
+          const ctx = ch.ctx; ctx.save();
+          ctx.font = "9px 'Poppins','Noto Sans KR',sans-serif";
+          ctx.textAlign = "left"; ctx.textBaseline = "middle";
+          ctx.fillStyle = "#374151";
+          ch.getDatasetMeta(0).data.forEach((el, k) => {
+            const v = ch.data.datasets[0].data[k];
+            if (v) { ctx.fillText(kfmt(v), el.x + 5, el.y); }
+          });
+          ctx.restore();
+        }
+      }]
+    });
+  }
+
+  czAllChart.$nodes = nodes;
+  czAllChart.data.labels = nodes.map((_, k) => k);
+  czAllChart.data.datasets[0].data = vals;
+  czAllChart.data.datasets[0].backgroundColor = colors;
+  czAllChart.data.datasets[1].data = eld;
+  const on = new Set((DF_CAUSE && DF_CAUSE.subs) || []);
+  czAllChart.$selSet = on;
+  markSelected(czAllChart, nodes.findIndex(n => on.has(n.name)));
+  czAllChart.update();
+}
+
 function renderCause() {
   const u = CAUSE_UNIT;
   // 상위 계층(좌측 차트)에서 좁혀진 조건을 제목 옆에 보여 준다.
@@ -1682,6 +1809,7 @@ function renderCause() {
     col.classList.toggle("czsrc", !!srcHere);
   }
 
+  if (CAUSE_VIEW === "all") { renderCauseAllBar(); }
   renderCzStack();
   renderCzWide();
 }
@@ -1795,6 +1923,7 @@ function czShowAll(i) {
   const same = CZ_WIDE && CZ_WIDE.i === i
     && CZ_WIDE.path.map(x => x.name).join("|") === path.map(x => x.name).join("|");
   CZ_WIDE = same ? null : { i: i, path: path };
+  if (CAUSE_VIEW === "all") { renderCauseAllBar(); }
   renderCzStack();
   renderCzWide();
 }
