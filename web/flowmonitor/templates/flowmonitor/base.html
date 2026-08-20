@@ -231,6 +231,8 @@
 
   .summary .cell { border:1px solid var(--bd); border-radius:6px; padding:11px 12px;
                    margin-bottom:10px; }
+  /* 마지막 카드의 아래 여백만큼 원인 분석 카드가 더 내려가 보인다. 없앤다. */
+  .summary > .cell:last-of-type { margin-bottom:0; }
   /* ── 전역 필터 (라인 + 제품구분) ────────────────────────────────────────
      /main/ 전체에 걸리는 최상위 필터라 한 묶음으로 보이게 한다. */
   .gfilter { border:1px solid var(--bd); border-radius:6px; background:#F7F8FA;

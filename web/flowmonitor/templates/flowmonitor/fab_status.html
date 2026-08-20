@@ -2091,6 +2091,17 @@ function checkOverlap() {
     items.push({ sel: "czcard(원인 분석 카드)",
                  note: `top=${Math.round(c.top)} bottom=${Math.round(c.bottom)}`
                    + ` h=${Math.round(c.height)}` });
+    // summary 는 마지막 카드에 margin-bottom 이 있어 컨테이너 bottom 과
+    // 눈에 보이는 카드 아래선이 다르다. 마지막 카드를 직접 잰다.
+    const lastL = sm.querySelector(".cell:last-of-type");
+    if (lastL) {
+      const d = lastL.getBoundingClientRect();
+      const ms = getComputedStyle(lastL).marginBottom;
+      items.push({ sel: "  좌측 마지막 카드",
+                   note: `bottom=${Math.round(d.bottom)} margin-bottom=${ms}` });
+      items.push({ sel: "  눈에 보이는 차이",
+                   note: `${Math.round(c.bottom - d.bottom)}px` });
+    }
     const gap = Math.round(c.bottom - a.bottom);
     items.push({ sel: "아래선 차이",
                  note: `${gap}px  `
