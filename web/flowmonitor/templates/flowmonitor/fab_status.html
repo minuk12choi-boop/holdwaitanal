@@ -480,10 +480,10 @@ function setStatusInfo() {
 }
 
 // 범례 클릭도 조건 저장소를 거친다(원차트 조각 클릭과 같은 동작).
-function pickStatus(i) {
+function pickStatus(i, ev) {
   const st = (DATA.status || [])[i];
   if (!st) { return; }
-  setCond("status", st.name, null);
+  setCond("status", st.name, ev || null);
   syncFromDF();
 }
 
@@ -532,12 +532,10 @@ function renderStatus() {
         plugins: { legend: { display: false },
                    tooltip: { enabled: false, external: dnTooltip } },
         onClick: (e, els) => {
-          if (!els.length) return;
-          const i = els[0].index;
-          pickStatus(i);
-          const st = DATA.status[i];
-          setCond("status", st.name, e.native || e);
-          syncFromDF();
+          if (!els.length) { return; }
+          // pickStatus 가 setCond + syncFromDF 를 모두 한다.
+          // 여기서 한 번 더 부르면 같은 값이라 곧바로 해제된다.
+          pickStatus(els[0].index, e.native || e);
         }
       },
       plugins: [sliceLabels]
