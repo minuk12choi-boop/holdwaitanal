@@ -88,6 +88,7 @@ class TemplateJsTest(SimpleTestCase):
         "getElementsAtEventForMode", "createElement", "appendChild",
         "removeChild", "select", "execCommand", "writeText", "setData",
         "preventDefault", "getBoundingClientRect", "setAttribute",
+        "getComputedStyle",
         "getAttribute", "toISOString", "setMinutes", "getMinutes", "getHours",
         "var", "not", "at", "done", "name", "rgba", "num", "nf", "ck", "key",
         "afterDatasetsDraw", "beforeDatasetsDraw", "afterDraw", "beforeDraw",
