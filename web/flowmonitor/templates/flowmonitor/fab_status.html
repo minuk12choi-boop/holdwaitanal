@@ -916,15 +916,7 @@ function drawBalance() {
   // 상위 조건은 각 단계를 눌러 되돌아갈 수 있어야 한다.
   const steps = [`<a onclick="dfClearAllConds()">LOT BALANCE</a>`];
   if (DF_CAUSE) {
-    if (DF_CAUSE.big) {
-      steps.push(`<a onclick="czBackTo('big')">${DF_CAUSE.big}</a>`);
-    }
-    if (DF_CAUSE.mid) {
-      steps.push(`<a onclick="czBackTo('mid')">${DF_CAUSE.mid}</a>`);
-    }
-    (DF_CAUSE.subs || []).forEach(x => {
-      steps.push(`<a onclick="czBackTo('mid')">${x}</a>`);
-    });
+    steps.push(`<a onclick="dfClear('cause')">${causeName()}</a>`);
   }
   DF_DEF.forEach(dd => {
     (DF[dd.k] || []).forEach(v => {
@@ -1183,15 +1175,32 @@ function causeSelNames(i) {
   return out;
 }
 
+// 원인 조건 이름.
+//   '>' 는 상위를 좁힌다는 뜻이므로 갈래마다 제 경로를 끝까지 적고,
+//   서로 다른 갈래는 '또는' 으로 잇는다. 공통 상위가 있으면 앞으로 묶는다.
+//     Hold > FLOW금지  또는  Wait성 진행불가 > 설비이슈 > TIT405
+//     Wait성 진행불가 > (설비이슈 또는 TIP)      <- 공통 상위는 묶는다
 function causeName() {
   if (!DF_CAUSE) { return ""; }
-  if (DF_CAUSE.or) {
-    return DF_CAUSE.or
-      .map(x => [x.big, x.mid, x.sub].filter(Boolean).join(" > "))
-      .join("  또는  ");
+  const list = DF_CAUSE.or
+    || (DF_CAUSE.subs || []).map(x => ({ big: DF_CAUSE.big,
+                                         mid: DF_CAUSE.mid, sub: x }));
+  if (!list.length) { return ""; }
+  const full = (x) => [x.big, x.mid, x.sub].filter(Boolean);
+
+  // 모든 갈래가 앞부분을 공유하면 그만큼 앞으로 뺀다.
+  const paths = list.map(full);
+  let common = 0;
+  while (paths[0] && common < paths[0].length - 1
+         && paths.every(p => p[common] === paths[0][common])) {
+    common++;
   }
-  return [DF_CAUSE.big, DF_CAUSE.mid,
-          (DF_CAUSE.subs || []).join(", ")].filter(Boolean).join(" > ");
+  const head = paths[0].slice(0, common);
+  const tails = paths.map(p => p.slice(common).join(" > "));
+  const uniq = [...new Set(tails)];
+  if (!head.length) { return uniq.join("  또는  "); }
+  return head.join(" > ")
+    + " > " + (uniq.length > 1 ? "(" + uniq.join(" 또는 ") + ")" : uniq[0]);
 }
 
 function dfClear(k, v) {
@@ -1555,24 +1564,37 @@ function czSelect(i, basePath, node, ev) {
   const add = ev && (ev.ctrlKey || ev.metaKey);
   const path = basePath.concat([{ name: node.name, kind: node.kind || "sub" }]);
   const midP = path.find(p => p.kind === "mid");
+  const subP = path.filter(p => p.kind !== "mid").slice(-1)[0];
   const pick = {
     big: czGroup(i).name,
     mid: midP ? midP.name : null,
     // 고른 것이 중분류면 소분류는 비운다(그 중분류 전체를 뜻한다).
-    sub: (node.kind === "mid") ? null : node.name,
+    sub: (node.kind === "mid") ? null : (subP ? subP.name : null),
   };
   const ck = (x) => [x.big || "", x.mid || "", x.sub || ""].join(">");
 
+  // 이미 고른 갈래를 더 파고든 것이면 그 항목을 '대체' 한다.
+  // (안 그러면 Hold 또는 설비이슈 또는 설비이슈>TIT405 처럼 쌓인다)
+  const ancestor = (a, b) => a.big === b.big
+    && (!a.mid || a.mid === b.mid)
+    && (!a.sub || a.sub === b.sub);
+
+  const prev = (DF_CAUSE && DF_CAUSE.or) ? DF_CAUSE.or.slice() : [];
+  const same = prev.findIndex(x => ck(x) === ck(pick));
   let or;
-  if (add && DF_CAUSE) {
-    const prev = DF_CAUSE.or || [];
-    const at = prev.findIndex(x => ck(x) === ck(pick));
-    or = at >= 0 ? prev.filter((_, k) => k !== at) : prev.concat([pick]);
+  if (same >= 0) {
+    or = prev.filter((_, k) => k !== same);      // 같은 것 재클릭 = 해제
   } else {
-    const only = DF_CAUSE && DF_CAUSE.or && DF_CAUSE.or.length === 1
-      && ck(DF_CAUSE.or[0]) === ck(pick);
-    or = only ? [] : [pick];      // 같은 것을 다시 누르면 해제
-    dfClearPeers("cause", 4);
+    const up = prev.findIndex(x => ancestor(x, pick));
+    if (up >= 0) {
+      or = prev.slice();
+      or[up] = pick;                             // 그 갈래만 좁힌다
+    } else if (add) {
+      or = prev.concat([pick]);                  // 다른 갈래를 더한다
+    } else {
+      or = [pick];                               // 새로 시작
+      dfClearPeers("cause", 4);
+    }
   }
   DF_CAUSE = or.length ? { i: i, or: or } : null;
   dfResetBelow(4, true);
@@ -1845,7 +1867,6 @@ function renderCause() {
         (idx, ev) => czPick(i, (czCharts[i].$nodes || [])[idx], 0, ev),
         "czVal" + i);
     }
-    const selL = (DRILL_KEY.i === i) ? DRILL_KEY.list : null;
     // 이 칸에서 파고들었으면(중분류 차트든 표든) 연결 관계를 보인다.
     const srcHere = CZ_STACK.some(x => x.i === i)
       || (CZ_WIDE && CZ_WIDE.i === i)
@@ -1853,8 +1874,7 @@ function renderCause() {
     // 이 대분류에서 고른 것 + 파고든 것 모두 테두리로 표시한다.
     const marks = causeSelNames(i);
     CZ_STACK.filter(x => x.i === i).forEach(x => marks.add(x.path[0].name));
-    czCharts[i].$selSet = marks.size ? marks : null;
-    czApply(czCharts[i], nodes, u, DRILL_KEY.node, selL);
+    czApply(czCharts[i], nodes, u, null, [...marks]);
     const col = document.getElementById("czh" + i).parentNode;
     col.classList.toggle("czsrc", !!srcHere);
   }

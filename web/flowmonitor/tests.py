@@ -90,7 +90,7 @@ class TemplateJsTest(SimpleTestCase):
         "preventDefault", "getBoundingClientRect", "setAttribute",
         "getComputedStyle",
         "getAttribute", "toISOString", "setMinutes", "getMinutes", "getHours",
-        "var", "not", "at", "done", "name", "rgba", "num", "nf", "ck", "key",
+        "var", "not", "at", "done", "name", "rgba", "num", "nf", "ck", "key", "ancestor", "full", "pick",
         "afterDatasetsDraw", "beforeDatasetsDraw", "afterDraw", "beforeDraw",
         "afterDataLimits", "afterFit", "callback", "onPick", "label", "title",
     }
