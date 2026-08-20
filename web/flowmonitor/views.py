@@ -2070,6 +2070,14 @@ def api_debug_layout(request):
         data = json.loads(request.body.decode("utf-8") or "{}")
     except Exception:
         data = {}
+    if data.get("kind") == "overlap":
+        print("\n" + "=" * 70, flush=True)
+        print("[OVERLAP] 테두리와 내용이 겹치는 곳", flush=True)
+        for it in (data.get("items") or [])[:30]:
+            print("  %-30s %s" % (it.get("sel"), it.get("note")), flush=True)
+        print("=" * 70 + "\n", flush=True)
+        return JsonResponse({"ok": True})
+
     print("\n" + "=" * 70, flush=True)
     print("[LAYOUT] viewport=%s  scrollWidth=%s  초과=%spx"
           % (data.get("vw"), data.get("sw"),

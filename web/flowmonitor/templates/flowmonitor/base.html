@@ -335,7 +335,10 @@
   /* 세 차트가 남는 높이를 균등하게 나눈다. */
   .cz3 { display:grid; grid-template-columns:1fr;
          grid-template-rows:repeat(3, 1fr); gap:10px; flex:1; min-height:0; }
-  .cz3 .czcol { display:flex; flex-direction:column; min-height:0; }
+  /* padding 은 선택 여부와 무관하게 늘 준다(선택 시 폭이 흔들리지 않게).
+     선택 테두리는 ::before 로 그 안쪽에 그린다. */
+  .cz3 .czcol { display:flex; flex-direction:column; min-height:0;
+                padding:8px 10px; position:relative; }
   .cz3 .czcol > div:last-child { flex:1; min-height:110px; }
   /* SHIFT 추이 + 원인 분석을 같은 등급 카드로 나란히 */
   /* 두 카드의 세로를 맞춘다. 추이가 길어지면 원인 분석도 같이 늘어난다. */
@@ -358,11 +361,13 @@
                         display:flex; flex-direction:column; gap:10px; }
   .farcol > * { min-width:0; max-width:100%; box-sizing:border-box; }
   /* 어느 막대에서 파고들었는지 보이도록 그 칸을 남색으로 두른다. */
-  .czcol.czsrc { box-shadow:0 0 0 2px var(--brand) inset; border-radius:6px;
-                 padding:7px 9px; position:relative; }
-  .cz3 .czcol { padding:7px 9px; }        /* 선택 전후로 폭이 흔들리지 않게 */
+  /* box-shadow inset 은 padding 안쪽이 아니라 요소 경계에 그려져 내용과
+     겹친다. 테두리는 ::before 로 따로 깔아 안쪽으로 물린다. */
+  .czcol.czsrc::before { content:""; position:absolute; inset:2px;
+                         border:2px solid var(--brand); border-radius:6px;
+                         pointer-events:none; }
   /* 무엇을 파고들었는지 보이도록 그 칸에서 오른쪽으로 이어지는 표시. */
-  .czcol.czsrc::after { content:"▶"; position:absolute; right:-11px; top:50%;
+  .czcol.czsrc::after { content:"▶"; position:absolute; right:-12px; top:50%;
                         transform:translateY(-50%); color:var(--brand);
                         font-size:12px; font-weight:700; }
   .rowcards .cz3 { flex:1; align-items:stretch; }

@@ -1656,6 +1656,49 @@ function renderCause() {
 
 
 
+/* 선택 테두리와 내용이 겹치는지 잰다.
+   콘솔에서 checkOverlap() 을 부르면 서버 터미널에 찍힌다.
+--------------------------------------------------------------------- */
+function checkOverlap() {
+  const items = [];
+  document.querySelectorAll(".czcol").forEach((col, n) => {
+    const cs = getComputedStyle(col);
+    const box = col.getBoundingClientRect();
+    const on = col.classList.contains("czsrc");
+    items.push({
+      sel: `czcol#${n}${on ? " (선택됨)" : ""}`,
+      note: `padding=${cs.paddingTop}/${cs.paddingRight}/`
+        + `${cs.paddingBottom}/${cs.paddingLeft}`
+        + ` box-shadow=${cs.boxShadow !== "none" ? "있음" : "없음"}`
+        + ` w=${Math.round(box.width)} h=${Math.round(box.height)}`
+    });
+    // 자식이 테두리(안쪽 2px)를 침범하는지
+    [...col.children].forEach((ch, k) => {
+      const r = ch.getBoundingClientRect();
+      const L = Math.round(r.left - box.left);
+      const R = Math.round(box.right - r.right);
+      const T = Math.round(r.top - box.top);
+      const B = Math.round(box.bottom - r.bottom);
+      const bad = [];
+      if (L < 3) { bad.push("좌" + L); }
+      if (R < 3) { bad.push("우" + R); }
+      if (T < 3) { bad.push("상" + T); }
+      if (B < 3) { bad.push("하" + B); }
+      items.push({
+        sel: `  └ ${ch.tagName.toLowerCase()}`
+          + (ch.className ? "." + String(ch.className).split(" ")[0] : ""),
+        note: `여백 상${T} 우${R} 하${B} 좌${L}`
+          + (bad.length ? "   !! 테두리와 겹침(" + bad.join(",") + ")" : "")
+      });
+    });
+  });
+  fetch("/api/debug-layout/", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind: "overlap", items: items })
+  });
+  return "서버 터미널을 확인하세요.";
+}
+
 // 보이는 모든 차트를 컨테이너 폭에 다시 맞춘다.
 
 
@@ -1810,6 +1853,49 @@ function checkLayout() {
                            items: items })
   });
   return items.length + "개 초과. 서버 터미널을 확인하세요.";
+}
+
+/* 선택 테두리와 내용이 겹치는지 잰다.
+   콘솔에서 checkOverlap() 을 부르면 서버 터미널에 찍힌다.
+--------------------------------------------------------------------- */
+function checkOverlap() {
+  const items = [];
+  document.querySelectorAll(".czcol").forEach((col, n) => {
+    const cs = getComputedStyle(col);
+    const box = col.getBoundingClientRect();
+    const on = col.classList.contains("czsrc");
+    items.push({
+      sel: `czcol#${n}${on ? " (선택됨)" : ""}`,
+      note: `padding=${cs.paddingTop}/${cs.paddingRight}/`
+        + `${cs.paddingBottom}/${cs.paddingLeft}`
+        + ` box-shadow=${cs.boxShadow !== "none" ? "있음" : "없음"}`
+        + ` w=${Math.round(box.width)} h=${Math.round(box.height)}`
+    });
+    // 자식이 테두리(안쪽 2px)를 침범하는지
+    [...col.children].forEach((ch, k) => {
+      const r = ch.getBoundingClientRect();
+      const L = Math.round(r.left - box.left);
+      const R = Math.round(box.right - r.right);
+      const T = Math.round(r.top - box.top);
+      const B = Math.round(box.bottom - r.bottom);
+      const bad = [];
+      if (L < 3) { bad.push("좌" + L); }
+      if (R < 3) { bad.push("우" + R); }
+      if (T < 3) { bad.push("상" + T); }
+      if (B < 3) { bad.push("하" + B); }
+      items.push({
+        sel: `  └ ${ch.tagName.toLowerCase()}`
+          + (ch.className ? "." + String(ch.className).split(" ")[0] : ""),
+        note: `여백 상${T} 우${R} 하${B} 좌${L}`
+          + (bad.length ? "   !! 테두리와 겹침(" + bad.join(",") + ")" : "")
+      });
+    });
+  });
+  fetch("/api/debug-layout/", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind: "overlap", items: items })
+  });
+  return "서버 터미널을 확인하세요.";
 }
 
 // 보이는 모든 차트를 컨테이너 폭에 다시 맞춘다.
@@ -2529,6 +2615,9 @@ function loadSummary(keepFocus) {
       requestAnimationFrame(syncLeftHeight);
       if (location.search.indexOf("debug=layout") >= 0) {
         setTimeout(checkLayout, 800);      // 차트가 그려진 뒤에 잰다
+      }
+      if (location.search.indexOf("debug=overlap") >= 0) {
+        setTimeout(checkOverlap, 800);
       }
     })
     .catch(e => { document.getElementById("err").textContent = "조회 실패: " + e; });
