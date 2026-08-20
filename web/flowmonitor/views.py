@@ -1395,10 +1395,14 @@ def api_summary(request):
     prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
     areas = [x for x in request.GET.get("area", "").split(",") if x]
     # 좌측에서 막대/조각을 고르면 원인 분석만 그 부분집합으로 다시 센다.
-    f_status = request.GET.get("f_status", "")
-    f_wt = request.GET.get("f_wt", "")
-    f_wt0 = request.GET.get("f_wt0", "")
-    f_type = request.GET.get("f_type", "")
+    # 같은 필드를 여러 개 고를 수 있으므로(Ctrl) 반드시 목록으로 받는다.
+    def flist(name):
+        return [x for x in request.GET.get(name, "").split(",") if x]
+
+    f_status = flist("f_status")
+    f_wt = flist("f_wt")
+    f_wt0 = flist("f_wt0")
+    f_type = flist("f_type")
     bdate = request.GET.get("biz_date", "")
     bshift = request.GET.get("shift", "")
 
@@ -1462,14 +1466,15 @@ def api_summary(request):
                 _bucket(wt0_st.setdefault(b0, {}), st, q)
             _bucket(wt0_tot, st, q)      # 전 구간 합계
 
-        if f_status and st != f_status:
+        if f_status and st not in f_status:
             continue
-        if f_type and (r.get("lot_type") or "-") != f_type:
+        if f_type and (r.get("lot_type") or "-") not in f_type:
             continue
-        if f_wt and _wt_range_key(wt) != f_wt:
+        if f_wt and _wt_range_key(wt) not in f_wt:
             continue
         if f_wt0 and (wt > 0
-                      or _wt0_bin(num_f(r.get("마지막작업경과_일"))) != f_wt0):
+                      or _wt0_bin(num_f(r.get("마지막작업경과_일")))
+                      not in f_wt0):
             continue
 
         big, mid, subs = classify_lot(r, rules, ht)

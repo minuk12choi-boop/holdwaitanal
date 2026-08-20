@@ -197,7 +197,6 @@ const nf = (n) => Number(n || 0).toLocaleString("ko-KR");
 
 let LINE = "{{ default_line }}";
 let DATA = null;
-let SEL_STATUS = null;
 let WT_UNIT = "qty";
 // lot_type 선택은 라인/뷰를 바꿔도 유지된다. 기본은 PP+PG.
 let TYPE_PREF = (() => {
@@ -432,7 +431,6 @@ function renderWip() {
        ${(x.lots / tot * 100).toFixed(0)}%</span>`).join("");
 }
 
-let SEL_TYPES = [];                  // Ctrl 다중선택
 
 function pickType(name, ev) {
   setCond("type", name, ev);
@@ -471,19 +469,33 @@ const sliceLabels = {
 
 function setStatusInfo() {
   const d = DATA;
-  const s = (SEL_STATUS === null)
-    ? { label: d.default.label, pct: d.default.pct, lots: d.default.lots,
-        qty: d.default.qty, color: d.default.color || BRAND }
-    : { label: d.status[SEL_STATUS].name, pct: d.status[SEL_STATUS].pct,
-        lots: d.status[SEL_STATUS].lots, qty: d.status[SEL_STATUS].qty,
-        color: d.status[SEL_STATUS].color };
+  const picked = (DF.status || [])
+    .map(n => d.status.find(x => x.name === n)).filter(Boolean);
+
+  let names, pct, lots, qty, color;
+  if (!picked.length) {
+    names = [d.default.label];
+    pct = d.default.pct; lots = d.default.lots; qty = d.default.qty;
+    color = d.default.color || BRAND;
+  } else {
+    // 여러 개를 고르면 합계를 보여 준다. 이름은 줄바꿈해 나열한다.
+    names = picked.map(x => x.name);
+    lots = picked.reduce((a, x) => a + x.lots, 0);
+    qty = picked.reduce((a, x) => a + x.qty, 0);
+    pct = d.total && d.total.lots ? (lots / d.total.lots * 100) : 0;
+    color = picked.length === 1 ? picked[0].color : BRAND;
+  }
   document.getElementById("dt").innerHTML =
-    `<div class="nm" style="color:${s.color}">${s.label}</div>
-     <div class="pc">${s.pct.toFixed(1)}%</div>
-     <div class="sub">${nf(s.lots)} LOT &middot; ${nf(s.qty)} 매</div>`;
-  // 범례에서 기본값 항목을 뺐으므로 인덱스가 그대로 대응한다.
+    names.map(n => {
+      const c = (d.status.find(x => x.name === n) || {}).color || color;
+      return `<div class="nm" style="color:${c}">${n}</div>`;
+    }).join("")
+    + `<div class="pc">${pct.toFixed(1)}%</div>
+       <div class="sub">${nf(lots)} LOT &middot; ${nf(qty)} 매</div>`;
+  // 고른 것을 모두 굵게 표시한다.
+  const on = new Set(DF.status || []);
   document.querySelectorAll("#lg span").forEach((el, k) =>
-    el.classList.toggle("on", k === SEL_STATUS));
+    el.classList.toggle("on", on.has((d.status[k] || {}).name)));
 }
 
 // 범례 클릭도 조건 저장소를 거친다(원차트 조각 클릭과 같은 동작).
@@ -611,8 +623,9 @@ function renderWt() {
   wtChart.data.datasets[0].data = vals;
   wtChart.data.datasets[0].backgroundColor = colors;
   wtChart.$selSet = new Set(
-    SEL_WTS.map(k => (d.wt_dist.find(y => y.name === k) || {}).label));
-  markSelected(wtChart, d.wt_dist.findIndex(x => x.name === SEL_WT));
+    (DF.wt || []).map(k => (d.wt_dist.find(y => y.name === k) || {}).label));
+  markSelected(wtChart,
+    d.wt_dist.findIndex(x => (DF.wt || []).indexOf(x.name) >= 0));
   wtChart.update();
 }
 
@@ -1292,14 +1305,7 @@ function dfChips() {
 
 // 조건이 바뀌면 차트 표시와 표를 함께 맞춘다.
 function syncFromDF() {
-  SEL_TYPES = DF.type || []; SEL_TYPE = SEL_TYPES[SEL_TYPES.length - 1] || null;
-  SEL_WTS = DF.wt || [];     SEL_WT = SEL_WTS[SEL_WTS.length - 1] || null;
-  SEL_WT0S = DF.wt0 || [];   SEL_WT0 = SEL_WT0S[SEL_WT0S.length - 1] || null;
-  SEL_PIE = (DF.status || [])[0] || null;
-  // 원 우측 표시도 선택을 따라간다(안 그러면 기본값 HOLD 로 되돌아간다).
-  SEL_STATUS = SEL_PIE && DATA
-    ? DATA.status.findIndex(x => x.name === SEL_PIE) : null;
-  if (SEL_STATUS < 0) { SEL_STATUS = null; }
+  // 표시는 모두 DF 를 직접 읽는다. 별도 선택 변수를 두지 않는다.
   DRILL_KEY = DF_CAUSE
     ? { i: DF_CAUSE.i, node: (DF_CAUSE.subs || []).slice(-1)[0] || null,
         list: DF_CAUSE.subs || [] }
@@ -1345,8 +1351,6 @@ function drillCols() {
   cols.forEach(c => { if (out.indexOf(c) < 0) { out.push(c); } });
   return out;
 }
-let SEL_WT = null, SEL_WT0 = null, SEL_TYPE = null, SEL_PIE = null;
-let SEL_WTS = [], SEL_WT0S = [], SEL_PIES = [];
 
 function czGroup(i) { return (DATA.causes || [])[i] || { name: "", children: [] }; }
 
@@ -2842,8 +2846,6 @@ function loadSummary(keepFocus) {
     // 레벨 1(날짜/SHIFT/라인/제품구분/lot_type) 이 바뀌면 아래는 전부 리셋
     dfReset();
     dfResetBelow(1);
-    SEL_WT = null; SEL_WT0 = null; SEL_TYPE = null; SEL_PIE = null;
-    SEL_TYPES = []; SEL_WTS = []; SEL_WT0S = []; SEL_PIES = [];
     CZ_SEL = { i: -1, path: [] };
     DRILL_KEY = { i: -1, node: null, list: [] };
     closeDrill();
@@ -2855,10 +2857,11 @@ function loadSummary(keepFocus) {
         + "&prod1=" + encodeURIComponent(PROD1.join(","))
         + "&prod2=" + encodeURIComponent(PROD2.join(","))
         + "&area=" + encodeURIComponent(AREAS.join(","))
-        + "&f_status=" + encodeURIComponent(SEL_PIE || "")
-        + "&f_wt=" + encodeURIComponent(SEL_WT || "")
-        + "&f_wt0=" + encodeURIComponent(SEL_WT0 || "")
-        + "&f_type=" + encodeURIComponent(SEL_TYPE || "")
+        // 같은 필드를 여러 개 고를 수 있다. 조건 저장소를 그대로 보낸다.
+        + "&f_status=" + encodeURIComponent((DF.status || []).join(","))
+        + "&f_wt=" + encodeURIComponent((DF.wt || []).join(","))
+        + "&f_wt0=" + encodeURIComponent((DF.wt0 || []).join(","))
+        + "&f_type=" + encodeURIComponent((DF.type || []).join(","))
         + "&biz_date=" + encodeURIComponent(SNAP_DATE)
         + "&shift=" + encodeURIComponent(SNAP_SHIFT))
     .then(r => r.ok ? r.json() : Promise.reject("HTTP " + r.status))
@@ -2873,10 +2876,6 @@ function loadSummary(keepFocus) {
       }
       err.textContent = "";
       DATA = d;
-      // 선택은 DF.status 가 정한다. 여기서 지우면 기본값으로 되돌아간다.
-      const pie = (DF.status || [])[0] || null;
-      SEL_STATUS = pie ? d.status.findIndex(x => x.name === pie) : null;
-      if (SEL_STATUS < 0) { SEL_STATUS = null; }
       if (!keepFocus) { CZ_SEL = { i: -1, path: [] }; }
       document.getElementById("snapAt").textContent = d.snapshot_at || "-";
       renderSnap(d);
