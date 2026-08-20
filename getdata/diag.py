@@ -334,6 +334,83 @@ def diag_lotst(lot_id):
         conn.close()
 
 
+def diag_tree(line):
+    """지금 데이터로 만들어지는 **원인 분류 체계 전체**를 찍는다.
+
+    어느 항목에 하위가 있고(=드릴다운 가능) 어디가 말단인지 한눈에 본다.
+    웹의 classify_lot 을 그대로 불러 쓰므로 화면과 어긋나지 않는다.
+    """
+    import os
+    web = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "web")
+    sys.path.insert(0, web)
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+    import django
+    django.setup()
+    from flowmonitor import views as V
+
+    _head(f"원인 분류 체계 ({line})")
+    rows, snap = V._summary_rows(line, list(V.DEFAULT_LOT_TYPES))
+    if not rows:
+        print("재공이 없다.")
+        return
+    rules, ht = V._cause_rules(), V._holdtype_rules()
+
+    tree, tot = {}, {"lots": 0, "qty": 0}
+    for r in rows:
+        q = V.num(r.get("qty"))
+        big, mid, subs = V.classify_lot(r, rules, ht)
+        if not big:
+            continue
+        tot["lots"] += 1
+        tot["qty"] += q
+        g = tree.setdefault(big, {"lots": 0, "qty": 0, "mid": {}})
+        g["lots"] += 1
+        g["qty"] += q
+        m = g["mid"].setdefault(mid or "(중분류 없음)",
+                                {"lots": 0, "qty": 0, "sub": {}})
+        m["lots"] += 1
+        m["qty"] += q
+        for sname in (subs or ["(소분류 없음)"]):
+            sc = m["sub"].setdefault(sname, {"lots": 0, "qty": 0})
+            sc["lots"] += 1
+            sc["qty"] += q
+
+    print(f"snapshot={snap}   대상 {tot['lots']:,} LOT / {tot['qty']:,} 매\n")
+    print("표기:  [드릴]  = 하위가 있어 더 파고들 수 있다")
+    print("       [말단]  = 더 쪼갤 수 없다 -> 바로 LOT 표로 간다\n")
+
+    for big in sorted(tree, key=lambda k: -tree[k]["qty"]):
+        g = tree[big]
+        mids = g["mid"]
+        # 중분류가 '(중분류 없음)' 하나뿐이면 대분류 바로 아래가 소분류다.
+        flat = len(mids) == 1 and "(중분류 없음)" in mids
+        print(f"■ {big}   {g['lots']:,} LOT / {g['qty']:,} 매"
+              f"   {'[소분류 직결]' if flat else '[중분류 %d개]' % len(mids)}")
+        for mid in sorted(mids, key=lambda k: -mids[k]["qty"]):
+            m = mids[mid]
+            subs = m["sub"]
+            leaf = len(subs) <= 1
+            tag = "[말단]" if leaf else f"[드릴] 소분류 {len(subs)}개"
+            if not flat:
+                print(f"   ├ {mid:<18} {m['lots']:>6,} LOT / "
+                      f"{m['qty']:>8,} 매   {tag}")
+            top = sorted(subs.items(), key=lambda kv: -kv[1]["qty"])[:8]
+            for k, v in top:
+                pre = "   │   └" if not flat else "   ├"
+                print(f"{pre} {k:<20} {v['lots']:>6,} LOT / {v['qty']:>8,} 매")
+            if len(subs) > 8:
+                print(f"   │      ... 외 {len(subs) - 8}개")
+        print()
+
+    print("-" * 70)
+    print("[요약] 드릴다운이 한 번 더 되는 항목")
+    for big, g in tree.items():
+        for mid, m in g["mid"].items():
+            if len(m["sub"]) > 1:
+                print(f"   {big} > {mid}  -> 소분류 {len(m['sub'])}개")
+
+
 def main():
     what = (sys.argv[1] if len(sys.argv) > 1 else "all").lower()
     if what in ("hold", "all"):
@@ -348,6 +425,8 @@ def main():
         diag_lotwt(sys.argv[2] if len(sys.argv) > 2 else "")
     if what == "lotst":
         diag_lotst(sys.argv[2] if len(sys.argv) > 2 else "")
+    if what == "tree":
+        diag_tree(sys.argv[2] if len(sys.argv) > 2 else "KFR4")
     if what in ("dates", "all"):
         diag_dates()
 

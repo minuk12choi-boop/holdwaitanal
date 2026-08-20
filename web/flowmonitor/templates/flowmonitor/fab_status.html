@@ -124,6 +124,7 @@
     <div class="farcol">
     <!-- 원인 분석에서 파고들 때마다 카드가 하나씩 쌓인다(LOT BALANCE 위). -->
     <div id="czstack"></div>
+    <div id="czask" class="askpop" style="display:none"></div>
 
 <!-- 전체 순위는 x축이 길어져 위 카드에 넣으면 안 보인다. 아래 전체 폭으로. -->
     <div class="cell" id="czdrill" style="display:none;border:1px solid var(--bd);
@@ -1549,12 +1550,57 @@ function czPick(i, node, depth, ev) {
     return;
   }
 
-  // 하위가 있다. 대분류 차트는 그대로 두고 중분류 차트를 띄운다.
-  CZ_SEL = { i: i, path: [{ name: node.name, kind: node.kind || "sub" }] };
-  CZ_STACK = [{ i: i, path: CZ_SEL.path.slice() }];
+  // 하위가 있다. 무엇을 보고 싶은지 물어본다.
+  czAsk(i, [], node, ev);
+}
+
+/* 하위가 있는 항목: 전체로 볼지, 세부로 파고들지 고른다 -----------------
+   좌측 차트는 해당 없다(늘 바로 적용).
+--------------------------------------------------------------------- */
+let CZ_ASK = null;
+
+function czAsk(i, basePath, node, ev) {
+  CZ_ASK = { i: i, base: basePath.slice(), node: node };
+  const el = document.getElementById("czask");
+  el.innerHTML =
+    `<div class="askttl">${node.name}</div>`
+    + `<button onclick="czAskGo('all')">전체 보기</button>`
+    + `<button onclick="czAskGo('deep')">세부 요소 보기</button>`;
+  el.style.display = "block";
+  // 누른 자리 근처에 띄운다.
+  const x = (ev && ev.clientX) || 0;
+  const y = (ev && ev.clientY) || 0;
+  el.style.left = (x + window.pageXOffset + 8) + "px";
+  el.style.top = (y + window.pageYOffset - 8) + "px";
+}
+
+function czAskClose() {
+  CZ_ASK = null;
+  const el = document.getElementById("czask");
+  if (el) { el.style.display = "none"; }
+}
+
+function czAskGo(mode) {
+  if (!CZ_ASK) { return; }
+  const { i, base, node } = CZ_ASK;
+  const path = base.concat([{ name: node.name, kind: node.kind || "sub" }]);
+  const mid = (path.find(p => p.kind === "mid") || {}).name || null;
+  czAskClose();
+
+  dfClearPeers("cause", 4);
+  if (mode === "all") {
+    // 그 항목 전체. 차트는 더 만들지 않고 표/LOT BALANCE 로 간다.
+    CZ_STACK = CZ_STACK.slice(0, base.length);
+    DF_CAUSE = node.kind === "mid"
+      ? { i: i, big: czGroup(i).name, mid: node.name, subs: [] }
+      : { i: i, big: czGroup(i).name, mid: mid, subs: [node.name] };
+  } else {
+    // 세부 요소. 아래에 차트를 하나 더 쌓는다.
+    CZ_STACK = CZ_STACK.slice(0, base.length).concat([{ i: i, path: path }]);
+    CZ_SEL = { i: i, path: path.slice() };
+    DF_CAUSE = { i: i, big: czGroup(i).name, mid: mid, subs: [] };
+  }
   CZ_WIDE = null;
-  DF_CAUSE = { i: i, big: czGroup(i).name,
-               mid: node.kind === "mid" ? node.name : null, subs: [] };
   dfResetBelow(4);
   syncFromDF();
 }
@@ -1718,16 +1764,10 @@ function renderCzStack() {
         if (!st || !node) { return; }
         const next = st.path.concat([{ name: node.name,
                                        kind: node.kind || "sub" }]);
-        // 더 쪼갤 게 있으면 아래에 카드를 하나 더 쌓는다.
+        // 더 쪼갤 게 있으면 무엇을 볼지 물어본다.
         if (!(ev && (ev.ctrlKey || ev.metaKey))
             && czNodesAt(st.i, next).length) {
-          CZ_STACK = CZ_STACK.slice(0, n + 1).concat([{ i: st.i, path: next }]);
-          CZ_SEL = { i: st.i, path: next.slice() };
-          DF_CAUSE = { i: st.i, big: g.name,
-                       mid: (next.find(p => p.kind === "mid") || {}).name || null,
-                       subs: [] };
-          dfResetBelow(4);
-          syncFromDF();
+          czAsk(st.i, st.path, node, ev);
           return;
         }
         // 말단이면 표만 바꾸고 카드는 그대로 둔다.
