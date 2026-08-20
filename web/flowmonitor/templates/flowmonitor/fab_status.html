@@ -122,13 +122,9 @@
 
     <!-- 세 번째 열: 전체 순위 · LOT BALANCE · 드릴다운 표 -->
     <div class="farcol">
-    <div class="cell" id="czside" style="display:none;
-         border:1px solid var(--bd);border-radius:6px;padding:11px 12px">
-      <div class="cellttl"><span id="czsttl"></span>
-        <span class="czback" onclick="czSideClose()">닫기</span></div>
-      <div id="czspath" class="czpath"></div>
-      <div style="height:300px"><canvas id="czsc"></canvas></div>
-    </div>
+    <!-- 원인 분석에서 파고들 때마다 카드가 하나씩 쌓인다(LOT BALANCE 위). -->
+    <div id="czstack"></div>
+
 <!-- 전체 순위는 x축이 길어져 위 카드에 넣으면 안 보인다. 아래 전체 폭으로. -->
     <div class="cell" id="czdrill" style="display:none;border:1px solid var(--bd);
          border-radius:6px;padding:11px 12px;margin-bottom:10px">
@@ -199,11 +195,9 @@ let TYPE_PREF = (() => {
   return ["PP", "PG"];
 })();
 let CAUSE_UNIT = "qty";
-let CZ_SIDE = null;            // 우측 드릴다운 중분류 차트 {i, path}
-let czSideChart = null;
-
-function czSideClose() { CZ_SIDE = null; CZ_SEL = { i: -1, path: [] };
-                         renderCause(); }
+// 파고든 단계들. [{i, path}] 순서대로 카드가 쌓인다.
+let CZ_STACK = [];
+const czStackCharts = [];
 
 let WT0_UNIT = "qty";
 let dnChart = null;
@@ -1107,7 +1101,7 @@ function dfResetBelow(lv) {
   Object.keys(DF).forEach(k => { if ((DF_LV[k] || 9) > lv) { delete DF[k]; } });
   if (DF_LV.cause > lv) { DF_CAUSE = null; }
   // 원인 분석(4)보다 위를 고르면 그 아래 시각화도 전부 접는다.
-  if (lv < 5) { CZ_WIDE = null; CZ_SIDE = null; CZ_SEL = { i: -1, path: [] }; }
+  if (lv < 5) { CZ_WIDE = null; CZ_STACK = []; CZ_SEL = { i: -1, path: [] }; }
   if (lv < 6) { BAL_BY = ""; BAL_OPEN = false; BAL_PICK = null; }
 }
 
@@ -1124,7 +1118,7 @@ let DF_LABEL = {};           // 화면 표시용 라벨
 
 function dfReset() {
   DF = {}; DF_CAUSE = null; DF_LABEL = {};
-  CZ_SIDE = null; CZ_WIDE = null; CZ_SEL = { i: -1, path: [] };
+  CZ_STACK = []; CZ_WIDE = null; CZ_SEL = { i: -1, path: [] };
 }
 
 // 같은 차트 안에서의 다중선택. 같은 값을 다시 누르면 빠진다.
@@ -1158,6 +1152,18 @@ function setCond(key, name, ev, label, keepPeers) {
 
 function dfChipLabel(k, v) { return DF_LABEL[k + ":" + v] || v; }
 
+// 원인 조건 이름. OR 로 묶였으면 'A 또는 B' 로 보여 준다.
+function causeName() {
+  if (!DF_CAUSE) { return ""; }
+  if (DF_CAUSE.or) {
+    return DF_CAUSE.or
+      .map(x => [x.big, x.mid, x.sub].filter(Boolean).join(" > "))
+      .join("  또는  ");
+  }
+  return [DF_CAUSE.big, DF_CAUSE.mid,
+          (DF_CAUSE.subs || []).join(", ")].filter(Boolean).join(" > ");
+}
+
 function dfClear(k, v) {
   if (k === "cause") { DF_CAUSE = null; }
   else if (v === undefined) { delete DF[k]; }
@@ -1174,10 +1180,16 @@ function dfFilter() {
   const f = {};
   DF_DEF.forEach(d => { if (DF[d.k]) { f[d.param] = DF[d.k].join(","); } });
   if (DF_CAUSE) {
-    if (DF_CAUSE.big) { f.big = DF_CAUSE.big; }
-    if (DF_CAUSE.mid) { f.mid = DF_CAUSE.mid; }
-    if (DF_CAUSE.subs && DF_CAUSE.subs.length) {
-      f.sub = DF_CAUSE.subs.join(",");
+    // 서로 다른 대분류를 함께 고르면 AND 로는 늘 0 이다. OR 로 보낸다.
+    if (DF_CAUSE.or && DF_CAUSE.or.length) {
+      f.causes = DF_CAUSE.or
+        .map(x => [x.big || "", x.mid || "", x.sub || ""].join(">")).join("|");
+    } else {
+      if (DF_CAUSE.big) { f.big = DF_CAUSE.big; }
+      if (DF_CAUSE.mid) { f.mid = DF_CAUSE.mid; }
+      if (DF_CAUSE.subs && DF_CAUSE.subs.length) {
+        f.sub = DF_CAUSE.subs.join(",");
+      }
     }
   }
   return f;
@@ -1188,10 +1200,7 @@ function dfTitle() {
   DF_DEF.forEach(d => {
     (DF[d.k] || []).forEach(v => out.push(dfChipLabel(d.k, v)));
   });
-  if (DF_CAUSE) {
-    out.push([DF_CAUSE.big, DF_CAUSE.mid,
-              (DF_CAUSE.subs || []).join(", ")].filter(Boolean).join(" > "));
-  }
+  if (DF_CAUSE) { out.push(causeName()); }
   return out.join(" · ");
 }
 
@@ -1204,9 +1213,8 @@ function dfChips() {
     });
   });
   if (DF_CAUSE) {
-    const nm = [DF_CAUSE.big, DF_CAUSE.mid,
-                (DF_CAUSE.subs || []).join(", ")].filter(Boolean).join(" > ");
-    c.push(`<span class="fchip">원인 ${nm}<i onclick="dfClear('cause')">×</i></span>`);
+    c.push(`<span class="fchip">원인 ${causeName()}`
+      + `<i onclick="dfClear('cause')">×</i></span>`);
   }
   if (!c.length) { return ""; }
   return c.join("")
@@ -1504,7 +1512,7 @@ function czPick(i, node, depth, ev) {
 
   // Ctrl 이 아니면 이전 드릴다운은 모두 버린다(같은 차트 안이라도).
   if (!add) {
-    if (CZ_SIDE && CZ_SIDE.i !== i) { CZ_SIDE = null; }
+    if (CZ_STACK.length && CZ_STACK[0].i !== i) { CZ_STACK = []; }
     if (CZ_WIDE && CZ_WIDE.i !== i) { CZ_WIDE = null; }
   }
   if (depth === 0 && !add) { CZ_SEL = { i: i, path: [] }; }
@@ -1523,11 +1531,19 @@ function czPick(i, node, depth, ev) {
     else if (one) { list = []; }
     else { list = [node.name]; }
     if (!add) { dfClearPeers("cause", 4); }
-    const cross = add && DF_CAUSE && DF_CAUSE.i !== i;
-    DF_CAUSE = list.length
-      ? (cross ? { i: i, big: null, mid: null, subs: list }
-               : { i: i, big: czGroup(i).name, mid: mid, subs: list })
-      : null;
+    const pick = { big: czGroup(i).name, mid: mid, sub: node.name };
+    if (add && DF_CAUSE) {
+      // 이미 고른 것들에 더한다(OR).
+      const prev = DF_CAUSE.or || (DF_CAUSE.subs || []).map(x => ({
+        big: DF_CAUSE.big, mid: DF_CAUSE.mid, sub: x }));
+      const ck = (x) => [x.big, x.mid, x.sub].join(">");
+      const at = prev.findIndex(x => ck(x) === ck(pick));
+      const or = at >= 0 ? prev.filter((_, k) => k !== at) : prev.concat([pick]);
+      DF_CAUSE = or.length ? { i: i, or: or } : null;
+    } else {
+      DF_CAUSE = list.length
+        ? { i: i, big: pick.big, mid: mid, subs: list } : null;
+    }
     dfResetBelow(4);
     syncFromDF();
     return;
@@ -1535,7 +1551,7 @@ function czPick(i, node, depth, ev) {
 
   // 하위가 있다. 대분류 차트는 그대로 두고 중분류 차트를 띄운다.
   CZ_SEL = { i: i, path: [{ name: node.name, kind: node.kind || "sub" }] };
-  CZ_SIDE = { i: i, path: CZ_SEL.path.slice() };
+  CZ_STACK = [{ i: i, path: CZ_SEL.path.slice() }];
   CZ_WIDE = null;
   DF_CAUSE = { i: i, big: czGroup(i).name,
                mid: node.kind === "mid" ? node.name : null, subs: [] };
@@ -1606,11 +1622,11 @@ function renderCause() {
     }
     const selL = (DRILL_KEY.i === i) ? DRILL_KEY.list : null;
     // 이 칸에서 파고들었으면(중분류 차트든 표든) 연결 관계를 보인다.
-    const srcHere = (CZ_SIDE && CZ_SIDE.i === i)
+    const srcHere = (CZ_STACK.length && CZ_STACK[0].i === i)
       || (CZ_WIDE && CZ_WIDE.i === i)
       || (DF_CAUSE && DF_CAUSE.i === i);
-    if (CZ_SIDE && CZ_SIDE.i === i) {
-      czCharts[i].$selSet = new Set([CZ_SIDE.path[0].name]);
+    if (CZ_STACK.length && CZ_STACK[0].i === i) {
+      czCharts[i].$selSet = new Set([CZ_STACK[0].path[0].name]);
     } else if (DF_CAUSE && DF_CAUSE.i === i) {
       czCharts[i].$selSet = new Set(
         (DF_CAUSE.mid ? [DF_CAUSE.mid] : []).concat(DF_CAUSE.subs || []));
@@ -1620,7 +1636,7 @@ function renderCause() {
     col.classList.toggle("czsrc", !!srcHere);
   }
 
-  renderCzSide();
+  renderCzStack();
   renderCzWide();
 }
 
@@ -1650,6 +1666,77 @@ function renderCause() {
 /* 전체 제약 : 세 대분류를 합쳐 상위 15 ------------------------------------
    x축은 두 줄이다. 위가 더 아래 계층(중·소분류), 아래가 대분류.
 --------------------------------------------------------------------------- */
+/* 파고든 단계들 : LOT BALANCE 위에 하나씩 쌓인다 ----------------------
+   더 쪼갤 게 없을 때까지 카드가 늘어난다. 각 카드는 자기 아래 단계를 만든다.
+--------------------------------------------------------------------- */
+function czStackClose(n) {
+  CZ_STACK = CZ_STACK.slice(0, n);
+  CZ_SEL = CZ_STACK.length
+    ? { i: CZ_STACK[CZ_STACK.length - 1].i,
+        path: CZ_STACK[CZ_STACK.length - 1].path.slice() }
+    : { i: -1, path: [] };
+  renderCause();
+}
+
+function renderCzStack() {
+  const box = document.getElementById("czstack");
+  if (!box) { return; }
+
+  // 필요한 만큼만 카드를 만든다.
+  if (box.childElementCount !== CZ_STACK.length) {
+    czStackCharts.forEach(c => { if (c) { c.destroy(); } });
+    czStackCharts.length = 0;
+    box.innerHTML = CZ_STACK.map((_, n) =>
+      `<div class="cell" style="border:1px solid var(--bd);border-radius:6px;`
+      + `padding:11px 12px;margin-bottom:10px">`
+      + `<div class="cellttl"><span id="czst${n}"></span>`
+      + `<span class="czback" onclick="czStackClose(${n})">닫기</span></div>`
+      + `<div id="czsp${n}" class="czpath"></div>`
+      + `<div style="height:230px"><canvas id="czsc${n}"></canvas></div>`
+      + `</div>`).join("");
+  }
+
+  CZ_STACK.forEach((step, n) => {
+    const g = czGroup(step.i);
+    const nodes = czNodesAt(step.i, step.path).slice(0, 20);
+    document.getElementById("czst" + n).textContent =
+      [g.name].concat(step.path.map(x => x.name)).join(" > ");
+    document.getElementById("czsp" + n).innerHTML =
+      `<span class="minittl">상위 ${nodes.length}개 · 막대를 누르면 `
+      + `${n + 1 < CZ_STACK.length ? "이 아래로 다시 파고든다"
+                                   : "더 파고들거나 LOT 상세"}</span>`;
+
+    if (!czStackCharts[n]) {
+      czStackCharts[n] = czBarChart("czsc" + n, (idx, ev) => {
+        const st = CZ_STACK[n];
+        const node = (czStackCharts[n].$nodes || [])[idx];
+        if (!st || !node) { return; }
+        const next = st.path.concat([{ name: node.name,
+                                       kind: node.kind || "sub" }]);
+        // 더 쪼갤 게 있으면 아래에 카드를 하나 더 쌓는다.
+        if (!(ev && (ev.ctrlKey || ev.metaKey))
+            && czNodesAt(st.i, next).length) {
+          CZ_STACK = CZ_STACK.slice(0, n + 1).concat([{ i: st.i, path: next }]);
+          CZ_SEL = { i: st.i, path: next.slice() };
+          DF_CAUSE = { i: st.i, big: g.name,
+                       mid: (next.find(p => p.kind === "mid") || {}).name || null,
+                       subs: [] };
+          dfResetBelow(4);
+          syncFromDF();
+          return;
+        }
+        // 말단이면 표만 바꾸고 카드는 그대로 둔다.
+        const keep = CZ_STACK;
+        czPick(st.i, node, 1, ev);
+        CZ_STACK = keep;
+        renderCzStack();
+      }, "czsVal" + n);
+    }
+    czApply(czStackCharts[n], nodes, CAUSE_UNIT, DRILL_KEY.node,
+            DF_CAUSE ? DF_CAUSE.subs : null);
+  });
+}
+
 /* 전체 순위 : 아래 넓은 패널 --------------------------------------------- */
 let CZ_WIDE = null;          // {i, path}
 let czWideChart = null;
@@ -1657,13 +1744,13 @@ let czWideChart = null;
 function czShowAll(i) {
   // 다른 카드에서 열려 있던 것은 닫는다(리셋 규칙).
   if (CZ_WIDE && CZ_WIDE.i !== i) { CZ_WIDE = null; }
-  if (CZ_SIDE && CZ_SIDE.i !== i) { CZ_SIDE = null; }
+  if (CZ_STACK.length && CZ_STACK[0].i !== i) { CZ_STACK = []; }
   if (CZ_SEL.i !== i) { CZ_SEL = { i: i, path: [] }; }
   const path = CZ_SEL.path.slice();
   const same = CZ_WIDE && CZ_WIDE.i === i
     && CZ_WIDE.path.map(x => x.name).join("|") === path.map(x => x.name).join("|");
   CZ_WIDE = same ? null : { i: i, path: path };
-  renderCzSide();
+  renderCzStack();
   renderCzWide();
 }
 
@@ -1729,60 +1816,13 @@ function checkLayout() {
 function resizeCharts() {
   requestAnimationFrame(() => {
     if (!window.Chart || !Chart.instances) {
-      [wtChart, wt0Chart, dnChart, czSideChart, czWideChart]
-        .concat(czCharts, balCharts)
+      [wtChart, wt0Chart, dnChart, czWideChart]
+        .concat(czCharts, czStackCharts, balCharts)
         .forEach(c => { if (c && c.resize) { c.resize(); } });
       return;
     }
     Object.values(Chart.instances).forEach(c => { if (c) { c.resize(); } });
   });
-}
-
-function renderCzSide() {
-  const box = document.getElementById("czside");
-  if (!CZ_SIDE) { box.style.display = "none"; return; }
-
-  const i = CZ_SIDE.i, g = czGroup(i);
-  const nodes = czNodesAt(i, CZ_SIDE.path).slice(0, 20);
-  if (!nodes.length) { box.style.display = "none"; return; }
-  box.style.display = "";
-
-  document.getElementById("czsttl").textContent =
-    [g.name].concat(CZ_SIDE.path.map(x => x.name)).join(" > ");
-  document.getElementById("czspath").innerHTML =
-    (CZ_SIDE.path.length > 1
-      ? `<span class="czback" onclick="czSideBack()">◀ 뒤로</span>` : "")
-    + `<span class="minittl">상위 ${nodes.length}개 · 막대를 누르면 LOT 상세`
-    + `</span>`;
-
-  if (!czSideChart) {
-    czSideChart = czBarChart("czsc", (idx, ev) => {
-      const n = (czSideChart.$nodes || [])[idx];
-      if (!n) { return; }
-      if (czNodesAt(CZ_SIDE.i, CZ_SIDE.path.concat(
-            [{ name: n.name, kind: n.kind || "sub" }])).length) {
-        CZ_SIDE = { i: CZ_SIDE.i,
-                    path: CZ_SIDE.path.concat(
-                      [{ name: n.name, kind: n.kind || "sub" }]) };
-        CZ_SEL = { i: CZ_SIDE.i, path: CZ_SIDE.path.slice() };
-        renderCause();
-        return;
-      }
-      const keep = CZ_SIDE;
-      czPick(CZ_SIDE.i, n, 1, ev);
-      CZ_SIDE = keep;              // 말단을 골라도 이 차트는 남는다
-      renderCzSide();
-    }, "czsVal");
-  }
-  czApply(czSideChart, nodes, CAUSE_UNIT, DRILL_KEY.node,
-          DF_CAUSE ? DF_CAUSE.subs : null);
-}
-
-function czSideBack() {
-  if (!CZ_SIDE || CZ_SIDE.path.length <= 1) { czSideClose(); return; }
-  CZ_SIDE.path = CZ_SIDE.path.slice(0, -1);
-  CZ_SEL = { i: CZ_SIDE.i, path: CZ_SIDE.path.slice() };
-  renderCause();
 }
 
 function czWideClose() { CZ_WIDE = null; renderCzWide(); }
@@ -2437,6 +2477,8 @@ function openDrill(filt, label, src, keepView) {
 }
 
 /* --- 로딩 --- */
+let SUM_SEQ = 0;          // 늦게 온 응답이 최신을 덮지 않게
+
 function loadSummary(keepFocus) {
   // 라인/lot_type/제품구분이 바뀌면 지금 표는 다른 조건의 결과다.
   // keepFocus 는 좌측 막대를 눌러 원인 분석만 좁히는 경우라 선택을 유지한다.
@@ -2451,6 +2493,7 @@ function loadSummary(keepFocus) {
     closeDrill();
   }
 
+  const seq = ++SUM_SEQ;
   fetch("/api/summary/?line=" + encodeURIComponent(LINE)
         + "&types=" + encodeURIComponent(selectedTypes().join(","))
         + "&prod1=" + encodeURIComponent(PROD1.join(","))
@@ -2464,6 +2507,7 @@ function loadSummary(keepFocus) {
         + "&shift=" + encodeURIComponent(SNAP_SHIFT))
     .then(r => r.ok ? r.json() : Promise.reject("HTTP " + r.status))
     .then(d => {
+      if (seq !== SUM_SEQ) { return; }     // 더 최신 요청이 있다
       const err = document.getElementById("err");
       if (!d.ready) {
         err.textContent = d.reason || "데이터 없음";

@@ -1219,8 +1219,13 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
         return [dict(zip(names, r)) for r in cur.fetchall()], snap
 
 
+_MV_CACHE = {}
+
+
 def _lot_move_map(line=None):
     """당일 lot 별 MOVE (WT 계산용).
+
+    한 스냅샷 안에서는 값이 바뀌지 않는다. 매 요청 다시 읽지 않고 캐시한다.
 
     lot_id 로만 연결한다. MOVE 의 라인 구분(sys_line_id)은 f3 의 라인 분류와
     체계가 달라(예: KFR7 원천이 NRD-K / NRD 로 갈린다) 그대로 쓰면 재분류된
@@ -1233,9 +1238,15 @@ def _lot_move_map(line=None):
         bd = cur.fetchone()[0]
         if not bd:
             return {}
+        hit = _MV_CACHE.get("bd")
+        if hit == bd and "map" in _MV_CACHE:
+            return _MV_CACHE["map"]
         cur.execute("SELECT lot_id, SUM(move_qty) FROM f3_move_lot "
                     "WHERE biz_date=%s GROUP BY lot_id", [bd])
-        return {r[0]: float(r[1] or 0) for r in cur.fetchall()}
+        mv = {r[0]: float(r[1] or 0) for r in cur.fetchall()}
+        _MV_CACHE.clear()
+        _MV_CACHE.update({"bd": bd, "map": mv})
+        return mv
 
 
 def _bucket(d, key, qty, eld=None):
@@ -1930,6 +1941,20 @@ def api_balance(request):
     big = request.GET.get("big", "")
     mid = request.GET.get("mid", "")
     subs_want = multi("sub")
+    or_causes = []
+    for spec in request.GET.get("causes", "").split("|"):
+        if not spec:
+            continue
+        parts = (spec.split(">") + ["", "", ""])[:3]
+        or_causes.append(tuple(x.strip() for x in parts))
+    # 서로 다른 대분류를 함께 고른 경우. AND 로는 언제나 0 이라 OR 로 본다.
+    #   causes=Hold>>FLOW금지|Wait성 진행불가>설비이슈>
+    or_causes = []
+    for spec in request.GET.get("causes", "").split("|"):
+        if not spec:
+            continue
+        parts = (spec.split(">") + ["", "", ""])[:3]
+        or_causes.append(tuple(x.strip() for x in parts))
 
     by = [x for x in request.GET.get("by", "plan").split(",") if x] or ["plan"]
     gcols = [("prod2" if x == "prod" else "proc_id") for x in by]
@@ -1959,14 +1984,20 @@ def api_balance(request):
         if wt0 and (wt > 0
                     or _wt0_bin(num_f(r.get("마지막작업경과_일"))) not in wt0):
             continue
-        if big or mid or subs_want:
+        if big or mid or subs_want or or_causes:
             b2, m2, s2 = classify_lot(r, rules, ht)
-            if big and b2 != big:
-                continue
-            if mid and (m2 or "") != mid:
-                continue
-            if subs_want and not any(x in s2 for x in subs_want):
-                continue
+            if or_causes:
+                if not any((not a or b2 == a)
+                           and (not b or (m2 or "") == b)
+                           and (not c or c in s2) for a, b, c in or_causes):
+                    continue
+            else:
+                if big and b2 != big:
+                    continue
+                if mid and (m2 or "") != mid:
+                    continue
+                if subs_want and not any(x in s2 for x in subs_want):
+                    continue
 
         lay = str(r.get("layer_id") or "").strip()
         if not lay:
@@ -2117,6 +2148,14 @@ def api_lots_live(request):
     big = request.GET.get("big", "")
     mid = request.GET.get("mid", "")
     subs_want = multi("sub")
+    # 서로 다른 대분류를 함께 고른 경우. AND 로는 언제나 0 이라 OR 로 본다.
+    #   causes=Hold>>FLOW금지|Wait성 진행불가>설비이슈>
+    or_causes = []
+    for spec in request.GET.get("causes", "").split("|"):
+        if not spec:
+            continue
+        parts = (spec.split(">") + ["", "", ""])[:3]
+        or_causes.append(tuple(x.strip() for x in parts))
 
     if not _table_exists("f3_live"):
         return JsonResponse({"rows": [], "cols": [], "reason": "f3_live 미적재"})
@@ -2166,12 +2205,18 @@ def api_lots_live(request):
             if wt > 0 or _wt0_bin(num_f(r.get("마지막작업경과_일"))) not in wt0:
                 continue
         b2, m2, s2 = classify_lot(r, rules, ht)
-        if big and b2 != big:
-            continue
-        if mid and (m2 or "") != mid:
-            continue
-        if subs_want and not any(x in s2 for x in subs_want):
-            continue
+        if or_causes:
+            if not any((not a or b2 == a)
+                       and (not b or (m2 or "") == b)
+                       and (not c or c in s2) for a, b, c in or_causes):
+                continue
+        else:
+            if big and b2 != big:
+                continue
+            if mid and (m2 or "") != mid:
+                continue
+            if subs_want and not any(x in s2 for x in subs_want):
+                continue
         rec = dict(r)
         rec["wt"] = round(wt, 2)
         cause = " / ".join(x for x in (b2, m2) if x)

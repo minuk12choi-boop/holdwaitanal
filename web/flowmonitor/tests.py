@@ -89,7 +89,7 @@ class TemplateJsTest(SimpleTestCase):
         "removeChild", "select", "execCommand", "writeText", "setData",
         "preventDefault", "getBoundingClientRect", "setAttribute",
         "getAttribute", "toISOString", "setMinutes", "getMinutes", "getHours",
-        "var", "not", "at", "done", "name", "rgba", "num", "nf",
+        "var", "not", "at", "done", "name", "rgba", "num", "nf", "ck", "key",
         "afterDatasetsDraw", "beforeDatasetsDraw", "afterDraw", "beforeDraw",
         "afterDataLimits", "afterFit", "callback", "onPick", "label", "title",
     }
