@@ -101,6 +101,7 @@
     <div class="cell" id="czcard" style="border:1px solid var(--bd);
                              border-radius:6px;padding:11px 12px;margin-bottom:0">
       <div class="cellttl"><span>원인 분석</span>
+        <span class="v" id="czup"></span>
         <span class="seg">
           <button id="cu_lots" onclick="setCauseUnit('lots')">LOT</button>
           <button class="on" id="cu_qty" onclick="setCauseUnit('qty')">매</button>
@@ -206,10 +207,6 @@ function czSideClose() { CZ_SIDE = null; CZ_SEL = { i: -1, path: [] };
 
 let WT0_UNIT = "qty";
 let dnChart = null;
-
-// 예전에는 드릴다운 표로 스크롤을 옮겼다. 페이지가 짧아진 뒤로는
-// 오히려 시야가 튀어서 쓰지 않는다.
-function smoothTo(el) { /* no-op */ }
 
 function toggleDd() {
   document.getElementById("dd").classList.toggle("open");
@@ -1198,6 +1195,10 @@ function syncFromDF() {
   SEL_WTS = DF.wt || [];     SEL_WT = SEL_WTS[SEL_WTS.length - 1] || null;
   SEL_WT0S = DF.wt0 || [];   SEL_WT0 = SEL_WT0S[SEL_WT0S.length - 1] || null;
   SEL_PIE = (DF.status || [])[0] || null;
+  // 원 우측 표시도 선택을 따라간다(안 그러면 기본값 HOLD 로 되돌아간다).
+  SEL_STATUS = SEL_PIE && DATA
+    ? DATA.status.findIndex(x => x.name === SEL_PIE) : null;
+  if (SEL_STATUS < 0) { SEL_STATUS = null; }
   DRILL_KEY = DF_CAUSE
     ? { i: DF_CAUSE.i, node: (DF_CAUSE.subs || []).slice(-1)[0] || null,
         list: DF_CAUSE.subs || [] }
@@ -1528,6 +1529,17 @@ function czWhole(i) {
 
 function renderCause() {
   const u = CAUSE_UNIT;
+  // 상위 계층(좌측 차트)에서 좁혀진 조건을 제목 옆에 보여 준다.
+  const up = document.getElementById("czup");
+  if (up) {
+    const parts = [];
+    DF_DEF.forEach(dd => {
+      if ((DF_LV[dd.k] || 9) < 4) {
+        (DF[dd.k] || []).forEach(v => parts.push(dfChipLabel(dd.k, v)));
+      }
+    });
+    up.textContent = parts.length ? "전체 > " + parts.join(" > ") : "";
+  }
 
   for (let i = 0; i < 3; i++) {
     const g = czGroup(i);
@@ -2308,12 +2320,16 @@ function renderDrillTable() {
     cnt.textContent = nf(rows.length) + " / " + nf((d.rows || []).length) + " 행";
   }
   renderDrillSorts();
-  document.getElementById("drillBody").innerHTML =
+  const body = document.getElementById("drillBody");
+  const keepTop = body.scrollTop, keepLeft = body.scrollLeft;
+  body.innerHTML =
     `<table class="grid"><thead><tr>${head}</tr></thead><tbody>`
     + (buf.length ? buf.join("")
        : `<tr><td colspan="${cols.length + 1}" style="color:#6B7280">`
          + `해당 조건의 LOT 이 없습니다.</td></tr>`)
     + `</tbody></table>`;
+  body.scrollTop = keepTop;          // 다시 그려도 보던 위치를 지킨다
+  body.scrollLeft = keepLeft;
 }
 
 const SRC_TITLE = {
@@ -2351,7 +2367,6 @@ function openDrill(filt, label, src, keepView) {
   el.classList.add("loading");
   el.innerHTML = `<div class="cellttl"><span>${drillTitle(src, label)}</span></div>`
     + `<div class="bar"><b>불러오는 중…</b><span class="spin"></span></div>`;
-  smoothTo(el);
   const base = { line: LINE, types: selectedTypes().join(","),
                  prod1: PROD1.join(","), prod2: PROD2.join(","),
                  area: AREAS.join(","),

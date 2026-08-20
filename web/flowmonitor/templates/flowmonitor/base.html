@@ -85,6 +85,8 @@
   .dd .menu label:hover { background:#F3F4F6; border-radius:3px; }
 
   /* 상태 원차트 */
+  .donut canvas { position:relative; z-index:2; }
+  .donut .pickinfo { position:relative; z-index:1; }
   .donut { display:flex; align-items:center; gap:10px; }
   .donut .cv { width:112px; height:112px; flex:0 0 112px; }
   .legend { display:flex; flex-direction:column; gap:6px; flex:0 0 auto; }
@@ -519,6 +521,9 @@
 
   /* 조건이 걸린 카드 강조 */
   .cell.active { box-shadow:0 0 0 2px var(--brand) inset; position:relative; }
+  /* 원인 분석은 안의 대분류 칸에만 표시한다. 카드 전체는 두르지 않는다. */
+  #czcard.active { box-shadow:none; }
+  #czcard.active::after { content:none; }
   .cell.active::after { content:attr(data-n); position:absolute; top:6px;
                         right:8px; min-width:15px; height:15px; padding:0 3px;
                         border-radius:8px; background:var(--brand); color:#fff;
@@ -545,9 +550,10 @@
       <a href="{{ url }}" {% if request.path == url %}class="on"{% endif %}>{{ name }}</a>
     {% endfor %}
   </nav>
-  <div class="meta">문의: <b>minuk12.choi</b>
+  <div class="meta">
     <button class="hdrbtn" id="clearAllBtn" style="display:none"
             onclick="dfClearAllConds()">드릴다운 ALL 해제</button>
+    문의: <b>minuk12.choi</b>
     / 적재시각: <b id="snapAt">{{ snapshot_at|default:"-" }}</b></div>
 </header>
 {% block body %}{% endblock %}

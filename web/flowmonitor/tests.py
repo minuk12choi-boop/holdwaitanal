@@ -17,7 +17,7 @@ PAGES = {
     "fab_status.html": [
         "const nf =", "function loadSummary(", "function renderWip()",
         "function renderStatus()", "function renderWt()", "function renderCause()",
-        "function openDrill", "function pickLine", "function smoothTo",
+        "function openDrill", "function pickLine",
     ],
     "fab_metrics.html": [
         "const nf =", "function load()", "const gapLine", "function drawMove",

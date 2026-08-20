@@ -1288,7 +1288,9 @@ def _classify_lot(r, rules, ht=None):
              if x.strip()]
     cand = chams or eqps
 
-    if r.get("hold") or st == "HOLD":
+    # 원인은 상태의 하위 분류다. 상태를 먼저 보고 그 안에서 나눈다.
+    # (예전에는 hold 플래그만 보고 Hold 로 보내, 상태와 원인이 어긋났다)
+    if st == "HOLD":
         return ("Hold", None,
                 [_sub_name(r, ht, "HOLD", "hold_reason", rules, "hold")])
 
@@ -1299,8 +1301,7 @@ def _classify_lot(r, rules, ht=None):
         ("eqpgroup", "eqpgroup_cham", "recipe_id", "ppid",
          "step_seq", "step_desc")).upper()
 
-    if st == "WAIT(진행불가)" or r.get("exception") or r.get("ftp") \
-            or _eqp_status_of(r.get("down")) or r.get("tip"):
+    if st == "WAIT(진행불가)":
         if r.get("exception"):
             return ("Wait성 진행불가", "예약제외",
                     [_sub_name(r, ht, "예약제외", "exception_reason",
@@ -1308,20 +1309,10 @@ def _classify_lot(r, rules, ht=None):
         if r.get("ftp"):
             return ("Wait성 진행불가", "FTP",
                     [_sub_name(r, ht, "FTP", "ftp_reason", rules, "ftp")])
-        eqp_st = _eqp_status_of(r.get("down"))
-        blocked = _blocked_eqps(r)
-        # 후보 설비/챔버 중 일부만 막혔으면 아직 갈 길이 남아 있다.
-        # 진행불가가 아니라 '호환설비이슈' 로 본다.
-        partial = bool(cand) and bool(blocked) and not set(cand) <= blocked
-        if eqp_st:
-            if partial:
-                return ("Bottleneck", "호환설비이슈",
-                        sorted(blocked) or ["(설비미상)"])
+        # 진행불가는 갈 길이 없다는 뜻이다. 호환설비이슈로 보내지 않는다.
+        if _eqp_status_of(r.get("down")):
             return ("Wait성 진행불가", "설비이슈", eqps or ["(설비미상)"])
         if r.get("tip"):
-            if partial:
-                return ("Bottleneck", "호환설비이슈",
-                        sorted(blocked) or ["(설비미상)"])
             return ("Wait성 진행불가", "TIP", eqps or ["(설비미상)"])
         if virtual:
             return ("Wait성 진행불가", "가상스텝 대기", ["가상스텝"])
@@ -1330,6 +1321,11 @@ def _classify_lot(r, rules, ht=None):
     if st == "WAIT":
         if virtual:
             return ("Wait성 진행불가", "가상스텝 대기", ["가상스텝"])
+        # 갈 수 있는 설비가 남아 있는 상태다(WAIT).
+        # 후보 중 일부만 막혔으면 '호환설비이슈' 로 따로 본다.
+        blocked = _blocked_eqps(r)
+        if blocked and cand and not set(cand) <= blocked:
+            return ("Bottleneck", "호환설비이슈", sorted(blocked))
         return ("Bottleneck", None, eqps or ["(설비미상)"])
 
     return (None, None, [])
