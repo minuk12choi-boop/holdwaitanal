@@ -1,36 +1,32 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web> waitress-serve --listen=0.0.0.0:8020 config.wsgi:application
-INFO:waitress:Serving on http://0.0.0.0:8020
+======================================================================
+[OVERLAP] 테두리와 내용이 겹치는 곳
+  czcol#0                        padding=0px/10px/0px/0px box-shadow=없음 w=314 h=319
+    └ div.subttl                 여백 상0 우11 하298 좌0   !! 테두리와 겹침(좌0,상0)
+    └ div.czpath                 여백 상25 우11 하270 좌0   !! 테두리와 겹침(좌0)
+    └ div                        여백 상53 우11 하0 좌0   !! 테두리와 겹침(좌0,하0)
+  czcol#1                        padding=0px/10px/0px/10px box-shadow=없음 w=314 h=319
+    └ div.subttl                 여백 상0 우11 하297 좌10   !! 테두리와 겹침(상0)
+    └ div.czpath                 여백 상26 우11 하269 좌10
+    └ div                        여백 상54 우11 하0 좌10   !! 테두리와 겹침(하0)
+  czcol#2                        padding=0px/0px/0px/10px box-shadow=없음 w=314 h=319
+    └ div.subttl                 여백 상0 우0 하298 좌10   !! 테두리와 겹침(우0,상0)
+    └ div.czpath                 여백 상25 우0 하270 좌10   !! 테두리와 겹침(우0)
+    └ div                        여백 상53 우0 하0 좌10   !! 테두리와 겹침(우0,하0)
+======================================================================
+
 
 ======================================================================
-[LAYOUT] viewport=1897  scrollWidth=1897  초과=0px
-======================================================================
-
-
-======================================================================
-[LAYOUT] viewport=1897  scrollWidth=4400  초과=2503px
-    2503px  div.farcol                             w=3642    parent=div.rowcards
-    2503px  div#balpanel                           w=3642    parent=div.farcol
-    2503px  div#drill                              w=3642    parent=div.farcol
-    2490px  div.cellttl                            w=3616    parent=div#balpanel
-    2490px  div#balpath                            w=3616    parent=div#balpanel
-    2490px  div#balbody                            w=3616    parent=div#balpanel
-    2490px  div.balrow                             w=3616    parent=div#balbody
-    2490px  div.cellttl                            w=3616    parent=div#drill
-    2490px  div.bar                                w=3616    parent=div#drill
-    2490px  div.dtools                             w=3616    parent=div#drill
-    2490px  div#drillBody                          w=3616    parent=div#drill
-    2474px  table.grid                             w=3599    parent=div#drillBody
-    2473px  thead                                  w=3598    parent=table.grid
-    2473px  tr                                     w=3598    parent=thead
-    2473px  tbody                                  w=3598    parent=table.grid
-    2473px  tr                                     w=3598    parent=tbody
-    2473px  tr                                     w=3598    parent=tbody
-    2473px  tr                                     w=3598    parent=tbody
-    2473px  tr                                     w=3598    parent=tbody
-    2473px  tr                                     w=3598    parent=tbody
-    2473px  tr                                     w=3598    parent=tbody
-    2473px  tr                                     w=3598    parent=tbody
-    2473px  tr                                     w=3598    parent=tbody
-    2473px  tr                                     w=3598    parent=tbody
-    2473px  tr                                     w=3598    parent=tbody
+[OVERLAP] 테두리와 내용이 겹치는 곳
+  czcol#0 (선택됨)                  padding=0px/10px/0px/0px box-shadow=없음 w=314 h=319
+    └ div.subttl                 여백 상0 우11 하298 좌0   !! 테두리와 겹침(좌0,상0)
+    └ div.czpath                 여백 상25 우11 하270 좌0   !! 테두리와 겹침(좌0)
+    └ div                        여백 상53 우11 하0 좌0   !! 테두리와 겹침(좌0,하0)
+  czcol#1                        padding=0px/10px/0px/10px box-shadow=없음 w=314 h=319
+    └ div.subttl                 여백 상0 우11 하297 좌10   !! 테두리와 겹침(상0)
+    └ div.czpath                 여백 상26 우11 하269 좌10
+    └ div                        여백 상54 우11 하0 좌10   !! 테두리와 겹침(하0)
+  czcol#2                        padding=0px/0px/0px/10px box-shadow=없음 w=314 h=319
+    └ div.subttl                 여백 상0 우0 하298 좌10   !! 테두리와 겹침(우0,상0)
+    └ div.czpath                 여백 상25 우0 하270 좌10   !! 테두리와 겹침(우0)
+    └ div                        여백 상53 우0 하0 좌10   !! 테두리와 겹침(우0,하0)
 ======================================================================
