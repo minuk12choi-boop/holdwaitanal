@@ -1349,13 +1349,13 @@ def _classify_lot(r, rules, ht=None):
         if virtual:
             return ("Wait성 진행불가", "가상스텝 대기", ["가상스텝"])
         # 갈 수 있는 설비가 남아 있는 상태다(WAIT).
-        # 후보 중 일부만 막혔으면 '호환설비이슈' 로 따로 본다.
+        # 중분류는 AREA(공정 구역), 소분류는 설비명으로 본다.
+        area = (r.get("AREA") or "").strip() or UNCLASSIFIED
         blocked = _blocked_eqps(r)
         if blocked and cand and not set(cand) <= blocked:
-            return ("Bottleneck", "호환설비이슈", sorted(blocked))
-        # 중분류를 비워 두면 설비 200여 개가 대분류 바로 아래에 붙어
-        # 다른 대분류와 계층이 어긋난다. '설비대기' 로 한 겹 둔다.
-        return ("Bottleneck", "설비대기", eqps or ["(설비미상)"])
+            # 후보 중 일부만 막힌 경우. 문제가 된 설비만 소분류로 둔다.
+            return ("Bottleneck", area, sorted(blocked))
+        return ("Bottleneck", area, eqps or ["(설비미상)"])
 
     return (None, None, [])
 
