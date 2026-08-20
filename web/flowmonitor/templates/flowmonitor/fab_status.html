@@ -664,7 +664,7 @@ function renderWt0() {
             ev, "nearest", { intersect: true }, false);
           if (hit.length) {
             const ds = wt0Chart.data.datasets[hit[0].datasetIndex];
-            if (ds && ds.label) { setCond("status", ds.label, ev, null, true); }
+            if (ds && ds.label) { setCond("status", ds.label, ev); }
           }
           syncFromDF();
         }
@@ -985,9 +985,17 @@ function drawBalance() {
             // 차트는 한 번만 만들고 재사용한다. 생성 시점의 xs 를 붙잡으면
             // 이후 갱신된 LAYER 와 어긋난다. 지금 라벨을 직접 읽는다.
             const ch = balCharts[i];
+            const ev = e.native || e;
             const lay = ch.data.labels[els[0].index];
             if (lay === undefined || lay === null) { return; }
-            setCond("layer", String(lay), e.native || e);
+            setCond("layer", String(lay), ev);
+            // 누적막대라 조각 색은 status 다. 같은 필드에 함께 건다.
+            const hit = ch.getElementsAtEventForMode(
+              ev, "nearest", { intersect: true }, false);
+            if (hit.length) {
+              const ds = ch.data.datasets[hit[0].datasetIndex];
+              if (ds && ds.label) { setCond("status", ds.label, ev); }
+            }
             syncFromDF();
           }
         },
@@ -1094,12 +1102,18 @@ let DRILL_KEY = { i: -1, node: null, list: [] };  // 표가 어느 차트·막�
      7  드릴다운 표
    같은 계층에서 다른 차트를 누르면 **그것만 남기고 리셋**한다
    (Ctrl 은 같은 차트 안에서만 여러 개). */
-/* one: 한 LOT 이 그 값 중 **하나만** 가질 수 있는 조건.
-        (상태는 HOLD 이면서 동시에 WAIT 일 수 없다)
-        이런 조건을 여럿 고르면 AND 는 언제나 0 이므로 **OR** 로 본다.
-        서버도 쉼표 목록을 IN 절로 받아 OR 로 처리한다.
-   many: 한 LOT 이 여러 값에 걸칠 수 있는 조건은 지금 없다.
-        (있다면 AND 가 뜻을 가지므로 여기서 구분한다) */
+/* 조건은 **차트가 아니라 필드** 단위다.
+   차트가 달라도 같은 필드를 건드리면 같은 조건이다.
+     status   원차트 · W/T 0 조각 · LOT BALANCE 조각
+     wt0      W/T 0 막대(경과기간)
+     type     재공 막대
+     wt       W/T 분포
+     layer    LOT BALANCE 막대
+     cause    원인 분석
+
+   같은 필드의 여러 값  ->  OR (한 LOT 은 그 값 하나만 갖는다)
+   서로 다른 필드끼리   ->  AND
+   조합 결과가 0 이면 0 을 그대로 보여 준다(자동으로 풀지 않는다). */
 const DF_DEF = [
   { k: "type",   t: "재공",   param: "lot_type", lv: 2, one: true },
   { k: "status", t: "STATUS", param: "status",   lv: 2, one: true },
@@ -1124,11 +1138,6 @@ function dfResetBelow(lv, keepCz) {
 }
 
 // 같은 계층의 다른 차트 조건을 지운다.
-// 같은 계층이라도 축이 다르면 함께 걸 수 있다(AND).
-//   상태 HOLD 와 W/T 0 2일 이하는 양립한다. 서로 지우면 안 된다.
-// 지우는 건 '같은 축' 뿐인데, 그건 setCond 가 값 목록으로 이미 처리한다.
-// 따라서 여기서는 아무것도 지우지 않는다.
-function dfClearPeers(key, lv) { /* 축이 다르면 공존한다 */ }
 let DF = {};                 // {키: [값...]}
 let DF_CAUSE = null;         // {big, mid, subs:[], i}
 let DF_LABEL = {};           // 화면 표시용 라벨
@@ -1147,7 +1156,7 @@ function multiPick(cur, name, ev) {
   return list;                       // 비면 해제
 }
 
-function setCond(key, name, ev, label, keepPeers) {
+function setCond(key, name, ev, label) {
   const add = ev && (ev.ctrlKey || ev.metaKey);
   const same = (DF[key] || []).length === 1 && DF[key][0] === name;
   let next;
@@ -1159,8 +1168,6 @@ function setCond(key, name, ev, label, keepPeers) {
     next = [name];                   // 그 축의 값만 교체(다른 축은 유지)
   }
   const lv = DF_LV[key] || 9;
-  // keepPeers: 한 번의 클릭으로 두 조건을 함께 거는 경우(누적막대의 조각 등)
-  if (!add && !keepPeers) { dfClearPeers(key, lv); }
   if (next.length) { DF[key] = next; } else { delete DF[key]; }
   if (label) { DF_LABEL[key + ":" + name] = label; }
   dfResetBelow(lv);                      // 아래 계층은 무효가 된다
@@ -1610,7 +1617,6 @@ function czSelect(i, basePath, node, ev) {
       or = prev.concat([pick]);                  // 다른 갈래를 더한다
     } else {
       or = [pick];                               // 새로 시작
-      dfClearPeers("cause", 4);
     }
   }
   DF_CAUSE = or.length ? { i: i, or: or } : null;
@@ -1690,7 +1696,6 @@ function czAskGo(mode) {
 
 function czWhole(i) {
   // 조건 저장소를 거쳐야 LOT BALANCE 등 하위가 함께 좁혀진다.
-  dfClearPeers("cause", 4);
   DF_CAUSE = { i: i, big: czGroup(i).name, mid: null, subs: [] };
   CZ_SEL = { i: -1, path: [] };
   dfResetBelow(4);
