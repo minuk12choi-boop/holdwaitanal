@@ -1110,11 +1110,14 @@ DF_DEF.forEach(d => { DF_LV[d.k] = d.lv; });
 DF_LV.cause = 4;              // 원인 분석
 
 // 이 계층보다 아래의 조건을 모두 지운다.
-function dfResetBelow(lv) {
+function dfResetBelow(lv, keepCz) {
   Object.keys(DF).forEach(k => { if ((DF_LV[k] || 9) > lv) { delete DF[k]; } });
   if (DF_LV.cause > lv) { DF_CAUSE = null; }
   // 원인 분석(4)보다 위를 고르면 그 아래 시각화도 전부 접는다.
-  if (lv < 5) { CZ_WIDE = null; CZ_STACK = []; CZ_SEL = { i: -1, path: [] }; }
+  // keepCz: 원인 분석 안에서 파고드는 중이라 방금 만든 차트를 지키고 싶을 때.
+  if (lv < 5 && !keepCz) {
+    CZ_WIDE = null; CZ_STACK = []; CZ_SEL = { i: -1, path: [] };
+  }
   if (lv < 6) { BAL_BY = ""; BAL_OPEN = false; BAL_PICK = null; }
 }
 
@@ -1557,7 +1560,7 @@ function czPick(i, node, depth, ev) {
       DF_CAUSE = list.length
         ? { i: i, big: pick.big, mid: mid, subs: list } : null;
     }
-    dfResetBelow(4);
+    dfResetBelow(4, true);     // 떠 있는 차트는 두고 표만 바꾼다
     syncFromDF();
     return;
   }
@@ -1616,7 +1619,7 @@ function czAskGo(mode) {
     DF_CAUSE = { i: i, big: czGroup(i).name, mid: mid, subs: [] };
   }
   CZ_WIDE = null;
-  dfResetBelow(4);
+  dfResetBelow(4, true);      // 방금 쌓은 차트는 지키고 아래만 정리한다
   syncFromDF();
 }
 
@@ -2107,7 +2110,7 @@ function renderCzWide() {
         DF_CAUSE = { i: i2, big: czGroup(i2).name,
                      mid: (CZ_WIDE.path.find(p => p.kind === "mid") || {}).name
                           || null, subs: [] };
-        dfResetBelow(4);
+        dfResetBelow(4, true);
         syncFromDF();
         return;
       }
