@@ -280,6 +280,11 @@ def _xfilters(request):
     return out
 
 
+def _fline_ok(r, want):
+    """라인 ALL 에서 조각(라인)을 고른 경우. 표와 LOT BALANCE 에도 걸린다."""
+    return (not want) or (str(r.get("line") or "-") in want)
+
+
 def _farea_ok(r, want):
     """AREA 별 재공 차트에서 고른 조건. 표와 LOT BALANCE 에도 걸린다."""
     if not want:
@@ -1494,6 +1499,7 @@ def api_summary(request):
     # 지금 걸린 조건이 모두 한 차트에서 나온 것이면 그 차트 이름이 온다.
     #   그 차트만 전체를 유지해 다시 고를 수 있게 한다.
     solo_src = request.GET.get("solo", "")
+    f_line = flist("f_line")          # 라인 ALL 에서 조각을 고른 경우
     bdate = request.GET.get("biz_date", "")
     bshift = request.GET.get("shift", "")
 
@@ -1616,6 +1622,9 @@ def api_summary(request):
         ok_w0 = (not f_wt0) or (wt <= 0 and b0 in f_wt0)
         ar = str(r.get("AREA") or "").strip() or UNCLASSIFIED
         ok_ar = (not f_area) or (ar in f_area)
+        # 라인은 어느 차트의 축도 아니다. 늘 그대로 적용한다.
+        if f_line and str(r.get("line") or "-") not in f_line:
+            continue
 
 
 
@@ -2260,6 +2269,8 @@ def api_balance(request):
             continue
         if not _farea_ok(r, f_area_b):
             continue
+        if not _fline_ok(r, f_line_b):
+            continue
         st = r.get("lot_status") or "-"
         if f_type and (r.get("lot_type") or "-") not in f_type:
             continue
@@ -2590,6 +2601,7 @@ def api_lots_live(request):
     # (미분류)가 섞이면 IN 절로 못 거른다. 그 경우만 파이썬에서 처리한다.
     xf = _xfilters(request)
     f_area_x = [x for x in request.GET.get("f_area", "").split(",") if x]
+    f_line_x = [x for x in request.GET.get("f_line", "").split(",") if x]
     p1_sql = prod1 if prod1 and UNCLASSIFIED not in prod1 else None
     p2_sql = prod2 if prod2 and UNCLASSIFIED not in prod2 else None
     rows, snap = _summary_rows(line, types, {
@@ -2638,6 +2650,8 @@ def api_lots_live(request):
         if layer_id and str(r.get("layer_id") or "").strip() not in layer_id:
             continue
         if not _farea_ok(r, f_area_x):
+            continue
+        if not _fline_ok(r, f_line_x):
             continue
         if or_causes:
             ids = set(_eqp_ids(r))

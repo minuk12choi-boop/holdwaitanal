@@ -620,9 +620,18 @@ function renderWt() {
         scales: { x: { display: false, beginAtZero: true, grace: "12%" },
                   y: { grid: { display: false }, ticks: { font: { size: 11 } } } },
         onClick: (e, els) => {
-          if (!els.length) return;
-          const x = DATA.wt_dist[els[0].index];
-          setCond("wt", x.name, e.native || e, x.label, false, "wt");
+          if (!els.length) { return; }
+          const ev = e.native || e;
+          // 라인 ALL 이면 조각이 라인이다. 구간과 한 쌍으로 다룬다.
+          const hit = wtChart.getElementsAtEventForMode(
+            ev, "nearest", { intersect: true }, false);
+          const idx = hit.length ? hit[0].index : els[0].index;
+          const x = DATA.wt_dist[idx];
+          if (!x) { return; }
+          const seg = (LINE === "ALL" && hit.length)
+            ? (wtChart.data.datasets[hit[0].datasetIndex] || {}).label : null;
+          if (seg) { pickStacked("wt", x.name, seg, ev, x.label, "wt", "iline"); }
+          else { setCond("wt", x.name, ev, x.label, false, "wt"); }
           syncFromDF();
         }
       },
@@ -655,8 +664,25 @@ function renderWt() {
   wtChart.options.scales.y.stacked = (LINE === "ALL");
   wtChart.$selSet = new Set(
     (DF.wt || []).map(k => (d.wt_dist.find(y => y.name === k) || {}).label));
-  markSelected(wtChart,
-    d.wt_dist.findIndex(x => (DF.wt || []).indexOf(x.name) >= 0));
+  // 라인 ALL 이면 (구간, 라인) 쌍으로 표시한다.
+  if (LINE === "ALL") {
+    const lns = ((DATA.line_dist) || []).map(x => x.name);
+    const bk = (DF.wt || []).map(v => d.wt_dist.findIndex(x => x.name === v))
+      .filter(k => k >= 0);
+    const bd = (DF.iline || []).map(n => lns.indexOf(n)).filter(k => k >= 0);
+    const bp = [];
+    bk.forEach(k => {
+      if (bd.length) { bd.forEach(di => bp.push([k, di])); }
+      else { bp.push([k, wtChart.data.datasets.length - 1]); }
+    });
+    wtChart.$selPairs = bp;
+    wtChart.$selSet = null;
+    markSelected(wtChart, -1);
+  } else {
+    wtChart.$selPairs = null;
+    markSelected(wtChart,
+      d.wt_dist.findIndex(x => (DF.wt || []).indexOf(x.name) >= 0));
+  }
   wtChart.update();
 }
 
@@ -1333,6 +1359,7 @@ const DF_DEF = [
   { k: "wt",     t: "W/T",    param: "wt_range", lv: 2, one: true },
   { k: "wt0",    t: "W/T 0",  param: "wt0",      lv: 2, one: true },
   { k: "iarea",  t: "AREA",   param: "f_area",   lv: 2, one: true },
+  { k: "iline",  t: "LINE",   param: "f_line",   lv: 2, one: true },
   { k: "layer",  t: "LAYER",  param: "layer_id", lv: 5, one: true },
 ];
 const DF_LV = {};
@@ -1390,13 +1417,13 @@ function pickStacked(binKey, binVal, seg, ev, label, src) {
   const mineSeg = DF_SRC.status === undefined || DF_SRC.status === src;
 
   if (add && hasBin && hasSeg && mineBin && mineSeg) {
-    if (seg) { setCond("status", seg, { ctrlKey: true }, null, false, src); }
+    if (seg) { setCond(sk, seg, { ctrlKey: true }, null, false, src); }
     setCond(binKey, binVal, { ctrlKey: true }, label, false, src);
     return;
   }
   if (add) {
     if (seg && !hasSeg) {
-      setCond("status", seg, { ctrlKey: true }, null, false, src);
+      setCond(sk, seg, { ctrlKey: true }, null, false, src);
     }
     if (!hasBin) {
       setCond(binKey, binVal, { ctrlKey: true }, label, false, src);
@@ -1407,14 +1434,14 @@ function pickStacked(binKey, binVal, seg, ev, label, src) {
   // status 를 다른 차트에서 걸었다면 그건 남긴다(직전 상태로 돌아간다).
   const onlyBin = (DF[binKey] || []).length === 1 && hasBin && mineBin;
   const onlySeg = !seg
-    || ((DF.status || []).length === 1 && hasSeg && mineSeg);
+    || ((DF[sk] || []).length === 1 && hasSeg && mineSeg);
   if (onlyBin && onlySeg) {
     delete DF[binKey];
-    if (seg && mineSeg) { delete DF.status; }
+    if (seg && mineSeg) { delete DF[sk]; }
     dfResetBelow(DF_LV[binKey] || 9);
     return;
   }
-  if (seg) { setCond("status", seg, null, null, true, src); }
+  if (seg) { setCond(sk, seg, null, null, true, src); }
   setCond(binKey, binVal, null, label, true, src);
 }
 
@@ -3573,6 +3600,7 @@ function loadSummary(keepFocus) {
         + "&f_wt0=" + encodeURIComponent((DF.wt0 || []).join(","))
         + "&f_type=" + encodeURIComponent((DF.type || []).join(","))
         + "&f_area=" + encodeURIComponent((DF.iarea || []).join(","))
+        + "&f_line=" + encodeURIComponent((DF.iline || []).join(","))
         + "&solo=" + encodeURIComponent(soloSrc())
         // 원인 / LAYER 도 좌측 차트에 그대로 반영한다.
         + "&layer_id=" + encodeURIComponent((DF.layer || []).join(","))
