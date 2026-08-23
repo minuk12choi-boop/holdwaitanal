@@ -225,8 +225,13 @@
      좌측 세로축과 원인 분석의 높이 맞춤은 syncLeftHeight() 가 한다. */
   .layout { display:flex; gap:14px; padding:14px; align-items:flex-start;
             min-width:0; max-width:100%; box-sizing:border-box; }
+  /* 드릴다운을 '거는' 좌측과 그 '결과' 인 우측을 굵은 선으로 가른다. */
   .maincol { flex:1 1 0; min-width:0; width:0; display:flex;
-             flex-direction:column; }
+             flex-direction:column;
+             border-left:3px solid #D7DEE8; padding-left:14px; }
+  /* 요약카드와 그 아래 내용도 가른다. */
+  #insight { border-bottom:3px solid #D7DEE8; border-radius:6px 6px 0 0;
+             padding-bottom:10px; }
   .summary { flex:0 0 380px; display:flex; flex-direction:column; }
 
   .summary .cell { border:1px solid var(--bd); border-radius:6px; padding:11px 12px;
@@ -371,7 +376,8 @@
      선택 테두리는 ::before 로 그 안쪽에 그린다. */
   .cz3 .czcol { display:flex; flex-direction:column; min-height:0;
                 padding:8px 10px; position:relative; }
-  .cz3 .czcol > div:last-child { flex:1; min-height:110px; }
+  /* 좌측이 길어지면 세 차트가 그만큼 균등하게 늘어난다. */
+  .cz3 .czcol > div:last-child { flex:1; min-height:90px; }
   /* SHIFT 추이 + 원인 분석을 같은 등급 카드로 나란히 */
   /* 두 카드의 세로를 맞춘다. 추이가 길어지면 원인 분석도 같이 늘어난다. */
   /* ── 3열 배치 ─────────────────────────────────────────────────────────

@@ -93,6 +93,14 @@
       <div class="minittl" style="margin-bottom:6px">마지막 작업 이후 경과일 기준</div>
       <div style="height:210px"><canvas id="wt0c"></canvas></div>
     </div>
+    <div class="cell" id="areacard" style="display:none">
+      <div class="cellttl"><span>AREA 별 재공</span>
+        <span class="seg">
+          <button id="au_lots" onclick="setAreaUnit('lots')">LOT</button>
+          <button class="on" id="au_qty" onclick="setAreaUnit('qty')">매</button>
+        </span></div>
+      <div style="height:150px"><canvas id="areac"></canvas></div>
+    </div>
   </div>
 
   <div class="maincol">
@@ -764,6 +772,104 @@ function renderWt0() {
     : "";
 }
 
+/* --- AREA 별 재공 (status 누적) ------------------------------------- */
+let areaChart = null;
+let AREA_UNIT = "qty";
+
+function setAreaUnit(u) {
+  AREA_UNIT = u;
+  document.getElementById("au_lots").className = (u === "lots") ? "on" : "";
+  document.getElementById("au_qty").className = (u === "qty") ? "on" : "";
+  renderArea();
+}
+
+function renderArea() {
+  const d = DATA, u = AREA_UNIT;
+  const list = d.area_dist || [];
+  const box = document.getElementById("areacard");
+  if (!list.length) { box.style.display = "none"; return; }
+  box.style.display = "";
+
+  const sts = d.status || [];
+  const datasets = sts.map(st => ({
+    label: st.name, backgroundColor: st.color, borderWidth: 0,
+    data: list.map(x => {
+      const v = (x.by_status || {})[st.name];
+      return v ? (u === "lots" ? v.lots : v.qty) : 0;
+    })
+  }));
+  const tot = list.map(x => (u === "lots" ? x.lots : x.qty) || 0);
+
+  if (!areaChart) {
+    areaChart = new Chart(document.getElementById("areac"), {
+      type: "bar",
+      data: { labels: [], datasets: [] },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        layout: { padding: { top: 16 } },
+        plugins: { legend: { display: false },
+                   tooltip: { callbacks: { label: (t) => {
+                     const g = (areaChart.$tot || [])[t.dataIndex] || 0;
+                     const v = t.raw || 0;
+                     return t.dataset.label + " " + nf(v)
+                       + (AREA_UNIT === "lots" ? " lot" : " 매")
+                       + (g ? " (" + Math.round(v / g * 100) + "%)" : "");
+                   } } } },
+        scales: { x: { stacked: true, grid: { display: false },
+                       ticks: { font: { size: 9 }, autoSkip: false } },
+                  y: { stacked: true, display: false, beginAtZero: true,
+                       grace: "18%" } },
+        onClick: (e, els) => {
+          if (!els.length) { return; }
+          const ev = e.native || e;
+          const hit = areaChart.getElementsAtEventForMode(
+            ev, "nearest", { intersect: true }, false);
+          const idx = hit.length ? hit[0].index : els[0].index;
+          const x = (DATA.area_dist || [])[idx];
+          if (!x) { return; }
+          const seg = hit.length
+            ? (areaChart.data.datasets[hit[0].datasetIndex] || {}).label : null;
+          pickStacked("iarea", x.name, seg, ev, null, "area");
+          syncFromDF();
+        }
+      },
+      plugins: [{
+        id: "areaVal",
+        afterDatasetsDraw(ch) {
+          const ctx = ch.ctx; ctx.save();
+          ctx.font = "9px 'Poppins','Noto Sans KR',sans-serif";
+          ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+          ctx.fillStyle = "#374151";
+          const top = ch.getDatasetMeta(ch.data.datasets.length - 1);
+          (top ? top.data : []).forEach((el, k) => {
+            const v = (ch.$tot || [])[k];
+            if (v) { ctx.fillText(kfmt(v), el.x, el.y - 3); }
+          });
+          ctx.restore();
+        }
+      }]
+    });
+  }
+  areaChart.$tot = tot;
+  areaChart.data.labels = list.map(x => x.name);
+  areaChart.data.datasets = datasets;
+
+  const bk = (DF.iarea || []).map(v => list.findIndex(x => x.name === v))
+    .filter(k => k >= 0);
+  const bd = (DF.status || []).map(n => sts.findIndex(x => x.name === n))
+    .filter(k => k >= 0);
+  const bp = [];
+  bk.forEach(k => {
+    if (bd.length) { bd.forEach(di => bp.push([k, di])); }
+    else { bp.push([k, sts.length - 1]); }
+  });
+  areaChart.$selPairs = bp;
+  areaChart.$selSet = null;
+  keepBarWidth(areaChart, list.length);
+  markSelected(areaChart, -1);
+  areaChart.update();
+}
+
 /* --- W/T 0 : 경과기간 x status 가로 누적막대 (드릴다운 위) --- */
 
 /* --- LOT BALANCE : LAYER 별 재공 --------------------------------------
@@ -1165,6 +1271,7 @@ const DF_DEF = [
   { k: "status", t: "STATUS", param: "status",   lv: 2, one: true },
   { k: "wt",     t: "W/T",    param: "wt_range", lv: 2, one: true },
   { k: "wt0",    t: "W/T 0",  param: "wt0",      lv: 2, one: true },
+  { k: "iarea",  t: "AREA",   param: "f_area",   lv: 2, one: true },
   { k: "layer",  t: "LAYER",  param: "layer_id", lv: 5, one: true },
 ];
 const DF_LV = {};
@@ -3102,6 +3209,7 @@ function loadSummary(keepFocus) {
         + "&f_wt=" + encodeURIComponent((DF.wt || []).join(","))
         + "&f_wt0=" + encodeURIComponent((DF.wt0 || []).join(","))
         + "&f_type=" + encodeURIComponent((DF.type || []).join(","))
+        + "&f_area=" + encodeURIComponent((DF.iarea || []).join(","))
         // 원인 / LAYER 도 좌측 차트에 그대로 반영한다.
         + "&layer_id=" + encodeURIComponent((DF.layer || []).join(","))
         + "&causes=" + encodeURIComponent(dfFilter().causes || "")
@@ -3126,7 +3234,8 @@ function loadSummary(keepFocus) {
       document.getElementById("snapAt").textContent = d.snapshot_at || "-";
       renderSnap(d);
       renderProd(d);
-      renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
+      renderWip(); renderStatus(); renderWt(); renderWt0(); renderArea();
+      renderCause();
       renderInsight();
       requestAnimationFrame(syncLeftHeight);
       if (location.search.indexOf("debug=layout") >= 0) {

@@ -52,6 +52,9 @@ DEFAULT_LINE = "KFR4"          # NRD
 # 상단 현황 카드. 좌측부터 고정 순서.
 #   label = 화면 표기, line = f3/move 의 실제 라인 코드
 LINE_CARDS = [
+    # ALL 은 라인을 가리지 않는다. 설비 관점(B/N)에서는 다른 라인 재공까지
+    # 함께 봐야 뜻이 있다.
+    {"label": "ALL",   "line": "ALL"},
     {"label": "NRD",   "line": "KFR4"},
     {"label": "NRD-P", "line": "PFR1"},
     {"label": "NRD-K", "line": "KFR7"},
@@ -277,6 +280,13 @@ def _xfilters(request):
     return out
 
 
+def _farea_ok(r, want):
+    """AREA 별 재공 차트에서 고른 조건. 표와 LOT BALANCE 에도 걸린다."""
+    if not want:
+        return True
+    return (str(r.get("AREA") or "").strip() or UNCLASSIFIED) in want
+
+
 def _xrow_ok(r, xf):
     """행이 요약카드 조건에 맞는지."""
     if not xf:
@@ -294,6 +304,18 @@ def _xrow_ok(r, xf):
         if (str(r.get(col) or "").strip() or UNCLASSIFIED) not in want:
             return False
     return True
+
+
+def _dist_rows(d):
+    """{키 -> {status -> 카운터}} 를 화면용 목록으로. 매수 많은 순."""
+    def tot(v):
+        return sum(c["qty"] for c in v.values())
+
+    return [{"name": k, "qty": int(tot(v)),
+             "lots": int(sum(c["lots"] for c in v.values())),
+             "by_status": {a: {"qty": int(c["qty"]), "lots": int(c["lots"])}
+                           for a, c in v.items()}}
+            for k, v in sorted(d.items(), key=lambda kv: -tot(kv[1]))]
 
 
 def _columns_of(name):
@@ -1255,11 +1277,18 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
             sel.append(f"MIN(`{c}`) AS `{c}`")
 
     if hist:
-        where = "biz_date = %s AND shift = %s AND `line` = %s"
-        params = [biz_date, shift, line]
+        # line 이 ALL 이면 라인을 가리지 않는다(설비 관점으로 볼 때 쓴다).
+        if line == "ALL":
+            where, params = "biz_date = %s AND shift = %s", [biz_date, shift]
+        else:
+            where = "biz_date = %s AND shift = %s AND `line` = %s"
+            params = [biz_date, shift, line]
     else:
-        where = "snapshot_at = %s AND `line` = %s"
-        params = [snap, line]
+        if line == "ALL":
+            where, params = "snapshot_at = %s", [snap]
+        else:
+            where = "snapshot_at = %s AND `line` = %s"
+            params = [snap, line]
     cond = ""
     if types:
         cond = " AND lot_type IN (%s)" % ",".join(["%s"] * len(types))
@@ -1278,7 +1307,7 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
             SELECT lot_id, {', '.join(sel)}, COUNT(*) AS `_steps`
             FROM   {table}
             WHERE  {where} {cond}
-            GROUP  BY lot_id
+            GROUP  BY lot_id, `line`
         """, params)
         names = [d[0] for d in cur.description]
         rows = [dict(zip(names, r)) for r in cur.fetchall()]
@@ -1457,6 +1486,7 @@ def api_summary(request):
     f_wt = flist("f_wt")
     f_wt0 = flist("f_wt0")
     f_type = flist("f_type")
+    f_area = flist("f_area")          # AREA 별 재공 차트에서
     bdate = request.GET.get("biz_date", "")
     bshift = request.GET.get("shift", "")
 
@@ -1546,6 +1576,8 @@ def api_summary(request):
     # 요약카드는 최상단 필터까지만 반영한다. 카드에서 고른 조건(x_*)이
     # 카드 목록 자체를 바꾸면 다음 행을 고를 수 없다.
     ins_rows = []          # 요약카드용. 루프에서 채운다.
+    by_area = {}           # AREA -> {status -> 매수}
+    by_line = {}           # LINE -> 매수 (라인 ALL 일 때 쓴다)
 
     # 차트마다 **자기 필드를 뺀 나머지 조건**으로 센다.
     #   원차트에서 HOLD 를 고르면 재공막대 · W/T · W/T 0 은 HOLD 로 좁혀지고,
@@ -1570,28 +1602,36 @@ def api_summary(request):
         ok_ty = (not f_type) or (ty in f_type)
         ok_wt = (not f_wt) or (wk in f_wt)
         ok_w0 = (not f_wt0) or (wt <= 0 and b0 in f_wt0)
+        ar = str(r.get("AREA") or "").strip() or UNCLASSIFIED
+        ok_ar = (not f_area) or (ar in f_area)
 
         # 요약카드는 카드에서 고른 조건(x_*)만 무시한다.
-        if ok_layer and ok_cause and ok_st and ok_ty and ok_wt and ok_w0:
+        if (ok_layer and ok_cause and ok_st and ok_ty and ok_wt and ok_w0
+                and ok_ar):
             ins_rows.append(r)
 
         base = ok_x and ok_layer and ok_cause          # 공통으로 걸리는 것
         if not base:
             continue
 
-        if ok_ty and ok_wt and ok_w0:                  # status 자신은 뺀다
+        if ok_ty and ok_wt and ok_w0 and ok_ar:        # status 자신은 뺀다
             _bucket(by_status, st, q)
-        if ok_st and ok_wt and ok_w0:                  # 재공막대
+        if ok_st and ok_wt and ok_w0 and ok_ar:        # 재공막대
             _bucket(by_type, ty, q)
-        if ok_st and ok_ty and ok_w0:                  # W/T 분포
+        if ok_st and ok_ty and ok_w0 and ok_ar:        # W/T 분포
             _bucket(by_wt, wk, q)
-        if ok_st and ok_ty and ok_wt and wt <= 0:      # W/T 0 분포
+        if ok_st and ok_ty and ok_wt and ok_w0:        # AREA 자신은 뺀다
+            _bucket(by_area.setdefault(ar, {}), st, q)
+            if ok_ar:
+                _bucket(by_line.setdefault(
+                    str(r.get("line") or "-"), {}), st, q)
+        if ok_st and ok_ty and ok_wt and ok_ar and wt <= 0:   # W/T 0 분포
             _bucket(by_wt0, b0, q)
             if b0:
                 _bucket(wt0_st.setdefault(b0, {}), st, q)
             _bucket(wt0_tot, st, q)
 
-        if not (ok_st and ok_ty and ok_wt and ok_w0):
+        if not (ok_st and ok_ty and ok_wt and ok_w0 and ok_ar):
             continue
         tot["lots"] += 1
         tot["qty"] += q
@@ -1710,6 +1750,9 @@ def api_summary(request):
         "insights": _build_insights(
             line, types, ins_rows, mv, rules, ht, cls,
             {"qty": sum(num(x.get("qty")) for x in ins_rows)}),
+        # AREA 별 재공(status 누적). x축은 매수 순.
+        "area_dist": _dist_rows(by_area),
+        "line_dist": _dist_rows(by_line),
         "wt0_bins": WT0_BINS,
         "wt0_dist": [{"name": b["key"], "label": b["label"],
                       **by_wt0.get(b["key"], {"lots": 0, "qty": 0}),
@@ -2176,6 +2219,7 @@ def api_balance(request):
     layers, by_plan, total = set(), {}, {}
     lay_mod = {}          # LAYER -> 모듈. x축 아래 경계 표시에 쓴다
     xf = _xfilters(request)
+    f_area_b = [x for x in request.GET.get("f_area", "").split(",") if x]
     for r in rows:
         if prod1 and (r.get("prod1") or UNCLASSIFIED) not in prod1:
             continue
@@ -2184,6 +2228,8 @@ def api_balance(request):
         if areas and (r.get("AREA") or UNCLASSIFIED) not in areas:
             continue
         if not _xrow_ok(r, xf):
+            continue
+        if not _farea_ok(r, f_area_b):
             continue
         st = r.get("lot_status") or "-"
         if f_type and (r.get("lot_type") or "-") not in f_type:
@@ -2321,7 +2367,7 @@ def _ins_path(r, kind):
     return [area, (eqps[0] if eqps else UNCLASSIFIED)]
 
 
-def _ins_bucket(rows, mv, rules, ht, cls=None):
+def _ins_bucket(rows, mv, rules, ht, cls=None, line=""):
     """카드 네 종류로 나누고, 각자의 경로로 5순위까지 센다."""
     from collections import defaultdict
 
@@ -2363,7 +2409,10 @@ def _ins_bucket(rows, mv, rules, ht, cls=None):
         if not card:
             continue
 
-        path = tuple([head] + _ins_path(r, cards[card]["kind"]))
+        pre = []
+        if cards[card]["kind"] == "eqp" and line == "ALL":
+            pre = [str(r.get("line") or "-")]   # 라인 구분 없이 볼 때만
+        path = tuple(pre + [head] + _ins_path(r, cards[card]["kind"]))
         it = cards[card]["items"][path]
         q = num(r.get("qty"))
         it["lots"] += 1
@@ -2388,7 +2437,7 @@ def _ins_new():
 
 def _build_insights(line, types, rows, mv, rules, ht, cls, tot, top_n=5):
     """카드 네 장. 각 카드 안에서 매수 순으로 5순위까지."""
-    cards = _ins_bucket(rows, mv, rules, ht, cls)
+    cards = _ins_bucket(rows, mv, rules, ht, cls, line)
 
     out = []
     total = tot.get("qty") or 0
@@ -2506,6 +2555,7 @@ def api_lots_live(request):
 
     # (미분류)가 섞이면 IN 절로 못 거른다. 그 경우만 파이썬에서 처리한다.
     xf = _xfilters(request)
+    f_area_x = [x for x in request.GET.get("f_area", "").split(",") if x]
     p1_sql = prod1 if prod1 and UNCLASSIFIED not in prod1 else None
     p2_sql = prod2 if prod2 and UNCLASSIFIED not in prod2 else None
     rows, snap = _summary_rows(line, types, {
@@ -2552,6 +2602,8 @@ def api_lots_live(request):
         if not _xrow_ok(r, xf):
             continue
         if layer_id and str(r.get("layer_id") or "").strip() not in layer_id:
+            continue
+        if not _farea_ok(r, f_area_x):
             continue
         if or_causes:
             if not any((not a or b2 == a)
