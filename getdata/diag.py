@@ -15,6 +15,7 @@ Oracle 전환 후 f3 결과가 Impala 시절과 크게 달라졌을 때, 어느 
 
 from __future__ import annotations
 
+import re
 import sys
 
 import pandas as pd
@@ -429,9 +430,169 @@ def main():
         diag_lotst(sys.argv[2] if len(sys.argv) > 2 else "")
     if what == "tree":
         diag_tree(sys.argv[2] if len(sys.argv) > 2 else "KFR4")
+    if what == "holdtxt":
+        diag_holdtxt(sys.argv[2] if len(sys.argv) > 2 else "H000")
     if what in ("dates", "all"):
         diag_dates()
 
 
 if __name__ == "__main__":
     main()
+
+
+# ---------------------------------------------------------------------------
+# HOLD 사유 문구 분석
+# ---------------------------------------------------------------------------
+HOLD_SEP = "!@!"
+
+# 코드에 따라 자동으로 들어가는 값. 사용자가 쓴 말이 아니라 분석에서 뺀다.
+AUTO_WORDS = {"FLOW금지", "FUTURE"}
+
+# 의미 없는 조각. 한 글자나 기호만 있는 것.
+_NOISE = re.compile(r"^[\W_]*$|^.$", re.U)
+# [7I1608207279] 같은 일련번호. 매번 달라 조건이 될 수 없다.
+_SERIAL = re.compile(r"\[[^\]]*\]|\b[A-Z0-9]{8,}\b")
+
+
+def _hold_reason_text(raw):
+    """HOLD 사유에서 **사용자가 직접 쓴 REASON** 만 뽑는다.
+
+    형식: 코드::코드!@!자동대분류!@!사용자REASON!@!이름!@!부서!@!ID!@!코드
+    이름 / 부서 / ID 는 개인정보라 건드리지 않는다(인덱스 3 이후).
+    """
+    parts = str(raw or "").split(HOLD_SEP)
+    if len(parts) < 3:
+        return ""
+    return parts[2].strip()
+
+
+def _norm_phrase(txt):
+    """비교용으로 다듬는다. 일련번호와 잉여 공백을 없앤다."""
+    t = _SERIAL.sub(" ", str(txt or ""))
+    t = re.sub(r"[\t\r\n]+", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def _words(txt):
+    """단어로 쪼갠다. 의미 없는 조각은 버린다."""
+    out = []
+    for w in _norm_phrase(txt).split(" "):
+        w = w.strip(" .,;:/|()[]{}<>\"'`~!?*-_=+")
+        if not w or _NOISE.match(w):
+            continue
+        if w.upper() in AUTO_WORDS:
+            continue
+        out.append(w)
+    return out
+
+
+def diag_holdtxt(code="H000"):
+    """HOLD 사유에서 반복되는 문구를 찾아 기준정보 조건 후보를 낸다.
+
+    사내 민감정보라 화면에는 **문구와 건수만** 나온다.
+    이름 / 부서 / ID 는 애초에 읽지 않는다.
+    """
+    import db_common as DB
+    from collections import Counter, defaultdict
+
+    MIN_HIT = 5                       # 이만큼은 반복돼야 후보로 본다
+
+    _head(f"HOLD 사유 문구 분석 ({code})")
+    conn = DB.connect()
+    try:
+        rows = []
+        with conn.cursor() as cur:
+            for tbl in ("f3_live", "f3_history"):
+                try:
+                    cur.execute(
+                        f"SELECT lot_id, hold_reason FROM {tbl} "
+                        f"WHERE hold_reason LIKE %s", [f"%{code}%"])
+                except Exception as e:
+                    print(f"[SKIP] {tbl}: {type(e).__name__}", flush=True)
+                    continue
+                got = cur.fetchall()
+                rows += got
+                print(f"[READ] {tbl}  {len(got):,}행", flush=True)
+    finally:
+        conn.close()
+
+    if not rows:
+        print("해당 코드의 HOLD 사유가 없다.")
+        return
+
+    # lot 단위로 중복을 없앤다(같은 lot 이 여러 스냅샷에 나온다).
+    seen = {}
+    for lot, raw in rows:
+        txt = _hold_reason_text(raw)
+        if txt:
+            seen.setdefault((lot, _norm_phrase(txt)), txt)
+
+    reasons = list(seen.values())
+    print(f"[대상] 고유 (lot, 사유) {len(reasons):,}건\n")
+    if not reasons:
+        print("사용자가 쓴 REASON 이 하나도 없다.")
+        return
+
+    # 1) 문장 통째로 반복되는 것
+    whole = Counter()
+    for t in reasons:
+        w = _words(t)
+        if w:
+            whole[" ".join(w)] += 1
+
+    # 2) 이어지는 단어 묶음(n-gram). 길이는 제한하지 않는다.
+    gram = Counter()
+    gram_lot = defaultdict(set)
+    for idx, t in enumerate(reasons):
+        w = _words(t)
+        n = len(w)
+        for i in range(n):
+            for j in range(i + 1, n + 1):
+                g = " ".join(w[i:j])
+                gram[g] += 1
+                gram_lot[g].add(idx)
+
+    # 짧은 조각이 더 긴 조각과 건수가 같으면 긴 쪽만 남긴다(최장 우선).
+    cand = {g: c for g, c in gram.items() if c >= MIN_HIT}
+    keep = []
+    for g, c in sorted(cand.items(), key=lambda kv: (-len(kv[0]), -kv[1])):
+        if any(g != h and g in h and cand[h] == c for h in cand):
+            continue
+        keep.append((g, c))
+    keep.sort(key=lambda kv: (-kv[1], -len(kv[0])))
+
+    print("-" * 70)
+    print(f"[조건 후보]  {MIN_HIT}건 이상 반복된 문구")
+    print(f"{'건수':>6}  {'단어수':>4}  문구")
+    for g, c in keep[:40]:
+        print(f"{c:>6,}  {len(g.split()):>4}  {g}")
+    if not keep:
+        print("  반복 문구가 없다. MIN_HIT 를 낮춰 본다.")
+
+    # 3) 함께 나오는 쌍 -> condition2 + condition3
+    top = [g for g, _ in keep[:25]]
+    pairs = Counter()
+    for a_i, a in enumerate(top):
+        for b in top[a_i + 1:]:
+            if a in b or b in a:
+                continue
+            both = gram_lot[a] & gram_lot[b]
+            if len(both) >= MIN_HIT:
+                pairs[(a, b)] = len(both)
+
+    print("\n" + "-" * 70)
+    print("[condition2 + condition3 조합]  두 문구가 함께 나온 건수")
+    if pairs:
+        for (a, b), c in pairs.most_common(20):
+            print(f"{c:>6,}  {a}  +  {b}")
+    else:
+        print("  함께 반복되는 쌍이 없다. condition2 하나로 충분하다.")
+
+    print("\n" + "-" * 70)
+    print("[/master/ HOLD 유형설정 에 넣는 법]")
+    print(f"  condition1 = {code}")
+    print("  condition2 = 위 문구 하나")
+    print("  condition3 = (조합이 있으면) 두 번째 문구")
+    print("  type_name  = 그 유형에 붙일 이름")
+    print("\n  조건은 모두 '포함' 이고 AND 로 걸린다.")
