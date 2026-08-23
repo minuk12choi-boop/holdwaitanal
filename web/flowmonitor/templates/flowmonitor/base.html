@@ -141,12 +141,14 @@
 
   /* 로딩 가림막 */
   #busy { position:fixed; inset:0; z-index:10000; display:none;
-          background:rgba(255,255,255,.72); backdrop-filter:blur(1px);
+          background:rgba(255,255,255,.82);
           align-items:center; justify-content:center; }
   #busy.on { display:flex; }
-  .busyring { width:34px; height:34px; border:3px solid #D7DEE8;
-              border-top-color:#2E1A47; border-radius:50%;
-              animation:spin .7s linear infinite; }
+  .busytxt { font-size:13px; font-weight:600; color:#2E1A47;
+             letter-spacing:.02em; }
+  /* 첫 화면이 다 그려질 때까지 본문을 감춘다.
+     반쯤 그려진 뼈대가 스치는 것을 막는다. */
+  body.booting > *:not(#busy):not(script) { visibility:hidden; }
 
   .htip { position:absolute; z-index:9999; pointer-events:none; opacity:0;
           background:rgba(17,24,39,.94); color:#fff; font-size:11px;
@@ -696,7 +698,7 @@
 {% block body %}{% endblock %}
 <!-- 로딩 가림막. 무엇이든 불러오는 동안 화면 전체를 덮는다.
      반쯤 그려진 화면을 보이지 않게 한다. -->
-<div id="busy"><div class="busyring"></div></div>
+<div id="busy"><div class="busytxt">불러오는 중입니다…</div></div>
 
 <script>
 /* 진행 중인 요청을 센다. 하나라도 있으면 가림막을 띄운다.
@@ -730,17 +732,32 @@
         // 그리기까지 끝난 뒤 걷는다. 곧바로 걷으면 빈 화면이 스친다.
         clearTimeout(timer);
         timer = setTimeout(() => {
-          if (!n) { requestAnimationFrame(hide); }
+          if (n) { return; }
+          requestAnimationFrame(() => {
+            document.body.classList.remove("booting");
+            hide();
+          });
         }, 60);
       }
     });
   };
 
-  // 첫 화면은 문서가 준비될 때까지 덮어 둔다.
-  show();
-  window.addEventListener("load", () => {
-    setTimeout(() => { if (!n) { hide(); } }, 80);
+  // 첫 화면: 본문을 감춘 채 덮어 두고, 첫 조회까지 끝나면 함께 보인다.
+  document.documentElement.classList.add("booting");
+  document.addEventListener("DOMContentLoaded", () => {
+    document.body.classList.add("booting");
+    document.documentElement.classList.remove("booting");
   });
+  show();
+
+  function boot() {
+    if (n) { return; }                    // 아직 부르는 중이면 기다린다
+    document.body.classList.remove("booting");
+    hide();
+  }
+  // 첫 조회가 끝나면 본문을 보인다. 요청이 없는 페이지도 대비해 시간을 둔다.
+  window.addEventListener("load", () => setTimeout(boot, 120));
+  window.__bootDone = boot;
 })();
 </script>
 </body>

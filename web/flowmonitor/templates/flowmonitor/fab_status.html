@@ -539,8 +539,13 @@ function dnTooltip(ctx) {
 
   const i = (tt.dataPoints && tt.dataPoints[0]) ? tt.dataPoints[0].dataIndex : -1;
   const st = ((ctx.chart.$status || [])[i]) || {};
+  const by = st.by_line || {};
+  const more = (LINE === "ALL" && Object.keys(by).length)
+    ? "<u>" + Object.keys(by).map(ln =>
+        lineShort(ln) + " " + nf(by[ln].qty)).join(" · ") + "</u>"
+    : "";
   el.innerHTML = `<i style="background:${st.color}"></i>${st.name}`
-    + `<b>${st.pct}%</b>${nf(st.lots)} LOT · ${nf(st.qty)} 매`;
+    + `<b>${st.pct}%</b>${nf(st.lots)} LOT · ${nf(st.qty)} 매${more}`;
 
   const box = ctx.chart.canvas.getBoundingClientRect();
   el.style.opacity = "1";
@@ -716,9 +721,12 @@ function renderWt0() {
                    tooltip: { callbacks: { label: (t) => {
                      const g = (wt0Chart.$tot || [])[t.dataIndex] || 0;
                      const v = t.raw || 0;
-                     return t.dataset.label + " " + nf(v)
-                       + (WT0_UNIT === "lots" ? " lot" : " 매")
+                     const u = WT0_UNIT === "lots" ? " lot" : " 매";
+                     const head = t.dataset.label + " " + nf(v) + u
                        + (g ? " (" + Math.round(v / g * 100) + "%)" : "");
+                     return [head].concat(lineRows(
+                       DATA.wt0_dist, t.dataIndex, t.dataset.label,
+                       u, WT0_UNIT));
                    } } } },
         scales: { x: { stacked: true, grid: { display: false },
                        ticks: { font: { size: 10 } } },
@@ -854,9 +862,12 @@ function renderArea() {
                    tooltip: { callbacks: { label: (t) => {
                      const g = (areaChart.$tot || [])[t.dataIndex] || 0;
                      const v = t.raw || 0;
-                     return t.dataset.label + " " + nf(v)
-                       + (AREA_UNIT === "lots" ? " lot" : " 매")
+                     const u = AREA_UNIT === "lots" ? " lot" : " 매";
+                     const head = t.dataset.label + " " + nf(v) + u
                        + (g ? " (" + Math.round(v / g * 100) + "%)" : "");
+                     return [head].concat(lineRows(
+                       DATA.area_dist, t.dataIndex, t.dataset.label,
+                       u, AREA_UNIT));
                    } } } },
         scales: { x: { stacked: true, grid: { display: false },
                        ticks: { font: { size: 9 }, autoSkip: false } },
@@ -1806,6 +1817,22 @@ function drawSel(chart, sel, dsIdx) {
 }
 
 // 누적막대 툴팁 한 줄. 라인 ALL 이면 라인 이름과 비율을 함께 보인다.
+// 라인 ALL 일 때, 그 조각을 라인별로 쪼개 여러 줄로 보여 준다.
+//   list  차트가 그리는 원본 목록(각 항목에 by_line 이 있어야 한다)
+function lineRows(list, idx, stName, unit, u) {
+  if (LINE !== "ALL") { return []; }
+  const x = (list || [])[idx];
+  const by = x && (stName ? (x.by_line_status || {})[stName] : x.by_line);
+  if (!by) { return []; }
+  const tot = Object.values(by).reduce(
+    (a, v) => a + (u === "lots" ? v.lots : v.qty), 0);
+  return Object.keys(by).map(ln => {
+    const v = u === "lots" ? by[ln].lots : by[ln].qty;
+    return "   " + lineShort(ln) + " " + nf(v) + unit
+      + (tot ? " (" + Math.round(v / tot * 100) + "%)" : "");
+  });
+}
+
 function stackTip(t, unit) {
   const v = t.raw || 0;
   const ds = t.chart.data;
@@ -1883,7 +1910,15 @@ function czBarChart(canvasId, onPick, pluginId) {
                 sc.max = sc.min + range;
               } } },
       onClick: (e, els) => {
-        if (els.length) { onPick(els[0].index, e.native || e); }
+        if (!els.length) { return; }
+        const ev = e.native || e;
+        // interaction 이 index 라 els 로는 어느 조각인지 알 수 없다.
+        // 라인 ALL 에서 조각(라인)을 고르려면 좌표로 다시 찾는다.
+        const ch = e.chart;
+        const hit = ch.getElementsAtEventForMode(
+          ev, "nearest", { intersect: true }, false);
+        const ds = hit.length ? hit[0].datasetIndex : null;
+        onPick(els[0].index, ev, ds);
       },
       interaction: { mode: "index", intersect: false }
     },
@@ -2052,7 +2087,14 @@ function czSelect(i, basePath, node, ev) {
   syncFromDF();
 }
 
-function czPick(i, node, depth, ev) {
+// 라인 ALL 이면 누른 조각이 곧 라인이다.
+function czLineOf(ch, dsIdx) {
+  if (LINE !== "ALL" || dsIdx === undefined || dsIdx === null) { return null; }
+  const ds = ch && ch.data.datasets[dsIdx];
+  return (ds && ds.type !== "line" && ds.label) ? ds.label : null;
+}
+
+function czPick(i, node, depth, ev, seg) {
   if (!node) { return; }
   const add = ev && (ev.ctrlKey || ev.metaKey);
   // 하위가 하나뿐이면 말단으로 본다. 쪼개 봐야 같은 값이다.
@@ -2067,6 +2109,8 @@ function czPick(i, node, depth, ev) {
   CZ_SEL.path = CZ_SEL.path.filter(p => p.kind !== "all");
 
   if (leaf) {
+    // 라인 조각을 골랐으면 라인 조건도 함께 건다(Ctrl 로 여럿 가능).
+    if (seg) { setCond("iline", seg, ev, null, false, "cause"); }
     czSelect(i, basePathOf(i), node, ev);
     return;
   }
@@ -2385,7 +2429,8 @@ function renderCause() {
 
     if (!czCharts[i]) {
       czCharts[i] = czBarChart("czc" + i,
-        (idx, ev) => czPick(i, (czCharts[i].$nodes || [])[idx], 0, ev),
+        (idx, ev, dsIdx) => czPick(i, (czCharts[i].$nodes || [])[idx], 0, ev,
+                                   czLineOf(czCharts[i], dsIdx)),
         "czVal" + i);
     }
     // 이 칸에서 파고들었으면(중분류 차트든 표든) 연결 관계를 보인다.

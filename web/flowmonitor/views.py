@@ -311,6 +311,12 @@ def _xrow_ok(r, xf):
     return True
 
 
+def _ln_map(d):
+    """{status -> {라인 -> 카운터}} 를 화면용으로."""
+    return {a: {b: {"qty": int(c["qty"]), "lots": int(c["lots"])}
+                for b, c in v.items()} for a, v in (d or {}).items()}
+
+
 def _dist_rows(d):
     """{키 -> {status -> 카운터}} 를 화면용 목록으로. 매수 많은 순."""
     def tot(v):
@@ -1595,6 +1601,9 @@ def api_summary(request):
     ins_rows = []          # 요약카드용. 루프에서 채운다.
     by_area = {}           # AREA -> {status -> 매수}
     wt_line = {}           # W/T 구간 -> {라인 -> 매수}
+    area_ln = {}           # AREA -> {status -> {라인 -> 매수}}
+    wt0_ln = {}            # W/T0 구간 -> {status -> {라인 -> 매수}}
+    st_ln = {}             # status -> {라인 -> 매수}
     by_line = {}           # LINE -> 매수 (라인 ALL 일 때 쓴다)
 
     # 차트마다 **자기 필드를 뺀 나머지 조건**으로 센다.
@@ -1639,6 +1648,7 @@ def api_summary(request):
 
         if ok_ty and ok_wt and ok_w0 and ok_ar and (solo_src == "pie" or ok_st):
             _bucket(by_status, st, q)
+            _bucket(st_ln.setdefault(st, {}), str(r.get("line") or "-"), q)
         if ok_st and ok_wt and ok_w0 and ok_ar and (solo_src == "type" or ok_ty):
             _bucket(by_type, ty, q)
         if ok_st and ok_ty and ok_w0 and ok_ar and (solo_src == "wt" or ok_wt):
@@ -1647,6 +1657,8 @@ def api_summary(request):
                     str(r.get("line") or "-"), q)
         if ok_st and ok_ty and ok_wt and ok_w0 and (solo_src == "area" or ok_ar):
             _bucket(by_area.setdefault(ar, {}), st, q)
+            _bucket(area_ln.setdefault(ar, {}).setdefault(st, {}),
+                    str(r.get("line") or "-"), q)
             if ok_ar:
                 _bucket(by_line.setdefault(
                     str(r.get("line") or "-"), {}), st, q)
@@ -1655,6 +1667,8 @@ def api_summary(request):
             _bucket(by_wt0, b0, q)
             if b0:
                 _bucket(wt0_st.setdefault(b0, {}), st, q)
+                _bucket(wt0_ln.setdefault(b0, {}).setdefault(st, {}),
+                        str(r.get("line") or "-"), q)
             _bucket(wt0_tot, st, q)
 
         if not (ok_st and ok_ty and ok_wt and ok_w0 and ok_ar):
@@ -1751,9 +1765,11 @@ def api_summary(request):
     # 원차트는 자기 조건을 뺀 집계라 tot(선택분)과 분모가 다르다.
     # 제 합계로 나눠야 100% 가 되지 않는다.
     st_tot = sum(v.get("lots", 0) for v in by_status.values())
+    st_lines = _ln_map(st_ln)
     status = [{"name": s, "color": STATUS_COLORS[s],
                "lots": by_status.get(s, {}).get("lots", 0),
                "qty": by_status.get(s, {}).get("qty", 0),
+               "by_line": st_lines.get(s, {}),
                "pct": round(by_status.get(s, {}).get("lots", 0)
                             / st_tot * 100, 1) if st_tot else 0}
               for s in STATUS_ORDER]
@@ -1785,13 +1801,15 @@ def api_summary(request):
             line, types, ins_rows, mv, rules, ht, cls,
             {"qty": sum(num(x.get("qty")) for x in ins_rows)}),
         # AREA 별 재공(status 누적). x축은 매수 순.
-        "area_dist": _dist_rows(by_area),
+        "area_dist": [dict(x, by_line_status=_ln_map(area_ln.get(x["name"])))
+                      for x in _dist_rows(by_area)],
         "line_dist": _dist_rows(by_line),
         "wt0_bins": WT0_BINS,
         "wt0_dist": [{"name": b["key"], "label": b["label"],
                       **by_wt0.get(b["key"], {"lots": 0, "qty": 0}),
                       "by_status": {k: {"lots": v["lots"], "qty": v["qty"]}
-                                    for k, v in wt0_st.get(b["key"], {}).items()}}
+                                    for k, v in wt0_st.get(b["key"], {}).items()},
+                      "by_line_status": _ln_map(wt0_ln.get(b["key"]))}
                      for b in WT0_BINS],
         # 누적막대 계열 순서와 색. 원차트와 같은 색을 쓴다.
         "wt0_status": [{"name": k, "color": STATUS_COLORS.get(k, "#9CA3AF"),
