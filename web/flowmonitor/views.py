@@ -1460,12 +1460,16 @@ def _classify_lot(r, rules, ht=None):
     return (None, None, [])
 
 
-def _add(node, lots, qty, eld=None):
+def _add(node, lots, qty, eld=None, ln=None):
     node["lots"] += lots
     node["qty"] += qty
     if eld is not None:
         node["eld"] = node.get("eld", 0.0) + eld
         node["eln"] = node.get("eln", 0) + 1
+    if ln:                       # 라인별 분해(라인 ALL 일 때 누적막대로 쓴다)
+        c = node.setdefault("ln", {}).setdefault(ln, {"lots": 0.0, "qty": 0.0})
+        c["lots"] += lots
+        c["qty"] += qty
 
 
 def api_summary(request):
@@ -1577,6 +1581,7 @@ def api_summary(request):
     # 카드 목록 자체를 바꾸면 다음 행을 고를 수 없다.
     ins_rows = []          # 요약카드용. 루프에서 채운다.
     by_area = {}           # AREA -> {status -> 매수}
+    wt_line = {}           # W/T 구간 -> {라인 -> 매수}
     by_line = {}           # LINE -> 매수 (라인 ALL 일 때 쓴다)
 
     # 차트마다 **자기 필드를 뺀 나머지 조건**으로 센다.
@@ -1605,6 +1610,14 @@ def api_summary(request):
         ar = str(r.get("AREA") or "").strip() or UNCLASSIFIED
         ok_ar = (not f_area) or (ar in f_area)
 
+        # 그 차트에서만 골랐다면 그 차트는 전체를 보여 다시 고를 수 있게 한다.
+        # 다른 조건이 하나라도 더 걸리면 모든 차트가 함께 좁혀진다.
+        n_cond = sum(1 for x in (f_status, f_type, f_wt, f_wt0, f_area,
+                                 want_layer) if x) \
+            + (1 if (or_causes or c_big or c_mid or c_sub) else 0) \
+            + (1 if xf else 0)
+        solo = (n_cond <= 1)
+
         # 요약카드는 카드에서 고른 조건(x_*)만 무시한다.
         if (ok_layer and ok_cause and ok_st and ok_ty and ok_wt and ok_w0
                 and ok_ar):
@@ -1614,18 +1627,20 @@ def api_summary(request):
         if not base:
             continue
 
-        if ok_ty and ok_wt and ok_w0 and ok_ar:        # status 자신은 뺀다
+        if ok_ty and ok_wt and ok_w0 and ok_ar and (solo or ok_st):
             _bucket(by_status, st, q)
-        if ok_st and ok_wt and ok_w0 and ok_ar:        # 재공막대
+        if ok_st and ok_wt and ok_w0 and ok_ar and (solo or ok_ty):
             _bucket(by_type, ty, q)
-        if ok_st and ok_ty and ok_w0 and ok_ar:        # W/T 분포
+        if ok_st and ok_ty and ok_w0 and ok_ar and (solo or ok_wt):
             _bucket(by_wt, wk, q)
-        if ok_st and ok_ty and ok_wt and ok_w0:        # AREA 자신은 뺀다
+            _bucket(wt_line.setdefault(wk, {}),
+                    str(r.get("line") or "-"), q)
+        if ok_st and ok_ty and ok_wt and ok_w0 and (solo or ok_ar):
             _bucket(by_area.setdefault(ar, {}), st, q)
             if ok_ar:
                 _bucket(by_line.setdefault(
                     str(r.get("line") or "-"), {}), st, q)
-        if ok_st and ok_ty and ok_wt and ok_ar and wt <= 0:   # W/T 0 분포
+        if ok_st and ok_ty and ok_wt and ok_ar and wt <= 0 and (solo or ok_w0):
             _bucket(by_wt0, b0, q)
             if b0:
                 _bucket(wt0_st.setdefault(b0, {}), st, q)
@@ -1647,18 +1662,19 @@ def api_summary(request):
         w = 1.0 / len(subs) if subs else 0.0      # 설비 여러 개면 지분으로 나눔
         g = tree.setdefault(big, {"lots": 0.0, "qty": 0.0, "eld": 0.0, "eln": 0,
                                   "mid": {}})
-        _add(g, 1, q, eld)
+        lnm = str(r.get("line") or "-")
+        _add(g, 1, q, eld, lnm)
         mkey = mid or "_"
         m = g["mid"].setdefault(mkey, {"lots": 0.0, "qty": 0.0, "eld": 0.0,
                                        "eln": 0, "sub": {}})
-        _add(m, 1, q, eld)
+        _add(m, 1, q, eld, lnm)
         # 설비 단위 소분류는 그 아래에 실제 설비 ID 를 한 겹 더 둔다.
         eqp_ids = _eqp_ids(r) if big in ("Bottleneck", "Wait성 진행불가") else []
         for sname in subs:
             sc = m["sub"].setdefault(sname, {"lots": 0.0, "qty": 0.0,
                                              "eld": 0.0, "eln": 0, "eqp": {}})
             sc.setdefault("eqp", {})
-            _add(sc, w, q * w, eld)
+            _add(sc, w, q * w, eld, lnm)
             # 소분류 이름이 곧 설비그룹인 경우, 그 그룹의 설비 ID 로 나눈다.
             ids = [x for x in eqp_ids if x.startswith(sname)] or eqp_ids
             if ids and sname != "(설비미상)":
@@ -1666,13 +1682,17 @@ def api_summary(request):
                 for eid in ids:
                     ec = sc["eqp"].setdefault(eid, {"lots": 0.0, "qty": 0.0,
                                                     "eld": 0.0, "eln": 0})
-                    _add(ec, w2, q * w2, eld)
+                    _add(ec, w2, q * w2, eld, lnm)
 
     def node(name, v, extra=None):
         n = v.get("eln") or 0
         d = {"name": name, "lots": round(v["lots"], 1), "qty": int(round(v["qty"])),
              # 경과일 평균(일/lot). 라인차트에 쓴다.
              "elapsed_d": (round(v.get("eld", 0.0) / n, 1) if n else None)}
+        if v.get("ln"):                    # 라인 ALL 일 때 누적막대로 쓴다
+            d["by_line"] = {a: {"qty": int(round(c["qty"])),
+                                "lots": round(c["lots"], 1)}
+                            for a, c in v["ln"].items()}
         if extra:
             d.update(extra)
         return d
@@ -1771,7 +1791,10 @@ def api_summary(request):
                            if kv[0] in STATUS_ORDER else 99)],
         "wt_ranges": WT_RANGES,
         "wt_dist": [{"name": r["key"], "label": r["label"],
-                     **by_wt.get(r["key"], {"lots": 0, "qty": 0})}
+                     **by_wt.get(r["key"], {"lots": 0, "qty": 0}),
+                     "by_line": {a: {"qty": int(c["qty"]),
+                                     "lots": int(c["lots"])}
+                                 for a, c in wt_line.get(r["key"], {}).items()}}
                     for r in WT_RANGES],
         "causes": causes,
     }, json_dumps_params={"ensure_ascii": False})
@@ -2414,7 +2437,7 @@ def _ins_bucket(rows, mv, rules, ht, cls=None, line=""):
             continue
 
         pre = []
-        if cards[card]["kind"] == "eqp" and line == "ALL":
+        if line == "ALL":
             pre = [str(r.get("line") or "-")]   # 라인 구분 없이 볼 때만
         # 카드 안에 한 종류만 있는 경우(B/N · PREVENT)는 접두를 생략한다.
         mid_head = [] if card in ("neck", "tip") else [head]

@@ -597,6 +597,7 @@ function renderWt() {
   const vals = d.wt_dist.map(x => u === "lots" ? x.lots : x.qty);
   const colors = d.wt_dist.map((_, i) =>
     `rgba(220,20,60,${Math.max(1 - 0.13 * i, 0.18).toFixed(2)})`);
+  const wtDs = lineStack(d.wt_dist, u, colors);
 
   if (!wtChart) {
     wtChart = new Chart(document.getElementById("wtc"), {
@@ -608,6 +609,9 @@ function renderWt() {
         layout: { padding: { right: 34 } },
         plugins: { legend: { display: false },
                    tooltip: { callbacks: { label: (t) => {
+                     if (LINE === "ALL") {
+                       return stackTip(t, WT_UNIT === "lots" ? " LOT" : " 매");
+                     }
                      const x = DATA.wt_dist[t.dataIndex];
                      return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
                    } } } },
@@ -637,8 +641,10 @@ function renderWt() {
     });
   }
   wtChart.data.labels = d.wt_dist.map(x => x.label);
-  wtChart.data.datasets[0].data = vals;
-  wtChart.data.datasets[0].backgroundColor = colors;
+  wtChart.data.datasets = wtDs;
+  // 라인 ALL 이면 라인별 누적, 아니면 단색 한 벌
+  wtChart.options.scales.x.stacked = (LINE === "ALL");
+  wtChart.options.scales.y.stacked = (LINE === "ALL");
   wtChart.$selSet = new Set(
     (DF.wt || []).map(k => (d.wt_dist.find(y => y.name === k) || {}).label));
   markSelected(wtChart,
@@ -837,13 +843,34 @@ function renderArea() {
         id: "areaVal",
         afterDatasetsDraw(ch) {
           const ctx = ch.ctx; ctx.save();
+          ctx.textAlign = "center";
+          const tot = ch.$tot || [];
+
+          // 조각마다 값과 비율을 두 줄로. 얇으면 생략한다.
           ctx.font = "9px 'Poppins','Noto Sans KR',sans-serif";
-          ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+          ctx.textBaseline = "middle";
+          ch.data.datasets.forEach((ds, di) => {
+            ch.getDatasetMeta(di).data.forEach((el, k) => {
+              const v = ds.data[k];
+              if (!v) { return; }
+              if (Math.abs(el.base - el.y) < 20) { return; }
+              const p = tot[k] ? Math.round(v / tot[k] * 100) : 0;
+              const cy = (el.y + el.base) / 2;
+              ctx.fillStyle = "#1F2937";
+              ctx.fillText(kfmt(v), el.x, cy - 5);
+              ctx.fillText("(" + p + "%)", el.x, cy + 5);
+            });
+          });
+
+          ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
+          ctx.textBaseline = "bottom";
           ctx.fillStyle = "#374151";
           const top = ch.getDatasetMeta(ch.data.datasets.length - 1);
           (top ? top.data : []).forEach((el, k) => {
-            const v = (ch.$tot || [])[k];
-            if (v) { ctx.fillText(kfmt(v), el.x, el.y - 3); }
+            if (tot[k]) {
+              ctx.fillText(kfmt(tot[k]) + (AREA_UNIT === "lots" ? "lot" : "매"),
+                           el.x, el.y - 4);
+            }
           });
           ctx.restore();
         }
@@ -1699,6 +1726,19 @@ function drawSel(chart, sel, dsIdx) {
   }
 }
 
+// 누적막대 툴팁 한 줄. 라인 ALL 이면 라인 이름과 비율을 함께 보인다.
+function stackTip(t, unit) {
+  const v = t.raw || 0;
+  const ds = t.chart.data;
+  let g = 0;
+  ds.datasets.forEach(d => {
+    if (d.type !== "line") { g += (d.data[t.dataIndex] || 0); }
+  });
+  const nm = t.dataset.label ? t.dataset.label + " " : "";
+  return nm + nf(v) + unit
+    + (g ? " (" + Math.round(v / g * 100) + "%)" : "");
+}
+
 function czBarChart(canvasId, onPick, pluginId) {
   return new Chart(document.getElementById(canvasId), {
     type: "bar",
@@ -1718,9 +1758,12 @@ function czBarChart(canvasId, onPick, pluginId) {
                    title: (t) => (t[0].chart.$nodes[t[0].dataIndex] || {}).name,
                    label: (t) => {
                      const x = t.chart.$nodes[t.dataIndex] || {};
-                     if (t.datasetIndex === 1) {
+                     if (t.dataset.type === "line") {
                        return "경과 평균 " + (x.elapsed_d == null ? "-"
                               : x.elapsed_d.toFixed(1) + " 일/lot");
+                     }
+                     if (LINE === "ALL") {
+                       return stackTip(t, CAUSE_UNIT === "lots" ? " LOT" : " 매");
                      }
                      return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
                    } } } },
@@ -1776,15 +1819,21 @@ function czBarChart(canvasId, onPick, pluginId) {
 function czApply(ch, nodes, u, selName, selList) {
   // 값에 따라 농도를 달리하면 1위 막대가 '선택된 것' 처럼 보인다.
   // 선택 표시는 3D 팝업이 전담하므로 막대색은 전부 같은 남색으로 둔다.
-  const vals = nodes.map(x => u === "lots" ? x.lots : x.qty);
   ch.$nodes = nodes;
   ch.data.labels = nodes.map(x => x.name);
-  ch.data.datasets[0].data = vals;
-  // 안 좋은 지표라 적색 계열(#F08080). 상위일수록 진하다(값 내림차순으로 온다).
-  ch.data.datasets[0].backgroundColor = nodes.map((_, i) =>
-    `rgba(240,128,128,${Math.max(1 - 0.11 * i, 0.25).toFixed(2)})`);
-  ch.data.datasets[1].data = nodes.map(x =>
-    (x.elapsed_d === null || x.elapsed_d === undefined) ? null : x.elapsed_d);
+  const line = ch.data.datasets.find(d => d.type === "line");
+  // 안 좋은 지표라 적색 계열. 라인 ALL 이면 라인별 누적막대로 바꾼다.
+  const bars = lineStack(nodes, u, "#F08080");
+  bars.forEach(b => { b.order = 2; b.yAxisID = "y"; b.borderRadius = 3; });
+  if (line) {
+    line.data = nodes.map(x =>
+      (x.elapsed_d === null || x.elapsed_d === undefined) ? null : x.elapsed_d);
+    ch.data.datasets = bars.concat([line]);
+  } else {
+    ch.data.datasets = bars;
+  }
+  ch.options.scales.x.stacked = (LINE === "ALL");
+  ch.options.scales.y.stacked = (LINE === "ALL");
   const on = new Set(selList && selList.length ? selList : [selName]);
   ch.$selSet = on;
   markSelected(ch, nodes.findIndex(x => on.has(x.name)));
@@ -1948,6 +1997,31 @@ function czWhole(i) {
    카드가 세로로 길어 x/y 를 뒤집는다. y축 라벨은 '대분류' 줄바꿈 '중분류'.
 --------------------------------------------------------------------- */
 // 대분류별 막대 색. 원인 분석 카드의 색 계열을 따른다.
+// 라인 ALL 일 때 누적막대 색. 라인 수가 적어 고정 색으로 둔다.
+const LINE_COLORS = ["#4C6EF5", "#F08080", "#84C09A", "#E8C46A", "#9B8AC4"];
+
+function lineColor(name) {
+  const ls = (DATA && DATA.line_dist) || [];
+  const i = ls.findIndex(x => x.name === name);
+  return LINE_COLORS[(i < 0 ? 0 : i) % LINE_COLORS.length];
+}
+
+// 라인 ALL 이면 라인별 누적막대로 만든다. 아니면 단색 한 벌.
+function lineStack(items, u, flat) {
+  const ls = ((DATA && DATA.line_dist) || []).map(x => x.name);
+  if (LINE !== "ALL" || !ls.length) {
+    return [{ label: "", data: items.map(x => u === "lots" ? x.lots : x.qty),
+              backgroundColor: flat }];
+  }
+  return ls.map(ln => ({
+    label: ln, backgroundColor: lineColor(ln), borderWidth: 0,
+    data: items.map(x => {
+      const v = (x.by_line || {})[ln];
+      return v ? (u === "lots" ? v.lots : v.qty) : 0;
+    })
+  }));
+}
+
 const STATUS_TONE = {
   "Hold": "#F08080",
   "Wait성 진행불가": "#E8C46A",
