@@ -1614,7 +1614,8 @@ function syncFromDF() {
 }
 
 // 드릴다운 표 상태. closeDrill 이 초기 로딩에서도 불리므로 선언을 앞에 둔다.
-let DRILL_DATA = null;      // 현재 표에 뿌린 원자료
+let DRILL_DATA = null;
+let DRILL_MORE = null;       // 표를 나눠 그리기 위한 상태      // 현재 표에 뿌린 원자료
 let SORT_KEYS = [];         // [{k, dir}] 순서가 곧 정렬 우선순위
 let HIDE_COLS = {};         // 감춘 컬럼
 let DFILT = {};             // 표 자체 필터 {컬럼: Set(값)}
@@ -3472,8 +3473,14 @@ function renderDrillTable() {
   const SC = d.status_colors || {};
   const nc = cols.length;
 
+  // 수천 행을 한 번에 그리면 그 사이 화면이 멈춘다.
+  // 먼저 보이는 만큼만 그리고 나머지는 스크롤할 때 잇는다.
+  const FIRST = 200;
+  DRILL_MORE = { rows: rows, at: 0, cols: cols, keys: null };
+
   const buf = [];
-  for (let i = 0; i < rows.length; i++) {
+  const upto = Math.min(rows.length, FIRST);
+  for (let i = 0; i < upto; i++) {
     const r = rows[i];
     const lot = r.lot_id;
     const many = (r._steps || 1) > 1;
@@ -3504,6 +3511,41 @@ function renderDrillTable() {
     buf.push("</tr>");
   }
 
+  DRILL_MORE.at = upto;
+  DRILL_MORE.make = (from, to) => {
+    const out = [];
+    for (let i = from; i < to; i++) {
+      const r = rows[i];
+      const lot = r.lot_id;
+      const many = (r._steps || 1) > 1;
+      out.push('<tr data-lot="' + lot + '">');
+      out.push('<td class="expcol">');
+      if (many) {
+        out.push('<span class="expbtn" onclick="toggleSteps(event,\'' + lot
+                 + '\')">+</span>');
+      }
+      out.push("</td>");
+      for (let j = 0; j < nc; j++) {
+        const raw = r[keys[j]];
+        let v = (raw === null || raw === undefined) ? ""
+          : (isWt[j] ? Number(raw).toFixed(1) : String(raw));
+        const bg = isSt[j] && SC[v] ? ' style="background:' + SC[v] + '33"' : "";
+        if (v.length > LONG) {
+          out.push(isNum[j] ? '<td class="num"' + bg + '><span class="c">'
+                            : "<td" + bg + '><span class="c">');
+          out.push(v);
+          out.push("</span></td>");
+        } else {
+          out.push(isNum[j] ? '<td class="num"' + bg + ">" : "<td" + bg + ">");
+          out.push(v);
+          out.push("</td>");
+        }
+      }
+      out.push("</tr>");
+    }
+    return out.join("");
+  };
+
   const cnt = document.getElementById("drillCount");
   if (cnt) {
     cnt.textContent = nf(rows.length) + " / " + nf((d.rows || []).length) + " 행";
@@ -3517,6 +3559,16 @@ function renderDrillTable() {
        : `<tr><td colspan="${cols.length + 1}" style="color:#6B7280">`
          + `해당 조건의 LOT 이 없습니다.</td></tr>`)
     + `</tbody></table>`;
+  // 스크롤이 끝에 닿으면 다음 묶음을 잇는다.
+  body.onscroll = () => {
+    if (!DRILL_MORE || DRILL_MORE.at >= DRILL_MORE.rows.length) { return; }
+    if (body.scrollTop + body.clientHeight < body.scrollHeight - 300) { return; }
+    const to = Math.min(DRILL_MORE.at + 300, DRILL_MORE.rows.length);
+    const tb = body.querySelector("tbody");
+    if (tb) { tb.insertAdjacentHTML("beforeend",
+                                    DRILL_MORE.make(DRILL_MORE.at, to)); }
+    DRILL_MORE.at = to;
+  };
   body.scrollTop = keepTop;          // 다시 그려도 보던 위치를 지킨다
   body.scrollLeft = keepLeft;
 }

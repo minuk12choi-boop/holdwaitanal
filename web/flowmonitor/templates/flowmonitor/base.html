@@ -715,6 +715,26 @@
 ------------------------------------------------------------------ */
 (function () {
   let n = 0, timer = null, booted = false;
+  // 첫 화면이 언제 걷히는지 추적한다. 값은 담지 않고 시각과 단계만 남긴다.
+  const T0 = Date.now();
+  const TRACE = [];
+  const DBG = location.search.indexOf("debug=boot") >= 0;
+
+  function mark(what, extra) {
+    TRACE.push({ t: Date.now() - T0, what: what, extra: extra || "" });
+  }
+
+  function sendTrace() {
+    if (!DBG) { return; }
+    fetch("/api/debug-layout/", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: "boot",
+        items: TRACE.map(x => ({ sel: `  +${x.t}ms  ${x.what}`,
+                                 note: String(x.extra) })),
+      })
+    });
+  }
   const el = () => document.getElementById("busy");
 
   function show() {
@@ -734,19 +754,18 @@
       return orig.apply(this, arguments);
     }
     n++;
+    mark("fetch 시작", url.split("?")[0] + "  (동시 " + n + ")");
     show();
     // 응답 promise 는 **헤더가 오면** 바로 끝난다. 여기서 걷으면
     // 아직 JSON 을 읽고 그리는 중이라 뼈대가 스친다.
     // 부르는 쪽의 .then 들이 다 끝난 뒤(태스크 큐 뒤)로 미룬다.
     const done = () => setTimeout(() => {
       n = Math.max(0, n - 1);
-      if (n) { return; }
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (n || !booted) { return; }     // 첫 화면은 boot() 가 걷는다
-        // 그린 뒤 한 프레임 더 기다렸다 걷는다.
-        requestAnimationFrame(() => requestAnimationFrame(hide));
-      }, 80);
+      mark("fetch 끝", url.split("?")[0] + "  (남은 " + n + ")");
+      if (n || !booted) { return; }      // 첫 화면은 boot() 가 걷는다
+      // 그린 직후 프레임에 걷는다. 인위적 대기는 두지 않는다.
+      cancelAnimationFrame(timer);
+      timer = requestAnimationFrame(() => { if (!n) { hide(); } });
     }, 0);
 
     return orig.apply(this, arguments).then(
@@ -756,27 +775,40 @@
 
   // 첫 화면: 본문을 감춘 채 덮어 두고, 첫 조회까지 끝나면 함께 보인다.
   document.documentElement.classList.add("booting");
+  mark("스크립트 실행");
   document.addEventListener("DOMContentLoaded", () => {
     document.body.classList.add("booting");
     document.documentElement.classList.remove("booting");
+    mark("DOMContentLoaded");
   });
   show();
 
   // 첫 화면은 **그리기가 끝났다고 알려 올 때** 걷는다.
   //   페이지가 __bootDone() 을 부른다. 부르지 않는 페이지를 위해
   //   요청이 모두 끝나고도 조용하면 알아서 걷는다.
-  function boot() {
-    if (booted) { return; }
+  function boot(why) {
+    if (booted) { mark("boot 무시(이미 걷음)", why); return; }
     booted = true;
+    mark("boot 실행", why);
     requestAnimationFrame(() => {
       document.body.classList.remove("booting");
       hide();
+      mark("가림막 걷음");
+      setTimeout(sendTrace, 50);
     });
   }
-  window.__bootDone = boot;
+  window.__bootDone = () => boot("페이지가 그리기 끝냈다고 알림");
+  window.__busyCount = () => n;
+
   window.addEventListener("load", () => {
-    // 조회가 없는 페이지(정적 화면)는 여기서 걷는다.
-    setTimeout(() => { if (!n) { boot(); } }, 250);
+    mark("window load", "진행 중 " + n);
+    // 조회가 아예 없는 페이지(정적 화면)만 여기서 걷는다.
+    //   첫 조회가 아직 시작도 안 했을 수 있어 넉넉히 기다리고,
+    //   한 번이라도 불렀다면 페이지가 알려 줄 때까지 기다린다.
+    // 조회가 아예 없는 페이지(정적 화면)는 곧바로 걷는다.
+    if (!n && !TRACE.some(x => x.what === "fetch 시작")) {
+      boot("조회 없는 페이지");
+    }
   });
 })();
 </script>

@@ -428,11 +428,14 @@ CARDS.forEach(c => { DATA[c.key] = c.rows.map(r => Object.assign({}, r)); render
 <script>
 // 첫 조회가 있으면 그것까지 끝난 뒤 가림막을 걷는다.
 // (없으면 base.html 이 알아서 걷는다)
-window.addEventListener("load", () => {
-  setTimeout(() => {
-    requestAnimationFrame(() => {
-      if (window.__bootDone) { window.__bootDone(); }
-    });
-  }, 300);
-});
+// 첫 조회가 끝나 그려진 뒤에 알린다. 진행 중이면 그때까지만 기다린다.
+(function waitBoot() {
+  if (window.__busyCount && window.__busyCount() > 0) {
+    requestAnimationFrame(waitBoot);       // 대기 시간을 정해 두지 않는다
+    return;
+  }
+  requestAnimationFrame(() => {
+    if (window.__bootDone) { window.__bootDone(); }
+  });
+})();
 </script>

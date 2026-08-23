@@ -2373,6 +2373,14 @@ def api_debug_layout(request):
         data = json.loads(request.body.decode("utf-8") or "{}")
     except Exception:
         data = {}
+    if data.get("kind") == "boot":
+        print("\n" + "=" * 70, flush=True)
+        print("[BOOT] 첫 화면 순서 (값·이름은 보내지 않는다)", flush=True)
+        for it in (data.get("items") or [])[:40]:
+            print("  %-40s %s" % (it.get("sel"), it.get("note")), flush=True)
+        print("=" * 70 + "\n", flush=True)
+        return JsonResponse({"ok": True})
+
     if data.get("kind") == "overlap":
         print("\n" + "=" * 70, flush=True)
         print("[LAYOUT] 카드 · 차트 자리 (값·이름은 보내지 않는다)", flush=True)
