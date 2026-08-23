@@ -52,6 +52,8 @@
           <div style="display:flex;gap:6px;align-items:center">
             <button class="rankbtn" onclick="pickTypeAll()"
                     title="lot_type 을 가리지 않고 전부 본다">전체 보기</button>
+            <button class="rankbtn" id="wpbtn" onclick="toggleWipProd()"
+                    title="제품마다 재공 구성을 나눠 본다">제품별 비율</button>
             <div class="dd" id="dd">
               <button onclick="toggleDd()" id="ddb">전체 &#9662;</button>
               <div class="menu" id="ddm"></div>
@@ -60,6 +62,7 @@
         </div>
         <div class="stack" id="ws"></div>
         <div class="stleg" id="wg"></div>
+        <div id="wprod"></div>
       </div>
     </div>
 
@@ -423,6 +426,41 @@ function setWt0Unit(u) {
 }
 
 /* --- 재공 --- */
+let WIP_PROD = false;        // 재공막대를 제품별로 펼쳤나
+
+function toggleWipProd() {
+  WIP_PROD = !WIP_PROD;
+  const b = document.getElementById("wpbtn");
+  if (b) { b.classList.toggle("on", WIP_PROD); }
+  renderWipProd();
+}
+
+// 제품마다 재공 구성을 한 줄씩. 재공이 많은 제품이 위로 온다.
+function renderWipProd() {
+  const box = document.getElementById("wprod");
+  if (!box) { return; }
+  if (!WIP_PROD) { box.innerHTML = ""; return; }
+
+  const rows = (DATA && DATA.type_by_prod) || [];
+  if (!rows.length) { box.innerHTML = ""; return; }
+
+  // 색은 전체 막대와 같은 순서를 쓴다(같은 lot_type 이면 같은 색).
+  const order = (DATA.by_lot_type || []).map(x => x.name);
+  const colorOf = (nm) => TYPE_COLORS[Math.max(0, order.indexOf(nm)) % 5];
+
+  box.innerHTML = rows.map(p => {
+    const tot = p.lots || 1;
+    const bars = (p.types || []).map(t =>
+      `<i style="width:${t.lots / tot * 100}%;background:${colorOf(t.name)}"`
+      + ` title="${p.name} · ${t.name} ${nf(t.lots)} LOT / ${nf(t.qty)} 매"`
+      + `></i>`).join("");
+    return `<div class="wprow"><div class="wplab" title="${p.name}">`
+      + `${p.name}</div><div class="wpbar"><div class="stack">${bars}</div>`
+      + `<div class="wpnum">${nf(p.lots)} LOT · ${nf(p.qty)} 매</div>`
+      + `</div></div>`;
+  }).join("");
+}
+
 function renderWip() {
   const d = DATA;
   document.getElementById("wl").textContent = nf(d.total.lots);
@@ -436,6 +474,7 @@ function renderWip() {
     syncTypeLabel();
   }
   const tot = d.by_lot_type.reduce((a, x) => a + x.lots, 0) || 1;
+  renderWipProd();
   document.getElementById("ws").innerHTML = d.by_lot_type.map((x, k) =>
     `<i class="${(DF.type || []).indexOf(x.name) >= 0 ? 'sel' : ''}"
         style="width:${x.lots / tot * 100}%;background:${TYPE_COLORS[k % 5]}"

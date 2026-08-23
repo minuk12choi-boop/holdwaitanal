@@ -664,6 +664,16 @@
   /* 제품이 바뀌는 자리를 가른다. */
   .balrow.gsep { border-top:2px solid #C0C6C7; padding-top:6px;
                  margin-top:4px; }
+
+  /* 재공막대 '제품별 비율'. 전체 막대 아래에 한 단 들여 쓴다. */
+  #wprod:not(:empty) { margin-top:8px; padding-top:8px;
+                       border-top:1px dashed #C0C6C7; }
+  .wprow { display:flex; align-items:center; gap:8px; margin-bottom:5px; }
+  .wplab { flex:0 0 92px; padding-left:12px; font-size:11px; color:var(--mut);
+           overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .wpbar { flex:1; min-width:0; }
+  .wpbar .stack { height:13px; }
+  .wpnum { font-size:9px; color:var(--mut); margin-top:2px; text-align:right; }
   .balrow + .balrow { border-top:1px solid var(--bd); padding-top:4px;
                       margin-top:4px; }
   /* PLAN 선택 팝업이 아래 카드에 가리지 않게 */

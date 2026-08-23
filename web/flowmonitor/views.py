@@ -1589,6 +1589,7 @@ def api_summary(request):
     ins_rows = []          # 요약카드용. 루프에서 채운다.
     by_area = {}           # AREA -> {status -> 매수}
     wt_line = {}           # W/T 구간 -> {라인 -> 매수}
+    type_prod = {}         # 제품 -> {lot_type -> 카운터}  재공막대 펼치기용
     area_ln = {}           # AREA -> {status -> {라인 -> 매수}}
     wt0_ln = {}            # W/T0 구간 -> {status -> {라인 -> 매수}}
     st_ln = {}             # status -> {라인 -> 매수}
@@ -1642,6 +1643,8 @@ def api_summary(request):
             _bucket(st_ln.setdefault(st, {}), str(r.get("line") or "-"), q)
         if base and ok_st and ok_wt and ok_w0 and ok_ar:
             _bucket(by_type, ty, q)
+            _bucket(type_prod.setdefault(
+                str(r.get("prod2") or "").strip() or UNCLASSIFIED, {}), ty, q)
         if base and ok_st and ok_ty and ok_w0 and ok_ar:
             _bucket(by_wt, wk, q)
             _bucket(wt_line.setdefault(wk, {}),
@@ -1785,6 +1788,17 @@ def api_summary(request):
         "total": tot,
         "by_lot_type": [{"name": k, **by_type[k]}
                         for k in sorted(by_type, key=lot_type_key)],
+        # 재공막대 '제품별 비율 보기'. 재공이 많은 제품이 위로 온다.
+        "type_by_prod": [
+            {"name": p,
+             "lots": int(sum(c["lots"] for c in v.values())),
+             "qty": int(sum(c["qty"] for c in v.values())),
+             "types": [{"name": k, "lots": int(v[k]["lots"]),
+                        "qty": int(v[k]["qty"])}
+                       for k in sorted(v, key=lot_type_key)]}
+            for p, v in sorted(
+                type_prod.items(),
+                key=lambda kv: -sum(c["qty"] for c in kv[1].values()))],
         "status": status,
         # 원 우측에 보여 줄 기본값. 범례 항목이 아니라 표시용이다.
         "default": (lambda h: {
