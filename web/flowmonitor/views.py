@@ -2416,7 +2416,9 @@ def _ins_bucket(rows, mv, rules, ht, cls=None, line=""):
         pre = []
         if cards[card]["kind"] == "eqp" and line == "ALL":
             pre = [str(r.get("line") or "-")]   # 라인 구분 없이 볼 때만
-        path = tuple(pre + [head] + _ins_path(r, cards[card]["kind"]))
+        # 카드 안에 한 종류만 있는 경우(B/N · PREVENT)는 접두를 생략한다.
+        mid_head = [] if card in ("neck", "tip") else [head]
+        path = tuple(pre + mid_head + _ins_path(r, cards[card]["kind"]))
         it = cards[card]["items"][path]
         q = num(r.get("qty"))
         it["lots"] += 1

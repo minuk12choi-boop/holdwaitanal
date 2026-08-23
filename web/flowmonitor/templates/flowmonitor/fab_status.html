@@ -1320,6 +1320,8 @@ function multiPick(cur, name, ev) {
 --------------------------------------------------------------------- */
 function pickStacked(binKey, binVal, seg, ev, label, src) {
   const add = ev && (ev.ctrlKey || ev.metaKey);
+  // 조각(status, 낮은 계층)을 먼저 걸고 구간을 나중에 건다.
+  // 반대로 하면 status 의 dfResetBelow 가 방금 건 구간(layer)을 지운다.
   const hasBin = (DF[binKey] || []).indexOf(binVal) >= 0;
   const hasSeg = !seg || (DF.status || []).indexOf(seg) >= 0;
   // 이 차트에서 걸었던 것이라야 '다시 누름' 이다.
@@ -1327,16 +1329,16 @@ function pickStacked(binKey, binVal, seg, ev, label, src) {
   const mineSeg = DF_SRC.status === undefined || DF_SRC.status === src;
 
   if (add && hasBin && hasSeg && mineBin && mineSeg) {
-    setCond(binKey, binVal, { ctrlKey: true }, label, false, src);
     if (seg) { setCond("status", seg, { ctrlKey: true }, null, false, src); }
+    setCond(binKey, binVal, { ctrlKey: true }, label, false, src);
     return;
   }
   if (add) {
-    if (!hasBin) {
-      setCond(binKey, binVal, { ctrlKey: true }, label, false, src);
-    }
     if (seg && !hasSeg) {
       setCond("status", seg, { ctrlKey: true }, null, false, src);
+    }
+    if (!hasBin) {
+      setCond(binKey, binVal, { ctrlKey: true }, label, false, src);
     }
     return;
   }
@@ -1350,8 +1352,8 @@ function pickStacked(binKey, binVal, seg, ev, label, src) {
     dfResetBelow(DF_LV[binKey] || 9);
     return;
   }
-  setCond(binKey, binVal, null, label, true, src);
   if (seg) { setCond("status", seg, null, null, true, src); }
+  setCond(binKey, binVal, null, label, true, src);
 }
 
 /* src: 어느 차트에서 눌렀는지.
@@ -2331,7 +2333,8 @@ function insPick(ci, n) {
   if (!x) { return; }
   dfReset();
   const p = x.path.slice();
-  const head = p.shift();
+  // B/N · PREVENT 는 접두가 없어 첫 칸이 곧 AREA(또는 LINE)다.
+  const head = (c.key === "neck" || c.key === "tip") ? c.key : p.shift();
 
   // 요약카드 전용 조건. 최상단 필터를 건드리면 요약카드 자체가 바뀐다.
   DF_X = {};
@@ -2353,10 +2356,11 @@ function insPick(ci, n) {
     "HOLD": ["Hold", null],
     "예약제외": ["Wait성 진행불가", "예약제외"],
     "FTP": ["Wait성 진행불가", "FTP"],
-    "PREVENT": ["Wait성 진행불가", "TIP"],
-    "B/N": ["Bottleneck", null],
   };
-  const cz = CAUSE_OF[head] || ["Wait성 진행불가", "설비이슈"];
+  // B/N · PREVENT 카드는 접두가 없다. 카드 종류로 판정한다.
+  const cz = (c.key === "neck") ? ["Bottleneck", null]
+    : (c.key === "tip") ? ["Wait성 진행불가", "TIP"]
+    : (CAUSE_OF[head] || ["Wait성 진행불가", "설비이슈"]);
   const i = (DATA.causes || []).findIndex(g => g.name === cz[0]);
   DF_CAUSE = { i: i < 0 ? 0 : i,
                or: [{ big: cz[0], mid: cz[1], sub: null }] };
@@ -2477,6 +2481,30 @@ function checkOverlap() {
     const a = sm.getBoundingClientRect();
     const b = lc.getBoundingClientRect();
     const c = cz.getBoundingClientRect();
+    // 좌우 첫 카드의 윗선이 어디서 어긋나는지 하나씩 잰다.
+    items.push({ sel: "── 상단 정렬 ──", note: "" });
+    const cz = document.getElementById("czcard");
+    const far = document.querySelector(".rowcards > .farcol");
+    const f1 = far && far.firstElementChild;
+    [["czcard(원인 분석)", cz], ["farcol(우측 열)", far],
+     ["우측 첫 카드", f1]].forEach(([nm, el]) => {
+      if (!el) { return; }
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      items.push({ sel: "  " + nm,
+                   note: `top=${Math.round(r.top)}`
+                     + ` margin-top=${cs.marginTop} border-top=${cs.borderTopWidth}`
+                     + ` padding-top=${cs.paddingTop}`
+                     + (el.id ? "" : ` <${el.tagName.toLowerCase()}.`
+                        + String(el.className).split(" ")[0] + ">") });
+    });
+    if (cz && f1) {
+      const d = Math.round(f1.getBoundingClientRect().top
+                           - cz.getBoundingClientRect().top);
+      items.push({ sel: "  윗선 차이", note: `${d}px`
+                   + (Math.abs(d) <= 1 ? "  맞음" : "  어긋남") });
+    }
+
     items.push({ sel: "── 높이 정렬 ──", note: "" });
     items.push({ sel: "summary(좌측 전체)",
                  note: `top=${Math.round(a.top)} bottom=${Math.round(a.bottom)}`
