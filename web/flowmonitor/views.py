@@ -52,9 +52,6 @@ DEFAULT_LINE = "KFR4"          # NRD
 # 상단 현황 카드. 좌측부터 고정 순서.
 #   label = 화면 표기, line = f3/move 의 실제 라인 코드
 LINE_CARDS = [
-    # ALL 은 라인을 가리지 않는다. 설비 관점(B/N)에서는 다른 라인 재공까지
-    # 함께 봐야 뜻이 있다.
-    {"label": "ALL",   "line": "ALL"},
     {"label": "NRD",   "line": "KFR4"},
     {"label": "NRD-P", "line": "PFR1"},
     {"label": "NRD-K", "line": "KFR7"},
@@ -1288,18 +1285,11 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
             sel.append(f"MIN(`{c}`) AS `{c}`")
 
     if hist:
-        # line 이 ALL 이면 라인을 가리지 않는다(설비 관점으로 볼 때 쓴다).
-        if line == "ALL":
-            where, params = "biz_date = %s AND shift = %s", [biz_date, shift]
-        else:
-            where = "biz_date = %s AND shift = %s AND `line` = %s"
-            params = [biz_date, shift, line]
+        where = "biz_date = %s AND shift = %s AND `line` = %s"
+        params = [biz_date, shift, line]
     else:
-        if line == "ALL":
-            where, params = "snapshot_at = %s", [snap]
-        else:
-            where = "snapshot_at = %s AND `line` = %s"
-            params = [snap, line]
+        where = "snapshot_at = %s AND `line` = %s"
+        params = [snap, line]
     cond = ""
     if types:
         cond = " AND lot_type IN (%s)" % ",".join(["%s"] * len(types))
@@ -1505,7 +1495,6 @@ def api_summary(request):
     # 지금 걸린 조건이 모두 한 차트에서 나온 것이면 그 차트 이름이 온다.
     #   그 차트만 전체를 유지해 다시 고를 수 있게 한다.
     solo_src = request.GET.get("solo", "")
-    f_line = flist("f_line")          # 라인 ALL 에서 조각을 고른 경우
     bdate = request.GET.get("biz_date", "")
     bshift = request.GET.get("shift", "")
 
@@ -1631,9 +1620,6 @@ def api_summary(request):
         ok_w0 = (not f_wt0) or (wt <= 0 and b0 in f_wt0)
         ar = str(r.get("AREA") or "").strip() or UNCLASSIFIED
         ok_ar = (not f_area) or (ar in f_area)
-        # 라인은 어느 차트의 축도 아니다. 늘 그대로 적용한다.
-        if f_line and str(r.get("line") or "-") not in f_line:
-            continue
 
 
 
@@ -1845,8 +1831,7 @@ def fab_status(request):
                             [snap])
                 ready = {r[0] for r in cur.fetchall()}
     for x in lines:
-        # ALL 은 실제 라인 코드가 아니다. 하나라도 적재돼 있으면 쓸 수 있다.
-        x["ready"] = bool(ready) if x["line"] == "ALL" else x["line"] in ready
+        x["ready"] = x["line"] in ready
     return render(request, "flowmonitor/fab_status.html",
                   base_ctx(lines=lines, default_line=DEFAULT_LINE))
 
@@ -2287,8 +2272,6 @@ def api_balance(request):
             continue
         if not _farea_ok(r, f_area_b):
             continue
-        if not _fline_ok(r, f_line_b):
-            continue
         st = r.get("lot_status") or "-"
         if f_type and (r.get("lot_type") or "-") not in f_type:
             continue
@@ -2470,9 +2453,10 @@ def _ins_bucket(rows, mv, rules, ht, cls=None, line=""):
         if not card:
             continue
 
+        # 전 라인으로 볼 때는 어느 라인 재공인지 밝힌다.
         pre = []
-        if line == "ALL":
-            pre = [str(r.get("line") or "-")]   # 라인 구분 없이 볼 때만
+        if line == "*":
+            pre = [str(r.get("line") or "-")]
         # 카드 안에 한 종류만 있는 경우(B/N · PREVENT)는 접두를 생략한다.
         mid_head = [] if card in ("neck", "tip") else [head]
         path = tuple(pre + mid_head + _ins_path(r, cards[card]["kind"]))
@@ -2534,6 +2518,53 @@ def _top(d):
         return None
     k = max(d, key=lambda x: d[x])
     return {"name": k, "qty": int(d[k])}
+
+
+def api_eqp_wait(request):
+    """설비 앞에 선 재공을 **라인 구분 없이** 센다.
+
+    Bottleneck 과 설비이슈는 같은 설비를 여러 라인이 나눠 쓰므로,
+    제 라인만 봐서는 그 설비가 왜 막혔는지 알 수 없다.
+    화면의 '전 라인' 토글이 이 API 를 부른다.
+    """
+    types = [t for t in request.GET.get("types", "").split(",") if t]
+    kind = request.GET.get("kind", "neck")      # neck | eqp
+    want = [x for x in request.GET.get("eqp", "").split(",") if x]
+    rules, ht = _cause_rules(), _holdtype_rules()
+
+    out, snap = {}, None
+    for card in LINE_CARDS:
+        ln = card["line"]
+        rows, sp = _summary_rows(ln, types)
+        if not rows:
+            continue
+        snap = snap or sp
+        for r in rows:
+            big, mid, subs = classify_lot(r, rules, ht)
+            if kind == "neck" and big != "Bottleneck":
+                continue
+            if kind == "eqp" and not (big == "Wait성 진행불가"
+                                      and mid == "설비이슈"):
+                continue
+            ids = _eqp_ids(r) or [str(r.get("eqpgroup") or "").strip()]
+            if want and not (set(ids) & set(want)):
+                continue
+            q = num(r.get("qty"))
+            w = q / len(ids) if ids else q
+            for eid in (ids or ["(설비미상)"]):
+                c = out.setdefault(eid, {})
+                c[ln] = c.get(ln, 0) + w
+
+    rows_out = [{"name": k,
+                 "qty": int(round(sum(v.values()))),
+                 "by_line": {a: int(round(b)) for a, b in v.items()}}
+                for k, v in out.items()]
+    rows_out.sort(key=lambda x: -x["qty"])
+    return JsonResponse({
+        "rows": rows_out[:40],
+        "lines": [c["line"] for c in LINE_CARDS],
+        "labels": {c["line"]: c["label"] for c in LINE_CARDS},
+    }, json_dumps_params={"ensure_ascii": False})
 
 
 def api_lot_steps(request):
@@ -2619,7 +2650,6 @@ def api_lots_live(request):
     # (미분류)가 섞이면 IN 절로 못 거른다. 그 경우만 파이썬에서 처리한다.
     xf = _xfilters(request)
     f_area_x = [x for x in request.GET.get("f_area", "").split(",") if x]
-    f_line_x = [x for x in request.GET.get("f_line", "").split(",") if x]
     p1_sql = prod1 if prod1 and UNCLASSIFIED not in prod1 else None
     p2_sql = prod2 if prod2 and UNCLASSIFIED not in prod2 else None
     rows, snap = _summary_rows(line, types, {
@@ -2668,8 +2698,6 @@ def api_lots_live(request):
         if layer_id and str(r.get("layer_id") or "").strip() not in layer_id:
             continue
         if not _farea_ok(r, f_area_x):
-            continue
-        if not _fline_ok(r, f_line_x):
             continue
         if or_causes:
             ids = set(_eqp_ids(r))

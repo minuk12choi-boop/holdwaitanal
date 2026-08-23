@@ -539,13 +539,8 @@ function dnTooltip(ctx) {
 
   const i = (tt.dataPoints && tt.dataPoints[0]) ? tt.dataPoints[0].dataIndex : -1;
   const st = ((ctx.chart.$status || [])[i]) || {};
-  const by = st.by_line || {};
-  const more = (LINE === "ALL" && Object.keys(by).length)
-    ? "<u>" + Object.keys(by).map(ln =>
-        lineShort(ln) + " " + nf(by[ln].qty)).join(" · ") + "</u>"
-    : "";
   el.innerHTML = `<i style="background:${st.color}"></i>${st.name}`
-    + `<b>${st.pct}%</b>${nf(st.lots)} LOT · ${nf(st.qty)} 매${more}`;
+    + `<b>${st.pct}%</b>${nf(st.lots)} LOT · ${nf(st.qty)} 매`;
 
   const box = ctx.chart.canvas.getBoundingClientRect();
   el.style.opacity = "1";
@@ -616,9 +611,6 @@ function renderWt() {
         layout: { padding: { right: 34 } },
         plugins: { legend: { display: false },
                    tooltip: { callbacks: { label: (t) => {
-                     if (LINE === "ALL") {
-                       return stackTip(t, WT_UNIT === "lots" ? " LOT" : " 매");
-                     }
                      const x = DATA.wt_dist[t.dataIndex];
                      return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
                    } } } },
@@ -633,10 +625,7 @@ function renderWt() {
           const idx = hit.length ? hit[0].index : els[0].index;
           const x = DATA.wt_dist[idx];
           if (!x) { return; }
-          const seg = (LINE === "ALL" && hit.length)
-            ? (wtChart.data.datasets[hit[0].datasetIndex] || {}).label : null;
-          if (seg) { pickStacked("wt", x.name, seg, ev, x.label, "wt", "iline"); }
-          else { setCond("wt", x.name, ev, x.label, false, "wt"); }
+          setCond("wt", x.name, ev, x.label, false, "wt");
           syncFromDF();
         }
       },
@@ -665,29 +654,12 @@ function renderWt() {
   wtChart.data.datasets = wtDs;
   hideUnpicked(wtChart, d.wt_dist.map(x => x.name), new Set(DF.wt || []));
   // 라인 ALL 이면 라인별 누적, 아니면 단색 한 벌
-  wtChart.options.scales.x.stacked = (LINE === "ALL");
-  wtChart.options.scales.y.stacked = (LINE === "ALL");
+
   wtChart.$selSet = new Set(
     (DF.wt || []).map(k => (d.wt_dist.find(y => y.name === k) || {}).label));
-  // 라인 ALL 이면 (구간, 라인) 쌍으로 표시한다.
-  if (LINE === "ALL") {
-    const lns = ((DATA.line_dist) || []).map(x => x.name);
-    const bk = (DF.wt || []).map(v => d.wt_dist.findIndex(x => x.name === v))
-      .filter(k => k >= 0);
-    const bd = (DF.iline || []).map(n => lns.indexOf(n)).filter(k => k >= 0);
-    const bp = [];
-    bk.forEach(k => {
-      if (bd.length) { bd.forEach(di => bp.push([k, di])); }
-      else { bp.push([k, wtChart.data.datasets.length - 1]); }
-    });
-    wtChart.$selPairs = bp;
-    wtChart.$selSet = null;
-    markSelected(wtChart, -1);
-  } else {
-    wtChart.$selPairs = null;
-    markSelected(wtChart,
-      d.wt_dist.findIndex(x => (DF.wt || []).indexOf(x.name) >= 0));
-  }
+  wtChart.$selPairs = null;
+  markSelected(wtChart,
+    d.wt_dist.findIndex(x => (DF.wt || []).indexOf(x.name) >= 0));
   wtChart.update();
 }
 
@@ -1370,7 +1342,6 @@ const DF_DEF = [
   { k: "wt",     t: "W/T",    param: "wt_range", lv: 2, one: true },
   { k: "wt0",    t: "W/T 0",  param: "wt0",      lv: 2, one: true },
   { k: "iarea",  t: "AREA",   param: "f_area",   lv: 2, one: true },
-  { k: "iline",  t: "LINE",   param: "f_line",   lv: 2, one: true },
   { k: "layer",  t: "LAYER",  param: "layer_id", lv: 5, one: true },
 ];
 const DF_LV = {};
@@ -1820,7 +1791,7 @@ function drawSel(chart, sel, dsIdx) {
 // 라인 ALL 일 때, 그 조각을 라인별로 쪼개 여러 줄로 보여 준다.
 //   list  차트가 그리는 원본 목록(각 항목에 by_line 이 있어야 한다)
 function lineRows(list, idx, stName, unit, u) {
-  if (LINE !== "ALL") { return []; }
+  return [];
   const x = (list || [])[idx];
   const by = x && (stName ? (x.by_line_status || {})[stName] : x.by_line);
   if (!by) { return []; }
@@ -1868,9 +1839,6 @@ function czBarChart(canvasId, onPick, pluginId) {
                      if (t.dataset.type === "line") {
                        return "경과 평균 " + (x.elapsed_d == null ? "-"
                               : x.elapsed_d.toFixed(1) + " 일/lot");
-                     }
-                     if (LINE === "ALL") {
-                       return stackTip(t, CAUSE_UNIT === "lots" ? " LOT" : " 매");
                      }
                      return nf(x.lots) + " LOT / " + nf(x.qty) + " 매";
                    } } } },
@@ -1976,8 +1944,7 @@ function czApply(ch, nodes, u, selName, selList) {
   } else {
     ch.data.datasets = bars;
   }
-  ch.options.scales.x.stacked = (LINE === "ALL");
-  ch.options.scales.y.stacked = (LINE === "ALL");
+
   const on = new Set(selList && selList.length ? selList : [selName]);
   ch.$selSet = on;
   markSelected(ch, nodes.findIndex(x => on.has(x.name)));
@@ -2089,7 +2056,7 @@ function czSelect(i, basePath, node, ev) {
 
 // 라인 ALL 이면 누른 조각이 곧 라인이다.
 function czLineOf(ch, dsIdx) {
-  if (LINE !== "ALL" || dsIdx === undefined || dsIdx === null) { return null; }
+  return null;
   const ds = ch && ch.data.datasets[dsIdx];
   return (ds && ds.type !== "line" && ds.label) ? ds.label : null;
 }
@@ -2109,8 +2076,6 @@ function czPick(i, node, depth, ev, seg) {
   CZ_SEL.path = CZ_SEL.path.filter(p => p.kind !== "all");
 
   if (leaf) {
-    // 라인 조각을 골랐으면 라인 조건도 함께 건다(Ctrl 로 여럿 가능).
-    if (seg) { setCond("iline", seg, ev, null, false, "cause"); }
     czSelect(i, basePathOf(i), node, ev);
     return;
   }
@@ -2197,7 +2162,7 @@ function lineShort(name) { return LINE_SHORT[name] || String(name).slice(0, 2); 
 
 // 라인 ALL 일 때 차트 제목 옆에 붙일 범례.
 function lineLegendHtml() {
-  if (LINE !== "ALL") { return ""; }
+  return "";
   const ls = (DATA && DATA.line_dist) || [];
   if (!ls.length) { return ""; }
   return `<span class="linelg"><b>LINE</b>`
@@ -2231,18 +2196,8 @@ function lineColor(name) {
 
 // 라인 ALL 이면 라인별 누적막대로 만든다. 아니면 단색 한 벌.
 function lineStack(items, u, flat) {
-  const ls = ((DATA && DATA.line_dist) || []).map(x => x.name);
-  if (LINE !== "ALL" || !ls.length) {
-    return [{ label: "", data: items.map(x => u === "lots" ? x.lots : x.qty),
-              backgroundColor: flat }];
-  }
-  return ls.map(ln => ({
-    label: ln, backgroundColor: lineColor(ln), borderWidth: 0,
-    data: items.map(x => {
-      const v = (x.by_line || {})[ln];
-      return v ? (u === "lots" ? v.lots : v.qty) : 0;
-    })
-  }));
+  return [{ label: "", data: items.map(x => u === "lots" ? x.lots : x.qty),
+            backgroundColor: flat }];
 }
 
 const STATUS_TONE = {
@@ -2590,6 +2545,33 @@ function syncLeftHeight() {
    매수가 많이 쌓인 곳을 순서대로 놓고, 그것이 만든 W/T 저해를 잇는다.
    카드를 누르면 그 원인으로 화면 전체가 좁혀진다.
 --------------------------------------------------------------------- */
+// 설비 카드에서 '전 라인' 을 켜면 그 설비 앞의 다른 라인 재공까지 본다.
+const INS_ALL = { neck: false, eqp: false };
+const INS_ALL_DATA = {};
+
+function insAll(key) {
+  INS_ALL[key] = !INS_ALL[key];
+  if (!INS_ALL[key]) { delete INS_ALL_DATA[key]; renderInsight(); return; }
+  const q = "kind=" + encodeURIComponent(key)
+    + "&types=" + encodeURIComponent(selectedTypes().join(","));
+  fetch("/api/eqp-wait/?" + q).then(r => r.json()).then(d => {
+    INS_ALL_DATA[key] = d;
+    renderInsight();
+  });
+}
+
+// 전 라인 보기일 때 그 설비의 라인별 대기재공을 한 줄로.
+function insAllRow(key, eqp) {
+  const d = INS_ALL_DATA[key];
+  if (!d) { return ""; }
+  const hit = (d.rows || []).find(x => x.name === eqp);
+  if (!hit) { return ""; }
+  const parts = Object.keys(hit.by_line)
+    .map(ln => `${(d.labels || {})[ln] || ln} ${kfmt(hit.by_line[ln])}`);
+  return `<div class="insall-row">전 라인 ${kfmt(hit.qty)}매`
+    + ` · ${parts.join(" · ")}</div>`;
+}
+
 function renderInsight() {
   const box = document.getElementById("insight");
   const cards = (DATA && DATA.insights) || [];
@@ -2619,14 +2601,25 @@ function renderInsight() {
         + (x.idle_avg !== null && x.idle_avg !== undefined
            ? `  평균 ${x.idle_avg}일 정체` : "")
         + (x.blocked ? `  막힘 ${x.blocked.map(z => z.name).join(", ")}` : "");
+      const allrow = (INS_ALL[c.key])
+        ? insAllRow(c.key, x.path[x.path.length - 1]) : "";
       return `<div class="insline" title="${tip}" onclick="insPick(${ci},${n})">`
         + `<span class="insno">${n + 1}</span>`
         + `<span class="inspath">${p}</span>${bl}`
         + `<span class="insqty">${nf(x.qty)}<em>매</em></span>`
         + `<span class="inspc">${x.pct}%</span>`
-        + `<span class="inswt">W/T0 ${kfmt(x.wt0_qty)}${idle}</span></div>`;
+        + `<span class="inswt">W/T0 ${kfmt(x.wt0_qty)}${idle}</span></div>`
+        + allrow;
     }).join("");
-    return `<div class="inscard"><div class="insh">${c.title}`
+    // 설비는 여러 라인이 나눠 쓴다. 전 라인 대기재공을 볼 수 있게 한다.
+    const eqpCard = (c.key === "neck" || c.key === "eqp");
+    const tg = eqpCard
+      ? `<button class="insall ${INS_ALL[c.key] ? "on" : ""}"`
+        + ` onclick="event.stopPropagation();insAll('${c.key}')"`
+        + ` title="라인 구분 없이 그 설비 앞에 선 재공을 모두 본다">`
+        + `전 라인</button>`
+      : "";
+    return `<div class="inscard"><div class="insh">${c.title}${tg}`
       + `<span>${nf(c.qty)}매</span></div>${rows}</div>`;
   }).join("");
 }
@@ -3645,7 +3638,6 @@ function loadSummary(keepFocus) {
         + "&f_wt0=" + encodeURIComponent((DF.wt0 || []).join(","))
         + "&f_type=" + encodeURIComponent((DF.type || []).join(","))
         + "&f_area=" + encodeURIComponent((DF.iarea || []).join(","))
-        + "&f_line=" + encodeURIComponent((DF.iline || []).join(","))
         + "&solo=" + encodeURIComponent(soloSrc())
         // 원인 / LAYER 도 좌측 차트에 그대로 반영한다.
         + "&layer_id=" + encodeURIComponent((DF.layer || []).join(","))
