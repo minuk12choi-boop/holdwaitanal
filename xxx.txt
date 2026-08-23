@@ -1,28 +1,74 @@
 ======================================================================
-[BOOT] 첫 화면 순서 (값·이름은 보내지 않는다)
-    +0ms  스크립트 실행                          
-    +3ms  DOMContentLoaded                 
-    +4ms  window load                      진행 중 0
-    +4ms  boot 실행                          조회 없는 페이지
-    +17ms  가림막 걷음                          
+[MARK] 선택 표시 · 화살표 (값·이름은 보내지 않는다)
+  ── 화살표 없음(카드 0개, 후보 0) ──      
+    조건 개수                        DF=0 cause=false X=0 stack=0 wide=false
+    원차트                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    W/T                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    W/T0                         selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    AREA                         selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인0                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인1                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인2                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    화살표 svg                      display=none z=900 w=0 h=0 선=0개
 ======================================================================
 
 
 ======================================================================
-[BOOT] 첫 화면 순서 (값·이름은 보내지 않는다)
-    +0ms  스크립트 실행                          
-    +4ms  DOMContentLoaded                 
-    +195ms  window load                    진행 중 0
-    +195ms  boot 실행                        조회 없는 페이지
-    +205ms  가림막 걷음                         
+[MARK] 선택 표시 · 화살표 (값·이름은 보내지 않는다)
+  ── 화살표 없음(카드 0개, 후보 0) ──      
+    조건 개수                        DF=0 cause=false X=0 stack=0 wide=false
+    원차트                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    W/T                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    W/T0                         selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    AREA                         selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인0                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인1                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인2                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    화살표 svg                      display=none z=900 w=0 h=0 선=0개
 ======================================================================
 
 
 ======================================================================
-[BOOT] 첫 화면 순서 (값·이름은 보내지 않는다)
-    +0ms  스크립트 실행                          
-    +2ms  DOMContentLoaded                 
-    +206ms  window load                    진행 중 0
-    +207ms  boot 실행                        조회 없는 페이지
-    +234ms  가림막 걷음                         
+[MARK] 선택 표시 · 화살표 (값·이름은 보내지 않는다)
+  ── 화살표 없음(카드 0개, 후보 0) ──      
+    조건 개수                        DF=0 cause=false X=0 stack=0 wide=false
+    원차트                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    W/T                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    W/T0                         selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    AREA                         selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인0                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인1                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인2                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    화살표 svg                      display=none z=900 w=0 h=0 선=0개
 ======================================================================
+
+
+======================================================================
+[MARK] 선택 표시 · 화살표 (값·이름은 보내지 않는다)
+  ── 화살표 없음(카드 0개, 후보 0) ──      
+    조건 개수                        DF=0 cause=false X=0 stack=0 wide=false
+    원차트                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    W/T                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    W/T0                         selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    AREA                         selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인0                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인1                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인2                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    화살표 svg                      display=none z=900 w=0 h=0 선=0개
+======================================================================
+
+
+======================================================================
+[MARK] 선택 표시 · 화살표 (값·이름은 보내지 않는다)
+  ── 화살표 없음(카드 0개, 후보 0) ──      
+    조건 개수                        DF=0 cause=false X=0 stack=0 wide=false
+    원차트                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    W/T                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    W/T0                         selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    AREA                         selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인0                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인1                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    원인2                          selSet=0 pairs=0 sel=-1 dim=0 그려짐=0
+    화살표 svg                      display=none z=900 w=0 h=0 선=0개
+======================================================================
+
