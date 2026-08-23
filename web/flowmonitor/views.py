@@ -1075,6 +1075,8 @@ WT0_BINS = [
 UNCLASSIFIED = "(미분류)"
 
 EQP_ISSUE = ("DOWN", "PM", "LOCAL")
+# 실제 설비가 아닌 설비그룹. 여기 서 있으면 가상스텝으로 본다.
+VIRTUAL_EQP = ("NRDSEND", "NRDMEAS")
 TOP_N = 5          # 상단 요약 차트에 그릴 개수
 SUB_MAX = 15       # 서버가 내려주는 소분류 최대 개수(드릴다운 차트용)
 
@@ -1429,12 +1431,15 @@ def _classify_lot(r, rules, ht=None):
         return ("Hold", None,
                 [_sub_name(r, ht, "HOLD", "hold_reason", rules, "hold")])
 
-    # 가상스텝 판정. 설비그룹 / recipe(ppid) / step 명 중 하나라도 WAIT 이면
-    # 실제 설비를 기다리는 게 아니므로 Bottleneck 이 아니다.
-    virtual = "WAIT" in " ".join(
+    # 가상스텝 판정. 실제 설비를 기다리는 게 아니므로 Bottleneck 이 아니다.
+    #   설비그룹 / recipe(ppid) / step 명 중 하나라도 WAIT 을 담고 있거나,
+    #   설비그룹이 NRDSEND · NRDMEAS 처럼 실제 설비가 아닌 경우.
+    _vtxt = " ".join(
         str(r.get(k) or "") for k in
         ("eqpgroup", "eqpgroup_cham", "recipe_id", "ppid",
          "step_seq", "step_desc")).upper()
+    _eqp_up = str(r.get("eqpgroup") or "").strip().upper()
+    virtual = ("WAIT" in _vtxt) or (_eqp_up in VIRTUAL_EQP)
 
     if st == "WAIT(진행불가)":
         if r.get("exception"):
