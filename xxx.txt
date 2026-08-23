@@ -1,60 +1,28 @@
 ======================================================================
-[LAYOUT] 카드 · 차트 자리 (값·이름은 보내지 않는다)
-  ── 요약 갱신 ──                                    
-    #wipcard                                     top=234 bottom=342 w=380 h=108
-    #stcard                                      top=352 bottom=488 w=380 h=136
-    #wtcard                                      top=498 bottom=745 w=380 h=247
-    #wt0card                                     top=755 bottom=1089 w=380 h=334
-    #areacard                                    top=1099 bottom=1381 w=380 h=282
-    #insight                                     top=66 bottom=278 w=1458 h=212
-    #czcard                                      top=290 bottom=1605 w=340 h=1315
-    .czcol                                       top=362 bottom=766 w=314 h=404
-    .czcol                                       top=776 bottom=1179 w=314 h=404
-    .czcol                                       top=1189 bottom=1593 w=314 h=404
-    #drill                                       top=300 bottom=373 w=1108 h=73
-    윗선 차이(원인분석 vs 우측 첫 카드)                       0px
-    아래선 차이(원인분석 vs 좌측 마지막)                       224px
-    가로 초과                                        0px
+[BOOT] 첫 화면 순서 (값·이름은 보내지 않는다)
+    +0ms  스크립트 실행                          
+    +3ms  DOMContentLoaded                 
+    +4ms  window load                      진행 중 0
+    +4ms  boot 실행                          조회 없는 페이지
+    +17ms  가림막 걷음                          
 ======================================================================
 
 
 ======================================================================
-[LAYOUT] 카드 · 차트 자리 (값·이름은 보내지 않는다)
-  ── 드릴다운 표 ──                                   
-    #wipcard                                     top=134 bottom=242 w=380 h=108
-    #stcard                                      top=252 bottom=388 w=380 h=136
-    #wtcard                                      top=398 bottom=645 w=380 h=247
-    #wt0card                                     top=655 bottom=989 w=380 h=334
-    #areacard                                    top=999 bottom=1281 w=380 h=282
-    #insight                                     top=-34 bottom=178 w=1458 h=212
-    #czcard                                      top=190 bottom=1505 w=340 h=1315
-    .czcol                                       top=262 bottom=666 w=314 h=404
-    .czcol                                       top=676 bottom=1079 w=314 h=404
-    .czcol                                       top=1089 bottom=1493 w=314 h=404
-    #balpanel                                    top=200 bottom=456 w=1108 h=256
-    #drill                                       top=476 bottom=1348 w=1108 h=872
-    윗선 차이(원인분석 vs 우측 첫 카드)                       0px
-    아래선 차이(원인분석 vs 좌측 마지막)                       224px
-    가로 초과                                        0px
+[BOOT] 첫 화면 순서 (값·이름은 보내지 않는다)
+    +0ms  스크립트 실행                          
+    +4ms  DOMContentLoaded                 
+    +195ms  window load                    진행 중 0
+    +195ms  boot 실행                        조회 없는 페이지
+    +205ms  가림막 걷음                         
 ======================================================================
 
 
 ======================================================================
-[LAYOUT] 카드 · 차트 자리 (값·이름은 보내지 않는다)
-  ── 요약 갱신 ──                                    
-    #wipcard                                     top=134 bottom=242 w=380 h=108
-    #stcard                                      top=252 bottom=388 w=380 h=136
-    #wtcard                                      top=398 bottom=645 w=380 h=247
-    #wt0card                                     top=655 bottom=968 w=380 h=313
-    #areacard                                    top=978 bottom=1260 w=380 h=282
-    #insight                                     top=-34 bottom=178 w=1458 h=212
-    #czcard                                      top=190 bottom=1484 w=340 h=1294
-    .czcol                                       top=262 bottom=659 w=314 h=397
-    .czcol                                       top=669 bottom=1065 w=314 h=397
-    .czcol                                       top=1075 bottom=1472 w=314 h=397
-    #balpanel                                    top=200 bottom=456 w=1108 h=256
-    #drill                                       top=476 bottom=1348 w=1108 h=872
-    윗선 차이(원인분석 vs 우측 첫 카드)                       0px
-    아래선 차이(원인분석 vs 좌측 마지막)                       224px
-    가로 초과                                        0px
+[BOOT] 첫 화면 순서 (값·이름은 보내지 않는다)
+    +0ms  스크립트 실행                          
+    +2ms  DOMContentLoaded                 
+    +206ms  window load                    진행 중 0
+    +207ms  boot 실행                        조회 없는 페이지
+    +234ms  가림막 걷음                         
 ======================================================================
