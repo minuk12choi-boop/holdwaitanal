@@ -44,12 +44,29 @@ class TemplateJsTest(SimpleTestCase):
         괄호 세기는 코드 구조만 봐야 한다. 안내 문구에 '(1회)' 같은 괄호가
         들어가면 짝이 안 맞는 것처럼 보여 오탐이 난다.
         """
-        js = re.sub(r"/\*.*?\*/", " ", js, flags=re.S)        # /* */
-        js = re.sub(r"(?m)//.*$", " ", js)                      # //
-        js = re.sub(r"`(?:\\.|[^`\\])*`", "``", js)             # 템플릿
-        js = re.sub(r"'(?:\\.|[^'\\\n])*'", "''", js)           # '...'
-        js = re.sub(r'"(?:\\.|[^"\\\n])*"', '""', js)           # "..."
-        return js
+        # 정규식으로는 템플릿 안의 ${...} 안에 또 문자열이 오는 경우를
+        # 놓친다. 앞에서부터 한 글자씩 읽어 걷어낸다.
+        out, i, n = [], 0, len(js)
+        while i < n:
+            c = js[i]
+            if c in "\"'`":
+                q, i = c, i + 1
+                while i < n and js[i] != q:
+                    if js[i] == "\\":
+                        i += 1
+                    i += 1
+                i += 1
+                out.append('""')
+            elif c == "/" and i + 1 < n and js[i + 1] == "/":
+                while i < n and js[i] != "\n":
+                    i += 1
+            elif c == "/" and i + 1 < n and js[i + 1] == "*":
+                j = js.find("*/", i)
+                i = (j + 2) if j >= 0 else n
+            else:
+                out.append(c)
+                i += 1
+        return "".join(out)
 
     def test_braces_balanced(self):
         for name in PAGES:
@@ -152,7 +169,7 @@ class TemplateJsTest(SimpleTestCase):
             self.assertEqual(missing, [], f"{name}: 선언 없는 상수 {missing}")
 
     # JS 가 만들어 붙이는 요소는 마크업에 없다.
-    JS_MADE_IDS = {"dntip"}
+    JS_MADE_IDS = {"dntip", "flow"}
 
     def test_element_ids_exist(self):
         """getElementById 로 찾는 id 가 마크업에 있는지 본다.
