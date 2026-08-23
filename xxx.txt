@@ -1,14 +1,18 @@
-PS C:\Users\minuk12.choi> cd D:\PERSONAL_SPACE\SW\python\7_holdwaitanal
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> powershell -ExecutionPolicy Bypass -File scripts\run_migrations.ps1
-위치 D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\scripts\run_migrations.ps1:41 문자:2
-+
-하위 식에 닫는 ')'가 없습니다.
-    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
-    + FullyQualifiedErrorId : MissingEndParenthesisInSubexpression
-
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> powershell -ExecutionPolicy Bypass -File scripts\run_migrations.ps1
-위치 D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\scripts\run_migrations.ps1:41 문자:2
-+
-하위 식에 닫는 ')'가 없습니다.
-    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
-    + FullyQualifiedErrorId : MissingEndParenthesisInSubexpression
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> Get-Content getdata\migrate_holdtype_sort.sql       | mysql --default-character-set=utf8mb4 -u root -p app_db
+Enter password: **********
+note
+sort_no ??? ???
+note
+ix_ht_sort ??? ???
+total_rows      first_no        last_no not_set
+267     10      2670    0
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> Get-Content getdata\migrate_virtual_step_status.sql | mysql --default-character-set=utf8mb4 -u root -p app_db
+Enter password: **********
+ERROR 1064 (42000) at line 16: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '????? = '?????
+  AND (UPPER(COALESCE(eqpgroup, ''))      LIKE '%WAIT%'
+    OR UP' at line 15
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> Get-Content getdata\migrate_virtual_eqp.sql         | mysql --default-character-set=utf8mb4 -u root -p app_db
+Enter password: **********
+ERROR 1064 (42000) at line 10: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '????? = '?????
+  AND lot_status = 'WAIT'
+  AND UPPER(TRIM(COALESCE(eqpgroup, '')' at line 11
