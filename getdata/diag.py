@@ -553,14 +553,26 @@ def diag_holdtxt(code="H000"):
                 gram[g] += 1
                 gram_lot[g].add(idx)
 
-    # 짧은 조각이 더 긴 조각과 건수가 같으면 긴 쪽만 남긴다(최장 우선).
+    # 짧은 조각을 접는 기준.
+    #   더 긴 문구 **하나** 안에서만 같은 건수로 나타나면 그 긴 쪽만 남긴다.
+    #   여러 문구에 두루 쓰이는 말(예: EIN)은 그 자체로 뜻이 있으므로 남긴다.
     cand = {g: c for g, c in gram.items() if c >= MIN_HIT}
     keep = []
     for g, c in sorted(cand.items(), key=lambda kv: (-len(kv[0]), -kv[1])):
-        if any(g != h and g in h and cand[h] == c for h in cand):
+        longer = [h for h in cand if h != g and g in h]
+        if len(longer) == 1 and cand[longer[0]] == c:
             continue
+        # 두 문구가 우연히 이어져 생긴 걸침은 뺀다.
+        # (예: '설비이관 대기' 와 'EIN Hold' 사이의 '대기 EIN')
+        if " " in g:
+            outer = [h for h in cand if h != g and g in h and cand[h] == c]
+            if outer and all(len(h.split()) > len(g.split()) for h in outer):
+                continue
         keep.append((g, c))
     keep.sort(key=lambda kv: (-kv[1], -len(kv[0])))
+
+    # 단어 하나짜리도 따로 보여 준다(EIN 처럼 그 자체로 뜻이 있는 말).
+    solo = [(g, c) for g, c in keep if " " not in g]
 
     print("-" * 70)
     print(f"[조건 후보]  {MIN_HIT}건 이상 반복된 문구")
@@ -569,6 +581,14 @@ def diag_holdtxt(code="H000"):
         print(f"{c:>6,}  {len(g.split()):>4}  {g}")
     if not keep:
         print("  반복 문구가 없다. MIN_HIT 를 낮춰 본다.")
+
+    print("\n" + "-" * 70)
+    print("[단어 단위]  여러 문구에 두루 쓰이는 말")
+    if solo:
+        for g, c in solo[:20]:
+            print(f"{c:>6,}  {g}")
+    else:
+        print("  없다.")
 
     # 3) 함께 나오는 쌍 -> condition2 + condition3
     top = [g for g, _ in keep[:25]]
