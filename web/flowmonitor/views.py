@@ -2475,7 +2475,9 @@ def api_lots_live(request):
     bshift = request.GET.get("shift", "")
     lot_type = multi("lot_type")     # 재공 구성 막대에서
     status = multi("status")         # status 원차트에서
-    layer_id = multi("layer_id")     # LOT BALANCE 막대에서
+    # LOT BALANCE 막대에서. layer_id 는 현스텝 행의 값이라 SQL WHERE 로
+    # 거르면 연속블록 행까지 걸려 필터가 무력해진다. 집계 뒤에 판별한다.
+    layer_id = multi("layer_id")
     big = request.GET.get("big", "")
     mid = request.GET.get("mid", "")
     subs_want = multi("sub")
@@ -2500,7 +2502,6 @@ def api_lots_live(request):
         "AREA": areas or None,
         "lot_type": lot_type or None,
         "lot_status": status or None,
-        "layer_id": layer_id or None,
     }, biz_date=bdate, shift=bshift)
     mv = _lot_move_map(line)
     rules = _cause_rules()
@@ -2538,6 +2539,8 @@ def api_lots_live(request):
                 continue
         b2, m2, s2 = classify_lot(r, rules, ht)
         if not _xrow_ok(r, xf):
+            continue
+        if layer_id and str(r.get("layer_id") or "").strip() not in layer_id:
             continue
         if or_causes:
             if not any((not a or b2 == a)

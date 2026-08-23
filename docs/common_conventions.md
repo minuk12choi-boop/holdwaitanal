@@ -785,6 +785,12 @@ STATUS별 (기본)   Hold / Wait성 진행불가 / Bottleneck 3행
 
 좌측 차트는 해당 없다(늘 바로 적용). Ctrl 클릭도 팝업 없이 바로 다중선택이다.
 
+### STEP_SCOPED 컬럼으로 거를 때
+
+`layer_id` · `AREA` 처럼 **현스텝 행에만 뜻이 있는 컬럼**은 SQL `WHERE` 로
+거르면 안 된다. 연속블록 행까지 걸려 필터가 무력해진다(한 lot 이 여러
+LAYER 를 갖는다). **lot 단위로 접은 뒤** 파이썬에서 판별한다.
+
 ### 조건은 세 API 가 모두 같이 받는다
 
 `api_summary` · `api_lots_live` · `api_balance` 는 **같은 조건 집합**을 받는다.
