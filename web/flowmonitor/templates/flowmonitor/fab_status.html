@@ -1274,15 +1274,9 @@ function drawBalance() {
       if (bd.length) { bd.forEach(di => bp.push([k, di])); }
       else { bp.push([k, sts.length - 1]); }
     });
-    // LAYER 를 고르면 고른 것만 남기고 나머지는 감춘다.
-    // 축 자리와 막대 굵기는 그대로 두어 위치 감각이 유지된다.
-    const pick = new Set(DF.layer || []);
-    if (pick.size) {
-      balCharts[i].data.datasets.forEach(ds => {
-        ds.data = ds.data.map((v, k) => pick.has(xs[k]) ? v : null);
-      });
-      balCharts[i].$tot = tot.map((v, k) => pick.has(xs[k]) ? v : 0);
-    }
+    // 고른 LAYER 는 테두리로, 나머지는 흐리게. 축은 그대로 둔다.
+    // (다른 차트와 같은 규칙. 감추면 Ctrl 로 더 고를 수 없다)
+    hideUnpicked(balCharts[i], xs, new Set(DF.layer || []));
     keepBarWidth(balCharts[i], xs.length);
     balCharts[i].$selPairs = bp;
     balCharts[i].$selSet = null;

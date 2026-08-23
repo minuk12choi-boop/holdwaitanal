@@ -1625,30 +1625,33 @@ def api_summary(request):
                 and ok_ar):
             ins_rows.append(r)
 
-        base = ok_x and ok_layer and ok_cause          # 공통으로 걸리는 것
-        if not base:
+        # 원인 분석과 LOT BALANCE 도 '자기 조건' 은 빼고 센다.
+        #   Hold > FLOW금지 를 골라도 Hold 차트에는 다른 사유가 남아야
+        #   Ctrl 로 더 고를 수 있다.
+        if not ok_x:
             continue
+        base = ok_layer and ok_cause
 
         # 각 차트는 **자기 축을 뺀** 조건으로 센다.
         #   그래야 축 요소가 사라지지 않아 Ctrl 로 더 고를 수 있다.
         #   고른 것은 화면에서 테두리로, 나머지는 흐리게 나타낸다.
-        if ok_ty and ok_wt and ok_w0 and ok_ar:
+        if base and ok_ty and ok_wt and ok_w0 and ok_ar:
             _bucket(by_status, st, q)
             _bucket(st_ln.setdefault(st, {}), str(r.get("line") or "-"), q)
-        if ok_st and ok_wt and ok_w0 and ok_ar:
+        if base and ok_st and ok_wt and ok_w0 and ok_ar:
             _bucket(by_type, ty, q)
-        if ok_st and ok_ty and ok_w0 and ok_ar:
+        if base and ok_st and ok_ty and ok_w0 and ok_ar:
             _bucket(by_wt, wk, q)
             _bucket(wt_line.setdefault(wk, {}),
                     str(r.get("line") or "-"), q)
-        if ok_st and ok_ty and ok_wt and ok_w0:
+        if base and ok_st and ok_ty and ok_wt and ok_w0:
             _bucket(by_area.setdefault(ar, {}), st, q)
             _bucket(area_ln.setdefault(ar, {}).setdefault(st, {}),
                     str(r.get("line") or "-"), q)
             if ok_ar:
                 _bucket(by_line.setdefault(
                     str(r.get("line") or "-"), {}), st, q)
-        if ok_st and ok_ty and ok_wt and ok_ar and wt <= 0:
+        if base and ok_st and ok_ty and ok_wt and ok_ar and wt <= 0:
             _bucket(by_wt0, b0, q)
             if b0:
                 _bucket(wt0_st.setdefault(b0, {}), st, q)
@@ -1656,11 +1659,14 @@ def api_summary(request):
                         str(r.get("line") or "-"), q)
             _bucket(wt0_tot, st, q)
 
-        if not (ok_st and ok_ty and ok_wt and ok_w0 and ok_ar):
-            continue
-        tot["lots"] += 1
-        tot["qty"] += q
+        # 총계는 모든 조건을 반영한다.
+        if base and ok_st and ok_ty and ok_wt and ok_w0 and ok_ar:
+            tot["lots"] += 1
+            tot["qty"] += q
 
+        # 원인 분석은 **자기 조건(cause)** 을 빼고 센다. 나머지는 반영한다.
+        if not (ok_layer and ok_st and ok_ty and ok_wt and ok_w0 and ok_ar):
+            continue
         got = cls.get(r["lot_id"])
         if got is None:
             got = classify_lot(r, rules, ht)
