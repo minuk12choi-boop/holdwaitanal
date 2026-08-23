@@ -1492,9 +1492,6 @@ def api_summary(request):
     f_wt0 = flist("f_wt0")
     f_type = flist("f_type")
     f_area = flist("f_area")          # AREA 별 재공 차트에서
-    # 지금 걸린 조건이 모두 한 차트에서 나온 것이면 그 차트 이름이 온다.
-    #   그 차트만 전체를 유지해 다시 고를 수 있게 한다.
-    solo_src = request.GET.get("solo", "")
     bdate = request.GET.get("biz_date", "")
     bshift = request.GET.get("shift", "")
 
@@ -1632,24 +1629,26 @@ def api_summary(request):
         if not base:
             continue
 
-        if ok_ty and ok_wt and ok_w0 and ok_ar and (solo_src == "pie" or ok_st):
+        # 각 차트는 **자기 축을 뺀** 조건으로 센다.
+        #   그래야 축 요소가 사라지지 않아 Ctrl 로 더 고를 수 있다.
+        #   고른 것은 화면에서 테두리로, 나머지는 흐리게 나타낸다.
+        if ok_ty and ok_wt and ok_w0 and ok_ar:
             _bucket(by_status, st, q)
             _bucket(st_ln.setdefault(st, {}), str(r.get("line") or "-"), q)
-        if ok_st and ok_wt and ok_w0 and ok_ar and (solo_src == "type" or ok_ty):
+        if ok_st and ok_wt and ok_w0 and ok_ar:
             _bucket(by_type, ty, q)
-        if ok_st and ok_ty and ok_w0 and ok_ar and (solo_src == "wt" or ok_wt):
+        if ok_st and ok_ty and ok_w0 and ok_ar:
             _bucket(by_wt, wk, q)
             _bucket(wt_line.setdefault(wk, {}),
                     str(r.get("line") or "-"), q)
-        if ok_st and ok_ty and ok_wt and ok_w0 and (solo_src == "area" or ok_ar):
+        if ok_st and ok_ty and ok_wt and ok_w0:
             _bucket(by_area.setdefault(ar, {}), st, q)
             _bucket(area_ln.setdefault(ar, {}).setdefault(st, {}),
                     str(r.get("line") or "-"), q)
             if ok_ar:
                 _bucket(by_line.setdefault(
                     str(r.get("line") or "-"), {}), st, q)
-        if ok_st and ok_ty and ok_wt and ok_ar and wt <= 0 \
-                and (solo_src == "wt0" or ok_w0):
+        if ok_st and ok_ty and ok_wt and ok_ar and wt <= 0:
             _bucket(by_wt0, b0, q)
             if b0:
                 _bucket(wt0_st.setdefault(b0, {}), st, q)

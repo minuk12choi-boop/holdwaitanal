@@ -153,6 +153,7 @@
     <!-- 원인 분석에서 파고들 때마다 카드가 하나씩 쌓인다(LOT BALANCE 위). -->
     <div id="czstack"></div>
     <div id="czask" class="askpop" style="display:none"></div>
+    <svg id="flow" aria-hidden="true"></svg>
 
 <!-- 전체 순위는 x축이 길어져 위 카드에 넣으면 안 보인다. 아래 전체 폭으로. -->
     <div class="cell" id="czdrill" style="display:none;border:1px solid var(--bd);
@@ -1076,6 +1077,7 @@ function loadBalance(show) {
     balSyncBtns();
     drawBalance();
     resizeCharts();
+    requestAnimationFrame(drawFlow);
     dbgSnapshot("LOT BALANCE");
     if (BAL_OPEN_ID) {
       renderBalMenu(BAL_OPEN_ID === "balpick" ? "prod" : "plan");
@@ -1389,23 +1391,25 @@ function multiPick(cur, name, ev) {
    status 처럼 다른 차트도 쓰는 필드는 setCond 가 교집합으로 처리한다.
 --------------------------------------------------------------------- */
 function pickStacked(binKey, binVal, seg, ev, label, src) {
+  const sk = "status";        // 누적막대의 조각은 status 다
+  const segLv = DF_LV[binKey] || 9;   // 조각은 구간과 같은 계층으로 본다
   const add = ev && (ev.ctrlKey || ev.metaKey);
   // 조각(status, 낮은 계층)을 먼저 걸고 구간을 나중에 건다.
   // 반대로 하면 status 의 dfResetBelow 가 방금 건 구간(layer)을 지운다.
   const hasBin = (DF[binKey] || []).indexOf(binVal) >= 0;
-  const hasSeg = !seg || (DF.status || []).indexOf(seg) >= 0;
+  const hasSeg = !seg || (DF[sk] || []).indexOf(seg) >= 0;
   // 이 차트에서 걸었던 것이라야 '다시 누름' 이다.
   const mineBin = DF_SRC[binKey] === undefined || DF_SRC[binKey] === src;
   const mineSeg = DF_SRC.status === undefined || DF_SRC.status === src;
 
   if (add && hasBin && hasSeg && mineBin && mineSeg) {
-    if (seg) { setCond(sk, seg, { ctrlKey: true }, null, false, src); }
+    if (seg) { setCond(sk, seg, { ctrlKey: true }, null, false, src, segLv); }
     setCond(binKey, binVal, { ctrlKey: true }, label, false, src);
     return;
   }
   if (add) {
     if (seg && !hasSeg) {
-      setCond(sk, seg, { ctrlKey: true }, null, false, src);
+      setCond(sk, seg, { ctrlKey: true }, null, false, src, segLv);
     }
     if (!hasBin) {
       setCond(binKey, binVal, { ctrlKey: true }, label, false, src);
@@ -1423,7 +1427,7 @@ function pickStacked(binKey, binVal, seg, ev, label, src) {
     dfResetBelow(DF_LV[binKey] || 9);
     return;
   }
-  if (seg) { setCond(sk, seg, null, null, true, src); }
+  if (seg) { setCond(sk, seg, null, null, true, src, segLv); }
   setCond(binKey, binVal, null, label, true, src);
 }
 
@@ -1437,7 +1441,9 @@ function pickStacked(binKey, binVal, seg, ev, label, src) {
 --------------------------------------------------------------------- */
 const DF_SRC = {};
 
-function setCond(key, name, ev, label, noToggle, src) {
+// atLv: 이 조건을 어느 계층으로 볼지. 누적막대의 조각은 구간과 같은 계층이라
+//       조각 때문에 상위 조건이 지워지면 안 된다.
+function setCond(key, name, ev, label, noToggle, src, atLv) {
   const add = ev && (ev.ctrlKey || ev.metaKey);
   const sameSrc = src === undefined || DF_SRC[key] === undefined
     || DF_SRC[key] === src;
@@ -1452,7 +1458,7 @@ function setCond(key, name, ev, label, noToggle, src) {
   } else {
     next = [name];                   // 그 축의 값만 교체(다른 축은 유지)
   }
-  const lv = DF_LV[key] || 9;
+  const lv = (atLv !== undefined && atLv !== null) ? atLv : (DF_LV[key] || 9);
   if (next.length) { DF[key] = next; } else { delete DF[key]; }
   if (src !== undefined) { DF_SRC[key] = src; }
   if (label) { DF_LABEL[key + ":" + name] = label; }
@@ -1705,6 +1711,17 @@ const CZ_SCALE_X = {
 
 const popSelected = {
   id: "popSelected",
+  beforeDatasetsDraw(chart) {
+    // 고르지 않은 막대를 흐리게. 그린 뒤 되돌린다.
+    const dim = chart.$dim;
+    if (!dim) { return; }
+    chart.data.datasets.forEach((ds, di) => {
+      chart.getDatasetMeta(di).data.forEach((el, k) => {
+        if (dim[k] && el) { el.options.backgroundColor =
+          fade(el.options.backgroundColor); }
+      });
+    });
+  },
   afterDatasetsDraw(chart) {
     // 누적막대는 (구간, 계열) 쌍으로 지정한다. 계열이 다르면 자리도 다르다.
     const pairs = chart.$selPairs;
@@ -1727,6 +1744,18 @@ const popSelected = {
 };
 
 if (window.Chart) { Chart.register(popSelected); }
+
+// 색을 흐리게. 고르지 않은 막대에 쓴다.
+function fade(c) {
+  const t = String(c || "");
+  if (t.startsWith("rgba")) {
+    return t.replace(/[\d.]+\)$/, "0.18)");
+  }
+  if (t.startsWith("#") && t.length === 7) {
+    return t + "2E";                       // 약 18%
+  }
+  return t;
+}
 
 function strongest(c) {
   if (typeof c !== "string") { return c; }
@@ -1972,13 +2001,10 @@ function hoverCursor(ch, ev) {
 }
 
 function hideUnpicked(ch, names, picked) {
-  if (!picked || !picked.size) { return; }
-  ch.data.datasets.forEach(ds => {
-    ds.data = ds.data.map((v, k) => picked.has(names[k]) ? v : null);
-  });
-  if (ch.$tot) {
-    ch.$tot = ch.$tot.map((v, k) => picked.has(names[k]) ? v : 0);
-  }
+  // 고르지 않은 막대는 **지우지 않고 흐리게** 둔다.
+  //   지우면 축이 줄어 Ctrl 로 더 고를 수 없고 남은 막대가 가운데로 몰린다.
+  ch.$dim = (picked && picked.size)
+    ? names.map(nm => !picked.has(nm)) : null;
 }
 
 function keepBarWidth(ch, n) {
@@ -2406,6 +2432,7 @@ function renderCause() {
   if (CAUSE_VIEW === "all") { renderCauseAllBar(); }
   renderCzStack();
   renderCzWide();
+  requestAnimationFrame(drawFlow);
 }
 
 /* 우측 드릴다운 중분류 차트 --------------------------------------------
@@ -2457,7 +2484,8 @@ function renderCzStack() {
     czStackCharts.forEach(c => { if (c) { c.destroy(); } });
     czStackCharts.length = 0;
     box.innerHTML = CZ_STACK.map((_, n) =>
-      `<div class="cell" style="border:1px solid var(--bd);border-radius:6px;`
+      `<div class="cell" id="czs${n}" style="border:1px solid var(--bd);`
+      + `border-radius:6px;`
       + `padding:11px 12px;margin-bottom:10px">`
       + `<div class="cellttl"><span id="czst${n}"></span>`
       + `<button class="cardclr" onclick="czStackClose(${n})"`
@@ -2519,6 +2547,7 @@ function czShowAll(i) {
   if (CAUSE_VIEW === "all") { renderCauseAllBar(); }
   renderCzStack();
   renderCzWide();
+  requestAnimationFrame(drawFlow);
 }
 
 /* 우측 드릴다운 중분류 차트 --------------------------------------------
@@ -2671,6 +2700,62 @@ function insPick(ci, n) {
   DF_CAUSE = { i: i < 0 ? 0 : i,
                or: [{ big: cz[0], mid: cz[1], sub: null }] };
   syncFromDF();
+}
+
+/* 드릴다운 흐름 화살표 -------------------------------------------------
+   무엇을 골라 무엇이 생겼는지 카드끼리 잇는다.
+   카드 모서리에서 출발해 **카드 사이 여백**을 타고 흐른다.
+--------------------------------------------------------------------- */
+function drawFlow() {
+  const svg = document.getElementById("flow");
+  if (!svg) { return; }
+
+  // 지금 이어져야 할 카드 순서를 모은다.
+  const ids = [];
+  if (CZ_STACK.length || DF_CAUSE) { ids.push("czcard"); }
+  CZ_STACK.forEach((_, n) => ids.push("czs" + n));
+  if (CZ_WIDE) { ids.push("czdrill"); }
+  const bal = document.getElementById("balpanel");
+  if (bal && bal.style.display !== "none") { ids.push("balpanel"); }
+  const dr = document.getElementById("drill");
+  if (dr && (Object.keys(DF).length || DF_CAUSE)) { ids.push("drill"); }
+
+  const els = ids.map(id => document.getElementById(id)).filter(Boolean);
+  if (els.length < 2) { svg.innerHTML = ""; svg.style.display = "none"; return; }
+
+  const host = document.querySelector(".maincol");
+  if (!host) { return; }
+  const hb = host.getBoundingClientRect();
+  svg.style.display = "";
+  svg.setAttribute("width", Math.round(hb.width));
+  svg.setAttribute("height", Math.round(hb.height));
+  svg.style.left = Math.round(hb.left + window.pageXOffset) + "px";
+  svg.style.top = Math.round(hb.top + window.pageYOffset) + "px";
+
+  const parts = [
+    `<defs><marker id="fa" markerWidth="7" markerHeight="7" refX="6" refY="3"`
+    + ` orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#2E1A47"/></marker></defs>`
+  ];
+  for (let i = 0; i + 1 < els.length; i++) {
+    const a = els[i].getBoundingClientRect();
+    const b = els[i + 1].getBoundingClientRect();
+    const ax = a.right - hb.left, ay = a.top - hb.top + a.height / 2;
+    const bx = b.left - hb.left, by = b.top - hb.top + b.height / 2;
+    let d;
+    if (bx >= ax - 4) {
+      // 오른쪽 카드로. 두 카드 사이 여백 한가운데를 지난다.
+      const mx = (ax + bx) / 2;
+      d = `M${ax},${ay} H${mx} V${by} H${bx}`;
+    } else {
+      // 아래 카드로. 왼쪽 바깥 여백을 타고 내려간다.
+      const a2 = els[i].getBoundingClientRect();
+      const lx = Math.min(a2.left, b.left) - hb.left - 7;
+      d = `M${a2.left - hb.left},${ay} H${lx} V${by} H${bx}`;
+    }
+    parts.push(`<path d="${d}" fill="none" stroke="#2E1A47" stroke-width="1.4"`
+      + ` stroke-dasharray="4 3" marker-end="url(#fa)" opacity=".75"/>`);
+  }
+  svg.innerHTML = parts.join("");
 }
 
 /* 클릭 진단 ------------------------------------------------------------
@@ -3662,6 +3747,7 @@ function openDrill(filt, label, src, keepView) {
     renderDrillTable();
     renderConds();
     resizeCharts();
+    requestAnimationFrame(drawFlow);
     dbgSnapshot("드릴다운 표");
   }).catch(e => { if (e.name !== "AbortError") { throw e; } });
 }

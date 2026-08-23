@@ -139,6 +139,10 @@
   .linelg i { width:8px; height:8px; border-radius:2px; display:inline-block;
               margin-left:4px; }
 
+  /* 드릴다운 흐름 화살표. 카드 사이 여백을 타고 흐른다. */
+  #flow { position:absolute; pointer-events:none; z-index:5; display:none;
+          overflow:visible; }
+
   /* 로딩 가림막 */
   #busy { position:fixed; inset:0; z-index:10000; display:none;
           background:rgba(255,255,255,.82);
