@@ -126,8 +126,10 @@
   button, a, label, summary,
   .seg > button, .rankbtn, .czback, .balback, .fchip i, .insline,
   .inscard, .dd > button, .menu label, .lineseg button, .datef,
-  canvas, .stack i, .grid th.dh, .grid td.dh, .askpop button,
+  .stack i, .askpop button,
   [onclick] { cursor:pointer; }
+  /* 차트는 막대·조각 위에서만 손가락이 된다(JS 가 바꾼다). 여백은 기본 커서. */
+  canvas { cursor:default; }
   button:disabled, .lineseg button:disabled { cursor:not-allowed; }
 
   .htip { position:absolute; z-index:9999; pointer-events:none; opacity:0;

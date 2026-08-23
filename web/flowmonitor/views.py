@@ -1491,6 +1491,9 @@ def api_summary(request):
     f_wt0 = flist("f_wt0")
     f_type = flist("f_type")
     f_area = flist("f_area")          # AREA 별 재공 차트에서
+    # 지금 걸린 조건이 모두 한 차트에서 나온 것이면 그 차트 이름이 온다.
+    #   그 차트만 전체를 유지해 다시 고를 수 있게 한다.
+    solo_src = request.GET.get("solo", "")
     bdate = request.GET.get("biz_date", "")
     bshift = request.GET.get("shift", "")
 
@@ -1546,11 +1549,12 @@ def api_summary(request):
     # 좌측 차트와 원인 분석도 드릴다운 조건을 그대로 따라야 한다.
     # (예전에는 f_status 만 봐서, 원인/LAYER 로 좁혀도 값이 그대로였다)
     want_layer = [x for x in request.GET.get("layer_id", "").split(",") if x]
+    # causes = 대분류>중분류>소분류>설비ID  (뒤는 비어도 된다)
     or_causes = []
     for spec in request.GET.get("causes", "").split("|"):
         if not spec:
             continue
-        parts = (spec.split(">") + ["", "", ""])[:3]
+        parts = (spec.split(">") + ["", "", "", ""])[:4]
         or_causes.append(tuple(x.strip() for x in parts))
     c_big = request.GET.get("big", "")
     c_mid = request.GET.get("mid", "")
@@ -1566,9 +1570,12 @@ def api_summary(request):
             cls[r["lot_id"]] = got
         b2, m2, s2 = got
         if or_causes:
+            ids = set(_eqp_ids(r))
             return any((not a or b2 == a)
                        and (not b or (m2 or "") == b)
-                       and (not c or c in s2) for a, b, c in or_causes)
+                       and (not c or c in s2)
+                       and (not e or e in ids)
+                       for a, b, c, e in or_causes)
         if c_big and b2 != c_big:
             return False
         if c_mid and (m2 or "") != c_mid:
@@ -1610,13 +1617,7 @@ def api_summary(request):
         ar = str(r.get("AREA") or "").strip() or UNCLASSIFIED
         ok_ar = (not f_area) or (ar in f_area)
 
-        # 그 차트에서만 골랐다면 그 차트는 전체를 보여 다시 고를 수 있게 한다.
-        # 다른 조건이 하나라도 더 걸리면 모든 차트가 함께 좁혀진다.
-        n_cond = sum(1 for x in (f_status, f_type, f_wt, f_wt0, f_area,
-                                 want_layer) if x) \
-            + (1 if (or_causes or c_big or c_mid or c_sub) else 0) \
-            + (1 if xf else 0)
-        solo = (n_cond <= 1)
+
 
         # 요약카드는 카드에서 고른 조건(x_*)만 무시한다.
         if (ok_layer and ok_cause and ok_st and ok_ty and ok_wt and ok_w0
@@ -1627,20 +1628,21 @@ def api_summary(request):
         if not base:
             continue
 
-        if ok_ty and ok_wt and ok_w0 and ok_ar and (solo or ok_st):
+        if ok_ty and ok_wt and ok_w0 and ok_ar and (solo_src == "pie" or ok_st):
             _bucket(by_status, st, q)
-        if ok_st and ok_wt and ok_w0 and ok_ar and (solo or ok_ty):
+        if ok_st and ok_wt and ok_w0 and ok_ar and (solo_src == "type" or ok_ty):
             _bucket(by_type, ty, q)
-        if ok_st and ok_ty and ok_w0 and ok_ar and (solo or ok_wt):
+        if ok_st and ok_ty and ok_w0 and ok_ar and (solo_src == "wt" or ok_wt):
             _bucket(by_wt, wk, q)
             _bucket(wt_line.setdefault(wk, {}),
                     str(r.get("line") or "-"), q)
-        if ok_st and ok_ty and ok_wt and ok_w0 and (solo or ok_ar):
+        if ok_st and ok_ty and ok_wt and ok_w0 and (solo_src == "area" or ok_ar):
             _bucket(by_area.setdefault(ar, {}), st, q)
             if ok_ar:
                 _bucket(by_line.setdefault(
                     str(r.get("line") or "-"), {}), st, q)
-        if ok_st and ok_ty and ok_wt and ok_ar and wt <= 0 and (solo or ok_w0):
+        if ok_st and ok_ty and ok_wt and ok_ar and wt <= 0 \
+                and (solo_src == "wt0" or ok_w0):
             _bucket(by_wt0, b0, q)
             if b0:
                 _bucket(wt0_st.setdefault(b0, {}), st, q)
@@ -2225,7 +2227,7 @@ def api_balance(request):
     for spec in request.GET.get("causes", "").split("|"):
         if not spec:
             continue
-        parts = (spec.split(">") + ["", "", ""])[:3]
+        parts = (spec.split(">") + ["", "", "", ""])[:4]
         or_causes.append(tuple(x.strip() for x in parts))
     # 서로 다른 대분류를 함께 고른 경우. AND 로는 언제나 0 이라 OR 로 본다.
     #   causes=Hold>>FLOW금지|Wait성 진행불가>설비이슈>
@@ -2233,7 +2235,7 @@ def api_balance(request):
     for spec in request.GET.get("causes", "").split("|"):
         if not spec:
             continue
-        parts = (spec.split(">") + ["", "", ""])[:3]
+        parts = (spec.split(">") + ["", "", "", ""])[:4]
         or_causes.append(tuple(x.strip() for x in parts))
 
     by = [x for x in request.GET.get("by", "plan").split(",") if x] or ["plan"]
@@ -2273,9 +2275,12 @@ def api_balance(request):
         if big or mid or subs_want or or_causes:
             b2, m2, s2 = classify_lot(r, rules, ht)
             if or_causes:
+                ids = set(_eqp_ids(r))
                 if not any((not a or b2 == a)
                            and (not b or (m2 or "") == b)
-                           and (not c or c in s2) for a, b, c in or_causes):
+                           and (not c or c in s2)
+                           and (not e or e in ids)
+                           for a, b, c, e in or_causes):
                     continue
             else:
                 if big and b2 != big:
@@ -2576,7 +2581,7 @@ def api_lots_live(request):
     for spec in request.GET.get("causes", "").split("|"):
         if not spec:
             continue
-        parts = (spec.split(">") + ["", "", ""])[:3]
+        parts = (spec.split(">") + ["", "", "", ""])[:4]
         or_causes.append(tuple(x.strip() for x in parts))
 
     if not _table_exists("f3_live"):
@@ -2635,9 +2640,12 @@ def api_lots_live(request):
         if not _farea_ok(r, f_area_x):
             continue
         if or_causes:
+            ids = set(_eqp_ids(r))
             if not any((not a or b2 == a)
                        and (not b or (m2 or "") == b)
-                       and (not c or c in s2) for a, b, c in or_causes):
+                       and (not c or c in s2)
+                       and (not e or e in ids)
+                       for a, b, c, e in or_causes):
                 continue
         else:
             if big and b2 != big:

@@ -644,6 +644,7 @@ function renderWt() {
   }
   wtChart.data.labels = d.wt_dist.map(x => x.label);
   wtChart.data.datasets = wtDs;
+  hideUnpicked(wtChart, d.wt_dist.map(x => x.name), new Set(DF.wt || []));
   // 라인 ALL 이면 라인별 누적, 아니면 단색 한 벌
   wtChart.options.scales.x.stacked = (LINE === "ALL");
   wtChart.options.scales.y.stacked = (LINE === "ALL");
@@ -678,6 +679,7 @@ function renderWt0() {
       data: { labels: [], datasets: [] },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
+        onHover: (e, els, ch) => hoverCursor(ch, e.native || e),
         layout: { padding: { top: 16 } },
         plugins: { legend: { display: false },
                    tooltip: { callbacks: { label: (t) => {
@@ -763,6 +765,7 @@ function renderWt0() {
     else { pairs.push([k, sts.length - 1]); }   // status 미선택이면 맨 위 조각
   });
   keepBarWidth(wt0Chart, list.length);
+  hideUnpicked(wt0Chart, list.map(x => x.name), new Set(DF.wt0 || []));
   wt0Chart.$selPairs = pairs;
   wt0Chart.$selSet = null;
   markSelected(wt0Chart, -1);
@@ -814,6 +817,7 @@ function renderArea() {
       data: { labels: [], datasets: [] },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
+        onHover: (e, els, ch) => hoverCursor(ch, e.native || e),
         layout: { padding: { top: 16 } },
         plugins: { legend: { display: false },
                    tooltip: { callbacks: { label: (t) => {
@@ -892,6 +896,7 @@ function renderArea() {
     if (bd.length) { bd.forEach(di => bp.push([k, di])); }
     else { bp.push([k, sts.length - 1]); }
   });
+  hideUnpicked(areaChart, list.map(x => x.name), new Set(DF.iarea || []));
   areaChart.$selPairs = bp;
   areaChart.$selSet = null;
   keepBarWidth(areaChart, list.length);
@@ -1133,6 +1138,7 @@ function drawBalance() {
         data: { labels: xs, datasets: datasets },
         options: {
           responsive: true, maintainAspectRatio: false, animation: false,
+          onHover: (e, els, ch) => hoverCursor(ch, e.native || e),
           plugins: { legend: { display: false },
                      tooltip: { callbacks: { label: (t) => {
                        const g = (balCharts[i].$tot || [])[t.dataIndex] || 0;
@@ -1432,7 +1438,9 @@ function causeSelNames(i) {
   const out = new Set();
   list.forEach(x => {
     if (i !== undefined && x.big && x.big !== czGroup(i).name) { return; }
-    out.add(x.sub || x.mid);          // 소분류가 없으면 중분류가 선택 대상
+    out.add(x.eqp || x.sub || x.mid);   // 가장 깊은 것이 선택 대상
+    if (x.sub) { out.add(x.sub); }
+    if (x.mid) { out.add(x.mid); }
   });
   return out;
 }
@@ -1448,7 +1456,7 @@ function causeName() {
     || (DF_CAUSE.subs || []).map(x => ({ big: DF_CAUSE.big,
                                          mid: DF_CAUSE.mid, sub: x }));
   if (!list.length) { return ""; }
-  const full = (x) => [x.big, x.mid, x.sub].filter(Boolean);
+  const full = (x) => [x.big, x.mid, x.sub, x.eqp].filter(Boolean);
 
   // 모든 갈래가 앞부분을 공유하면 그만큼 앞으로 뺀다.
   const paths = list.map(full);
@@ -1483,6 +1491,15 @@ function dfClearAllConds() {
   syncFromDF();
 }
 
+// 지금 걸린 조건이 모두 한 차트에서 나왔으면 그 차트 이름. 아니면 "".
+function soloSrc() {
+  const on = Object.keys(DF).filter(k => (DF[k] || []).length);
+  const srcs = new Set(on.map(k => DF_SRC[k]).filter(Boolean));
+  if (DF_CAUSE) { srcs.add("cause"); }
+  if (Object.keys(DF_X).length) { srcs.add("insight"); }
+  return srcs.size === 1 ? [...srcs][0] : "";
+}
+
 function dfFilter() {
   const f = {};
   Object.keys(DF_X).forEach(k => { f[k] = DF_X[k].join(","); });
@@ -1491,7 +1508,8 @@ function dfFilter() {
     // 서로 다른 대분류를 함께 고르면 AND 로는 늘 0 이다. OR 로 보낸다.
     if (DF_CAUSE.or && DF_CAUSE.or.length) {
       f.causes = DF_CAUSE.or
-        .map(x => [x.big || "", x.mid || "", x.sub || ""].join(">")).join("|");
+        .map(x => [x.big || "", x.mid || "", x.sub || "",
+                   x.eqp || ""].join(">")).join("|");
     } else {
       if (DF_CAUSE.big) { f.big = DF_CAUSE.big; }
       if (DF_CAUSE.mid) { f.mid = DF_CAUSE.mid; }
@@ -1593,6 +1611,11 @@ function drillCols() {
 }
 
 function czGroup(i) { return (DATA.causes || [])[i] || { name: "", children: [] }; }
+
+// 더 파고들 뜻이 있는가. 하위가 하나뿐이면 쪼개도 같은 값이라 뜻이 없다.
+function czCanDrill(i, path) {
+  return czNodesAt(i, path).length > 1;
+}
 
 function czNodesAt(i, path) {
   let list = czGroup(i).children || [];
@@ -1756,6 +1779,7 @@ function czBarChart(canvasId, onPick, pluginId) {
     ] },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
+      onHover: (e, els, ch) => hoverCursor(ch, e.native || e),
       layout: { padding: { top: 16 } },
       plugins: { legend: { display: false },
                  tooltip: { callbacks: {
@@ -1849,6 +1873,28 @@ function czApply(ch, nodes, u, selName, selList) {
    10 개이던 x축이 2 개가 되면 막대가 지나치게 굵어져 다른 카드처럼 보인다.
    기준 개수를 기억해 두고 그만큼의 자리를 유지한다.
 --------------------------------------------------------------------- */
+/* 고른 것만 남기고 나머지 막대를 감춘다. 자리와 굵기는 그대로 둔다.
+   값을 빼 버리면 남은 막대가 가운데로 옮겨 가 위치 감각이 깨진다.
+--------------------------------------------------------------------- */
+/* 막대·조각 위에서만 손가락 커서. 여백에서는 기본 커서.
+   차트 전체에 cursor:pointer 를 주면 빈 곳도 눌리는 것처럼 보인다.
+--------------------------------------------------------------------- */
+function hoverCursor(ch, ev) {
+  const hit = ch.getElementsAtEventForMode(
+    ev, "nearest", { intersect: true }, false);
+  ch.canvas.style.cursor = hit.length ? "pointer" : "default";
+}
+
+function hideUnpicked(ch, names, picked) {
+  if (!picked || !picked.size) { return; }
+  ch.data.datasets.forEach(ds => {
+    ds.data = ds.data.map((v, k) => picked.has(names[k]) ? v : null);
+  });
+  if (ch.$tot) {
+    ch.$tot = ch.$tot.map((v, k) => picked.has(names[k]) ? v : 0);
+  }
+}
+
 function keepBarWidth(ch, n) {
   if (!ch || !n) { return; }
   // 그 차트에서 본 가장 많은 개수를 기준으로 삼는다.
@@ -1884,19 +1930,25 @@ function czSelect(i, basePath, node, ev) {
   const path = basePath.concat([{ name: node.name, kind: node.kind || "sub" }]);
   const midP = path.find(p => p.kind === "mid");
   const subP = path.filter(p => p.kind !== "mid").slice(-1)[0];
+  // 소분류(설비그룹) 아래 설비 ID 는 한 칸 더 내려간다.
+  const subs = path.filter(p => p.kind !== "mid");
   const pick = {
     big: czGroup(i).name,
     mid: midP ? midP.name : null,
     // 고른 것이 중분류면 소분류는 비운다(그 중분류 전체를 뜻한다).
-    sub: (node.kind === "mid") ? null : (subP ? subP.name : null),
+    sub: (node.kind === "mid") ? null : (subs[0] ? subs[0].name : null),
+    eqp: (node.kind === "eqp") ? node.name
+         : (subs.length > 1 ? subs[subs.length - 1].name : null),
   };
-  const ck = (x) => [x.big || "", x.mid || "", x.sub || ""].join(">");
+  const ck = (x) => [x.big || "", x.mid || "", x.sub || "",
+                     x.eqp || ""].join(">");
 
   // 이미 고른 갈래를 더 파고든 것이면 그 항목을 '대체' 한다.
   // (안 그러면 Hold 또는 설비이슈 또는 설비이슈>TIT405 처럼 쌓인다)
   const ancestor = (a, b) => a.big === b.big
     && (!a.mid || a.mid === b.mid)
-    && (!a.sub || a.sub === b.sub);
+    && (!a.sub || a.sub === b.sub)
+    && (!a.eqp || a.eqp === b.eqp);
 
   const prev = (DF_CAUSE && DF_CAUSE.or) ? DF_CAUSE.or.slice() : [];
   const same = prev.findIndex(x => ck(x) === ck(pick));
@@ -1922,7 +1974,8 @@ function czSelect(i, basePath, node, ev) {
 function czPick(i, node, depth, ev) {
   if (!node) { return; }
   const add = ev && (ev.ctrlKey || ev.metaKey);
-  const leaf = !(node.children && node.children.length);
+  // 하위가 하나뿐이면 말단으로 본다. 쪼개 봐야 같은 값이다.
+  const leaf = !(node.children && node.children.length > 1);
 
   // Ctrl 이 아니면 이전 드릴다운은 모두 버린다(같은 차트 안이라도).
   if (!add) {
@@ -1979,9 +2032,11 @@ function czAskGo(mode) {
   czAskClose();
 
   if (mode === "deep") {
-    // 세부 요소. 아래에 차트를 하나 더 쌓는다.
-    CZ_STACK = CZ_STACK.filter(x => x.i !== i || x.path.length < base.length)
-      .concat([{ i: i, path: path }]);
+    // 세부 요소. **그 카드 아래에 한 장 더 쌓는다**(교체가 아니다).
+    //   base 는 눌린 카드의 경로다. 그보다 깊은 카드만 걷어내고 붙인다.
+    const keep = CZ_STACK.filter(
+      x => x.i !== i || x.path.length <= base.length);
+    CZ_STACK = keep.concat([{ i: i, path: path }]);
     CZ_SEL = { i: i, path: path.slice() };
     CZ_WIDE = null;
   }
@@ -2083,6 +2138,7 @@ function renderCauseAllBar() {
       options: {
         indexAxis: "y",                    // 시계방향 90도 회전
         responsive: true, maintainAspectRatio: false, animation: false,
+        onHover: (e, els, ch) => hoverCursor(ch, e.native || e),
         layout: { padding: { right: 46 } },
         plugins: { legend: { display: false },
                    tooltip: { callbacks: { label: (t) => {
@@ -2280,7 +2336,8 @@ function renderCzStack() {
       `<div class="cell" style="border:1px solid var(--bd);border-radius:6px;`
       + `padding:11px 12px;margin-bottom:10px">`
       + `<div class="cellttl"><span id="czst${n}"></span>`
-      + `<span class="czback" onclick="czStackClose(${n})">닫기</span></div>`
+      + `<button class="cardclr" onclick="czStackClose(${n})"`
+      + ` title="이 단계 이후를 접는다">◀ 해제</button></div>`
       + `<div id="czsp${n}" class="czpath"></div>`
       + `<div style="height:230px"><canvas id="czsc${n}"></canvas></div>`
       + `</div>`).join("");
@@ -2303,9 +2360,9 @@ function renderCzStack() {
         if (!st || !node) { return; }
         const next = st.path.concat([{ name: node.name,
                                        kind: node.kind || "sub" }]);
-        // 더 쪼갤 게 있으면 무엇을 볼지 물어본다.
+        // 더 쪼개도 뜻이 있을 때만 물어본다(하위가 둘 이상).
         if (!(ev && (ev.ctrlKey || ev.metaKey))
-            && czNodesAt(st.i, next).length) {
+            && czCanDrill(st.i, next)) {
           czAsk(st.i, st.path, node, ev);
           return;
         }
@@ -3422,6 +3479,7 @@ function loadSummary(keepFocus) {
         + "&f_wt0=" + encodeURIComponent((DF.wt0 || []).join(","))
         + "&f_type=" + encodeURIComponent((DF.type || []).join(","))
         + "&f_area=" + encodeURIComponent((DF.iarea || []).join(","))
+        + "&solo=" + encodeURIComponent(soloSrc())
         // 원인 / LAYER 도 좌측 차트에 그대로 반영한다.
         + "&layer_id=" + encodeURIComponent((DF.layer || []).join(","))
         + "&causes=" + encodeURIComponent(dfFilter().causes || "")
