@@ -2301,6 +2301,7 @@ def api_balance(request):
     lay_mod = {}          # LAYER -> 모듈. x축 아래 경계 표시에 쓴다
     xf = _xfilters(request)
     f_area_b = [x for x in request.GET.get("f_area", "").split(",") if x]
+    f_prod_b = [x for x in request.GET.get("f_prod", "").split(",") if x]
     for r in rows:
         if prod1 and (r.get("prod1") or UNCLASSIFIED) not in prod1:
             continue

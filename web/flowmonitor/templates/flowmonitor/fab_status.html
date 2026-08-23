@@ -2809,7 +2809,8 @@ function drawFlow() {
   const host = document.querySelector(".maincol");
   if (!host) { return; }
   const hb = host.getBoundingClientRect();
-  svg.style.display = "";
+  // "" 로 비우면 CSS 의 display:none 이 되살아난다. 반드시 켜 준다.
+  svg.style.display = "block";
   svg.setAttribute("width", Math.round(hb.width) + 20);
   svg.setAttribute("height", Math.round(hb.height));
   svg.style.left = Math.round(hb.left + window.pageXOffset) - 20 + "px";
@@ -3944,7 +3945,10 @@ function loadSummary(keepFocus) {
         // 원인 / LAYER 도 좌측 차트에 그대로 반영한다.
         + "&layer_id=" + encodeURIComponent((DF.layer || []).join(","))
         + "&causes=" + encodeURIComponent(dfFilter().causes || "")
-        + "&cause_src=" + encodeURIComponent(DF_SRC.cause || "cause")
+        // 요약카드 조건(x_*)이 걸려 있으면 원인 트리도 함께 좁힌다.
+        //   그 상태에서 원인 차트를 눌러도 다른 대분류가 되살아나면 안 된다.
+        + "&cause_src=" + encodeURIComponent(
+            Object.keys(DF_X).length ? "insight" : (DF_SRC.cause || "cause"))
         + "&big=" + encodeURIComponent(dfFilter().big || "")
         + "&mid=" + encodeURIComponent(dfFilter().mid || "")
         + "&sub=" + encodeURIComponent(dfFilter().sub || "")
