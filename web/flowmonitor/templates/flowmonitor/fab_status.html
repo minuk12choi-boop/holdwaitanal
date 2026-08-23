@@ -1226,6 +1226,8 @@ function drawBalance() {
         data: { labels: axOf(r), datasets: datasets },
         options: {
           responsive: true, maintainAspectRatio: false, animation: false,
+          // 아래에 모듈2 · 모듈1 두 단을 그린다. 그만큼 자리를 비운다.
+          layout: { padding: { bottom: 26 } },
           onHover: (e, els, ch) => hoverCursor(ch, e.native || e),
           plugins: { legend: { display: false },
                      tooltip: { callbacks: { label: (t) => {
@@ -1281,33 +1283,49 @@ function drawBalance() {
             });
             ctx.restore();
           },
-          // x축 아래에 모듈 구간을 선으로 나누고 가운데에 이름을 쓴다.
+          /* x축 아래를 세 단으로 나눈다.
+               위   LAYER   (Chart.js 가 그린다)
+               가운데 모듈2
+               아래  모듈1
+             겹치지 않게 단마다 자리를 따로 잡는다. */
           afterDraw(ch) {
-            const bands = (BAL_DATA && BAL_DATA.modules) || [];
-            if (!bands.length) { return; }
+            const b1 = (BAL_DATA && BAL_DATA.modules) || [];
+            const b2 = (BAL_DATA && BAL_DATA.modules2) || [];
+            if (!b1.length && !b2.length) { return; }
             const meta = ch.getDatasetMeta(0).data;
             if (!meta.length) { return; }
             const ctx = ch.ctx;
-            const y = ch.chartArea.bottom;
             const h = ch.height;
             const half = (meta.length > 1)
               ? Math.abs(meta[1].x - meta[0].x) / 2
               : (ch.chartArea.right - ch.chartArea.left) / 2;
+
+            const ROW = 13;                 // 한 단 높이
             ctx.save();
             ctx.font = "bold 9px 'Poppins','Noto Sans KR',sans-serif";
             ctx.textAlign = "center";
-            ctx.textBaseline = "bottom";
-            ctx.strokeStyle = "#9CA3AF";
+            ctx.textBaseline = "middle";
             ctx.lineWidth = 1;
-            bands.forEach(b => {
-              const a = meta[b.from], z = meta[b.to];
-              if (!a || !z) { return; }
-              const x1 = a.x - half, x2 = z.x + half;
-              ctx.beginPath();                    // 구간 경계
-              ctx.moveTo(x2, y); ctx.lineTo(x2, h - 2);
-              ctx.stroke();
-              ctx.fillStyle = "#374151";          // 가운데 이름
-              ctx.fillText(b.name, (x1 + x2) / 2, h - 3);
+
+            // n = 0 이면 모듈2(가운데), 1 이면 모듈1(맨 아래)
+            [[b2, 0], [b1, 1]].forEach(([bands, n]) => {
+              const top = h - ROW * (2 - n);
+              const cy = top + ROW / 2;
+              bands.forEach(b => {
+                const a = meta[b.from], z = meta[b.to];
+                if (!a || !z) { return; }
+                const x1 = a.x - half, x2 = z.x + half;
+                ctx.strokeStyle = "#D7DEE8";     // 단 구분 밑줄
+                ctx.beginPath();
+                ctx.moveTo(x1, top); ctx.lineTo(x2, top);
+                ctx.stroke();
+                ctx.strokeStyle = "#9CA3AF";     // 구간 경계
+                ctx.beginPath();
+                ctx.moveTo(x2, top); ctx.lineTo(x2, top + ROW);
+                ctx.stroke();
+                ctx.fillStyle = "#374151";
+                ctx.fillText(czLabel(b.name, 10), (x1 + x2) / 2, cy);
+              });
             });
             ctx.restore();
           }

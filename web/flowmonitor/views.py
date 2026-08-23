@@ -2298,7 +2298,8 @@ def api_balance(request):
     grp_lay = {}          # 제품 -> 그 제품의 LAYER 집합
     grp_of = {}           # 줄 이름 -> 어느 제품에 속하는지
     prod_seen, plan_seen = set(), set()
-    lay_mod = {}          # LAYER -> 모듈. x축 아래 경계 표시에 쓴다
+    lay_mod = {}          # LAYER -> 모듈1. x축 아래 경계 표시에 쓴다
+    lay_mod2 = {}         # LAYER -> 모듈2
     xf = _xfilters(request)
     f_area_b = [x for x in request.GET.get("f_area", "").split(",") if x]
     f_prod_b = [x for x in request.GET.get("f_prod", "").split(",") if x]
@@ -2349,9 +2350,10 @@ def api_balance(request):
         if not lay:
             continue
         layers.add(lay)
-        mod = r.get("module1")
-        if mod:
-            lay_mod.setdefault(lay, mod)
+        if r.get("module1"):
+            lay_mod.setdefault(lay, r.get("module1"))
+        if r.get("module2"):
+            lay_mod2.setdefault(lay, r.get("module2"))
         _bucket(total.setdefault(lay, {}), st, q)
         key = " · ".join(str(r.get(c) or "-") for c in gcols)
         _bucket(by_plan.setdefault(key, {}).setdefault(lay, {}), st, q)
@@ -2392,19 +2394,25 @@ def api_balance(request):
         return {st: [int(round(src.get(l, {}).get(st, {}).get("lots", 0)))
                      for l in ax] for st in sts}
 
-    # 같은 모듈이 이어지는 구간을 묶는다.
-    bands, cur = [], None
-    for i2, l in enumerate(xs):
-        m = lay_mod.get(l)
-        if cur and cur["name"] == m:
-            cur["to"] = i2
-        else:
-            cur = {"name": m, "from": i2, "to": i2}
-            bands.append(cur)
-    bands = [b for b in bands if b["name"]]
+    def _bands(src):
+        """같은 값이 이어지는 구간을 묶는다."""
+        out, cur = [], None
+        for i2, l in enumerate(xs):
+            m = src.get(l)
+            if cur and cur["name"] == m:
+                cur["to"] = i2
+            else:
+                cur = {"name": m, "from": i2, "to": i2}
+                out.append(cur)
+        return [b for b in out if b["name"]]
+
+    bands = _bands(lay_mod)
+    bands2 = _bands(lay_mod2)
 
     return JsonResponse({
-        "layers": xs, "by": ",".join(by), "modules": bands,
+        "layers": xs, "by": ",".join(by),
+        # x축 아래 두 단: 위가 모듈2, 아래가 모듈1
+        "modules": bands, "modules2": bands2,
         "opt_prod": opt_prod, "opt_plan": opt_plan,
         "status": [{"name": x, "color": STATUS_COLORS.get(x, "#9CA3AF")}
                    for x in sts],
