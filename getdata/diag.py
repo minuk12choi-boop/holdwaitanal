@@ -414,32 +414,6 @@ def diag_tree(line=""):
                 print(f"   {big} > {mid}  -> 소분류 {len(m['sub'])}개")
 
 
-def main():
-    what = (sys.argv[1] if len(sys.argv) > 1 else "all").lower()
-    if what in ("hold", "all"):
-        diag_hold()
-    if what in ("lot", "all"):
-        diag_lot()
-    if what in ("tip", "all"):
-        diag_tip()
-    if what in ("wt", "all"):
-        diag_wt()
-    if what == "lotwt":
-        diag_lotwt(sys.argv[2] if len(sys.argv) > 2 else "")
-    if what == "lotst":
-        diag_lotst(sys.argv[2] if len(sys.argv) > 2 else "")
-    if what == "tree":
-        diag_tree(sys.argv[2] if len(sys.argv) > 2 else "KFR4")
-    if what == "holdtxt":
-        diag_holdtxt(sys.argv[2] if len(sys.argv) > 2 else "H000")
-    if what in ("dates", "all"):
-        diag_dates()
-
-
-if __name__ == "__main__":
-    main()
-
-
 # ---------------------------------------------------------------------------
 # HOLD 사유 문구 분석
 # ---------------------------------------------------------------------------
@@ -616,3 +590,45 @@ def diag_holdtxt(code="H000"):
     print("  condition3 = (조합이 있으면) 두 번째 문구")
     print("  type_name  = 그 유형에 붙일 이름")
     print("\n  조건은 모두 '포함' 이고 AND 로 걸린다.")
+
+
+def _check_commands():
+    """main 이 부르는 diag_* 함수가 모두 정의돼 있는지 본다.
+
+    파일 끝에 함수를 덧붙이면 main 보다 뒤에 놓여 NameError 가 난다.
+    (실제로 그런 사고가 있었다)
+    """
+    missing = [n for n in ("diag_hold", "diag_lot", "diag_tip", "diag_dates",
+                           "diag_wt", "diag_lotwt", "diag_lotst", "diag_tree",
+                           "diag_holdtxt")
+               if n not in globals()]
+    if missing:
+        print(f"[BUG] 정의되지 않은 진단 함수: {missing}", flush=True)
+    return not missing
+
+
+def main():
+    _check_commands()
+    what = (sys.argv[1] if len(sys.argv) > 1 else "all").lower()
+    if what in ("hold", "all"):
+        diag_hold()
+    if what in ("lot", "all"):
+        diag_lot()
+    if what in ("tip", "all"):
+        diag_tip()
+    if what in ("wt", "all"):
+        diag_wt()
+    if what == "lotwt":
+        diag_lotwt(sys.argv[2] if len(sys.argv) > 2 else "")
+    if what == "lotst":
+        diag_lotst(sys.argv[2] if len(sys.argv) > 2 else "")
+    if what == "tree":
+        diag_tree(sys.argv[2] if len(sys.argv) > 2 else "KFR4")
+    if what == "holdtxt":
+        diag_holdtxt(sys.argv[2] if len(sys.argv) > 2 else "H000")
+    if what in ("dates", "all"):
+        diag_dates()
+
+
+if __name__ == "__main__":
+    main()
