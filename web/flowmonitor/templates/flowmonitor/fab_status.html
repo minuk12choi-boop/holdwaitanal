@@ -1185,6 +1185,47 @@ function multiPick(cur, name, ev) {
 
 // noToggle: 한 번의 클릭으로 두 필드를 함께 거는 경우(누적막대의 구간+조각).
 //   구간이 같아도 조각이 다르면 '다시 누른 것' 이 아니다. 해제하면 안 된다.
+/* 누적막대 클릭. 구간(bin)과 조각(status)을 **한 쌍**으로 다룬다.
+     그냥 클릭  그 쌍만 남긴다. 같은 차트의 같은 쌍이면 둘 다 푼다.
+     Ctrl      그 쌍을 더한다. 같은 차트의 같은 쌍이면 뺀다.
+   다른 차트에서 이미 걸어 둔 값은 해제 대상이 아니다(AND 로 함께 본다).
+--------------------------------------------------------------------- */
+function pickStacked(binKey, binVal, seg, ev, label, src) {
+  const add = ev && (ev.ctrlKey || ev.metaKey);
+  const hasBin = (DF[binKey] || []).indexOf(binVal) >= 0;
+  const hasSeg = !seg || (DF.status || []).indexOf(seg) >= 0;
+  // 이 차트에서 걸었던 것이라야 '다시 누름' 이다.
+  const mineBin = DF_SRC[binKey] === undefined || DF_SRC[binKey] === src;
+  const mineSeg = DF_SRC.status === undefined || DF_SRC.status === src;
+
+  if (add && hasBin && hasSeg && mineBin && mineSeg) {
+    setCond(binKey, binVal, { ctrlKey: true }, label, false, src);
+    if (seg) { setCond("status", seg, { ctrlKey: true }, null, false, src); }
+    return;
+  }
+  if (add) {
+    if (!hasBin) {
+      setCond(binKey, binVal, { ctrlKey: true }, label, false, src);
+    }
+    if (seg && !hasSeg) {
+      setCond("status", seg, { ctrlKey: true }, null, false, src);
+    }
+    return;
+  }
+  // 이 차트가 걸어 둔 것과 완전히 같은 쌍을 다시 누르면 둘 다 푼다.
+  const onlyBin = (DF[binKey] || []).length === 1 && hasBin && mineBin;
+  const onlySeg = !seg
+    || ((DF.status || []).length === 1 && hasSeg && mineSeg);
+  if (onlyBin && onlySeg) {
+    delete DF[binKey];
+    if (seg) { delete DF.status; }
+    dfResetBelow(DF_LV[binKey] || 9);
+    return;
+  }
+  setCond(binKey, binVal, null, label, true, src);
+  if (seg) { setCond("status", seg, null, null, true, src); }
+}
+
 // src: 어느 차트에서 눌렀는지. 같은 차트에서 같은 값을 다시 눌러야 해제다.
 //   다른 차트에서 같은 값을 누르는 것은 '그 축을 그 값으로 본다' 는 뜻이지
 //   해제가 아니다(원차트 HOLD + W/T 0 의 HOLD 조각은 AND 로 함께 걸린다).
