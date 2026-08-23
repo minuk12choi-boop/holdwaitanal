@@ -1,11 +1,7 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web> waitress-serve --listen=0.0.0.0:8020 config.wsgi:application
-INFO:waitress:Serving on http://0.0.0.0:8020
-
-======================================================================
-[OVERLAP] 테두리와 내용이 겹치는 곳
-  W/T 0 클릭                       커서=(80,76)
-    Chart.js 기본(els)             index=1 ds=1 HOLD
-    실제 얹힌 조각(hit)                index=1 ds=1 HOLD
-    적용된 조건                       {"status":["WAIT(진행불가)"],"wt0":["d2"]}
-======================================================================
-
+> python D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\diag.py holdtxt H000
+Traceback (most recent call last):
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\diag.py", line 440, in <module>
+    main()
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\diag.py", line 434, in main
+    diag_holdtxt(sys.argv[2] if len(sys.argv) > 2 else "H000")
+NameError: name 'diag_holdtxt' is not defined. Did you mean: 'diag_hold'?
