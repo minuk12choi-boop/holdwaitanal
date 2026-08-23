@@ -1742,6 +1742,7 @@ const CZ_SCALE_X = {
 const popSelected = {
   id: "popSelected",
   beforeDatasetsDraw(chart) {
+    chart.$drawnSel = 0;
     // 고르지 않은 막대를 흐리게. 그린 뒤 되돌린다.
     const dim = chart.$dim;
     if (!dim) { return; }
@@ -1756,20 +1757,21 @@ const popSelected = {
     // 누적막대는 (구간, 계열) 쌍으로 지정한다. 계열이 다르면 자리도 다르다.
     const pairs = chart.$selPairs;
     if (pairs && pairs.length) {
-      pairs.forEach(([k, di]) => drawSel(chart, k, di));
+      pairs.forEach(([k, di]) => { drawSel(chart, k, di); chart.$drawnSel++; });
       return;
     }
     // 고른 것을 모두 표시한다(하나여도 라벨로 찾는다).
     const many = chart.$selSet;
     if (many && many.size && chart.data.labels) {
       chart.data.labels.forEach((lb, k) => {
-        if (many.has(lb)) { drawSel(chart, k); }
+        if (many.has(lb)) { drawSel(chart, k); chart.$drawnSel++; }
       });
       return;
     }
     const sel = chart.$sel;
     if (sel === undefined || sel === null || sel < 0) { return; }
     drawSel(chart, sel);
+    chart.$drawnSel++;
   }
 };
 
@@ -2808,10 +2810,78 @@ function drawFlow() {
       + ` stroke-dasharray="4 3" marker-end="url(#fa)" opacity=".75"/>`);
   }
   svg.innerHTML = parts.join("");
+  dbgMark("화살표 갱신");
 }
 
 window.addEventListener("resize", () => requestAnimationFrame(drawFlow));
 window.addEventListener("scroll", () => requestAnimationFrame(drawFlow), true);
+
+/* 선택 표시 · 화살표 진단 ---------------------------------------------
+   실제로 화면에 보이는지까지 잰다. 코드가 돌았는지가 아니라
+   그려진 픽셀과 화면 좌표를 확인한다. 값·이름은 보내지 않는다.
+   주소에 ?debug=mark 를 붙이면 켜진다.
+--------------------------------------------------------------------- */
+const DBG_MARK = location.search.indexOf("debug=mark") >= 0;
+let MARK_TIMER = null;
+
+function dbgMark(why) {
+  if (!DBG_MARK) { return; }
+  clearTimeout(MARK_TIMER);
+  MARK_TIMER = setTimeout(() => {
+    const items = [{ sel: "── " + (why || "변화") + " ──", note: "" }];
+
+    // 1) 조건 상태
+    items.push({ sel: "  조건 개수",
+                 note: `DF=${Object.keys(DF).length} cause=${!!DF_CAUSE}`
+                   + ` X=${Object.keys(DF_X).length}`
+                   + ` stack=${CZ_STACK.length} wide=${!!CZ_WIDE}` });
+
+    // 2) 차트마다 선택 표시가 설정됐는지 + 실제로 그려졌는지
+    const list = [["원차트", dnChart], ["재공", null], ["W/T", wtChart],
+                  ["W/T0", wt0Chart], ["AREA", areaChart]];
+    czCharts.forEach((c, i) => list.push(["원인" + i, c]));
+    czStackCharts.forEach((c, i) => list.push(["세부" + i, c]));
+    balCharts.forEach((c, i) => list.push(["BAL" + i, c]));
+    list.forEach(([nm, ch]) => {
+      if (!ch) { return; }
+      const setN = ch.$selSet ? ch.$selSet.size : 0;
+      const pairN = ch.$selPairs ? ch.$selPairs.length : 0;
+      const selI = (ch.$sel === undefined || ch.$sel === null) ? -1 : ch.$sel;
+      const dimN = ch.$dim ? ch.$dim.filter(Boolean).length : 0;
+      const drawn = ch.$drawnSel || 0;      // popSelected 가 실제로 그린 수
+      items.push({ sel: "  " + nm,
+                   note: `selSet=${setN} pairs=${pairN} sel=${selI}`
+                     + ` dim=${dimN} 그려짐=${drawn}` });
+    });
+
+    // 3) 화살표가 실제로 보이는지
+    const svg = document.getElementById("flow");
+    if (!svg) {
+      items.push({ sel: "  화살표", note: "svg 요소가 없다" });
+    } else {
+      const r = svg.getBoundingClientRect();
+      const cs = getComputedStyle(svg);
+      const paths = svg.querySelectorAll("path[marker-end]");
+      items.push({ sel: "  화살표 svg",
+                   note: `display=${cs.display} z=${cs.zIndex}`
+                     + ` w=${Math.round(r.width)} h=${Math.round(r.height)}`
+                     + ` 선=${paths.length}개` });
+      paths.forEach((pt, k) => {
+        const b = pt.getBoundingClientRect();
+        items.push({ sel: `    선 ${k + 1}`,
+                     note: `x=${Math.round(b.left)}~${Math.round(b.right)}`
+                       + ` y=${Math.round(b.top)}~${Math.round(b.bottom)}`
+                       + ` 화면안=${b.width > 0 && b.height >= 0
+                            && b.right > 0 && b.left < innerWidth}` });
+      });
+    }
+
+    fetch("/api/debug-layout/", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "mark", items: items })
+    });
+  }, 400);
+}
 
 /* 클릭 진단 ------------------------------------------------------------
    어느 막대·조각을 눌렀는지 서버 터미널에 남긴다.
