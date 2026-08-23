@@ -328,7 +328,10 @@ def ensure_standard_schema(conn):
           condition2 VARCHAR(128) NULL,
           condition3 VARCHAR(128) NULL,
           type_name VARCHAR(64) NOT NULL,
+          -- 적용 순서. 작을수록 먼저 걸린다. 사용자가 끌어서 바꾼다.
+          sort_no INT NULL,
           updated_at DATETIME NULL,
+          KEY ix_ht_sort (sort_no),
           UNIQUE KEY uq_ht (line, type, condition1, condition2, condition3,
                             type_name)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4

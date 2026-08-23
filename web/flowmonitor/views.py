@@ -261,6 +261,16 @@ def flowstack(request):
 # ---------------------------------------------------------------------------
 # 다운로드 (재공Raw)
 # ---------------------------------------------------------------------------
+def _columns_of(name):
+    """테이블의 컬럼 이름 집합. 없으면 빈 집합."""
+    try:
+        with connection.cursor() as cur:
+            return {d[0] for d in connection.introspection.get_table_description(
+                cur, name)}
+    except Exception:
+        return set()
+
+
 def _table_exists(name):
     return name in connection.introspection.table_names()
 
@@ -1023,21 +1033,29 @@ def _wt_range_key(wt):
 def _holdtype_rules():
     """f3_std_holdtype 규칙. 없으면 빈 목록.
 
-    반환 순서 = 우선순위. 구체적인(조건이 많은) 규칙이 앞, 같으면 저장 순서.
+    반환 순서 = 우선순위. **sort_no 가 절대 기준**이고 위에 있는 것이 먼저다.
+    sort_no 가 아직 없는 행(예전에 넣은 것)은 조건이 많은 순으로 뒤에 붙인다.
+    비교는 모두 대문자로 한다(사용자가 소문자로 넣어도 걸리게).
     """
     if not _table_exists("f3_std_holdtype"):
         return []
+    has_sort = "sort_no" in _columns_of("f3_std_holdtype")
+    col = "sort_no" if has_sort else "id"
     with connection.cursor() as cur:
-        cur.execute("SELECT id, line, type, condition1, condition2, condition3,"
-                    " type_name FROM f3_std_holdtype ORDER BY id")
+        cur.execute(f"SELECT id, line, type, condition1, condition2, condition3,"
+                    f" type_name, {col} AS sort_no FROM f3_std_holdtype")
         rows = [{"id": r[0], "line": r[1], "type": (r[2] or "ALL").upper(),
-                 "c": [x for x in (r[3], r[4], r[5]) if x],
-                 "name": r[6]} for r in cur.fetchall()]
+                 "c": [str(x).upper() for x in (r[3], r[4], r[5]) if x],
+                 "name": r[6], "sort_no": r[7]} for r in cur.fetchall()]
 
     def spec(r):
-        return len(r["c"]) + (1 if r["line"] else 0) + (0 if r["type"] == "ALL" else 1)
+        return len(r["c"]) + (1 if r["line"] else 0) \
+            + (0 if r["type"] == "ALL" else 1)
 
-    return sorted(rows, key=lambda r: (-spec(r), r["id"]))
+    # sort_no 가 있으면 그것만 본다. 없는 행은 맨 뒤로.
+    BIG = 10 ** 9
+    return sorted(rows, key=lambda r: (
+        r["sort_no"] if r["sort_no"] is not None else BIG, -spec(r), r["id"]))
 
 
 # 동시에 걸리면 이 순서로 하나만 쓴다
@@ -1054,7 +1072,7 @@ def holdtype_of(r, rules):
     for kind, flag, reason in HOLDTYPE_ORDER:
         if not r.get(flag):
             continue
-        text = str(r.get(reason) or "")
+        text = str(r.get(reason) or "").upper()   # 대소문자 무시
         if not text:
             continue
         for rule in rules:
@@ -1667,8 +1685,12 @@ STD_CARDS = [
          {"k": "module2", "t": "MODULE2", "w": "md"},
      ]},
     {"key": "holdtype", "table": "f3_std_holdtype", "title": "HOLD 유형설정",
+     "sortable": True,          # 행을 끌어 적용 순서를 바꾼다
      "desc": "각 유형의 사유 컬럼에 CONDITION 이 모두 포함되면 TYPE_NAME 으로 "
-             "분류한다. 동시에 걸리면 HOLD > FTP > 예약제외 순으로 하나만 쓴다.",
+             "분류한다. 대소문자는 구분하지 않는다. "
+             "여러 개가 걸리면 **위에 있는 행**이 먼저다. "
+             "행 왼쪽 손잡이를 끌어 순서를 바꾼다. "
+             "한 행 안에서 동시에 걸리면 HOLD > FTP > 예약제외 순으로 하나만 쓴다.",
      "cols": [
          {"k": "line", "t": "LINE", "type": "select", "opts": "lines", "w": "sm"},
          {"k": "type", "t": "TYPE", "type": "select", "w": "sm",
@@ -1732,8 +1754,11 @@ def _std_rows(table, cols):
     if not _table_exists(table):
         return []
     names = ", ".join(f"`{c['k']}`" for c in cols)
+    # 적용 순서가 있는 표(HOLD 유형)는 그 순서대로 보여 준다.
+    has_sort = "sort_no" in _columns_of(table)
+    order = "sort_no IS NULL, sort_no, id" if has_sort else "id"
     with connection.cursor() as cur:
-        cur.execute(f"SELECT id, {names} FROM `{table}` ORDER BY id")
+        cur.execute(f"SELECT id, {names} FROM `{table}` ORDER BY {order}")
         keys = ["id"] + [c["k"] for c in cols]
         return [dict(zip(keys, r)) for r in cur.fetchall()]
 
@@ -1749,6 +1774,9 @@ def _std_save(card, payload):
     clean, seen = [], set()
     for row in payload:
         v = {k: (str(row.get(k) or "").strip() or None) for k in cols}
+        for k in ("condition1", "condition2", "condition3"):
+            if v.get(k):                     # 대소문자 구분 없이 걸리게
+                v[k] = v[k].upper()
         for c in card["cols"]:                         # 비면 기본값으로 채운다
             if c.get("default") and not v.get(c["k"]):
                 v[c["k"]] = c["default"]
@@ -1762,16 +1790,27 @@ def _std_save(card, payload):
         seen.add(sig)
         clean.append(v)
 
+    # 적용 순서가 있는 표는 **화면에 보이는 순서 그대로** 번호를 매긴다.
+    # 사용자가 끌어 올린 순서가 곧 우선순위다. 자동으로 다시 섞지 않는다.
+    has_sort = "sort_no" in _columns_of(card["table"])
+
     ph = ", ".join(["%s"] * len(cols))
     names = ", ".join(f"`{k}`" for k in cols)
     with connection.cursor() as cur:
         cur.execute(f"DELETE FROM `{card['table']}`")
         if clean:
             now = dt.datetime.now()
-            cur.executemany(
-                f"INSERT INTO `{card['table']}` ({names}, updated_at) "
-                f"VALUES ({ph}, %s)",
-                [tuple(v[k] for k in cols) + (now,) for v in clean])
+            if has_sort:
+                cur.executemany(
+                    f"INSERT INTO `{card['table']}` ({names}, sort_no, "
+                    f"updated_at) VALUES ({ph}, %s, %s)",
+                    [tuple(v[k] for k in cols) + ((i + 1) * 10, now)
+                     for i, v in enumerate(clean)])
+            else:
+                cur.executemany(
+                    f"INSERT INTO `{card['table']}` ({names}, updated_at) "
+                    f"VALUES ({ph}, %s)",
+                    [tuple(v[k] for k in cols) + (now,) for v in clean])
     return len(clean)
 
 

@@ -89,6 +89,7 @@
       {% endif %}{% endfor %}
       <div class="gridwrap"><table class="grid" id="t_{{ c.key }}">
         <thead><tr>
+          {% if c.sortable %}<th class="dh" title="끌어서 순서 변경">순서</th>{% endif %}
           <th class="ck"><input type="checkbox" onchange="stdAll('{{ c.key }}',this)"></th>
           {% for col in c.cols %}
             <th class="w-{{ col.w|default:'md' }}">{{ col.t }}{% if col.req %}<span
@@ -156,15 +157,79 @@ function render(key) {
   const body = DATA[key].map((row, r) => {
     const hay = card.cols.map(c => String(row[c.k] || "")).join(" ").toLowerCase();
     if (q && hay.indexOf(q) < 0) { return ""; }
-    return `<tr class="${row.__sel ? "on" : ""}" data-r="${r}">`
+    return `<tr class="${row.__sel ? "on" : ""}" data-r="${r}"`
+      + `${card.sortable ? ' draggable="true"'
+          + ` ondragstart="dragStart(event,'${key}',${r})"`
+          + ` ondragover="dragOver(event)"`
+          + ` ondrop="dragDrop(event,'${key}',${r})"`
+          + ` ondragend="dragEnd(event)"` : ""}>`
+      + (card.sortable
+         ? `<td class="dh" title="끌어서 순서 변경">⋮⋮<span>${r + 1}</span></td>`
+         : "")
       + `<td class="ck"><input type="checkbox" ${row.__sel ? "checked" : ""}`
       + ` onclick="stdPick(event,'${key}',${r})"></td>`
       + card.cols.map((c, ci) => `<td>${cellHtml(key, c, row, r, ci)}</td>`).join("")
       + `</tr>`;
   }).join("");
+  const span = card.cols.length + 1 + (card.sortable ? 1 : 0);
   document.querySelector("#t_" + key + " tbody").innerHTML = body
-    || `<tr><td colspan="${card.cols.length + 1}" style="color:var(--mut)">`
+    || `<tr><td colspan="${span}" style="color:var(--mut)">`
        + `행이 없습니다. '행 추가' 로 시작하세요.</td></tr>`;
+}
+
+/* 행 순서 바꾸기 ---------------------------------------------------------
+   위에 있는 행이 먼저 적용된다. 검색 중이어도 쓸 수 있게,
+   화면에 보이는 위치가 아니라 **전체 목록에서의 자리**로 옮긴다.
+--------------------------------------------------------------------- */
+let DRAG = null;
+
+function dragStart(ev, key, r) {
+  DRAG = { key: key, from: r };
+  ev.dataTransfer.effectAllowed = "move";
+  // 파이어폭스는 데이터를 넣어야 드래그가 시작된다.
+  try { ev.dataTransfer.setData("text/plain", String(r)); } catch (e) { }
+  ev.currentTarget.classList.add("dragging");
+}
+
+function dragOver(ev) {
+  if (!DRAG) { return; }
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = "move";
+  const tr = ev.currentTarget;
+  const box = tr.getBoundingClientRect();
+  const up = (ev.clientY - box.top) < box.height / 2;
+  document.querySelectorAll("tr.dropup, tr.dropdn")
+    .forEach(x => x.classList.remove("dropup", "dropdn"));
+  tr.classList.add(up ? "dropup" : "dropdn");
+}
+
+function dragDrop(ev, key, to) {
+  ev.preventDefault();
+  if (!DRAG || DRAG.key !== key) { return; }
+  const tr = ev.currentTarget;
+  const box = tr.getBoundingClientRect();
+  const up = (ev.clientY - box.top) < box.height / 2;
+
+  const list = DATA[key];
+  const from = DRAG.from;
+  if (from === to) { dragEnd(ev); return; }
+
+  const item = list[from];
+  list.splice(from, 1);
+  // 뺀 뒤라 뒤쪽 자리는 하나씩 당겨진다.
+  let at = to + (up ? 0 : 1);
+  if (from < to) { at -= 1; }
+  list.splice(Math.max(0, Math.min(at, list.length)), 0, item);
+
+  dragEnd(ev);
+  dirty(key);
+  render(key);
+}
+
+function dragEnd(ev) {
+  DRAG = null;
+  document.querySelectorAll("tr.dragging, tr.dropup, tr.dropdn")
+    .forEach(x => x.classList.remove("dragging", "dropup", "dropdn"));
 }
 
 function stdEdit(key, r, k, v) { DATA[key][r][k] = v; dirty(key); }
