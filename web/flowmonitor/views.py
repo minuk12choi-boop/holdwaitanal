@@ -1509,6 +1509,40 @@ def api_summary(request):
     tree = {}
 
     xf = _xfilters(request)
+    # 좌측 차트와 원인 분석도 드릴다운 조건을 그대로 따라야 한다.
+    # (예전에는 f_status 만 봐서, 원인/LAYER 로 좁혀도 값이 그대로였다)
+    want_layer = [x for x in request.GET.get("layer_id", "").split(",") if x]
+    or_causes = []
+    for spec in request.GET.get("causes", "").split("|"):
+        if not spec:
+            continue
+        parts = (spec.split(">") + ["", "", ""])[:3]
+        or_causes.append(tuple(x.strip() for x in parts))
+    c_big = request.GET.get("big", "")
+    c_mid = request.GET.get("mid", "")
+    c_sub = [x for x in request.GET.get("sub", "").split(",") if x]
+
+    def _cause_ok(r):
+        """원인 조건에 맞는지. 조건이 없으면 늘 참."""
+        if not (or_causes or c_big or c_mid or c_sub):
+            return True
+        got = cls.get(r["lot_id"])
+        if got is None:
+            got = classify_lot(r, rules, ht)
+            cls[r["lot_id"]] = got
+        b2, m2, s2 = got
+        if or_causes:
+            return any((not a or b2 == a)
+                       and (not b or (m2 or "") == b)
+                       and (not c or c in s2) for a, b, c in or_causes)
+        if c_big and b2 != c_big:
+            return False
+        if c_mid and (m2 or "") != c_mid:
+            return False
+        if c_sub and not any(x in s2 for x in c_sub):
+            return False
+        return True
+
     # 요약카드는 최상단 필터까지만 반영한다. 카드에서 고른 조건(x_*)이
     # 카드 목록 자체를 바꾸면 다음 행을 고를 수 없다.
     ins_rows = [r for r in rows
@@ -1520,6 +1554,10 @@ def api_summary(request):
         if areas and (r.get("AREA") or UNCLASSIFIED) not in areas:
             continue
         if not _xrow_ok(r, xf):
+            continue
+        if want_layer and str(r.get("layer_id") or "").strip() not in want_layer:
+            continue
+        if not _cause_ok(r):
             continue
         q = num(r.get("qty"))
         st = r.get("lot_status") or "-"

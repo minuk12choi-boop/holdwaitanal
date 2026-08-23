@@ -2147,7 +2147,7 @@ function renderInsight() {
   box.style.display = "";
 
   document.getElementById("insSub").textContent =
-    `재공 ${nf((DATA.total || {}).qty || 0)}매 기준`;
+    `비율은 라인 전체 재공 ${nf((DATA.total || {}).qty || 0)}매 대비`;
 
   document.getElementById("insBody").innerHTML = cards.map((c, ci) => {
     if (!(c.rank || []).length) { return ""; }
@@ -2162,7 +2162,13 @@ function renderInsight() {
         : (c.key === "neck" ? `<span class="insbl ok">순수 몰림</span>` : "");
       const idle = (x.idle_avg !== null && x.idle_avg !== undefined)
         ? ` · 평균 ${x.idle_avg}일` : "";
-      return `<div class="insline" onclick="insPick(${ci},${n})">`
+      const tip = x.path.join(" > ")
+        + `  ${nf(x.qty)}매 (${x.pct}%)`
+        + `  W/T0 ${nf(x.wt0_qty)}`
+        + (x.idle_avg !== null && x.idle_avg !== undefined
+           ? `  평균 ${x.idle_avg}일 정체` : "")
+        + (x.blocked ? `  막힘 ${x.blocked.map(z => z.name).join(", ")}` : "");
+      return `<div class="insline" title="${tip}" onclick="insPick(${ci},${n})">`
         + `<span class="insno">${n + 1}</span>`
         + `<span class="inspath">${p}</span>${bl}`
         + `<span class="insqty">${nf(x.qty)}<em>매</em></span>`
@@ -3068,6 +3074,12 @@ function loadSummary(keepFocus) {
         + "&f_wt=" + encodeURIComponent((DF.wt || []).join(","))
         + "&f_wt0=" + encodeURIComponent((DF.wt0 || []).join(","))
         + "&f_type=" + encodeURIComponent((DF.type || []).join(","))
+        // 원인 / LAYER 도 좌측 차트에 그대로 반영한다.
+        + "&layer_id=" + encodeURIComponent((DF.layer || []).join(","))
+        + "&causes=" + encodeURIComponent(dfFilter().causes || "")
+        + "&big=" + encodeURIComponent(dfFilter().big || "")
+        + "&mid=" + encodeURIComponent(dfFilter().mid || "")
+        + "&sub=" + encodeURIComponent(dfFilter().sub || "")
         + "&biz_date=" + encodeURIComponent(SNAP_DATE)
         + "&shift=" + encodeURIComponent(SNAP_SHIFT))
     .then(r => r.ok ? r.json() : Promise.reject("HTTP " + r.status))

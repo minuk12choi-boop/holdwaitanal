@@ -785,6 +785,22 @@ STATUS별 (기본)   Hold / Wait성 진행불가 / Bottleneck 3행
 
 좌측 차트는 해당 없다(늘 바로 적용). Ctrl 클릭도 팝업 없이 바로 다중선택이다.
 
+### 조건은 세 API 가 모두 같이 받는다
+
+`api_summary` · `api_lots_live` · `api_balance` 는 **같은 조건 집합**을 받는다.
+한 곳만 빠지면 표와 차트가 서로 다른 값을 보여 준다.
+
+```
+f_status · f_wt · f_wt0 · f_type      좌측 차트
+layer_id                              LOT BALANCE
+causes | big · mid · sub              원인 분석
+x_prod · x_mod · x_area · x_eqp       요약카드에서 고른 행
+```
+
+api_summary 도 전체 조건을 받아야 한다. 예전에는 `f_*` 만 봐서 원인이나
+LAYER 로 좁혀도 좌측 차트와 원인 분석 값이 그대로였다.
+다만 **요약카드 자체는 최상단 필터까지만** 반영한다.
+
 ### AND / OR 규칙 (중요)
 
 조건은 **차트가 아니라 필드** 단위다. 차트가 달라도 같은 필드를 건드리면
