@@ -145,3 +145,14 @@
   {% endif %}
 </div>
 {% endblock %}
+<script>
+// 첫 조회가 있으면 그것까지 끝난 뒤 가림막을 걷는다.
+// (없으면 base.html 이 알아서 걷는다)
+window.addEventListener("load", () => {
+  setTimeout(() => {
+    requestAnimationFrame(() => {
+      if (window.__bootDone) { window.__bootDone(); }
+    });
+  }, 300);
+});
+</script>

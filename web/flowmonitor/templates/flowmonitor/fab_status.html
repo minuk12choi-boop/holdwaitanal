@@ -3674,7 +3674,12 @@ function loadSummary(keepFocus) {
       renderWip(); renderStatus(); renderWt(); renderWt0(); renderArea();
       renderCause();
       renderInsight();
-      requestAnimationFrame(() => { syncLeftHeight(); dbgSnapshot("요약 갱신"); });
+      requestAnimationFrame(() => {
+        syncLeftHeight();
+        dbgSnapshot("요약 갱신");
+        // 첫 화면은 여기까지 그려야 완성이다. 그때 가림막을 걷는다.
+        if (window.__bootDone) { window.__bootDone(); }
+      });
       if (location.search.indexOf("debug=layout") >= 0) {
         setTimeout(checkLayout, 800);      // 차트가 그려진 뒤에 잰다
       }

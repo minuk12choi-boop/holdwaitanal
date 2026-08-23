@@ -708,7 +708,7 @@
    fetch 를 감싸므로 어느 페이지에서든 따로 부를 필요가 없다.
 ------------------------------------------------------------------ */
 (function () {
-  let n = 0, timer = null;
+  let n = 0, timer = null, booted = false;
   const el = () => document.getElementById("busy");
 
   function show() {
@@ -729,20 +729,23 @@
     }
     n++;
     show();
-    return orig.apply(this, arguments).finally(() => {
+    // 응답 promise 는 **헤더가 오면** 바로 끝난다. 여기서 걷으면
+    // 아직 JSON 을 읽고 그리는 중이라 뼈대가 스친다.
+    // 부르는 쪽의 .then 들이 다 끝난 뒤(태스크 큐 뒤)로 미룬다.
+    const done = () => setTimeout(() => {
       n = Math.max(0, n - 1);
-      if (!n) {
-        // 그리기까지 끝난 뒤 걷는다. 곧바로 걷으면 빈 화면이 스친다.
-        clearTimeout(timer);
-        timer = setTimeout(() => {
-          if (n) { return; }
-          requestAnimationFrame(() => {
-            document.body.classList.remove("booting");
-            hide();
-          });
-        }, 60);
-      }
-    });
+      if (n) { return; }
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (n || !booted) { return; }     // 첫 화면은 boot() 가 걷는다
+        // 그린 뒤 한 프레임 더 기다렸다 걷는다.
+        requestAnimationFrame(() => requestAnimationFrame(hide));
+      }, 80);
+    }, 0);
+
+    return orig.apply(this, arguments).then(
+      (res) => { done(); return res; },
+      (err) => { done(); throw err; });
   };
 
   // 첫 화면: 본문을 감춘 채 덮어 두고, 첫 조회까지 끝나면 함께 보인다.
@@ -753,14 +756,22 @@
   });
   show();
 
+  // 첫 화면은 **그리기가 끝났다고 알려 올 때** 걷는다.
+  //   페이지가 __bootDone() 을 부른다. 부르지 않는 페이지를 위해
+  //   요청이 모두 끝나고도 조용하면 알아서 걷는다.
   function boot() {
-    if (n) { return; }                    // 아직 부르는 중이면 기다린다
-    document.body.classList.remove("booting");
-    hide();
+    if (booted) { return; }
+    booted = true;
+    requestAnimationFrame(() => {
+      document.body.classList.remove("booting");
+      hide();
+    });
   }
-  // 첫 조회가 끝나면 본문을 보인다. 요청이 없는 페이지도 대비해 시간을 둔다.
-  window.addEventListener("load", () => setTimeout(boot, 120));
   window.__bootDone = boot;
+  window.addEventListener("load", () => {
+    // 조회가 없는 페이지(정적 화면)는 여기서 걷는다.
+    setTimeout(() => { if (!n) { boot(); } }, 250);
+  });
 })();
 </script>
 </body>
