@@ -87,6 +87,9 @@
   /* 상태 원차트 */
   /* 화면 최상단에 뜨는 툴팁. 어떤 카드에도 가리지 않는다. */
   /* 하위가 있는 항목을 눌렀을 때 뜨는 선택 말풍선 */
+  /* LOT BALANCE 에서 고른 LAYER 를 되돌린다. */
+  .balpath .balback { color:#B91C1C; font-weight:700; }
+
   .askpop { position:absolute; z-index:9998; background:#fff;
             border:1px solid var(--brand); border-radius:8px; padding:8px;
             box-shadow:0 6px 18px rgba(0,0,0,.16); min-width:150px; }
@@ -234,7 +237,7 @@
   .maincol > #insight { border:1px solid var(--bd);
                         border-bottom:3px solid #2E1A47;
                         border-radius:6px; padding:10px 12px;
-                        margin-bottom:12px; }
+                        margin:0 0 12px; box-sizing:border-box; }
   .summary { flex:0 0 380px; display:flex; flex-direction:column; }
 
   .summary .cell { border:1px solid var(--bd); border-radius:6px; padding:11px 12px;
