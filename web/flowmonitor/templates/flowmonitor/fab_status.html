@@ -2080,6 +2080,7 @@ function czSelect(i, basePath, node, ev) {
     }
   }
   DF_CAUSE = or.length ? { i: i, or: or } : null;
+  DF_SRC.cause = "cause";        // 원인 차트에서 걸었다
   dfResetBelow(4, true);
   syncFromDF();
 }
@@ -2167,6 +2168,7 @@ function czAskGo(mode) {
 function czWhole(i) {
   // 조건 저장소를 거쳐야 LOT BALANCE 등 하위가 함께 좁혀진다.
   DF_CAUSE = { i: i, big: czGroup(i).name, mid: null, subs: [] };
+  DF_SRC.cause = "cause";
   CZ_SEL = { i: -1, path: [] };
   dfResetBelow(4);
   syncFromDF();
@@ -2702,6 +2704,7 @@ function insPick(ci, n) {
   const i = (DATA.causes || []).findIndex(g => g.name === cz[0]);
   DF_CAUSE = { i: i < 0 ? 0 : i,
                or: [{ big: cz[0], mid: cz[1], sub: null }] };
+  DF_SRC.cause = "insight";      // 원인 차트가 아니라 요약카드에서 걸었다
   syncFromDF();
 }
 
@@ -3058,6 +3061,7 @@ function renderCzWide() {
         CZ_WIDE.path = CZ_WIDE.path.concat(
           [{ name: n.name, kind: n.kind || "sub" }]);
         CZ_SEL = { i: i2, path: CZ_WIDE.path.slice() };
+        DF_SRC.cause = "cause";
         DF_CAUSE = { i: i2, big: czGroup(i2).name,
                      mid: (CZ_WIDE.path.find(p => p.kind === "mid") || {}).name
                           || null, subs: [] };
@@ -3800,6 +3804,7 @@ function loadSummary(keepFocus) {
         // 원인 / LAYER 도 좌측 차트에 그대로 반영한다.
         + "&layer_id=" + encodeURIComponent((DF.layer || []).join(","))
         + "&causes=" + encodeURIComponent(dfFilter().causes || "")
+        + "&cause_src=" + encodeURIComponent(DF_SRC.cause || "cause")
         + "&big=" + encodeURIComponent(dfFilter().big || "")
         + "&mid=" + encodeURIComponent(dfFilter().mid || "")
         + "&sub=" + encodeURIComponent(dfFilter().sub || "")

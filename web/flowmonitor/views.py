@@ -1557,6 +1557,8 @@ def api_summary(request):
     c_big = request.GET.get("big", "")
     c_mid = request.GET.get("mid", "")
     c_sub = [x for x in request.GET.get("sub", "").split(",") if x]
+    # 원인 조건을 어디서 걸었는지. 'cause' 면 원인 차트 자신이라 그 차트는 뺀다.
+    cause_src = request.GET.get("cause_src", "cause")
 
     def _cause_ok(r):
         """원인 조건에 맞는지. 조건이 없으면 늘 참."""
@@ -1664,8 +1666,12 @@ def api_summary(request):
             tot["lots"] += 1
             tot["qty"] += q
 
-        # 원인 분석은 **자기 조건(cause)** 을 빼고 센다. 나머지는 반영한다.
+        # 원인 분석은 **원인 차트에서 건 조건만** 뺀다.
+        #   요약카드나 다른 곳에서 건 원인 조건은 그대로 반영해야 한다
+        #   (B/N 행을 눌렀는데 예약제외가 남으면 안 된다).
         if not (ok_layer and ok_st and ok_ty and ok_wt and ok_w0 and ok_ar):
+            continue
+        if cause_src != "cause" and not ok_cause:
             continue
         got = cls.get(r["lot_id"])
         if got is None:
