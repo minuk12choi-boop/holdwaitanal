@@ -732,12 +732,19 @@ function renderWt0() {
   wt0Chart.$tot = tot;
   wt0Chart.data.labels = list.map(x => x.label);
   wt0Chart.data.datasets = datasets;
-  wt0Chart.$selSet = new Set(
-    (DF.wt0 || []).map(k => (list.find(y => y.name === k) || {}).label));
-  // status 조건이 함께 걸렸으면 그 계열에 테두리를 그린다.
-  const stSel = (DF.status || [])[0];
-  wt0Chart.$selDs = stSel ? Math.max(0, sts.findIndex(x => x.name === stSel)) : 0;
-  markSelected(wt0Chart, list.findIndex(x => (DF.wt0 || []).indexOf(x.name) >= 0));
+  // 고른 (구간, status) 쌍을 모두 표시한다.
+  const bins = (DF.wt0 || []).map(k => list.findIndex(y => y.name === k))
+    .filter(k => k >= 0);
+  const dss = (DF.status || []).map(n => sts.findIndex(x => x.name === n))
+    .filter(k => k >= 0);
+  const pairs = [];
+  bins.forEach(k => {
+    if (dss.length) { dss.forEach(di => pairs.push([k, di])); }
+    else { pairs.push([k, sts.length - 1]); }   // status 미선택이면 맨 위 조각
+  });
+  wt0Chart.$selPairs = pairs;
+  wt0Chart.$selSet = null;
+  markSelected(wt0Chart, -1);
   wt0Chart.update();
 
   // 전체 status 비율. 한 줄에 들어가게 k 표기를 쓴다.
@@ -1081,12 +1088,17 @@ function drawBalance() {
       balCharts[i].data.datasets = datasets;
     }
     balCharts[i].$tot = tot;
-    balCharts[i].$selSet = new Set(DF.layer || []);
-    const stS = (DF.status || [])[0];
-    balCharts[i].$selDs = stS
-      ? Math.max(0, sts.findIndex(x => x.name === stS)) : 0;
-    markSelected(balCharts[i],
-      xs.findIndex(x => (DF.layer || []).indexOf(x) >= 0));
+    const bk = (DF.layer || []).map(v => xs.indexOf(v)).filter(k => k >= 0);
+    const bd = (DF.status || []).map(n => sts.findIndex(x => x.name === n))
+      .filter(k => k >= 0);
+    const bp = [];
+    bk.forEach(k => {
+      if (bd.length) { bd.forEach(di => bp.push([k, di])); }
+      else { bp.push([k, sts.length - 1]); }
+    });
+    balCharts[i].$selPairs = bp;
+    balCharts[i].$selSet = null;
+    markSelected(balCharts[i], -1);
     balCharts[i].update();
   });
 }
@@ -1419,6 +1431,12 @@ const CZ_SCALE_X = {
 const popSelected = {
   id: "popSelected",
   afterDatasetsDraw(chart) {
+    // 누적막대는 (구간, 계열) 쌍으로 지정한다. 계열이 다르면 자리도 다르다.
+    const pairs = chart.$selPairs;
+    if (pairs && pairs.length) {
+      pairs.forEach(([k, di]) => drawSel(chart, k, di));
+      return;
+    }
     // 여러 개를 고른 경우 전부 표시한다.
     const many = chart.$selSet;
     if (many && many.size > 1 && chart.data.labels) {
@@ -1446,11 +1464,12 @@ function strongest(c) {
   return c;
 }
 
-function drawSel(chart, sel) {
+function drawSel(chart, sel, dsIdx) {
   {
-    // 누적막대는 어느 계열을 골랐는지가 중요하다($selDs 로 알려 준다).
-    const di = (chart.$selDs === undefined || chart.$selDs === null)
-      ? 0 : chart.$selDs;
+    // 누적막대는 어느 계열을 골랐는지가 중요하다.
+    const di = (dsIdx !== undefined && dsIdx !== null) ? dsIdx
+      : ((chart.$selDs === undefined || chart.$selDs === null)
+         ? 0 : chart.$selDs);
     const el = (chart.getDatasetMeta(di).data || [])[sel];
     if (!el) { return; }
     const ctx = chart.ctx;
