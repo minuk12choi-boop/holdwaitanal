@@ -131,10 +131,10 @@ class TemplateJsTest(SimpleTestCase):
             _, js = self._js(name)
             code = self._strip_literals(js)
             defs = set(re.findall(r"function\s+([A-Za-z_$][\w$]*)\s*\(", code))
-        # const f = (a) => ... / const f = function ... 도 정의다.
-        defs |= set(re.findall(
-            r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*"
-            r"(?:async\s*)?(?:function|\(|[A-Za-z_$])", code))
+            # const f = (a) => ... / const f = function ... 도 정의다.
+            defs |= set(re.findall(
+                r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*"
+                r"(?:async\s*)?(?:function|\(|[A-Za-z_$])", code))
             called = set(re.findall(r"(?:^|[^\w.$])([a-z][\w$]*)\s*\(", code))
             missing = sorted(called - defs - self.BUILTIN)
             self.assertEqual(missing, [], f"{name}: 정의 없는 호출 {missing}")
