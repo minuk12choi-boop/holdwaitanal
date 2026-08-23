@@ -62,8 +62,14 @@
   /* 재공 */
   .wip .top { display:flex; align-items:flex-end; justify-content:space-between;
               gap:8px; margin-bottom:8px; }
-  .wip .nums { display:flex; gap:20px; }
-  .wip b { display:block; font-size:23px; line-height:1.1; font-weight:600; }
+  .wip .nums { display:flex; gap:14px; flex:0 0 auto; }
+  .wip b { display:block; font-size:19px; line-height:1.1; font-weight:600; }
+  .wip .nums .lbl { font-size:10px; white-space:nowrap; }
+  /* 버튼이 줄바꿈되지 않게. 숫자를 줄여 자리를 내준다. */
+  .wip .top > div:last-child { flex:0 0 auto; }
+  .wip .top .rankbtn, .wip .top .dd > button { white-space:nowrap;
+                                               font-size:10px;
+                                               padding:2px 7px; }
   .wip .stack { display:flex; height:10px; border-radius:5px; overflow:hidden;
                 background:#F3F4F6; }
   .wip .stack i { display:block; height:100%; }
@@ -673,6 +679,9 @@
            overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .wpbar { flex:1; min-width:0; }
   .wpbar .stack { height:13px; }
+  /* 고른 조각 표시. 재공막대와 같은 방식. */
+  .wpbar .stack i.sel { outline:3px solid #FFD700; outline-offset:-3px;
+                        position:relative; z-index:2; }
   .wpnum { font-size:9px; color:var(--mut); margin-top:2px; text-align:right; }
   .balrow + .balrow { border-top:1px solid var(--bd); padding-top:4px;
                       margin-top:4px; }

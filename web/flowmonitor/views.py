@@ -282,6 +282,13 @@ def _fline_ok(r, want):
     return (not want) or (str(r.get("line") or "-") in want)
 
 
+def _fprod_ok(r, want):
+    """재공막대 제품별 비율에서 고른 제품."""
+    if not want:
+        return True
+    return (str(r.get("prod2") or "").strip() or UNCLASSIFIED) in want
+
+
 def _farea_ok(r, want):
     """AREA 별 재공 차트에서 고른 조건. 표와 LOT BALANCE 에도 걸린다."""
     if not want:
@@ -1492,6 +1499,7 @@ def api_summary(request):
     f_wt0 = flist("f_wt0")
     f_type = flist("f_type")
     f_area = flist("f_area")          # AREA 별 재공 차트에서
+    f_prod = flist("f_prod")          # 재공막대 제품별 비율에서
     bdate = request.GET.get("biz_date", "")
     bshift = request.GET.get("shift", "")
 
@@ -1620,12 +1628,14 @@ def api_summary(request):
         ok_w0 = (not f_wt0) or (wt <= 0 and b0 in f_wt0)
         ar = str(r.get("AREA") or "").strip() or UNCLASSIFIED
         ok_ar = (not f_area) or (ar in f_area)
+        pr = str(r.get("prod2") or "").strip() or UNCLASSIFIED
+        ok_pr = (not f_prod) or (pr in f_prod)
 
 
 
         # 요약카드는 카드에서 고른 조건(x_*)만 무시한다.
         if (ok_layer and ok_cause and ok_st and ok_ty and ok_wt and ok_w0
-                and ok_ar):
+                and ok_ar and ok_pr):
             ins_rows.append(r)
 
         # 원인 분석과 LOT BALANCE 도 '자기 조건' 은 빼고 센다.
@@ -1638,25 +1648,26 @@ def api_summary(request):
         # 각 차트는 **자기 축을 뺀** 조건으로 센다.
         #   그래야 축 요소가 사라지지 않아 Ctrl 로 더 고를 수 있다.
         #   고른 것은 화면에서 테두리로, 나머지는 흐리게 나타낸다.
-        if base and ok_ty and ok_wt and ok_w0 and ok_ar:
+        if base and ok_ty and ok_wt and ok_w0 and ok_ar and ok_pr:
             _bucket(by_status, st, q)
             _bucket(st_ln.setdefault(st, {}), str(r.get("line") or "-"), q)
-        if base and ok_st and ok_wt and ok_w0 and ok_ar:
+        if base and ok_st and ok_wt and ok_w0 and ok_ar and ok_pr:
             _bucket(by_type, ty, q)
-            _bucket(type_prod.setdefault(
-                str(r.get("prod2") or "").strip() or UNCLASSIFIED, {}), ty, q)
-        if base and ok_st and ok_ty and ok_w0 and ok_ar:
+        # 제품별 비율은 **자기 조건(제품·lot_type)** 을 빼고 센다.
+        if base and ok_st and ok_wt and ok_w0 and ok_ar:
+            _bucket(type_prod.setdefault(pr, {}), ty, q)
+        if base and ok_st and ok_ty and ok_w0 and ok_ar and ok_pr:
             _bucket(by_wt, wk, q)
             _bucket(wt_line.setdefault(wk, {}),
                     str(r.get("line") or "-"), q)
-        if base and ok_st and ok_ty and ok_wt and ok_w0:
+        if base and ok_st and ok_ty and ok_wt and ok_w0 and ok_pr:
             _bucket(by_area.setdefault(ar, {}), st, q)
             _bucket(area_ln.setdefault(ar, {}).setdefault(st, {}),
                     str(r.get("line") or "-"), q)
             if ok_ar:
                 _bucket(by_line.setdefault(
                     str(r.get("line") or "-"), {}), st, q)
-        if base and ok_st and ok_ty and ok_wt and ok_ar and wt <= 0:
+        if base and ok_st and ok_ty and ok_wt and ok_ar and ok_pr and wt <= 0:
             _bucket(by_wt0, b0, q)
             if b0:
                 _bucket(wt0_st.setdefault(b0, {}), st, q)
@@ -1665,14 +1676,15 @@ def api_summary(request):
             _bucket(wt0_tot, st, q)
 
         # 총계는 모든 조건을 반영한다.
-        if base and ok_st and ok_ty and ok_wt and ok_w0 and ok_ar:
+        if base and ok_st and ok_ty and ok_wt and ok_w0 and ok_ar and ok_pr:
             tot["lots"] += 1
             tot["qty"] += q
 
         # 원인 분석은 **원인 차트에서 건 조건만** 뺀다.
         #   요약카드나 다른 곳에서 건 원인 조건은 그대로 반영해야 한다
         #   (B/N 행을 눌렀는데 예약제외가 남으면 안 된다).
-        if not (ok_layer and ok_st and ok_ty and ok_wt and ok_w0 and ok_ar):
+        if not (ok_layer and ok_st and ok_ty and ok_wt and ok_w0
+                and ok_ar and ok_pr):
             continue
         if cause_src != "cause" and not ok_cause:
             continue
@@ -2300,6 +2312,8 @@ def api_balance(request):
             continue
         if not _farea_ok(r, f_area_b):
             continue
+        if not _fprod_ok(r, f_prod_b):
+            continue
         st = r.get("lot_status") or "-"
         if f_type and (r.get("lot_type") or "-") not in f_type:
             continue
@@ -2717,6 +2731,7 @@ def api_lots_live(request):
     # (미분류)가 섞이면 IN 절로 못 거른다. 그 경우만 파이썬에서 처리한다.
     xf = _xfilters(request)
     f_area_x = [x for x in request.GET.get("f_area", "").split(",") if x]
+    f_prod_x = [x for x in request.GET.get("f_prod", "").split(",") if x]
     p1_sql = prod1 if prod1 and UNCLASSIFIED not in prod1 else None
     p2_sql = prod2 if prod2 and UNCLASSIFIED not in prod2 else None
     rows, snap = _summary_rows(line, types, {
@@ -2765,6 +2780,8 @@ def api_lots_live(request):
         if layer_id and str(r.get("layer_id") or "").strip() not in layer_id:
             continue
         if not _farea_ok(r, f_area_x):
+            continue
+        if not _fprod_ok(r, f_prod_x):
             continue
         if or_causes:
             ids = set(_eqp_ids(r))

@@ -51,9 +51,9 @@
           </div>
           <div style="display:flex;gap:6px;align-items:center">
             <button class="rankbtn" onclick="pickTypeAll()"
-                    title="lot_type 을 가리지 않고 전부 본다">전체 보기</button>
+                    title="lot_type 을 가리지 않고 전부 본다">전체</button>
             <button class="rankbtn" id="wpbtn" onclick="toggleWipProd()"
-                    title="제품마다 재공 구성을 나눠 본다">제품별 비율</button>
+                    title="제품마다 재공 구성을 나눠 본다">제품별</button>
             <div class="dd" id="dd">
               <button onclick="toggleDd()" id="ddb">전체 &#9662;</button>
               <div class="menu" id="ddm"></div>
@@ -450,15 +450,26 @@ function renderWipProd() {
 
   box.innerHTML = rows.map(p => {
     const tot = p.lots || 1;
-    const bars = (p.types || []).map(t =>
-      `<i style="width:${t.lots / tot * 100}%;background:${colorOf(t.name)}"`
-      + ` title="${p.name} · ${t.name} ${nf(t.lots)} LOT / ${nf(t.qty)} 매"`
-      + `></i>`).join("");
+    const onP = (DF.iprod || []).indexOf(p.name) >= 0;
+    const bars = (p.types || []).map(t => {
+      const on = onP && (DF.type || []).indexOf(t.name) >= 0;
+      return `<i class="${on ? "sel" : ""}"`
+        + ` style="width:${t.lots / tot * 100}%;background:${colorOf(t.name)}"`
+        + ` onclick="pickWipProd('${p.name}','${t.name}', event)"`
+        + ` title="${p.name} · ${t.name} ${nf(t.lots)} LOT / ${nf(t.qty)} 매`
+        + ` (Ctrl 다중선택)"></i>`;
+    }).join("");
     return `<div class="wprow"><div class="wplab" title="${p.name}">`
       + `${p.name}</div><div class="wpbar"><div class="stack">${bars}</div>`
       + `<div class="wpnum">${nf(p.lots)} LOT · ${nf(p.qty)} 매</div>`
       + `</div></div>`;
   }).join("");
+}
+
+// 제품 막대의 조각을 누르면 (제품, lot_type) 을 한 쌍으로 건다.
+function pickWipProd(prod, ty, ev) {
+  pickStacked("iprod", prod, ty, ev, null, "wipprod", "type");
+  syncFromDF();
 }
 
 function renderWip() {
@@ -1374,6 +1385,7 @@ const DF_DEF = [
   { k: "wt",     t: "W/T",    param: "wt_range", lv: 2, one: true },
   { k: "wt0",    t: "W/T 0",  param: "wt0",      lv: 2, one: true },
   { k: "iarea",  t: "AREA",   param: "f_area",   lv: 2, one: true },
+  { k: "iprod",  t: "제품",    param: "f_prod",   lv: 2, one: true },
   { k: "layer",  t: "LAYER",  param: "layer_id", lv: 5, one: true },
 ];
 const DF_LV = {};
@@ -1420,8 +1432,9 @@ function multiPick(cur, name, ev) {
      Ctrl      그 쌍을 더한다. 같은 차트의 같은 쌍이면 뺀다.
    status 처럼 다른 차트도 쓰는 필드는 setCond 가 교집합으로 처리한다.
 --------------------------------------------------------------------- */
-function pickStacked(binKey, binVal, seg, ev, label, src) {
-  const sk = "status";        // 누적막대의 조각은 status 다
+// segKey: 조각이 무엇을 뜻하는지. 기본은 status.
+function pickStacked(binKey, binVal, seg, ev, label, src, segKey) {
+  const sk = segKey || "status";
   const segLv = DF_LV[binKey] || 9;   // 조각은 구간과 같은 계층으로 본다
   const add = ev && (ev.ctrlKey || ev.metaKey);
   // 조각(status, 낮은 계층)을 먼저 걸고 구간을 나중에 건다.
@@ -3909,6 +3922,7 @@ function loadSummary(keepFocus) {
         + "&f_wt0=" + encodeURIComponent((DF.wt0 || []).join(","))
         + "&f_type=" + encodeURIComponent((DF.type || []).join(","))
         + "&f_area=" + encodeURIComponent((DF.iarea || []).join(","))
+        + "&f_prod=" + encodeURIComponent((DF.iprod || []).join(","))
         + "&solo=" + encodeURIComponent(soloSrc())
         // 원인 / LAYER 도 좌측 차트에 그대로 반영한다.
         + "&layer_id=" + encodeURIComponent((DF.layer || []).join(","))
