@@ -144,6 +144,18 @@
           background:rgba(255,255,255,.82);
           align-items:center; justify-content:center; }
   #busy.on { display:flex; }
+  /* 첫 화면 이후에는 가리지 않는다. 상단 얇은 바로만 알린다. */
+  #bar { position:fixed; top:0; left:0; height:2px; width:0;
+         background:#2E1A47; z-index:10001; opacity:0;
+         transition:width .2s ease, opacity .2s; }
+  #bar.on { opacity:1; animation:barflow 1.1s ease-in-out infinite; }
+  @keyframes barflow {
+    0%   { width:8%;  margin-left:0; }
+    50%  { width:42%; margin-left:58%; }
+    100% { width:8%;  margin-left:92%; }
+  }
+  /* 갱신 중인 카드만 살짝 흐리게. 화면은 그대로 남는다. */
+  .cell.upd, .detail.upd { opacity:.55; transition:opacity .15s; }
   .busytxt { font-size:13px; font-weight:600; color:#2E1A47;
              letter-spacing:.02em; }
   /* 첫 화면이 다 그려질 때까지 본문을 감춘다.
@@ -708,6 +720,7 @@
 <!-- 로딩 가림막. 무엇이든 불러오는 동안 화면 전체를 덮는다.
      반쯤 그려진 화면을 보이지 않게 한다. -->
 <div id="busy"><div class="busytxt">불러오는 중입니다…</div></div>
+<div id="bar"></div>
 
 <script>
 /* 진행 중인 요청을 센다. 하나라도 있으면 가림막을 띄운다.
@@ -737,13 +750,26 @@
   }
   const el = () => document.getElementById("busy");
 
+  const bar = () => document.getElementById("bar");
+
   function show() {
-    const b = el();
-    if (b) { b.classList.add("on"); }
+    // 첫 화면만 덮는다. 그 뒤에는 상단 바로만 알린다.
+    if (!booted) {
+      const b = el();
+      if (b) { b.classList.add("on"); }
+      return;
+    }
+    const g = bar();
+    if (g) { g.classList.add("on"); }
+    document.querySelectorAll(".cell, .detail")
+      .forEach(x => x.classList.add("upd"));
   }
   function hide() {
     const b = el();
     if (b) { b.classList.remove("on"); }
+    const g = bar();
+    if (g) { g.classList.remove("on"); }
+    document.querySelectorAll(".upd").forEach(x => x.classList.remove("upd"));
   }
 
   const orig = window.fetch;
@@ -805,7 +831,11 @@
     // 조회가 아예 없는 페이지(정적 화면)만 여기서 걷는다.
     //   첫 조회가 아직 시작도 안 했을 수 있어 넉넉히 기다리고,
     //   한 번이라도 불렀다면 페이지가 알려 줄 때까지 기다린다.
-    // 조회가 아예 없는 페이지(정적 화면)는 곧바로 걷는다.
+    // 조회를 할 페이지는 __bootWait 을 세워 둔다. 그 페이지는 스스로 알린다.
+    if (window.__bootWait) {
+      mark("자동 걷기 보류", "페이지가 조회를 예고했다");
+      return;
+    }
     if (!n && !TRACE.some(x => x.what === "fetch 시작")) {
       boot("조회 없는 페이지");
     }
