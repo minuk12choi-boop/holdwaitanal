@@ -13,6 +13,7 @@ urlpatterns = [
     # 예전 주소로 들어와도 끊기지 않게
     path("standards/", RedirectView.as_view(url="/master/", permanent=False)),
     path("downloads/", views.downloads, name="downloads"),
+    path("updates/", views.updates, name="updates"),
     path("downloads/wip-raw/", views.download_wip_raw, name="download_wip_raw"),
 
     path("api/summary/", views.api_summary, name="api_summary"),
