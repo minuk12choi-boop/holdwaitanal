@@ -1717,11 +1717,14 @@ def api_summary(request):
                                     "sub_total": total_child,
                                     "shown": len(children)}))
 
+    # 원차트는 자기 조건을 뺀 집계라 tot(선택분)과 분모가 다르다.
+    # 제 합계로 나눠야 100% 가 되지 않는다.
+    st_tot = sum(v.get("lots", 0) for v in by_status.values())
     status = [{"name": s, "color": STATUS_COLORS[s],
                "lots": by_status.get(s, {}).get("lots", 0),
                "qty": by_status.get(s, {}).get("qty", 0),
-               "pct": round(by_status.get(s, {}).get("lots", 0) / tot["lots"] * 100, 1)
-                      if tot["lots"] else 0}
+               "pct": round(by_status.get(s, {}).get("lots", 0)
+                            / st_tot * 100, 1) if st_tot else 0}
               for s in STATUS_ORDER]
     blocked = [x for x in status if x["name"] in ("HOLD", "WAIT(진행불가)")]
 
@@ -1790,7 +1793,8 @@ def fab_status(request):
                             [snap])
                 ready = {r[0] for r in cur.fetchall()}
     for x in lines:
-        x["ready"] = x["line"] in ready
+        # ALL 은 실제 라인 코드가 아니다. 하나라도 적재돼 있으면 쓸 수 있다.
+        x["ready"] = bool(ready) if x["line"] == "ALL" else x["line"] in ready
     return render(request, "flowmonitor/fab_status.html",
                   base_ctx(lines=lines, default_line=DEFAULT_LINE))
 

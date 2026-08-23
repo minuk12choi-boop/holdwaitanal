@@ -99,7 +99,7 @@
           <button id="au_lots" onclick="setAreaUnit('lots')">LOT</button>
           <button class="on" id="au_qty" onclick="setAreaUnit('qty')">매</button>
         </span></div>
-      <div style="height:150px"><canvas id="areac"></canvas></div>
+      <div style="height:225px"><canvas id="areac"></canvas></div>
     </div>
   </div>
 
@@ -1799,11 +1799,16 @@ function keepBarWidth(ch, n) {
   // 그 차트에서 본 가장 많은 개수를 기준으로 삼는다.
   ch.$slots = Math.max(ch.$slots || 0, n);
   const slots = ch.$slots;
-  const ds = ch.data.datasets[0];
-  // Chart.js 는 카테고리 폭의 비율로 막대를 그린다. 자리 수만큼 좁힌다.
-  ds.barPercentage = Math.min(0.9, 0.9 * n / slots);
-  ds.categoryPercentage = 0.9;
-  ds.maxBarThickness = Math.max(8, Math.round(240 / slots));
+  const bp = Math.min(0.9, 0.9 * n / slots);
+  const mt = Math.max(8, Math.round(240 / slots));
+  // 누적막대는 계열마다 값이 달라도 굵기는 같아야 한다.
+  // 한 계열에만 주면 Chart.js 가 계열별로 폭을 다시 계산해 어긋난다.
+  ch.data.datasets.forEach(ds => {
+    if (ds.type === "line") { return; }
+    ds.barPercentage = bp;
+    ds.categoryPercentage = 0.9;
+    ds.maxBarThickness = mt;
+  });
 }
 
 function markSelected(ch, selIdx) {
@@ -2263,7 +2268,11 @@ function syncLeftHeight() {
   const sm = document.querySelector(".summary");
   const lc = document.querySelector(".rowcards > .leftcol");
   if (!sm || !lc) { return; }
-  const h = sm.offsetHeight;
+  // 좌측 '마지막 카드의 아래선' 에 맞춘다. 컨테이너 높이는 여백을 포함한다.
+  const last = sm.querySelector(".cell:last-of-type");
+  const a = sm.getBoundingClientRect();
+  const b = (last || sm).getBoundingClientRect();
+  const h = Math.round(b.bottom - a.top);
   if (h > 0 && lc.style.height !== h + "px") {
     lc.style.height = h + "px";
     resizeCharts();
@@ -2481,6 +2490,9 @@ function checkOverlap() {
     // summary 는 마지막 카드에 margin-bottom 이 있어 컨테이너 bottom 과
     // 눈에 보이는 카드 아래선이 다르다. 마지막 카드를 직접 잰다.
     const lastL = sm.querySelector(".cell:last-of-type");
+    if (lastL) {
+      items.push({ sel: "  좌측 마지막 카드 id", note: lastL.id || "(없음)" });
+    }
     if (lastL) {
       const d = lastL.getBoundingClientRect();
       const ms = getComputedStyle(lastL).marginBottom;
