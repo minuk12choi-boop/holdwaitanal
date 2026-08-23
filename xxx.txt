@@ -1,8 +1,63 @@
-mysql> source D:/PERSONAL_SPACE/SW/python/7_holdwaitanal/getdata/migrate_holdtype_sort.sql
-ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'IF NOT EXISTS sort_no INT NULL AFTER type_name' at line 2
-ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'IF NOT EXISTS ix_ht_sort (sort_no)' at line 2
-Query OK, 0 rows affected (0.00 sec)
+[LAYOUT] viewport=1897  scrollWidth=1897  초과=0px
+======================================================================
 
-ERROR 1054 (42S22): Unknown column 'h.sort_no' in 'field list'
-ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '?쭑
-FROM f3_std_holdtype' at line 1
+
+======================================================================
+[LAYOUT] viewport=1897  scrollWidth=1897  초과=0px
+    2248px  table.grid                             w=3356    parent=div#drillBody
+    2247px  thead                                  w=3355    parent=table.grid
+    2247px  tr                                     w=3355    parent=thead
+    2247px  tbody                                  w=3355    parent=table.grid
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+======================================================================
+
+
+======================================================================
+[LAYOUT] viewport=1897  scrollWidth=1897  초과=0px
+    2248px  table.grid                             w=3356    parent=div#drillBody
+    2247px  thead                                  w=3355    parent=table.grid
+    2247px  tr                                     w=3355    parent=thead
+    2247px  tbody                                  w=3355    parent=table.grid
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+    2247px  tr                                     w=3355    parent=tbody
+======================================================================
+
