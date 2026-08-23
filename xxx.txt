@@ -1,7 +1,7 @@
-> python D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\diag.py holdtxt H000
-Traceback (most recent call last):
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\diag.py", line 440, in <module>
-    main()
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\diag.py", line 434, in main
-    diag_holdtxt(sys.argv[2] if len(sys.argv) > 2 else "H000")
-NameError: name 'diag_holdtxt' is not defined. Did you mean: 'diag_hold'?
+mysql> getdata\migrate_holdtype_sort.sql
+ERROR:
+Unknown command '\m'.
+    -> getdata/migrate_holdtype_sort.sql
+    -> ;
+ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'getdata\migrate_holdtype_sort.sql
+getdata/migrate_holdtype_sort.sql' at line 1
