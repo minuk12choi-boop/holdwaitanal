@@ -31,7 +31,11 @@ foreach ($f in $files) {
   }
   Write-Host ""
   Write-Host "[RUN ] $f" -ForegroundColor Cyan
-  Get-Content $path -Encoding UTF8 | mysql --default-character-set=utf8mb4 -u root "-p$pw" app_db
+  # Do NOT pipe the file: PowerShell re-encodes it as ANSI and Korean
+  # column names such as the current-step flag get mangled.
+  # Let the mysql client read the file itself, in utf8mb4.
+  $src = ($path -replace '\\', '/')
+  mysql --default-character-set=utf8mb4 -u root "-p$pw" app_db -e "source $src"
   if ($LASTEXITCODE -ne 0) {
     Write-Host "[FAIL] $f" -ForegroundColor Red
     exit 1

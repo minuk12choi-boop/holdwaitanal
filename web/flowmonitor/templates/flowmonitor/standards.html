@@ -162,17 +162,21 @@ function render(key) {
   const body = DATA[key].map((row, r) => {
     const hay = card.cols.map(c => String(row[c.k] || "")).join(" ").toLowerCase();
     if (q && hay.indexOf(q) < 0) { return ""; }
+    // 행 전체를 draggable 로 두면 입력칸을 누를 수 없다.
+    // 끌기는 손잡이(⋮⋮)에만 건다.
     return `<tr class="${row.__sel ? "on" : ""}" data-r="${r}"`
-      + `${card.sortable ? ' draggable="true"'
-          + ` ondragstart="dragStart(event,'${key}',${r})"`
-          + ` ondragover="dragOver(event)"`
-          + ` ondrop="dragDrop(event,'${key}',${r})"`
-          + ` ondragend="dragEnd(event)"` : ""}>`
+      + `${card.sortable
+          ? ` ondragover="dragOver(event)"`
+            + ` ondrop="dragDrop(event,'${key}',${r})"` : ""}>`
       + (card.sortable
-         ? `<td class="dh"><span class="grip" title="끌어서 순서 변경">⋮⋮</span>`
+         ? `<td class="dh">`
+           + `<span class="grip" draggable="true" title="끌어서 순서 변경"`
+           + ` ondragstart="dragStart(event,'${key}',${r})"`
+           + ` ondragend="dragEnd(event)">⋮⋮</span>`
            + `<input class="ordin" type="text" value="${r + 1}"`
-           + ` title="번호를 입력하면 그 자리로 옮긴다"`
-           + ` onclick="event.stopPropagation();this.select()"`
+           + ` title="번호를 넣고 Enter 를 누르면 그 자리로 옮긴다"`
+           + ` onmousedown="event.stopPropagation()"`
+           + ` onfocus="this.select()"`
            + ` onkeydown="if(event.key==='Enter'){this.blur();}"`
            + ` onchange="stdMoveTo('${key}',${r},this.value)"></td>`
          : "")

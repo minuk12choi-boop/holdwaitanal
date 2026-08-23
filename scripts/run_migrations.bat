@@ -19,7 +19,8 @@ for %%F in (
   if exist "getdata\%%F" (
     echo.
     echo [RUN ] %%F
-    mysql --default-character-set=utf8mb4 -u root -p%PW% app_db < "getdata\%%F"
+    REM Let mysql read the file so UTF-8 column names survive.
+    mysql --default-character-set=utf8mb4 -u root -p%PW% app_db -e "source getdata/%%F"
     if errorlevel 1 (
       echo [FAIL] %%F
       goto :done
