@@ -634,8 +634,12 @@ function renderWt() {
           ctx.font = "11px 'Poppins','Noto Sans KR',sans-serif";
           ctx.textAlign = "left"; ctx.textBaseline = "middle";
           ctx.fillStyle = "#374151";
-          ch.getDatasetMeta(0).data.forEach((el, k) => {
-            ctx.fillText(nf(ch.data.datasets[0].data[k]), el.x + 6, el.y);
+          // 라인 ALL 이면 여러 벌이다. 합계를 맨 끝 막대 옆에 쓴다.
+          const last = ch.data.datasets.length - 1;
+          ch.getDatasetMeta(last).data.forEach((el, k) => {
+            let sum = 0;
+            ch.data.datasets.forEach(d => { sum += (d.data[k] || 0); });
+            if (sum) { ctx.fillText(nf(sum), el.x + 6, el.y); }
           });
           ctx.restore();
         }
@@ -1802,7 +1806,21 @@ function czBarChart(canvasId, onPick, pluginId) {
       scales: {
         x: CZ_SCALE_X,
         y: { display: false, beginAtZero: true,
-             afterDataLimits: (sc) => { sc.max = (sc.max || 1) / 0.50; } },
+             afterDataLimits: (sc) => {
+               // 누적이면 Chart.js 가 계열별 최대를 주므로 합계로 다시 잡는다.
+               // 안 그러면 막대가 라인 대역(68~90%)까지 올라와 겹친다.
+               const ch = sc.chart;
+               let mx = 0;
+               const n = (ch.data.labels || []).length;
+               for (let k = 0; k < n; k++) {
+                 let sum = 0;
+                 ch.data.datasets.forEach(d => {
+                   if (d.type !== "line") { sum += (d.data[k] || 0); }
+                 });
+                 if (sum > mx) { mx = sum; }
+               }
+               sc.max = (mx || sc.max || 1) / 0.50;
+             } },
         y2: { display: false, position: "right",
               afterDataLimits: (sc) => {
                 let a = sc.min, b = sc.max;
@@ -1827,17 +1845,32 @@ function czBarChart(canvasId, onPick, pluginId) {
         const ctx = ch.ctx; ctx.save();
         ctx.font = "10px 'Poppins','Noto Sans KR',sans-serif";
         ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-        ctx.fillStyle = "#374151";
         const unit = (CAUSE_UNIT === "lots") ? " lot" : " 매";
-        ch.getDatasetMeta(0).data.forEach((el, k) => {
-          ctx.fillText(nf(ch.data.datasets[0].data[k]) + unit, el.x, el.y - 4);
-        });
-        ctx.fillStyle = "#B4504F";
-        ch.getDatasetMeta(1).data.forEach((el, k) => {
-          const v = ch.data.datasets[1].data[k];
-          if (v === null || v === undefined) { return; }
-          ctx.fillText(v.toFixed(1) + " 일/lot", el.x, el.y - 7);
-        });
+
+        // 라인 ALL 이면 막대가 여러 벌이다. 합계를 맨 위 막대 위에 쓴다.
+        const bars = ch.data.datasets
+          .map((d, i) => ({ d: d, i: i }))
+          .filter(x => x.d.type !== "line");
+        const top = bars.length ? bars[bars.length - 1] : null;
+        if (top) {
+          ctx.fillStyle = "#374151";
+          ch.getDatasetMeta(top.i).data.forEach((el, k) => {
+            let sum = 0;
+            bars.forEach(x => { sum += (x.d.data[k] || 0); });
+            if (sum) { ctx.fillText(nf(sum) + unit, el.x, el.y - 4); }
+          });
+        }
+
+        // 경과일 라인. 데이터셋 순서가 바뀌어도 type 으로 찾는다.
+        const li = ch.data.datasets.findIndex(d => d.type === "line");
+        if (li >= 0) {
+          ctx.fillStyle = "#B4504F";
+          ch.getDatasetMeta(li).data.forEach((el, k) => {
+            const v = ch.data.datasets[li].data[k];
+            if (v === null || v === undefined) { return; }
+            ctx.fillText(v.toFixed(1) + " 일/lot", el.x, el.y - 7);
+          });
+        }
         ctx.restore();
       }
     }]
@@ -2056,13 +2089,20 @@ function czWhole(i) {
    카드가 세로로 길어 x/y 를 뒤집는다. y축 라벨은 '대분류' 줄바꿈 '중분류'.
 --------------------------------------------------------------------- */
 // 대분류별 막대 색. 원인 분석 카드의 색 계열을 따른다.
-// 라인 ALL 일 때 누적막대 색. 라인 수가 적어 고정 색으로 둔다.
-const LINE_COLORS = ["#4C6EF5", "#F08080", "#84C09A", "#E8C46A", "#9B8AC4"];
+// 라인마다 정해진 색. 어느 차트에서 보든 같은 라인은 같은 색이다.
+const LINE_COLORS = {
+  "KFR4": "#3D3C3A",     // NRD
+  "PFR1": "#3D5791",     // NRD-P
+  "KFR7": "#045F5F",     // NRD-K
+  "KFR6": "#667C26",     // NRD-V
+};
+const LINE_FALLBACK = ["#9B8AC4", "#B4504F", "#7A8B99"];
 
 function lineColor(name) {
+  if (LINE_COLORS[name]) { return LINE_COLORS[name]; }
   const ls = (DATA && DATA.line_dist) || [];
   const i = ls.findIndex(x => x.name === name);
-  return LINE_COLORS[(i < 0 ? 0 : i) % LINE_COLORS.length];
+  return LINE_FALLBACK[(i < 0 ? 0 : i) % LINE_FALLBACK.length];
 }
 
 // 라인 ALL 이면 라인별 누적막대로 만든다. 아니면 단색 한 벌.
