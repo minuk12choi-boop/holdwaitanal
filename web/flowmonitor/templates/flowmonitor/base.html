@@ -673,7 +673,10 @@
 
   /* 재공막대 '제품별 비율'. 전체 막대 아래에 한 단 들여 쓴다. */
   #wprod:not(:empty) { margin-top:8px; padding-top:8px;
-                       border-top:1px dashed #C0C6C7; }
+                       border-top:1px dashed #C0C6C7;
+                       /* 다섯 줄까지만 보이고 나머지는 안에서 굴린다.
+                          한 줄 = 막대 13 + 숫자 12 + 여백 5 ≒ 34px */
+                       max-height:170px; overflow-y:auto; }
   .wprow { display:flex; align-items:center; gap:8px; margin-bottom:5px; }
   .wplab { flex:0 0 92px; padding-left:12px; font-size:11px; color:var(--mut);
            overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -683,6 +686,8 @@
   .wpbar .stack i.sel { outline:3px solid #FFD700; outline-offset:-3px;
                         position:relative; z-index:2; }
   .wpnum { font-size:9px; color:var(--mut); margin-top:2px; text-align:right; }
+  .wpmore { font-size:9px; color:var(--mut); margin-bottom:4px;
+            position:sticky; top:0; background:#fff; }
   .balrow + .balrow { border-top:1px solid var(--bd); padding-top:4px;
                       margin-top:4px; }
   /* PLAN 선택 팝업이 아래 카드에 가리지 않게 */

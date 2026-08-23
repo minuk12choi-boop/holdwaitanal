@@ -448,7 +448,13 @@ function renderWipProd() {
   const order = (DATA.by_lot_type || []).map(x => x.name);
   const colorOf = (nm) => TYPE_COLORS[Math.max(0, order.indexOf(nm)) % 5];
 
-  box.innerHTML = rows.map(p => {
+  // 몇 개가 더 있는지 알려 준다(스크롤로 볼 수 있다).
+  const more = rows.length > 5 ? rows.length - 5 : 0;
+  const head = more
+    ? `<div class="wpmore">상위 5개 표시 · 아래로 굴리면 ${more}개 더</div>`
+    : "";
+
+  box.innerHTML = head + rows.map(p => {
     const tot = p.lots || 1;
     const onP = (DF.iprod || []).indexOf(p.name) >= 0;
     const bars = (p.types || []).map(t => {
@@ -1653,6 +1659,7 @@ function syncFromDF() {
     }
   const any = Object.keys(DF).length || DF_CAUSE || Object.keys(DF_X).length;
   markActiveCards();      // 표가 없어도 카드 강조는 항상 맞춘다
+  dbgMark("조건 변경");
 
   // 요약(원인 분석)을 먼저 띄운다. 표는 응답이 수 MB 라 먼저 보내면
   // 브라우저 연결을 물고 있어 요약이 1~2초 뒤에야 그려진다.
@@ -2787,7 +2794,13 @@ function drawFlow() {
   if (dr && (Object.keys(DF).length || DF_CAUSE)) { ids.push("drill"); }
 
   const els = ids.map(id => document.getElementById(id)).filter(Boolean);
-  if (els.length < 2) { svg.innerHTML = ""; svg.style.display = "none"; return; }
+  if (els.length < 2) {
+    svg.innerHTML = "";
+    svg.style.display = "none";
+    // 이어질 카드가 없어도 왜 없는지 남긴다.
+    dbgMark("화살표 없음(카드 " + els.length + "개, 후보 " + ids.length + ")");
+    return;
+  }
 
   const host = document.querySelector(".maincol");
   if (!host) { return; }
@@ -3952,6 +3965,7 @@ function loadSummary(keepFocus) {
       renderWip(); renderStatus(); renderWt(); renderWt0(); renderArea();
       renderCause();
       renderInsight();
+      dbgMark("요약 갱신");
       requestAnimationFrame(() => {
         syncLeftHeight();
         dbgSnapshot("요약 갱신");
