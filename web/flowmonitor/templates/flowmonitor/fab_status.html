@@ -646,6 +646,7 @@ function renderWt() {
       }]
     });
   }
+  putLineLegend("wtcard");
   wtChart.data.labels = d.wt_dist.map(x => x.label);
   wtChart.data.datasets = wtDs;
   hideUnpicked(wtChart, d.wt_dist.map(x => x.name), new Set(DF.wt || []));
@@ -1078,13 +1079,33 @@ function loadBalance(show) {
 function drawBalance() {
   const d = BAL_DATA;
   if (!d) { return; }
-  const xs = d.layers || [];
+  let xs = d.layers || [];
+  // 제품으로 나누면 그 제품이 실제로 있는 LAYER 만 x축에 둔다.
+  //   PLAN 으로 나눌 때는 전체 x축을 유지해 줄끼리 비교할 수 있게 한다.
+  const byProd = BAL_OPEN && BAL_BY.indexOf("prod") >= 0;
   let rows = BAL_OPEN ? (d.plans || [])
                       : [{ name: "전체", qty: (d.total || {}).qty,
                            lots: (d.total || {}).lots }];
   if (BAL_OPEN && BAL_PICK && BAL_PICK.length) {
     const on = new Set(BAL_PICK);
     rows = rows.filter(r => on.has(r.name));
+  }
+  if (byProd) {
+    // 어느 줄에든 값이 있는 LAYER 만 남긴다.
+    const keep = xs.map((_, k) => rows.some(r => {
+      const q = (r.qty || {});
+      return Object.keys(q).some(st => (q[st] || [])[k]);
+    }));
+    xs = xs.filter((_, k) => keep[k]);
+    rows = rows.map(r => {
+      const out = { name: r.name, main: r.main, qty: {}, lots: {} };
+      ["qty", "lots"].forEach(u => {
+        Object.keys(r[u] || {}).forEach(st => {
+          out[u][st] = (r[u][st] || []).filter((_, k) => keep[k]);
+        });
+      });
+      return out;
+    });
   }
   if (!rows.length) {
     rows = [{ name: "전체", qty: (d.total || {}).qty,
@@ -2098,6 +2119,38 @@ const LINE_COLORS = {
 };
 const LINE_FALLBACK = ["#9B8AC4", "#B4504F", "#7A8B99"];
 
+// 라인 짧은 이름. 범례 글자가 길면 차트를 가린다.
+const LINE_SHORT = { "KFR4": "H", "PFR1": "P", "KFR7": "K", "KFR6": "V" };
+
+function lineShort(name) { return LINE_SHORT[name] || String(name).slice(0, 2); }
+
+// 라인 ALL 일 때 차트 제목 옆에 붙일 범례.
+function lineLegendHtml() {
+  if (LINE !== "ALL") { return ""; }
+  const ls = (DATA && DATA.line_dist) || [];
+  if (!ls.length) { return ""; }
+  return `<span class="linelg"><b>LINE</b>`
+    + ls.map(x => `<i style="background:${lineColor(x.name)}"></i>`
+        + `${lineShort(x.name)}`).join("")
+    + `</span>`;
+}
+
+// 제목 줄에 범례를 붙이거나 걷는다.
+function putLineLegend(cardId) {
+  const card = document.getElementById(cardId);
+  if (!card) { return; }
+  const ttl = card.querySelector(".cellttl");
+  if (!ttl) { return; }
+  let lg = ttl.querySelector(".linelg");
+  const html = lineLegendHtml();
+  if (!html) { if (lg) { lg.remove(); } return; }
+  if (!lg) {
+    lg = document.createElement("span");
+    ttl.insertBefore(lg, ttl.querySelector(".seg") || null);
+  }
+  lg.outerHTML = html;
+}
+
 function lineColor(name) {
   if (LINE_COLORS[name]) { return LINE_COLORS[name]; }
   const ls = (DATA && DATA.line_dist) || [];
@@ -2255,6 +2308,7 @@ function renderCauseAllBar() {
 
 function renderCause() {
   const u = CAUSE_UNIT;
+  putLineLegend("czcard");
   // 상위 계층(좌측 차트)에서 좁혀진 조건을 제목 옆에 보여 준다.
   const up = document.getElementById("czup");
   if (up) {

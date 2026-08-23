@@ -132,6 +132,22 @@
   canvas { cursor:default; }
   button:disabled, .lineseg button:disabled { cursor:not-allowed; }
 
+  /* 라인 범례. 글자가 짧아 차트를 가리지 않는다. */
+  .linelg { display:inline-flex; align-items:center; gap:3px; font-size:10px;
+            color:var(--mut); margin-left:6px; white-space:nowrap; }
+  .linelg b { color:var(--fg); font-size:9px; margin-right:2px; }
+  .linelg i { width:8px; height:8px; border-radius:2px; display:inline-block;
+              margin-left:4px; }
+
+  /* 로딩 가림막 */
+  #busy { position:fixed; inset:0; z-index:10000; display:none;
+          background:rgba(255,255,255,.72); backdrop-filter:blur(1px);
+          align-items:center; justify-content:center; }
+  #busy.on { display:flex; }
+  .busyring { width:34px; height:34px; border:3px solid #D7DEE8;
+              border-top-color:#2E1A47; border-radius:50%;
+              animation:spin .7s linear infinite; }
+
   .htip { position:absolute; z-index:9999; pointer-events:none; opacity:0;
           background:rgba(17,24,39,.94); color:#fff; font-size:11px;
           padding:5px 9px; border-radius:5px; white-space:nowrap;
@@ -678,5 +694,54 @@
     / 적재시각: <b id="snapAt">{{ snapshot_at|default:"-" }}</b></div>
 </header>
 {% block body %}{% endblock %}
+<!-- 로딩 가림막. 무엇이든 불러오는 동안 화면 전체를 덮는다.
+     반쯤 그려진 화면을 보이지 않게 한다. -->
+<div id="busy"><div class="busyring"></div></div>
+
+<script>
+/* 진행 중인 요청을 센다. 하나라도 있으면 가림막을 띄운다.
+   fetch 를 감싸므로 어느 페이지에서든 따로 부를 필요가 없다.
+------------------------------------------------------------------ */
+(function () {
+  let n = 0, timer = null;
+  const el = () => document.getElementById("busy");
+
+  function show() {
+    const b = el();
+    if (b) { b.classList.add("on"); }
+  }
+  function hide() {
+    const b = el();
+    if (b) { b.classList.remove("on"); }
+  }
+
+  const orig = window.fetch;
+  window.fetch = function () {
+    // 자리 진단(디버그) 요청은 화면을 가리지 않는다.
+    const url = String(arguments[0] || "");
+    if (url.indexOf("/api/debug-layout/") >= 0) {
+      return orig.apply(this, arguments);
+    }
+    n++;
+    show();
+    return orig.apply(this, arguments).finally(() => {
+      n = Math.max(0, n - 1);
+      if (!n) {
+        // 그리기까지 끝난 뒤 걷는다. 곧바로 걷으면 빈 화면이 스친다.
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          if (!n) { requestAnimationFrame(hide); }
+        }, 60);
+      }
+    });
+  };
+
+  // 첫 화면은 문서가 준비될 때까지 덮어 둔다.
+  show();
+  window.addEventListener("load", () => {
+    setTimeout(() => { if (!n) { hide(); } }, 80);
+  });
+})();
+</script>
 </body>
 </html>
