@@ -140,7 +140,8 @@
               margin-left:4px; }
 
   /* 드릴다운 흐름 화살표. 카드 사이 여백을 타고 흐른다. */
-  #flow { position:absolute; pointer-events:none; z-index:5; display:none;
+  /* 카드 위에 그린다. 클릭은 통과시킨다. */
+  #flow { position:absolute; pointer-events:none; z-index:900; display:none;
           overflow:visible; }
 
   /* 로딩 가림막 */

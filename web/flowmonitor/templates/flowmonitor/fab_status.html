@@ -153,7 +153,6 @@
     <!-- 원인 분석에서 파고들 때마다 카드가 하나씩 쌓인다(LOT BALANCE 위). -->
     <div id="czstack"></div>
     <div id="czask" class="askpop" style="display:none"></div>
-    <svg id="flow" aria-hidden="true"></svg>
 
 <!-- 전체 순위는 x축이 길어져 위 카드에 넣으면 안 보인다. 아래 전체 폭으로. -->
     <div class="cell" id="czdrill" style="display:none;border:1px solid var(--bd);
@@ -1723,9 +1722,9 @@ const popSelected = {
       pairs.forEach(([k, di]) => drawSel(chart, k, di));
       return;
     }
-    // 여러 개를 고른 경우 전부 표시한다.
+    // 고른 것을 모두 표시한다(하나여도 라벨로 찾는다).
     const many = chart.$selSet;
-    if (many && many.size > 1 && chart.data.labels) {
+    if (many && many.size && chart.data.labels) {
       chart.data.labels.forEach((lb, k) => {
         if (many.has(lb)) { drawSel(chart, k); }
       });
@@ -1978,8 +1977,11 @@ function czApply(ch, nodes, u, selName, selList) {
     ch.data.datasets = bars;
   }
 
-  const on = new Set(selList && selList.length ? selList : [selName]);
-  ch.$selSet = on;
+  const on = new Set((selList && selList.length ? selList : [selName])
+    .filter(Boolean));
+  ch.$selSet = on.size ? on : null;
+  // 고르지 않은 막대는 흐리게. 축은 그대로 둔다.
+  ch.$dim = on.size ? nodes.map(x => !on.has(x.name)) : null;
   markSelected(ch, nodes.findIndex(x => on.has(x.name)));
   keepBarWidth(ch, nodes.length);
   ch.update("none");
@@ -2425,7 +2427,8 @@ function renderCause() {
     // 이 대분류에서 고른 것 + 파고든 것 모두 테두리로 표시한다.
     const marks = causeSelNames(i);
     CZ_STACK.filter(x => x.i === i).forEach(x => marks.add(x.path[0].name));
-    czApply(czCharts[i], nodes, u, null, [...marks]);
+    const here0 = nodes.filter(x => marks.has(x.name)).map(x => x.name);
+    czApply(czCharts[i], nodes, u, null, here0);
     const col = document.getElementById("czh" + i).parentNode;
     col.classList.toggle("czsrc", !!srcHere);
   }
@@ -2526,9 +2529,10 @@ function renderCzStack() {
         renderCzStack();
       }, "czsVal" + n);
     }
-    czStackCharts[n].$selSet = causeSelNames(step.i);
-    czApply(czStackCharts[n], nodes, CAUSE_UNIT, null,
-            [...causeSelNames(step.i)]);
+    // 이 차트의 축에 실제로 있는 것만 고른 것으로 본다.
+    const all = causeSelNames(step.i);
+    const here = nodes.filter(x => all.has(x.name)).map(x => x.name);
+    czApply(czStackCharts[n], nodes, CAUSE_UNIT, null, here);
   });
 }
 
@@ -2708,8 +2712,14 @@ function insPick(ci, n) {
    카드 모서리에서 출발해 **카드 사이 여백**을 타고 흐른다.
 --------------------------------------------------------------------- */
 function drawFlow() {
-  const svg = document.getElementById("flow");
-  if (!svg) { return; }
+  // 카드 안에 두면 뒤따르는 카드가 덮는다. body 에 붙여 맨 위에 그린다.
+  let svg = document.getElementById("flow");
+  if (!svg) {
+    svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.id = "flow";
+    svg.setAttribute("aria-hidden", "true");
+    document.body.appendChild(svg);
+  }
 
   // 지금 이어져야 할 카드 순서를 모은다.
   const ids = [];
@@ -2728,9 +2738,9 @@ function drawFlow() {
   if (!host) { return; }
   const hb = host.getBoundingClientRect();
   svg.style.display = "";
-  svg.setAttribute("width", Math.round(hb.width));
+  svg.setAttribute("width", Math.round(hb.width) + 20);
   svg.setAttribute("height", Math.round(hb.height));
-  svg.style.left = Math.round(hb.left + window.pageXOffset) + "px";
+  svg.style.left = Math.round(hb.left + window.pageXOffset) - 20 + "px";
   svg.style.top = Math.round(hb.top + window.pageYOffset) + "px";
 
   const parts = [
@@ -2740,8 +2750,9 @@ function drawFlow() {
   for (let i = 0; i + 1 < els.length; i++) {
     const a = els[i].getBoundingClientRect();
     const b = els[i + 1].getBoundingClientRect();
-    const ax = a.right - hb.left, ay = a.top - hb.top + a.height / 2;
-    const bx = b.left - hb.left, by = b.top - hb.top + b.height / 2;
+    const OX = 20;                    // svg 를 왼쪽으로 넓힌 만큼
+    const ax = a.right - hb.left + OX, ay = a.top - hb.top + a.height / 2;
+    const bx = b.left - hb.left + OX, by = b.top - hb.top + b.height / 2;
     let d;
     if (bx >= ax - 4) {
       // 오른쪽 카드로. 두 카드 사이 여백 한가운데를 지난다.
@@ -2750,14 +2761,17 @@ function drawFlow() {
     } else {
       // 아래 카드로. 왼쪽 바깥 여백을 타고 내려간다.
       const a2 = els[i].getBoundingClientRect();
-      const lx = Math.min(a2.left, b.left) - hb.left - 7;
-      d = `M${a2.left - hb.left},${ay} H${lx} V${by} H${bx}`;
+      const lx = Math.min(a2.left, b.left) - hb.left + OX - 8;
+      d = `M${a2.left - hb.left + OX},${ay} H${lx} V${by} H${bx}`;
     }
     parts.push(`<path d="${d}" fill="none" stroke="#2E1A47" stroke-width="1.4"`
       + ` stroke-dasharray="4 3" marker-end="url(#fa)" opacity=".75"/>`);
   }
   svg.innerHTML = parts.join("");
 }
+
+window.addEventListener("resize", () => requestAnimationFrame(drawFlow));
+window.addEventListener("scroll", () => requestAnimationFrame(drawFlow), true);
 
 /* 클릭 진단 ------------------------------------------------------------
    어느 막대·조각을 눌렀는지 서버 터미널에 남긴다.
