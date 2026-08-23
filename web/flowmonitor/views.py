@@ -1545,46 +1545,56 @@ def api_summary(request):
 
     # 요약카드는 최상단 필터까지만 반영한다. 카드에서 고른 조건(x_*)이
     # 카드 목록 자체를 바꾸면 다음 행을 고를 수 없다.
-    ins_rows = [r for r in rows
-                if not (areas and (r.get("AREA") or UNCLASSIFIED) not in areas)]
-    ins_tot = {"qty": sum(num(r.get("qty")) for r in ins_rows)}
+    ins_rows = []          # 요약카드용. 루프에서 채운다.
 
+    # 차트마다 **자기 필드를 뺀 나머지 조건**으로 센다.
+    #   원차트에서 HOLD 를 고르면 재공막대 · W/T · W/T 0 은 HOLD 로 좁혀지고,
+    #   원차트 자신은 다른 status 도 계속 보여 다시 고를 수 있다.
     for r in rows:
-        # AREA 는 최상단 필터(레벨 1)라 좌측 차트까지 모두 좁힌다.
+        # AREA 는 최상단 필터(레벨 1)라 무엇을 그리든 먼저 걸린다.
         if areas and (r.get("AREA") or UNCLASSIFIED) not in areas:
             continue
-        if not _xrow_ok(r, xf):
-            continue
-        if want_layer and str(r.get("layer_id") or "").strip() not in want_layer:
-            continue
-        if not _cause_ok(r):
-            continue
+
         q = num(r.get("qty"))
         st = r.get("lot_status") or "-"
+        ty = r.get("lot_type") or "-"
+        wt = calc_wt(mv, r["lot_id"], q, r.get("lot_status"))
+        wk = _wt_range_key(wt)
+        b0 = _wt0_bin(num_f(r.get("마지막작업경과_일"))) if wt <= 0 else None
+
+        ok_x = _xrow_ok(r, xf)
+        ok_layer = (not want_layer
+                    or str(r.get("layer_id") or "").strip() in want_layer)
+        ok_cause = _cause_ok(r)
+        ok_st = (not f_status) or (st in f_status)
+        ok_ty = (not f_type) or (ty in f_type)
+        ok_wt = (not f_wt) or (wk in f_wt)
+        ok_w0 = (not f_wt0) or (wt <= 0 and b0 in f_wt0)
+
+        # 요약카드는 카드에서 고른 조건(x_*)만 무시한다.
+        if ok_layer and ok_cause and ok_st and ok_ty and ok_wt and ok_w0:
+            ins_rows.append(r)
+
+        base = ok_x and ok_layer and ok_cause          # 공통으로 걸리는 것
+        if not base:
+            continue
+
+        if ok_ty and ok_wt and ok_w0:                  # status 자신은 뺀다
+            _bucket(by_status, st, q)
+        if ok_st and ok_wt and ok_w0:                  # 재공막대
+            _bucket(by_type, ty, q)
+        if ok_st and ok_ty and ok_w0:                  # W/T 분포
+            _bucket(by_wt, wk, q)
+        if ok_st and ok_ty and ok_wt and wt <= 0:      # W/T 0 분포
+            _bucket(by_wt0, b0, q)
+            if b0:
+                _bucket(wt0_st.setdefault(b0, {}), st, q)
+            _bucket(wt0_tot, st, q)
+
+        if not (ok_st and ok_ty and ok_wt and ok_w0):
+            continue
         tot["lots"] += 1
         tot["qty"] += q
-        _bucket(by_type, r.get("lot_type") or "-", q)
-        _bucket(by_status, st, q)
-        wt = calc_wt(mv, r["lot_id"], q, r.get("lot_status"))
-        _bucket(by_wt, _wt_range_key(wt), q)
-        if wt <= 0:
-            # W/T=0 재공만 '마지막 작업 이후 경과일' 로 다시 나눈다.
-            b0 = _wt0_bin(num_f(r.get("마지막작업경과_일")))
-            _bucket(by_wt0, b0, q)
-            if b0:                       # status 별로도 쌓는다(누적막대용)
-                _bucket(wt0_st.setdefault(b0, {}), st, q)
-            _bucket(wt0_tot, st, q)      # 전 구간 합계
-
-        if f_status and st not in f_status:
-            continue
-        if f_type and (r.get("lot_type") or "-") not in f_type:
-            continue
-        if f_wt and _wt_range_key(wt) not in f_wt:
-            continue
-        if f_wt0 and (wt > 0
-                      or _wt0_bin(num_f(r.get("마지막작업경과_일")))
-                      not in f_wt0):
-            continue
 
         got = cls.get(r["lot_id"])
         if got is None:
@@ -1697,8 +1707,9 @@ def api_summary(request):
             "color": STATUS_COLORS["HOLD"],
         })(next((x for x in status if x["name"] == "HOLD"),
                 {"lots": 0, "qty": 0})),
-        "insights": _build_insights(line, types, ins_rows, mv, rules, ht,
-                                    cls, ins_tot),
+        "insights": _build_insights(
+            line, types, ins_rows, mv, rules, ht, cls,
+            {"qty": sum(num(x.get("qty")) for x in ins_rows)}),
         "wt0_bins": WT0_BINS,
         "wt0_dist": [{"name": b["key"], "label": b["label"],
                       **by_wt0.get(b["key"], {"lots": 0, "qty": 0}),
