@@ -379,6 +379,34 @@
      마지막 열은 flex-basis 0 으로 두어야 내용이 열을 넓히지 못한다.
      min-width:auto 가 기본이라 반드시 0 으로 덮어쓴다.
   ------------------------------------------------------------------- */
+  /* ── 라인 요약 카드 ───────────────────────────────────────────────── */
+  .insrow { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
+  .inscard { border:1px solid var(--bd); border-radius:6px; padding:8px 10px;
+             cursor:pointer; background:#FCFCFD; min-width:0; }
+  .inscard:hover { border-color:var(--brand); background:#F7F9FC; }
+  .insh { font-size:11px; color:var(--fg); display:flex; align-items:center;
+          gap:5px; white-space:nowrap; overflow:hidden;
+          text-overflow:ellipsis; }
+  .insh > b { background:var(--brand); color:#fff; border-radius:3px;
+              padding:0 5px; font-size:10px; }
+  .instr { margin-left:auto; font-size:10px; font-weight:700; }
+  .instr.up { color:#B91C1C; }
+  .instr.dn { color:#15803D; }
+  .instr.flat { color:var(--mut); font-weight:400; }
+  .insq { font-size:19px; font-weight:700; margin:3px 0 1px;
+          display:flex; align-items:baseline; gap:3px; }
+  .insq em { font-size:11px; font-weight:400; font-style:normal;
+             color:var(--mut); }
+  .inspc { margin-left:auto; font-size:11px; font-weight:400;
+           color:var(--mut); }
+  .insw { font-size:10px; color:var(--mut); white-space:nowrap;
+          overflow:hidden; text-overflow:ellipsis; }
+  .inse { font-size:10px; color:#B4504F; margin-top:3px; white-space:nowrap;
+          overflow:hidden; text-overflow:ellipsis; }
+  @media (max-width: 1180px) {
+    .insrow { grid-template-columns:repeat(2, 1fr); }
+  }
+
   .rowcards { display:flex; gap:10px; align-items:flex-start;
               flex:1; min-height:0; min-width:0; }
 

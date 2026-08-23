@@ -1597,6 +1597,7 @@ def api_summary(request):
             "color": STATUS_COLORS["HOLD"],
         })(next((x for x in status if x["name"] == "HOLD"),
                 {"lots": 0, "qty": 0})),
+        "insights": _build_insights(line, types, rows, mv, rules, ht, cls, tot),
         "wt0_bins": WT0_BINS,
         "wt0_dist": [{"name": b["key"], "label": b["label"],
                       **by_wt0.get(b["key"], {"lots": 0, "qty": 0}),
@@ -2164,6 +2165,95 @@ def api_debug_layout(request):
                  it.get("parent")), flush=True)
     print("=" * 70 + "\n", flush=True)
     return JsonResponse({"ok": True})
+
+
+def _build_insights(line, types, rows, mv, rules, ht, cls, tot, top_n=4):
+    """라인의 문제를 매수 순으로 추린다. 전일 같은 SHIFT 와 견준다."""
+    unit = _insight_units(rows, mv, rules, ht, cls)
+    if not unit:
+        return []
+
+    # 전일 같은 SHIFT. 없으면 추세는 생략한다.
+    prev = {}
+    try:
+        today = _biz_today()
+        sh = _shifts_started(today)
+        if sh and _table_exists("f3_history"):
+            y = str(today - dt.timedelta(days=1))
+            prows, _ = _summary_rows(line, types, biz_date=y, shift=sh[-1])
+            if prows:
+                prev = {k: v["qty"]
+                        for k, v in _insight_units(prows, mv, rules, ht).items()}
+    except Exception as e:                     # 비교는 있으면 좋은 정보다
+        print(f"[INSIGHT] 전일 비교 생략: {type(e).__name__}", flush=True)
+
+    out = []
+    total = tot.get("qty") or 0
+    for key, u in sorted(unit.items(), key=lambda kv: -kv[1]["qty"])[:top_n]:
+        idle = u["idle"]
+        out.append({
+            "big": u["big"], "mid": u["mid"],
+            "lots": u["lots"], "qty": u["qty"],
+            "pct": round(u["qty"] / total * 100, 1) if total else 0,
+            "sub": _top(u["sub"]), "layer": _top(u["layer"]),
+            "prod": _top(u["prod"]),
+            "wt0_qty": u["wt0_qty"],
+            "idle_avg": round(sum(idle) / len(idle), 1) if idle else None,
+            "idle_max": round(max(idle), 1) if idle else None,
+            "delta": (u["qty"] - prev[key]) if key in prev else None,
+        })
+    return out
+
+
+def _insight_units(rows, mv, rules, ht, cls=None):
+    """(대분류 > 중분류) 단위로 문제를 집계한다.
+
+    카드 하나가 곧 '무엇이 문제인가' 다. 그 안에서 가장 큰 설비/LAYER/제품과
+    W/T 저해를 함께 담는다.
+    """
+    from collections import defaultdict
+
+    unit = {}
+    for r in rows:
+        got = (cls or {}).get(r["lot_id"])
+        if got is None:
+            got = classify_lot(r, rules, ht)
+        big, mid, subs = got
+        if not big:
+            continue
+        key = (big, mid or "")
+        u = unit.setdefault(key, {
+            "big": big, "mid": mid or "", "lots": 0, "qty": 0,
+            "sub": defaultdict(int), "layer": defaultdict(int),
+            "prod": defaultdict(int),
+            "wt0_qty": 0, "idle": [],
+        })
+        q = num(r.get("qty"))
+        u["lots"] += 1
+        u["qty"] += q
+        for x in (subs or []):
+            u["sub"][x] += q
+        lay = str(r.get("layer_id") or "").strip()
+        if lay:
+            u["layer"][lay] += q
+        pr = str(r.get("prod2") or "").strip()
+        if pr:
+            u["prod"][pr] += q
+        # W/T 저해: 오늘 한 번도 못 움직인 재공과 그 정체 기간
+        if calc_wt(mv, r["lot_id"], q, r.get("lot_status")) <= 0:
+            u["wt0_qty"] += q
+            d = num_f(r.get("마지막작업경과_일"))
+            if d is not None:
+                u["idle"].append(d)
+    return unit
+
+
+def _top(d):
+    """가장 큰 항목 (이름, 매수). 없으면 None."""
+    if not d:
+        return None
+    k = max(d, key=lambda x: d[x])
+    return {"name": k, "qty": int(d[k])}
 
 
 def api_lot_steps(request):

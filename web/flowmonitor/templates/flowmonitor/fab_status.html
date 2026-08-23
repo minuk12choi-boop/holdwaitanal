@@ -96,6 +96,14 @@
   </div>
 
   <div class="maincol">
+    <!-- 라인 요약: 지금 무엇이 문제인가 -->
+    <div class="cell" id="insight" style="display:none;border:1px solid var(--bd);
+         border-radius:6px;padding:10px 12px;margin-bottom:10px">
+      <div class="cellttl"><span>지금 이 라인의 문제</span>
+        <span class="v" id="insSub"></span></div>
+      <div class="insrow" id="insBody"></div>
+    </div>
+
     <div class="rowcards">
     <div class="leftcol">
     <div class="cell" id="czcard" style="border:1px solid var(--bd);
@@ -2122,6 +2130,63 @@ function syncLeftHeight() {
   }
 }
 
+/* 라인 요약 카드 --------------------------------------------------------
+   매수가 많이 쌓인 곳을 순서대로 놓고, 그것이 만든 W/T 저해를 잇는다.
+   카드를 누르면 그 원인으로 화면 전체가 좁혀진다.
+--------------------------------------------------------------------- */
+function renderInsight() {
+  const box = document.getElementById("insight");
+  const list = (DATA && DATA.insights) || [];
+  if (!list.length) { box.style.display = "none"; return; }
+  box.style.display = "";
+
+  const tot = (DATA.total || {}).qty || 0;
+  document.getElementById("insSub").textContent =
+    `재공 ${nf(tot)}매 기준 · 전일 같은 SHIFT 대비`;
+
+  document.getElementById("insBody").innerHTML = list.map((x, n) => {
+    const name = x.mid ? `${x.big} &gt; ${x.mid}` : x.big;
+    // 추세
+    let tr = `<span class="instr flat">비교 없음</span>`;
+    if (x.delta !== null && x.delta !== undefined) {
+      const up = x.delta > 0, z = x.delta === 0;
+      tr = `<span class="instr ${z ? "flat" : (up ? "up" : "dn")}">`
+        + `${z ? "→ 변동 없음" : (up ? "▲ +" : "▼ ") + nf(Math.abs(x.delta))}`
+        + `</span>`;
+    }
+    // 어디에 몰렸나
+    const where = [
+      x.sub ? `${x.sub.name} ${kfmt(x.sub.qty)}매` : "",
+      x.layer ? `LAYER ${x.layer.name}` : "",
+      x.prod ? `제품 ${x.prod.name}` : "",
+    ].filter(Boolean).join(" · ");
+    // 무엇으로 이어졌나
+    const eff = x.wt0_qty
+      ? `W/T 0 <b>${kfmt(x.wt0_qty)}매</b>`
+        + (x.idle_avg !== null ? ` · 평균 ${x.idle_avg}일 정체` : "")
+        + (x.idle_max !== null ? ` · 최장 ${x.idle_max}일` : "")
+      : "W/T 저해 없음";
+
+    return `<div class="inscard" onclick="insPick(${n})">`
+      + `<div class="insh"><b>${n + 1}</b> ${name}${tr}</div>`
+      + `<div class="insq">${nf(x.qty)}<em>매</em>`
+      + `<span class="inspc">${x.pct}%</span></div>`
+      + `<div class="insw">${where || "&nbsp;"}</div>`
+      + `<div class="inse">${eff}</div></div>`;
+  }).join("");
+}
+
+// 카드를 누르면 그 원인으로 화면 전체를 좁힌다.
+function insPick(n) {
+  const x = (DATA.insights || [])[n];
+  if (!x) { return; }
+  const i = (DATA.causes || []).findIndex(g => g.name === x.big);
+  if (i < 0) { return; }
+  dfReset();
+  DF_CAUSE = { i: i, or: [{ big: x.big, mid: x.mid || null, sub: null }] };
+  syncFromDF();
+}
+
 /* 클릭 진단 ------------------------------------------------------------
    어느 막대·조각을 눌렀는지 서버 터미널에 남긴다.
    주소에 ?debug=pick 을 붙이면 켜진다.
@@ -2992,6 +3057,7 @@ function loadSummary(keepFocus) {
       renderSnap(d);
       renderProd(d);
       renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
+      renderInsight();
       requestAnimationFrame(syncLeftHeight);
       if (location.search.indexOf("debug=layout") >= 0) {
         setTimeout(checkLayout, 800);      // 차트가 그려진 뒤에 잰다
