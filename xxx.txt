@@ -1,18 +1,28 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> Get-Content getdata\migrate_holdtype_sort.sql       | mysql --default-character-set=utf8mb4 -u root -p app_db
-Enter password: **********
-note
-sort_no ??? ???
-note
-ix_ht_sort ??? ???
-total_rows      first_no        last_no not_set
-267     10      2670    0
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> Get-Content getdata\migrate_virtual_step_status.sql | mysql --default-character-set=utf8mb4 -u root -p app_db
-Enter password: **********
-ERROR 1064 (42000) at line 16: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '????? = '?????
-  AND (UPPER(COALESCE(eqpgroup, ''))      LIKE '%WAIT%'
-    OR UP' at line 15
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> Get-Content getdata\migrate_virtual_eqp.sql         | mysql --default-character-set=utf8mb4 -u root -p app_db
-Enter password: **********
-ERROR 1064 (42000) at line 10: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '????? = '?????
-  AND lot_status = 'WAIT'
-  AND UPPER(TRIM(COALESCE(eqpgroup, '')' at line 11
+{
+    "http.proxy": "http://12.26.204.100:8080",
+    "privateExtensions.registries": [
+        {
+            "name": "code-mate",
+            "registry": "http://extension.samsungds.net/repository/codemate-ai-coding-assistant"
+        }
+    ],
+    "roo-cline.debug": false,
+    "roo-cline.allowedCommands": [
+        "git log",
+        "git diff",
+        "git show",
+        "Always approve execute operations",
+        "cd",
+        "python",
+        "curl",
+        "head",
+        "wc",
+        "import",
+        "function",
+        "print",
+        "find",
+        "type",
+        "echo"
+    ],
+    "roo-cline.deniedCommands": []
+}
