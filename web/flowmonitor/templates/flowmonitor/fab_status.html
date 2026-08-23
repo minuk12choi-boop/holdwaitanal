@@ -1387,10 +1387,14 @@ function syncFromDF() {
     renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
     }
   const any = Object.keys(DF).length || DF_CAUSE;
-  if (any) { openDrill(dfFilter(), dfTitle(), "multi"); }
-  else { closeDrill(); }
   markActiveCards();      // 표가 없어도 카드 강조는 항상 맞춘다
+
+  // 요약(원인 분석)을 먼저 띄운다. 표는 응답이 수 MB 라 먼저 보내면
+  // 브라우저 연결을 물고 있어 요약이 1~2초 뒤에야 그려진다.
   loadSummary(true);
+  if (any) {
+    requestAnimationFrame(() => openDrill(dfFilter(), dfTitle(), "multi"));
+  } else { closeDrill(); }
 }
 
 // 드릴다운 표 상태. closeDrill 이 초기 로딩에서도 불리므로 선언을 앞에 둔다.
@@ -2876,6 +2880,7 @@ function drillTitle(src, label) {
 }
 
 let LAST_DRILL = null;
+let DRILL_ABORT = null;      // 이전 표 조회를 끊는다
 
 function reopenDrill() {
   if (LAST_DRILL) { openDrill(LAST_DRILL.f, LAST_DRILL.l, LAST_DRILL.s, true); }
@@ -2905,7 +2910,10 @@ function openDrill(filt, label, src, keepView) {
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
     .map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
 
-  fetch("/api/lots-live/?" + q).then(r => r.json()).then(d => {
+  if (DRILL_ABORT) { DRILL_ABORT.abort(); }
+  DRILL_ABORT = new AbortController();
+  fetch("/api/lots-live/?" + q, { signal: DRILL_ABORT.signal })
+    .then(r => r.json()).then(d => {
     el.classList.remove("loading");
     DRILL_DATA = d;
     SORT_KEYS = [];                       // 새 조건이면 정렬/필터 초기화
@@ -2936,7 +2944,7 @@ function openDrill(filt, label, src, keepView) {
     renderDrillTable();
     renderConds();
     resizeCharts();
-  });
+  }).catch(e => { if (e.name !== "AbortError") { throw e; } });
 }
 
 /* --- 로딩 --- */

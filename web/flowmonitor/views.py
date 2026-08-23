@@ -1149,6 +1149,7 @@ def _hist_snapshots(line):
 
 
 _ROWS_CACHE = {}          # (스냅샷, 조건) -> rows. 같은 스냅샷이면 재사용한다.
+_CLS_CACHE = {}           # lot -> (대분류, 중분류, 소분류). 스냅샷 단위 캐시.
 
 
 def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
@@ -1441,6 +1442,14 @@ def api_summary(request):
     rules = _cause_rules()
     ht = _holdtype_rules()          # 기준정보 유형이 소분류를 대체한다
 
+    # 원인 분류는 lot 마다 같은 결과다. 한 스냅샷 안에서 재사용한다.
+    ckey = (snap, id(rules), id(ht))
+    if _CLS_CACHE.get("key") != ckey:
+        _CLS_CACHE.clear()
+        _CLS_CACHE["key"] = ckey
+        _CLS_CACHE["map"] = {}
+    cls = _CLS_CACHE["map"]
+
     tot = {"lots": 0, "qty": 0}
     by_type, by_status, by_wt, by_wt0 = {}, {}, {}, {}
     wt0_st, wt0_tot = {}, {}      # W/T 0 재공의 status 분해
@@ -1477,7 +1486,11 @@ def api_summary(request):
                       not in f_wt0):
             continue
 
-        big, mid, subs = classify_lot(r, rules, ht)
+        got = cls.get(r["lot_id"])
+        if got is None:
+            got = classify_lot(r, rules, ht)
+            cls[r["lot_id"]] = got
+        big, mid, subs = got
         if not big:
             continue
         eld = num_f(r.get("마지막이벤트경과_일"))
