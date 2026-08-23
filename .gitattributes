@@ -1,3 +1,10 @@
-# Windows 배치 파일은 반드시 CRLF 여야 cmd 가 정상 파싱한다.
+# PowerShell 은 CRLF 를 기대한다. 체크아웃할 때 변환한다.
+*.ps1 text eol=crlf
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# SQL / 파이썬 / 템플릿은 LF 로 둔다.
+*.sql text eol=lf
+*.py  text eol=lf
+*.html text eol=lf
+*.md  text eol=lf

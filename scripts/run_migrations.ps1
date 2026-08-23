@@ -1,41 +1,43 @@
-# app_db 마이그레이션을 한 번에 적용한다.
+# Apply pending app_db migrations.
 #
-# 실행 (PowerShell / VS Code 터미널, 프로젝트 어디서든):
+# Run from anywhere in the project (PowerShell or VS Code terminal):
 #   powershell -ExecutionPolicy Bypass -File scripts\run_migrations.ps1
 #
-# 이미 적용된 것은 건너뛰므로 여러 번 돌려도 안전하다.
+# Safe to run more than once: each script skips work already done.
+#
+# NOTE: ASCII only. Windows PowerShell 5.1 reads a BOM-less UTF-8 file as
+#       ANSI, which corrupts non-ASCII text and breaks parsing.
 
 $ErrorActionPreference = "Stop"
 
-# 이 스크립트가 있는 폴더의 상위 = 프로젝트 뿌리
 $root = Split-Path -Parent $PSScriptRoot
 $sqlDir = Join-Path $root "getdata"
 
 $files = @(
-  "migrate_holdtype_sort.sql",        # HOLD 유형 적용 순서(sort_no)
-  "migrate_virtual_step_status.sql",  # 가상스텝 상태 보정
-  "migrate_virtual_eqp.sql"           # NRDSEND / NRDMEAS 를 가상스텝으로
+  "migrate_holdtype_sort.sql",
+  "migrate_virtual_step_status.sql",
+  "migrate_virtual_eqp.sql"
 )
 
-$pw = Read-Host "MySQL root 비밀번호" -AsSecureString
-$plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
-  [Runtime.InteropServices.Marshal]::SecureStringToBSTR($pw))
+$sec = Read-Host "MySQL root password" -AsSecureString
+$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
+$pw = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
 
 foreach ($f in $files) {
   $path = Join-Path $sqlDir $f
   if (-not (Test-Path $path)) {
-    Write-Host "[건너뜀] $f  (파일 없음)" -ForegroundColor DarkYellow
+    Write-Host "[SKIP] $f  (file not found)" -ForegroundColor DarkYellow
     continue
   }
   Write-Host ""
-  Write-Host "[실행] $f" -ForegroundColor Cyan
-  Get-Content $path -Encoding UTF8 | mysql --default-character-set=utf8mb4 -u root "-p$plain" app_db
+  Write-Host "[RUN ] $f" -ForegroundColor Cyan
+  Get-Content $path -Encoding UTF8 | mysql --default-character-set=utf8mb4 -u root "-p$pw" app_db
   if ($LASTEXITCODE -ne 0) {
-    Write-Host "[실패] $f  (위 오류를 확인하세요)" -ForegroundColor Red
+    Write-Host "[FAIL] $f" -ForegroundColor Red
     exit 1
   }
-  Write-Host "[완료] $f" -ForegroundColor Green
+  Write-Host "[DONE] $f" -ForegroundColor Green
 }
 
 Write-Host ""
-Write-Host "모두 끝났습니다. 웹 서버를 다시 띄우세요." -ForegroundColor Green
+Write-Host "All migrations finished. Restart the web server." -ForegroundColor Green
