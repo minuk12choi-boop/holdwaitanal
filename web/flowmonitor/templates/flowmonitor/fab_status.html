@@ -1749,7 +1749,14 @@ if (window.Chart) { Chart.register(popSelected); }
 function fade(c) {
   const t = String(c || "");
   if (t.startsWith("rgba")) {
-    return t.replace(/[\d.]+\)$/, "0.18)");
+    // 마지막 인자(투명도)만 바꾼다. 정규식은 쓰지 않는다.
+    const a = t.indexOf("(") + 1;
+    const b = t.lastIndexOf(")");
+    const p = t.slice(a, b).split(",");
+    if (p.length >= 3) {
+      return "rgba(" + p[0] + "," + p[1] + "," + p[2] + ",0.18)";
+    }
+    return t;
   }
   if (t.startsWith("#") && t.length === 7) {
     return t + "2E";                       // 약 18%
