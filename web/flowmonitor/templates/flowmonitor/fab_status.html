@@ -2732,7 +2732,11 @@ function insPick(ci, n) {
   const c = (DATA.insights || [])[ci];
   const x = c && (c.rank || [])[n];
   if (!x) { return; }
-  dfReset();
+  // 다른 곳에서 건 조건은 그대로 둔다. 요약카드가 건 것만 새로 잡는다.
+  //   (제품별 비율에서 고른 제품이 풀리면 안 된다)
+  DF_X = {};
+  if (DF_SRC.cause === "insight") { DF_CAUSE = null; }
+  if (DF_SRC.layer === "insight") { delete DF.layer; }
   const p = x.path.slice();
   // B/N · PREVENT 는 접두가 없어 첫 칸이 곧 AREA(또는 LINE)다.
   const head = (c.key === "neck" || c.key === "tip") ? c.key : p.shift();
@@ -2744,7 +2748,7 @@ function insPick(ci, n) {
     if (p[0]) { DF_X.x_prod = [p[0]]; }
     if (p.length === 3) { DF_X.x_mod = [p[1]]; }
     if (p.length >= 2) {
-      setCond("layer", p[p.length - 1], null, null, false, "insight");
+      setCond("layer", p[p.length - 1], null, null, true, "insight");
     }
   } else {
     // [AREA, 설비]
