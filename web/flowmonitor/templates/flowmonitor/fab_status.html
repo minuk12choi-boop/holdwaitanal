@@ -433,7 +433,7 @@ function renderWip() {
 
 
 function pickType(name, ev) {
-  setCond("type", name, ev);
+  setCond("type", name, ev, null, false, "type");
   syncFromDF();
 }
 
@@ -502,7 +502,7 @@ function setStatusInfo() {
 function pickStatus(i, ev) {
   const st = (DATA.status || [])[i];
   if (!st) { return; }
-  setCond("status", st.name, ev || null);
+  setCond("status", st.name, ev || null, null, false, "pie");
   syncFromDF();
 }
 
@@ -599,7 +599,7 @@ function renderWt() {
         onClick: (e, els) => {
           if (!els.length) return;
           const x = DATA.wt_dist[els[0].index];
-          setCond("wt", x.name, e.native || e, x.label);
+          setCond("wt", x.name, e.native || e, x.label, false, "wt");
           syncFromDF();
         }
       },
@@ -679,12 +679,7 @@ function renderWt0() {
           if (!x) { return; }
           const seg = hit.length
             ? (wt0Chart.data.datasets[hit[0].datasetIndex] || {}).label : null;
-          // 구간과 조각을 한 쌍으로 본다. 완전히 같은 쌍을 다시 누를 때만 해제.
-          const samePair = (DF.wt0 || []).length === 1 && DF.wt0[0] === x.name
-            && (!seg || ((DF.status || []).length === 1
-                         && DF.status[0] === seg));
-          setCond("wt0", x.name, ev, x.label, !samePair);
-          if (seg) { setCond("status", seg, ev, null, !samePair); }
+          pickStacked("wt0", x.name, seg, ev, x.label, "wt0");
           if (DBG_PICK) { logPick("W/T 0", wt0Chart, ev, els, hit); }
           syncFromDF();
         }
@@ -1020,12 +1015,7 @@ function drawBalance() {
               ev, "nearest", { intersect: true }, false);
             const seg = hit.length
               ? (ch.data.datasets[hit[0].datasetIndex] || {}).label : null;
-            const samePair = (DF.layer || []).length === 1
-              && DF.layer[0] === String(lay)
-              && (!seg || ((DF.status || []).length === 1
-                           && DF.status[0] === seg));
-            setCond("layer", String(lay), ev, null, !samePair);
-            if (seg) { setCond("status", seg, ev, null, !samePair); }
+            pickStacked("layer", String(lay), seg, ev, null, "bal");
             if (DBG_PICK) { logPick("LOT BALANCE", ch, ev, els, hit); }
             syncFromDF();
           }
@@ -1180,6 +1170,7 @@ let DF_LABEL = {};           // 화면 표시용 라벨
 
 function dfReset() {
   DF = {}; DF_CAUSE = null; DF_LABEL = {};
+  Object.keys(DF_SRC).forEach(k => delete DF_SRC[k]);
   CZ_STACK = []; CZ_WIDE = null; CZ_SEL = { i: -1, path: [] };
 }
 
@@ -1194,9 +1185,16 @@ function multiPick(cur, name, ev) {
 
 // noToggle: 한 번의 클릭으로 두 필드를 함께 거는 경우(누적막대의 구간+조각).
 //   구간이 같아도 조각이 다르면 '다시 누른 것' 이 아니다. 해제하면 안 된다.
-function setCond(key, name, ev, label, noToggle) {
+// src: 어느 차트에서 눌렀는지. 같은 차트에서 같은 값을 다시 눌러야 해제다.
+//   다른 차트에서 같은 값을 누르는 것은 '그 축을 그 값으로 본다' 는 뜻이지
+//   해제가 아니다(원차트 HOLD + W/T 0 의 HOLD 조각은 AND 로 함께 걸린다).
+const DF_SRC = {};
+
+function setCond(key, name, ev, label, noToggle, src) {
   const add = ev && (ev.ctrlKey || ev.metaKey);
-  const same = (DF[key] || []).length === 1 && DF[key][0] === name;
+  const sameSrc = src === undefined || DF_SRC[key] === undefined
+    || DF_SRC[key] === src;
+  const same = (DF[key] || []).length === 1 && DF[key][0] === name && sameSrc;
   let next;
   if (add) {
     next = multiPick(DF[key], name, ev);
@@ -1207,6 +1205,7 @@ function setCond(key, name, ev, label, noToggle) {
   }
   const lv = DF_LV[key] || 9;
   if (next.length) { DF[key] = next; } else { delete DF[key]; }
+  if (src !== undefined) { DF_SRC[key] = src; }
   if (label) { DF_LABEL[key + ":" + name] = label; }
   dfResetBelow(lv);                      // 아래 계층은 무효가 된다
   return next;
