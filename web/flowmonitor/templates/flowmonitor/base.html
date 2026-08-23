@@ -661,6 +661,9 @@
 
   /* LOT BALANCE : PLAN 을 세로로 쌓고 x축(LAYER)은 서로 맞춘다 */
   .balrow { display:flex; align-items:stretch; gap:8px; }
+  /* 제품이 바뀌는 자리를 가른다. */
+  .balrow.gsep { border-top:2px solid #C0C6C7; padding-top:6px;
+                 margin-top:4px; }
   .balrow + .balrow { border-top:1px solid var(--bd); padding-top:4px;
                       margin-top:4px; }
   /* PLAN 선택 팝업이 아래 카드에 가리지 않게 */

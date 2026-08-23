@@ -2263,6 +2263,9 @@ def api_balance(request):
     rules, ht = _cause_rules(), _holdtype_rules()
 
     layers, by_plan, total = set(), {}, {}
+    grp_lay = {}          # 제품 -> 그 제품의 LAYER 집합
+    grp_of = {}           # 줄 이름 -> 어느 제품에 속하는지
+    prod_seen, plan_seen = set(), set()
     lay_mod = {}          # LAYER -> 모듈. x축 아래 경계 표시에 쓴다
     xf = _xfilters(request)
     f_area_b = [x for x in request.GET.get("f_area", "").split(",") if x]
@@ -2317,8 +2320,19 @@ def api_balance(request):
         _bucket(total.setdefault(lay, {}), st, q)
         key = " · ".join(str(r.get(c) or "-") for c in gcols)
         _bucket(by_plan.setdefault(key, {}).setdefault(lay, {}), st, q)
+        # 제품으로 나눌 때는 **그 제품이 실제로 있는 LAYER** 만 축으로 쓴다.
+        #   PLAN 까지 나눠도 축은 제품 단위로 묶는다(줄끼리 견줄 수 있게).
+        if "prod" in by:
+            grp_lay.setdefault(str(r.get("prod2") or "-"), set()).add(lay)
+        grp_of[key] = str(r.get("prod2") or "-")
+        prod_seen.add(str(r.get("prod2") or "-"))
+        plan_seen.add(str(r.get("proc_id") or "-"))
 
     main = _main_plans(line) if by == ["plan"] else {}
+    # 지금 조건에서 실제로 있는 제품·PLAN 만 목록에 올린다.
+    #   제품을 고르면 그 제품의 PLAN 만, 반대도 마찬가지다.
+    opt_prod = sorted({v for v in prod_seen})
+    opt_plan = sorted({v for v in plan_seen})
 
     def rank(p):
         return (0 if p in main else 1, main.get(p, 0), p)
@@ -2327,13 +2341,21 @@ def api_balance(request):
     sts = [x for x in STATUS_ORDER
            if any(x in total.get(l, {}) for l in xs)]
 
-    def pack(src):
-        return {st: [int(round(src.get(l, {}).get(st, {}).get("qty", 0)))
-                     for l in xs] for st in sts}
+    def axis_of(key):
+        """그 줄이 쓸 x축. 제품으로 나눴으면 그 제품의 LAYER 만."""
+        if "prod" not in by:
+            return xs
+        g = grp_of.get(key)
+        keep = grp_lay.get(g)
+        return [l for l in xs if (not keep or l in keep)]
 
-    def packl(src):
+    def pack(src, ax):
+        return {st: [int(round(src.get(l, {}).get(st, {}).get("qty", 0)))
+                     for l in ax] for st in sts}
+
+    def packl(src, ax):
         return {st: [int(round(src.get(l, {}).get(st, {}).get("lots", 0)))
-                     for l in xs] for st in sts}
+                     for l in ax] for st in sts}
 
     # 같은 모듈이 이어지는 구간을 묶는다.
     bands, cur = [], None
@@ -2348,11 +2370,15 @@ def api_balance(request):
 
     return JsonResponse({
         "layers": xs, "by": ",".join(by), "modules": bands,
+        "opt_prod": opt_prod, "opt_plan": opt_plan,
         "status": [{"name": x, "color": STATUS_COLORS.get(x, "#9CA3AF")}
                    for x in sts],
-        "total": {"qty": pack(total), "lots": packl(total)},
+        "total": {"qty": pack(total, xs), "lots": packl(total, xs)},
         "plans": [{"name": p, "main": (p in main),
-                   "qty": pack(by_plan[p]), "lots": packl(by_plan[p])}
+                   # 줄마다 제 x축을 함께 내려보낸다(제품별 LAYER 가 다르다).
+                   "layers": axis_of(p), "group": grp_of.get(p),
+                   "qty": pack(by_plan[p], axis_of(p)),
+                   "lots": packl(by_plan[p], axis_of(p))}
                   for p in sorted(by_plan, key=rank)],
     }, json_dumps_params={"ensure_ascii": False})
 

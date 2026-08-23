@@ -987,7 +987,13 @@ function balBy(which, on, openId) {
 
 function renderBalMenu(which) {
   const list = (BAL_DATA && BAL_DATA.plans) || [];
-  const plans = list.map(p => p.name);
+  // 지금 조건에서 실제로 있는 것만 고를 수 있게 한다.
+  //   제품을 고른 상태면 그 제품의 PLAN 만, 반대도 마찬가지다.
+  const only = (which === "prod")
+    ? ((BAL_DATA && BAL_DATA.opt_prod) || null)
+    : ((BAL_DATA && BAL_DATA.opt_plan) || null);
+  // 서버가 지금 조건에서 실제로 있는 것만 내려 준다. 그것이 있으면 그것을 쓴다.
+  const plans = (only && only.length) ? only : list.map(p => p.name);
   const mainOf = {};
   list.forEach(p => { mainOf[p.name] = !!p.main; });
   const on = BAL_PICK ? new Set(BAL_PICK) : new Set(plans);
@@ -1093,6 +1099,8 @@ function drawBalance() {
   // 제품으로 나누면 그 제품이 실제로 있는 LAYER 만 x축에 둔다.
   //   PLAN 으로 나눌 때는 전체 x축을 유지해 줄끼리 비교할 수 있게 한다.
   const byProd = BAL_OPEN && BAL_BY.indexOf("prod") >= 0;
+  // 줄마다 제 x축을 쓴다(제품이 다르면 LAYER 도 다르다).
+  const axOf = (r) => (byProd && r.layers && r.layers.length) ? r.layers : xs;
   let rows = BAL_OPEN ? (d.plans || [])
                       : [{ name: "전체", qty: (d.total || {}).qty,
                            lots: (d.total || {}).lots }];
@@ -1100,23 +1108,7 @@ function drawBalance() {
     const on = new Set(BAL_PICK);
     rows = rows.filter(r => on.has(r.name));
   }
-  if (byProd) {
-    // 어느 줄에든 값이 있는 LAYER 만 남긴다.
-    const keep = xs.map((_, k) => rows.some(r => {
-      const q = (r.qty || {});
-      return Object.keys(q).some(st => (q[st] || [])[k]);
-    }));
-    xs = xs.filter((_, k) => keep[k]);
-    rows = rows.map(r => {
-      const out = { name: r.name, main: r.main, qty: {}, lots: {} };
-      ["qty", "lots"].forEach(u => {
-        Object.keys(r[u] || {}).forEach(st => {
-          out[u][st] = (r[u][st] || []).filter((_, k) => keep[k]);
-        });
-      });
-      return out;
-    });
-  }
+
   if (!rows.length) {
     rows = [{ name: "전체", qty: (d.total || {}).qty,
               lots: (d.total || {}).lots }];
@@ -1147,9 +1139,15 @@ function drawBalance() {
   if (body.childElementCount !== rows.length) {
     balCharts.forEach(c => c && c.destroy());
     balCharts.length = 0;
-    body.innerHTML = rows.map((r, i) =>
-      `<div class="balrow"><div class="ballab">${r.name}</div>`
-      + `<div class="balc"><canvas id="balc${i}"></canvas></div></div>`).join("");
+    // 제품이 바뀌는 자리에 경계선을 긋는다(제품으로 나눌 때만).
+    let prev = null;
+    body.innerHTML = rows.map((r, i) => {
+      const sep = (byProd && prev !== null && r.group !== prev);
+      prev = (r.group === undefined) ? prev : r.group;
+      return `<div class="balrow${sep ? " gsep" : ""}">`
+        + `<div class="ballab">${r.name}</div>`
+        + `<div class="balc"><canvas id="balc${i}"></canvas></div></div>`;
+    }).join("");
   } else {
     rows.forEach((r, i) => {
       const el = body.children[i].querySelector(".ballab");
@@ -1162,15 +1160,15 @@ function drawBalance() {
     const src = (BAL_UNIT === "lots") ? r.lots : r.qty;
     const datasets = sts.map(st => ({
       label: st.name, backgroundColor: st.color, borderWidth: 0,
-      data: (src && src[st.name]) ? src[st.name] : xs.map(() => 0)
+      data: (src && src[st.name]) ? src[st.name] : axOf(r).map(() => 0)
     }));
-    const tot = xs.map((_, k) =>
+    const tot = axOf(r).map((_, k) =>
       datasets.reduce((a, ds) => a + (ds.data[k] || 0), 0));
 
     if (!balCharts[i]) {
       balCharts[i] = new Chart(document.getElementById("balc" + i), {
         type: "bar",
-        data: { labels: xs, datasets: datasets },
+        data: { labels: axOf(r), datasets: datasets },
         options: {
           responsive: true, maintainAspectRatio: false, animation: false,
           onHover: (e, els, ch) => hoverCursor(ch, e.native || e),
@@ -1261,11 +1259,11 @@ function drawBalance() {
         }]
       });
     } else {
-      balCharts[i].data.labels = xs;
+      balCharts[i].data.labels = axOf(r);
       balCharts[i].data.datasets = datasets;
     }
     balCharts[i].$tot = tot;
-    const bk = (DF.layer || []).map(v => xs.indexOf(v)).filter(k => k >= 0);
+    const bk = (DF.layer || []).map(v => axOf(r).indexOf(v)).filter(k => k >= 0);
     const bd = (DF.status || []).map(n => sts.findIndex(x => x.name === n))
       .filter(k => k >= 0);
     const bp = [];
@@ -1275,8 +1273,8 @@ function drawBalance() {
     });
     // 고른 LAYER 는 테두리로, 나머지는 흐리게. 축은 그대로 둔다.
     // (다른 차트와 같은 규칙. 감추면 Ctrl 로 더 고를 수 없다)
-    hideUnpicked(balCharts[i], xs, new Set(DF.layer || []));
-    keepBarWidth(balCharts[i], xs.length);
+    hideUnpicked(balCharts[i], axOf(r), new Set(DF.layer || []));
+    keepBarWidth(balCharts[i], axOf(r).length);
     balCharts[i].$selPairs = bp;
     balCharts[i].$selSet = null;
     markSelected(balCharts[i], -1);
