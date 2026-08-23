@@ -458,6 +458,11 @@
      min-width:auto 가 기본이라 반드시 0 으로 덮어쓴다.
   ------------------------------------------------------------------- */
   /* ── 라인 요약 카드 ───────────────────────────────────────────────── */
+  /* 요약카드 제목은 이 화면의 머리글이라 조금 크게. */
+  .instt > #insTtl { font-size:16px; font-weight:700; }   /* 기본 14 + 2 */
+  .instt > #insTtl em { font-style:normal; font-weight:600; font-size:13px;
+                        color:var(--brand); }
+
   .insrow { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
   .inscard { border:1px solid var(--bd); border-radius:6px; padding:7px 8px;
              background:#FCFCFD; min-width:0; }

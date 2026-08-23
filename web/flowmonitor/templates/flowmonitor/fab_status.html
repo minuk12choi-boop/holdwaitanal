@@ -106,7 +106,7 @@
   <div class="maincol">
     <!-- 라인 요약: 지금 무엇이 문제인가 -->
     <div class="cell" id="insight" style="display:none">
-      <div class="cellttl"><span>지금 이 라인의 문제</span>
+      <div class="cellttl instt"><span id="insTtl">지금 이 라인의 문제</span>
         <span class="v" id="insSub"></span>
 </div>
       <div class="insrow" id="insBody"></div>
@@ -2582,6 +2582,11 @@ function renderInsight() {
   if (!any) { box.style.display = "none"; return; }
   box.style.display = "";
 
+  // 제목에도 지금 걸린 조건을 계층으로 보여 준다.
+  const cond = dfTitle();
+  document.getElementById("insTtl").innerHTML =
+    "지금 이 라인의 문제"
+    + (cond ? ` <em>&gt; ${cond}</em>` : "");
   document.getElementById("insSub").textContent =
     `비율은 라인 전체 재공 ${nf((DATA.total || {}).qty || 0)}매 대비`;
 
