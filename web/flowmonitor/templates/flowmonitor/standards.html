@@ -164,7 +164,12 @@ function render(key) {
           + ` ondrop="dragDrop(event,'${key}',${r})"`
           + ` ondragend="dragEnd(event)"` : ""}>`
       + (card.sortable
-         ? `<td class="dh" title="끌어서 순서 변경">⋮⋮<span>${r + 1}</span></td>`
+         ? `<td class="dh"><span class="grip" title="끌어서 순서 변경">⋮⋮</span>`
+           + `<input class="ordin" type="text" value="${r + 1}"`
+           + ` title="번호를 입력하면 그 자리로 옮긴다"`
+           + ` onclick="event.stopPropagation();this.select()"`
+           + ` onkeydown="if(event.key==='Enter'){this.blur();}"`
+           + ` onchange="stdMoveTo('${key}',${r},this.value)"></td>`
          : "")
       + `<td class="ck"><input type="checkbox" ${row.__sel ? "checked" : ""}`
       + ` onclick="stdPick(event,'${key}',${r})"></td>`
@@ -182,6 +187,35 @@ function render(key) {
    화면에 보이는 위치가 아니라 **전체 목록에서의 자리**로 옮긴다.
 --------------------------------------------------------------------- */
 let DRAG = null;
+
+/* 순서 칸에 번호를 직접 넣어 옮긴다.
+   행이 많아 끌기만으로는 먼 곳으로 보내기 어렵다.
+   넣은 자리에 끼워 넣고 나머지는 한 칸씩 밀린다(끌기와 같은 동작).
+--------------------------------------------------------------------- */
+function stdMoveTo(key, from, raw) {
+  const list = DATA[key];
+  const n = parseInt(String(raw).replace(/[^0-9]/g, ""), 10);
+  if (!list || !n || isNaN(n)) { render(key); return; }
+
+  const to = Math.max(0, Math.min(n - 1, list.length - 1));
+  if (to === from) { render(key); return; }
+
+  const item = list[from];
+  list.splice(from, 1);
+  list.splice(to, 0, item);
+  dirty(key);
+  render(key);
+
+  // 옮긴 행이 어디로 갔는지 보이게 잠깐 표시한다.
+  requestAnimationFrame(() => {
+    const tr = document.querySelector(`#t_${key} tr[data-r="${to}"]`);
+    if (tr) {
+      tr.classList.add("moved");
+      tr.scrollIntoView({ block: "nearest" });
+      setTimeout(() => tr.classList.remove("moved"), 900);
+    }
+  });
+}
 
 /* 끌고 가장자리에 다가가면 표를 자동으로 굴린다.
    먼 곳으로 옮길 때 손으로 스크롤할 수 없어 필요하다. */
