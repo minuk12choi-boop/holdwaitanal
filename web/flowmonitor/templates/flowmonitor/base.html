@@ -146,10 +146,6 @@
               margin-left:4px; }
 
   /* 드릴다운 흐름 화살표. 카드 사이 여백을 타고 흐른다. */
-  /* 카드 위에 그린다. 클릭은 통과시킨다. */
-  #flow { position:absolute; pointer-events:none; z-index:900; display:none;
-          overflow:visible; }
-
   /* 로딩 가림막 */
   #busy { position:fixed; inset:0; z-index:10000; display:none;
           background:rgba(255,255,255,.82);
@@ -475,6 +471,10 @@
                         color:var(--brand); }
 
   .insrow { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
+  /* 전체 순위: 한 카드만 남기고 그 안을 네 칸으로 나눈다. */
+  .insrow.full { grid-template-columns:1fr; }
+  .insgrid { display:grid; grid-template-columns:repeat(4, 1fr);
+             gap:0 12px; }
   .inscard { border:1px solid var(--bd); border-radius:6px; padding:7px 8px;
              background:#FCFCFD; min-width:0; }
   .insh { font-size:11px; font-weight:700; color:var(--brand);
@@ -485,6 +485,12 @@
   .insall { border:1px solid var(--bd); background:#fff; color:var(--mut);
             font-size:9px; border-radius:3px; padding:0 5px; cursor:pointer; }
   .insall.on { border-color:var(--brand); background:var(--brand); color:#fff; }
+  .czallwrap { margin-top:4px; }
+  .czallrow { font-size:9px; color:#2E1A47; background:#F4F1F8;
+              border-radius:3px; padding:2px 5px; margin-bottom:2px;
+              white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .czallrow b { color:var(--fg); margin-right:3px; }
+
   .insall-row { font-size:9px; color:#2E1A47; background:#F4F1F8;
                 border-radius:3px; padding:2px 5px; margin:0 0 3px 16px; }
   .insline { display:flex; align-items:center; gap:5px; font-size:10px;

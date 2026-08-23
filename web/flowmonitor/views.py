@@ -2564,7 +2564,7 @@ def _ins_new():
             "blocked": defaultdict(int), "blocked_qty": 0}
 
 
-def _build_insights(line, types, rows, mv, rules, ht, cls, tot, top_n=5):
+def _build_insights(line, types, rows, mv, rules, ht, cls, tot, top_n=20):
     """카드 네 장. 각 카드 안에서 매수 순으로 5순위까지."""
     cards = _ins_bucket(rows, mv, rules, ht, cls, line)
 
@@ -2631,19 +2631,23 @@ def api_eqp_wait(request):
             ids = _eqp_ids(r) or [str(r.get("eqpgroup") or "").strip()]
             if want and not (set(ids) & set(want)):
                 continue
+            # 그 설비 '앞에 서 있는' 재공이라 설비 수로 나누지 않는다.
+            #   나누면 반올림 탓에 108 / 0 같은 값이 나온다.
             q = num(r.get("qty"))
-            w = q / len(ids) if ids else q
             for eid in (ids or ["(설비미상)"]):
                 c = out.setdefault(eid, {})
-                c[ln] = c.get(ln, 0) + w
+                c[ln] = c.get(ln, 0) + q
 
     rows_out = [{"name": k,
                  "qty": int(round(sum(v.values()))),
-                 "by_line": {a: int(round(b)) for a, b in v.items()}}
+                 # 0 이 되는 라인은 아예 빼서 'NRD-K 0' 같은 줄이 안 나오게 한다.
+                 "by_line": {a: int(round(b)) for a, b in v.items()
+                             if round(b) > 0}}
                 for k, v in out.items()]
     rows_out.sort(key=lambda x: -x["qty"])
     return JsonResponse({
-        "rows": rows_out[:40],
+        # 요약카드 행과 맞춰 보려면 넉넉해야 한다. 잘리면 줄이 안 뜬다.
+        "rows": rows_out,
         "lines": [c["line"] for c in LINE_CARDS],
         "labels": {c["line"]: c["label"] for c in LINE_CARDS},
     }, json_dumps_params={"ensure_ascii": False})

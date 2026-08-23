@@ -1138,7 +1138,6 @@ function loadBalance(show) {
     balSyncBtns();
     drawBalance();
     resizeCharts();
-    requestAnimationFrame(drawFlow);
     dbgSnapshot("LOT BALANCE");
     if (BAL_OPEN_ID) {
       renderBalMenu(BAL_OPEN_ID === "balpick" ? "prod" : "plan");
@@ -2490,6 +2489,22 @@ function renderCause() {
     CZ_STACK.filter(x => x.i === i).forEach(x => marks.add(x.path[0].name));
     const here0 = nodes.filter(x => marks.has(x.name)).map(x => x.name);
     czApply(czCharts[i], nodes, u, null, here0);
+    // Bottleneck 카드에는 전 라인 토글을 붙인다.
+    const hdEl = document.getElementById("czh" + i);
+    const akey = czAllKey(i, []);
+    if (hdEl && akey === "neck" && !hdEl.querySelector(".insall")) {
+      hdEl.insertAdjacentHTML("beforeend", czAllBtn(akey));
+    }
+    const pEl = document.getElementById("czp" + i);
+    if (pEl && akey) {
+      const old = pEl.querySelector(".czallwrap");
+      if (old) { old.remove(); }
+      const html = czAllRows(akey, nodes);
+      if (html) {
+        pEl.insertAdjacentHTML("beforeend",
+          `<div class="czallwrap">${html}</div>`);
+      }
+    }
     const col = document.getElementById("czh" + i).parentNode;
     col.classList.toggle("czsrc", !!srcHere);
   }
@@ -2497,7 +2512,6 @@ function renderCause() {
   if (CAUSE_VIEW === "all") { renderCauseAllBar(); }
   renderCzStack();
   renderCzWide();
-  requestAnimationFrame(drawFlow);
 }
 
 /* 우측 드릴다운 중분류 차트 --------------------------------------------
@@ -2538,6 +2552,49 @@ function czStackClose(n) {
   renderCause();
 }
 
+// 설비 단위로 보는 차트에는 '전 라인' 토글을 둔다.
+//   같은 설비를 여러 라인이 쓰므로 제 라인만 봐선 뜻이 없다.
+const CZ_ALL = {};            // 키 -> 켜짐
+const CZ_ALL_DATA = {};       // 키 -> /api/eqp-wait/ 결과
+
+function czAllKey(i, path) {
+  const mid = (path || []).find(p => p.kind === "mid");
+  if (czGroup(i).name === "Bottleneck") { return "neck"; }
+  if (mid && mid.name === "설비이슈") { return "eqp"; }
+  if (mid && mid.name === "TIP") { return "tip"; }
+  return null;
+}
+
+function czAllToggle(key) {
+  CZ_ALL[key] = !CZ_ALL[key];
+  if (!CZ_ALL[key]) { renderCause(); return; }
+  fetch("/api/eqp-wait/?kind=" + encodeURIComponent(key)
+        + "&types=" + encodeURIComponent(selectedTypes().join(",")))
+    .then(r => r.json()).then(d => { CZ_ALL_DATA[key] = d; renderCause(); });
+}
+
+function czAllBtn(key) {
+  if (!key) { return ""; }
+  return `<button class="insall ${CZ_ALL[key] ? "on" : ""}"`
+    + ` onclick="event.stopPropagation();czAllToggle('${key}')"`
+    + ` title="라인 구분 없이 그 설비 앞에 선 재공을 모두 본다">전 라인</button>`;
+}
+
+// 전 라인 보기일 때 막대 아래에 라인별 값을 적는다.
+function czAllRows(key, nodes) {
+  const d = key && CZ_ALL[key] && CZ_ALL_DATA[key];
+  if (!d) { return ""; }
+  const lab = d.labels || {};
+  return nodes.slice(0, 8).map(n => {
+    const hit = (d.rows || []).find(x => x.name === n.name);
+    if (!hit) { return ""; }
+    const parts = Object.keys(hit.by_line)
+      .map(ln => `${lab[ln] || ln} ${kfmt(hit.by_line[ln])}`);
+    return `<div class="czallrow"><b>${czLabel(n.name, 14)}</b>`
+      + ` 전 라인 ${kfmt(hit.qty)}매 · ${parts.join(" · ")}</div>`;
+  }).join("");
+}
+
 function renderCzStack() {
   const box = document.getElementById("czstack");
   if (!box) { return; }
@@ -2565,10 +2622,14 @@ function renderCzStack() {
     const nodes = czNodesAt(step.i, step.path).slice(0, 20);
     document.getElementById("czst" + n).textContent =
       [g.name].concat(step.path.map(x => x.name)).join(" > ");
+    const akey = czAllKey(step.i, step.path);
     document.getElementById("czsp" + n).innerHTML =
       `<span class="minittl">상위 ${nodes.length}개 · 막대를 누르면 `
       + `${n + 1 < CZ_STACK.length ? "이 아래로 다시 파고든다"
-                                   : "더 파고들거나 LOT 상세"}</span>`;
+                                   : "더 파고들거나 LOT 상세"}</span>`
+      + czAllBtn(akey)
+      + (czAllRows(akey, nodes)
+         ? `<div class="czallwrap">${czAllRows(akey, nodes)}</div>` : "");
 
     if (!czStackCharts[n]) {
       czStackCharts[n] = czBarChart("czsc" + n, (idx, ev) => {
@@ -2613,7 +2674,6 @@ function czShowAll(i) {
   if (CAUSE_VIEW === "all") { renderCauseAllBar(); }
   renderCzStack();
   renderCzWide();
-  requestAnimationFrame(drawFlow);
 }
 
 /* 우측 드릴다운 중분류 차트 --------------------------------------------
@@ -2670,6 +2730,13 @@ function insAllRow(key, eqp) {
     + ` · ${parts.join(" · ")}</div>`;
 }
 
+let INS_FULL = null;          // 전체 순위로 펼친 카드 키
+
+function insFull(key) {
+  INS_FULL = (INS_FULL === key) ? null : key;
+  renderInsight();
+}
+
 function renderInsight() {
   const box = document.getElementById("insight");
   const cards = (DATA && DATA.insights) || [];
@@ -2685,9 +2752,15 @@ function renderInsight() {
   document.getElementById("insSub").textContent =
     `비율은 라인 전체 재공 ${nf((DATA.total || {}).qty || 0)}매 대비`;
 
-  document.getElementById("insBody").innerHTML = cards.map((c, ci) => {
+  const body = document.getElementById("insBody");
+  body.classList.toggle("full", !!INS_FULL);
+
+  body.innerHTML = cards.map((c, ci) => {
     if (!(c.rank || []).length) { return ""; }
-    const rows = c.rank.map((x, n) => {
+    // 전체 순위로 펼친 카드가 있으면 그 카드만 보인다.
+    if (INS_FULL && INS_FULL !== c.key) { return ""; }
+    const shown = INS_FULL === c.key ? c.rank : c.rank.slice(0, 5);
+    const rows = shown.map((x, n) => {
       // 경로: 첫 칸은 굵게, 나머지는 > 로 잇는다
       const p = x.path.map((v, k) => k === 0
         ? `<b>${v}</b>` : `<span>${v}</span>`).join(`<i>&gt;</i>`);
@@ -2722,8 +2795,14 @@ function renderInsight() {
         + ` title="라인 구분 없이 그 설비 앞에 선 재공을 모두 본다">`
         + `전 라인</button>`
       : "";
-    return `<div class="inscard"><div class="insh">${c.title}${tg}`
-      + `<span>${nf(c.qty)}매</span></div>${rows}</div>`;
+    const fb = `<button class="insall ${INS_FULL === c.key ? "on" : ""}"`
+      + ` onclick="event.stopPropagation();insFull('${c.key}')"`
+      + ` title="이 카드만 남기고 상위 20개를 본다">전체 순위</button>`;
+    // 전체 순위면 네 칸으로 나눠 세로 길이를 줄인다.
+    const inner = (INS_FULL === c.key)
+      ? `<div class="insgrid">${rows}</div>` : rows;
+    return `<div class="inscard"><div class="insh">${c.title}${tg}${fb}`
+      + `<span>${nf(c.qty)}매</span></div>${inner}</div>`;
   }).join("");
 }
 
@@ -2773,79 +2852,6 @@ function insPick(ci, n) {
   syncFromDF();
 }
 
-/* 드릴다운 흐름 화살표 -------------------------------------------------
-   무엇을 골라 무엇이 생겼는지 카드끼리 잇는다.
-   카드 모서리에서 출발해 **카드 사이 여백**을 타고 흐른다.
---------------------------------------------------------------------- */
-function drawFlow() {
-  // 카드 안에 두면 뒤따르는 카드가 덮는다. body 에 붙여 맨 위에 그린다.
-  let svg = document.getElementById("flow");
-  if (!svg) {
-    svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.id = "flow";
-    svg.setAttribute("aria-hidden", "true");
-    document.body.appendChild(svg);
-  }
-
-  // 지금 이어져야 할 카드 순서를 모은다.
-  const ids = [];
-  if (CZ_STACK.length || DF_CAUSE) { ids.push("czcard"); }
-  CZ_STACK.forEach((_, n) => ids.push("czs" + n));
-  if (CZ_WIDE) { ids.push("czdrill"); }
-  const bal = document.getElementById("balpanel");
-  if (bal && bal.style.display !== "none") { ids.push("balpanel"); }
-  const dr = document.getElementById("drill");
-  if (dr && (Object.keys(DF).length || DF_CAUSE)) { ids.push("drill"); }
-
-  const els = ids.map(id => document.getElementById(id)).filter(Boolean);
-  if (els.length < 2) {
-    svg.innerHTML = "";
-    svg.style.display = "none";
-    // 이어질 카드가 없어도 왜 없는지 남긴다.
-    dbgMark("화살표 없음(카드 " + els.length + "개, 후보 " + ids.length + ")");
-    return;
-  }
-
-  const host = document.querySelector(".maincol");
-  if (!host) { return; }
-  const hb = host.getBoundingClientRect();
-  // "" 로 비우면 CSS 의 display:none 이 되살아난다. 반드시 켜 준다.
-  svg.style.display = "block";
-  svg.setAttribute("width", Math.round(hb.width) + 20);
-  svg.setAttribute("height", Math.round(hb.height));
-  svg.style.left = Math.round(hb.left + window.pageXOffset) - 20 + "px";
-  svg.style.top = Math.round(hb.top + window.pageYOffset) + "px";
-
-  const parts = [
-    `<defs><marker id="fa" markerWidth="7" markerHeight="7" refX="6" refY="3"`
-    + ` orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#2E1A47"/></marker></defs>`
-  ];
-  for (let i = 0; i + 1 < els.length; i++) {
-    const a = els[i].getBoundingClientRect();
-    const b = els[i + 1].getBoundingClientRect();
-    const OX = 20;                    // svg 를 왼쪽으로 넓힌 만큼
-    const ax = a.right - hb.left + OX, ay = a.top - hb.top + a.height / 2;
-    const bx = b.left - hb.left + OX, by = b.top - hb.top + b.height / 2;
-    let d;
-    if (bx >= ax - 4) {
-      // 오른쪽 카드로. 두 카드 사이 여백 한가운데를 지난다.
-      const mx = (ax + bx) / 2;
-      d = `M${ax},${ay} H${mx} V${by} H${bx}`;
-    } else {
-      // 아래 카드로. 왼쪽 바깥 여백을 타고 내려간다.
-      const a2 = els[i].getBoundingClientRect();
-      const lx = Math.min(a2.left, b.left) - hb.left + OX - 8;
-      d = `M${a2.left - hb.left + OX},${ay} H${lx} V${by} H${bx}`;
-    }
-    parts.push(`<path d="${d}" fill="none" stroke="#2E1A47" stroke-width="1.4"`
-      + ` stroke-dasharray="4 3" marker-end="url(#fa)" opacity=".75"/>`);
-  }
-  svg.innerHTML = parts.join("");
-  dbgMark("화살표 갱신");
-}
-
-window.addEventListener("resize", () => requestAnimationFrame(drawFlow));
-window.addEventListener("scroll", () => requestAnimationFrame(drawFlow), true);
 
 /* 선택 표시 · 화살표 진단 ---------------------------------------------
    실제로 화면에 보이는지까지 잰다. 코드가 돌았는지가 아니라
@@ -3458,9 +3464,11 @@ function renderConds() {
 /* 조건이 걸린 카드마다 제목 우측에 '해제' 버튼을 붙인다.
    차트마다 따로 만들지 않고 한 곳에서 관리한다.
 --------------------------------------------------------------------- */
+// 카드마다 그 카드가 거는 조건. 여럿이면 함께 해제한다.
 const CARD_COND = {
-  wipcard: "type", stcard: "status", wtcard: "wt", wt0card: "wt0",
-  areacard: "iarea", balpanel: "layer", czcard: "cause",
+  wipcard: ["type", "iprod"], stcard: ["status"], wtcard: ["wt"],
+  wt0card: ["wt0"], areacard: ["iarea"], balpanel: ["layer"],
+  czcard: ["cause"],
 };
 
 function syncCardClear() {
@@ -3469,8 +3477,9 @@ function syncCardClear() {
     if (!card) { return; }
     const ttl = card.querySelector(".cellttl");
     if (!ttl) { return; }
-    const key = CARD_COND[id];
-    const on = (key === "cause") ? !!DF_CAUSE : (DF[key] || []).length > 0;
+    const keys = CARD_COND[id];
+    const on = keys.some(k =>
+      (k === "cause") ? !!DF_CAUSE : (DF[k] || []).length > 0);
 
     let btn = ttl.querySelector(".cardclr");
     if (!on) { if (btn) { btn.remove(); } return; }
@@ -3481,9 +3490,14 @@ function syncCardClear() {
       btn.textContent = "◀ 해제";
       btn.onclick = (e) => {
         e.stopPropagation();
-        if (key === "cause") { czAskClose(); CZ_STACK = []; CZ_WIDE = null;
-                               CZ_SEL = { i: -1, path: [] }; }
-        dfClear(key);
+        keys.forEach(k => {
+          if (k === "cause") {
+            czAskClose(); CZ_STACK = []; CZ_WIDE = null;
+            CZ_SEL = { i: -1, path: [] };
+            DF_CAUSE = null;
+          } else { delete DF[k]; }
+        });
+        syncFromDF();
       };
       ttl.appendChild(btn);
     }
@@ -3904,7 +3918,6 @@ function openDrill(filt, label, src, keepView) {
     renderDrillTable();
     renderConds();
     resizeCharts();
-    requestAnimationFrame(drawFlow);
     dbgSnapshot("드릴다운 표");
   }).catch(e => { if (e.name !== "AbortError") { throw e; } });
 }
