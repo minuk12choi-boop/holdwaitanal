@@ -100,7 +100,13 @@
     <div class="cell" id="insight" style="display:none;border:1px solid var(--bd);
          border-radius:6px;padding:10px 12px;margin-bottom:10px">
       <div class="cellttl"><span>지금 이 라인의 문제</span>
-        <span class="v" id="insSub"></span></div>
+        <span class="v" id="insSub"></span>
+        <span class="seg">
+          <button class="on" id="ib_day" onclick="setInsBase('prev_day')"
+                  title="어제 같은 SHIFT 와 견준다">전일 동일 SHIFT</button>
+          <button id="ib_sh" onclick="setInsBase('prev_shift')"
+                  title="바로 앞 SHIFT 와 견준다">직전 SHIFT</button>
+        </span></div>
       <div class="insrow" id="insBody"></div>
     </div>
 
@@ -2134,57 +2140,74 @@ function syncLeftHeight() {
    매수가 많이 쌓인 곳을 순서대로 놓고, 그것이 만든 W/T 저해를 잇는다.
    카드를 누르면 그 원인으로 화면 전체가 좁혀진다.
 --------------------------------------------------------------------- */
+let INS_BASE = "prev_day";
+
+function setInsBase(v) {
+  INS_BASE = v;
+  document.getElementById("ib_day").className = (v === "prev_day") ? "on" : "";
+  document.getElementById("ib_sh").className = (v === "prev_shift") ? "on" : "";
+  loadSummary(true);
+}
+
 function renderInsight() {
   const box = document.getElementById("insight");
-  const list = (DATA && DATA.insights) || [];
-  if (!list.length) { box.style.display = "none"; return; }
+  const cards = (DATA && DATA.insights) || [];
+  const any = cards.some(c => (c.rank || []).length);
+  if (!any) { box.style.display = "none"; return; }
   box.style.display = "";
 
-  const tot = (DATA.total || {}).qty || 0;
   document.getElementById("insSub").textContent =
-    `재공 ${nf(tot)}매 기준 · 전일 같은 SHIFT 대비`;
+    `재공 ${nf((DATA.total || {}).qty || 0)}매 기준`;
 
-  document.getElementById("insBody").innerHTML = list.map((x, n) => {
-    const name = x.mid ? `${x.big} &gt; ${x.mid}` : x.big;
-    // 추세
-    let tr = `<span class="instr flat">비교 없음</span>`;
-    if (x.delta !== null && x.delta !== undefined) {
-      const up = x.delta > 0, z = x.delta === 0;
-      tr = `<span class="instr ${z ? "flat" : (up ? "up" : "dn")}">`
-        + `${z ? "→ 변동 없음" : (up ? "▲ +" : "▼ ") + nf(Math.abs(x.delta))}`
-        + `</span>`;
-    }
-    // 어디에 몰렸나
-    const where = [
-      x.sub ? `${x.sub.name} ${kfmt(x.sub.qty)}매` : "",
-      x.layer ? `LAYER ${x.layer.name}` : "",
-      x.prod ? `제품 ${x.prod.name}` : "",
-    ].filter(Boolean).join(" · ");
-    // 무엇으로 이어졌나
-    const eff = x.wt0_qty
-      ? `W/T 0 <b>${kfmt(x.wt0_qty)}매</b>`
-        + (x.idle_avg !== null ? ` · 평균 ${x.idle_avg}일 정체` : "")
-        + (x.idle_max !== null ? ` · 최장 ${x.idle_max}일` : "")
-      : "W/T 저해 없음";
-
-    return `<div class="inscard" onclick="insPick(${n})">`
-      + `<div class="insh"><b>${n + 1}</b> ${name}${tr}</div>`
-      + `<div class="insq">${nf(x.qty)}<em>매</em>`
-      + `<span class="inspc">${x.pct}%</span></div>`
-      + `<div class="insw">${where || "&nbsp;"}</div>`
-      + `<div class="inse">${eff}</div></div>`;
+  document.getElementById("insBody").innerHTML = cards.map((c, ci) => {
+    if (!(c.rank || []).length) { return ""; }
+    const rows = c.rank.map((x, n) => {
+      // 경로: 첫 칸은 굵게, 나머지는 > 로 잇는다
+      const p = x.path.map((v, k) => k === 0
+        ? `<b>${v}</b>` : `<span>${v}</span>`).join(`<i>&gt;</i>`);
+      let tr = "";
+      if (x.delta !== null && x.delta !== undefined && x.delta !== 0) {
+        const up = x.delta > 0;
+        tr = `<span class="instr ${up ? "up" : "dn"}">`
+          + `${up ? "▲" : "▼"}${kfmt(Math.abs(x.delta))}</span>`;
+      }
+      // 호환 그룹에서 막힌 설비가 있으면 그 때문에 neck 이 된 것이다.
+      const bl = x.blocked
+        ? `<span class="insbl" title="호환 그룹의 이 설비가 막혀 있다">`
+          + `막힘 ${x.blocked.map(z => z.name).join(", ")}</span>`
+        : (c.key === "neck" ? `<span class="insbl ok">순수 몰림</span>` : "");
+      const idle = (x.idle_avg !== null && x.idle_avg !== undefined)
+        ? ` · 평균 ${x.idle_avg}일` : "";
+      return `<div class="insline" onclick="insPick(${ci},${n})">`
+        + `<span class="insno">${n + 1}</span>`
+        + `<span class="inspath">${p}</span>${bl}`
+        + `<span class="insqty">${nf(x.qty)}<em>매</em></span>`
+        + `<span class="inspc">${x.pct}%</span>${tr}`
+        + `<span class="inswt">W/T0 ${kfmt(x.wt0_qty)}${idle}</span></div>`;
+    }).join("");
+    return `<div class="inscard"><div class="insh">${c.title}`
+      + `<span>${nf(c.qty)}매</span></div>${rows}</div>`;
   }).join("");
 }
 
 // 카드를 누르면 그 원인으로 화면 전체를 좁힌다.
-function insPick(n) {
-  const x = (DATA.insights || [])[n];
+function insPick(ci, n) {
+  const c = (DATA.insights || [])[ci];
+  const x = c && (c.rank || [])[n];
   if (!x) { return; }
-  const i = (DATA.causes || []).findIndex(g => g.name === x.big);
-  if (i < 0) { return; }
   dfReset();
-  DF_CAUSE = { i: i, or: [{ big: x.big, mid: x.mid || null, sub: null }] };
-  syncFromDF();
+  const p = x.path;
+  if (c.key === "lot") {
+    // [머리, 제품, (모듈), LAYER] -> 제품은 최상단 필터, LAYER 는 조건
+    if (p[1]) { PROD2 = [p[1]]; }
+    if (p.length > 2) {
+      setCond("layer", p[p.length - 1], null, null, false, "insight");
+    }
+  } else {
+    // [머리, AREA, 설비] -> AREA 는 최상단 필터
+    if (p[1]) { AREAS = [p[1]]; }
+  }
+  loadSummary();          // 최상단 필터가 바뀌었으니 전체를 다시 읽는다
 }
 
 /* 클릭 진단 ------------------------------------------------------------
@@ -3034,6 +3057,7 @@ function loadSummary(keepFocus) {
         + "&prod2=" + encodeURIComponent(PROD2.join(","))
         + "&area=" + encodeURIComponent(AREAS.join(","))
         // 같은 필드를 여러 개 고를 수 있다. 조건 저장소를 그대로 보낸다.
+        + "&ins_base=" + encodeURIComponent(INS_BASE)
         + "&f_status=" + encodeURIComponent((DF.status || []).join(","))
         + "&f_wt=" + encodeURIComponent((DF.wt || []).join(","))
         + "&f_wt0=" + encodeURIComponent((DF.wt0 || []).join(","))

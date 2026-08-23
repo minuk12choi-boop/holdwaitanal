@@ -381,29 +381,34 @@
   ------------------------------------------------------------------- */
   /* ── 라인 요약 카드 ───────────────────────────────────────────────── */
   .insrow { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
-  .inscard { border:1px solid var(--bd); border-radius:6px; padding:8px 10px;
-             cursor:pointer; background:#FCFCFD; min-width:0; }
-  .inscard:hover { border-color:var(--brand); background:#F7F9FC; }
-  .insh { font-size:11px; color:var(--fg); display:flex; align-items:center;
-          gap:5px; white-space:nowrap; overflow:hidden;
-          text-overflow:ellipsis; }
-  .insh > b { background:var(--brand); color:#fff; border-radius:3px;
-              padding:0 5px; font-size:10px; }
-  .instr { margin-left:auto; font-size:10px; font-weight:700; }
+  .inscard { border:1px solid var(--bd); border-radius:6px; padding:7px 8px;
+             background:#FCFCFD; min-width:0; }
+  .insh { font-size:11px; font-weight:700; color:var(--brand);
+          display:flex; gap:6px; margin-bottom:4px; white-space:nowrap;
+          overflow:hidden; text-overflow:ellipsis; }
+  .insh > span { margin-left:auto; color:var(--mut); font-weight:400; }
+  .insline { display:flex; align-items:center; gap:5px; font-size:10px;
+             padding:3px 2px; border-top:1px solid #EEF0F3; cursor:pointer;
+             white-space:nowrap; }
+  .insline:hover { background:#F1F5FB; }
+  .insno { color:var(--mut); width:11px; }
+  .inspath { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .inspath b { color:var(--fg); }
+  .inspath i { color:var(--mut); font-style:normal; margin:0 3px; }
+  .inspath span { color:var(--mut); }
+  .insbl { color:#B91C1C; font-size:9px; border:1px solid #F3C7C7;
+           border-radius:3px; padding:0 3px; }
+  .insbl.ok { color:#15803D; border-color:#CBE7D5; }
+  .insqty { margin-left:auto; font-weight:700; }
+  .insqty em { font-size:9px; font-weight:400; font-style:normal;
+               color:var(--mut); margin-left:1px; }
+  .inspc { color:var(--mut); width:34px; text-align:right; }
+  .instr { font-weight:700; width:38px; text-align:right; }
   .instr.up { color:#B91C1C; }
   .instr.dn { color:#15803D; }
-  .instr.flat { color:var(--mut); font-weight:400; }
-  .insq { font-size:19px; font-weight:700; margin:3px 0 1px;
-          display:flex; align-items:baseline; gap:3px; }
-  .insq em { font-size:11px; font-weight:400; font-style:normal;
-             color:var(--mut); }
-  .inspc { margin-left:auto; font-size:11px; font-weight:400;
-           color:var(--mut); }
-  .insw { font-size:10px; color:var(--mut); white-space:nowrap;
-          overflow:hidden; text-overflow:ellipsis; }
-  .inse { font-size:10px; color:#B4504F; margin-top:3px; white-space:nowrap;
-          overflow:hidden; text-overflow:ellipsis; }
-  @media (max-width: 1180px) {
+  .inswt { color:#B4504F; width:104px; text-align:right; overflow:hidden;
+           text-overflow:ellipsis; }
+  @media (max-width: 1400px) {
     .insrow { grid-template-columns:repeat(2, 1fr); }
   }
 

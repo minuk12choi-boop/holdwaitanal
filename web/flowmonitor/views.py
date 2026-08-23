@@ -1615,7 +1615,8 @@ def api_summary(request):
             "color": STATUS_COLORS["HOLD"],
         })(next((x for x in status if x["name"] == "HOLD"),
                 {"lots": 0, "qty": 0})),
-        "insights": _build_insights(line, types, rows, mv, rules, ht, cls, tot),
+        "insights": _build_insights(line, types, rows, mv, rules, ht, cls, tot,
+                                    base=request.GET.get("ins_base", "prev_day")),
         "wt0_bins": WT0_BINS,
         "wt0_dist": [{"name": b["key"], "label": b["label"],
                       **by_wt0.get(b["key"], {"lots": 0, "qty": 0}),
@@ -2206,53 +2207,39 @@ def api_debug_layout(request):
     return JsonResponse({"ok": True})
 
 
-def _build_insights(line, types, rows, mv, rules, ht, cls, tot, top_n=4):
-    """라인의 문제를 매수 순으로 추린다. 전일 같은 SHIFT 와 견준다."""
-    unit = _insight_units(rows, mv, rules, ht, cls)
-    if not unit:
-        return []
-
-    # 전일 같은 SHIFT. 없으면 추세는 생략한다.
-    prev = {}
-    try:
-        today = _biz_today()
-        sh = _shifts_started(today)
-        if sh and _table_exists("f3_history"):
-            y = str(today - dt.timedelta(days=1))
-            prows, _ = _summary_rows(line, types, biz_date=y, shift=sh[-1])
-            if prows:
-                prev = {k: v["qty"]
-                        for k, v in _insight_units(prows, mv, rules, ht).items()}
-    except Exception as e:                     # 비교는 있으면 좋은 정보다
-        print(f"[INSIGHT] 전일 비교 생략: {type(e).__name__}", flush=True)
-
-    out = []
-    total = tot.get("qty") or 0
-    for key, u in sorted(unit.items(), key=lambda kv: -kv[1]["qty"])[:top_n]:
-        idle = u["idle"]
-        out.append({
-            "big": u["big"], "mid": u["mid"],
-            "lots": u["lots"], "qty": u["qty"],
-            "pct": round(u["qty"] / total * 100, 1) if total else 0,
-            "sub": _top(u["sub"]), "layer": _top(u["layer"]),
-            "prod": _top(u["prod"]),
-            "wt0_qty": u["wt0_qty"],
-            "idle_avg": round(sum(idle) / len(idle), 1) if idle else None,
-            "idle_max": round(max(idle), 1) if idle else None,
-            "delta": (u["qty"] - prev[key]) if key in prev else None,
-        })
-    return out
+def _ins_path(r, kind):
+    """카드별 계층 경로. 카드 성격에 맞춰 다르게 판다."""
+    if kind == "lot":
+        # LOT 자체에 걸린 제약: 제품 > 모듈 > LAYER
+        mod = str(r.get("module1") or "").strip()
+        lay = str(r.get("layer_id") or "").strip()
+        out = [str(r.get("prod2") or "").strip() or UNCLASSIFIED]
+        if mod:
+            out.append(mod)
+        if lay:
+            out.append(lay)
+        return out
+    # 설비에 걸린 제약: AREA > 설비 ID
+    area = str(r.get("AREA") or "").strip() or UNCLASSIFIED
+    eqps = _eqp_ids(r) or [str(r.get("eqpgroup") or "").strip()]
+    return [area, (eqps[0] if eqps else UNCLASSIFIED)]
 
 
-def _insight_units(rows, mv, rules, ht, cls=None):
-    """(대분류 > 중분류) 단위로 문제를 집계한다.
-
-    카드 하나가 곧 '무엇이 문제인가' 다. 그 안에서 가장 큰 설비/LAYER/제품과
-    W/T 저해를 함께 담는다.
-    """
+def _ins_bucket(rows, mv, rules, ht, cls=None):
+    """카드 네 종류로 나누고, 각자의 경로로 5순위까지 센다."""
     from collections import defaultdict
 
-    unit = {}
+    cards = {
+        "lot":  {"title": "LOT 제약 (HOLD · 예약제외 · FTP)", "kind": "lot",
+                 "items": defaultdict(lambda: _ins_new())},
+        "neck": {"title": "Bottleneck (재공 몰림)", "kind": "eqp",
+                 "items": defaultdict(lambda: _ins_new())},
+        "eqp":  {"title": "설비 이슈 (진행 불가)", "kind": "eqp",
+                 "items": defaultdict(lambda: _ins_new())},
+        "tip":  {"title": "PREVENT", "kind": "eqp",
+                 "items": defaultdict(lambda: _ins_new())},
+    }
+
     for r in rows:
         got = (cls or {}).get(r["lot_id"])
         if got is None:
@@ -2260,31 +2247,99 @@ def _insight_units(rows, mv, rules, ht, cls=None):
         big, mid, subs = got
         if not big:
             continue
-        key = (big, mid or "")
-        u = unit.setdefault(key, {
-            "big": big, "mid": mid or "", "lots": 0, "qty": 0,
-            "sub": defaultdict(int), "layer": defaultdict(int),
-            "prod": defaultdict(int),
-            "wt0_qty": 0, "idle": [],
-        })
+
+        card, head, extra = None, None, None
+        if big == "Hold":
+            card, head = "lot", "HOLD"
+        elif big == "Wait성 진행불가" and mid in ("예약제외", "FTP"):
+            card, head = "lot", mid
+        elif big == "Wait성 진행불가" and mid == "설비이슈":
+            # PM / DOWN / LOCAL 같은 설비 상태를 접두로 쓴다.
+            card = "eqp"
+            head = _eqp_status_of(r.get("down")) or "설비이슈"
+        elif big == "Wait성 진행불가" and mid == "TIP":
+            card, head = "tip", "PREVENT"
+        elif big == "Bottleneck":
+            card, head = "neck", "Bottleneck"
+            # 호환 그룹 안에 막힌 설비가 있으면 그것 때문에 neck 이 된 것이다.
+            blocked = _blocked_eqps(r)
+            extra = sorted(blocked) if blocked else None
+        if not card:
+            continue
+
+        path = tuple([head] + _ins_path(r, cards[card]["kind"]))
+        it = cards[card]["items"][path]
         q = num(r.get("qty"))
-        u["lots"] += 1
-        u["qty"] += q
-        for x in (subs or []):
-            u["sub"][x] += q
-        lay = str(r.get("layer_id") or "").strip()
-        if lay:
-            u["layer"][lay] += q
-        pr = str(r.get("prod2") or "").strip()
-        if pr:
-            u["prod"][pr] += q
-        # W/T 저해: 오늘 한 번도 못 움직인 재공과 그 정체 기간
+        it["lots"] += 1
+        it["qty"] += q
+        if extra:
+            for e in extra:
+                it["blocked"][e] += q
+            it["blocked_qty"] += q
         if calc_wt(mv, r["lot_id"], q, r.get("lot_status")) <= 0:
-            u["wt0_qty"] += q
+            it["wt0_qty"] += q
             d = num_f(r.get("마지막작업경과_일"))
             if d is not None:
-                u["idle"].append(d)
-    return unit
+                it["idle"].append(d)
+    return cards
+
+
+def _ins_new():
+    from collections import defaultdict
+    return {"lots": 0, "qty": 0, "wt0_qty": 0, "idle": [],
+            "blocked": defaultdict(int), "blocked_qty": 0}
+
+
+def _build_insights(line, types, rows, mv, rules, ht, cls, tot,
+                    top_n=5, base="prev_day"):
+    """카드 네 장. 각 카드 안에서 매수 순으로 5순위까지."""
+    cards = _ins_bucket(rows, mv, rules, ht, cls)
+
+    # 비교 기준 스냅샷
+    prev = {}
+    try:
+        today = _biz_today()
+        sh = _shifts_started(today)
+        if sh and _table_exists("f3_history"):
+            if base == "prev_shift" and len(sh) > 1:
+                bd, bs = str(today), sh[-2]
+            else:
+                bd, bs = str(today - dt.timedelta(days=1)), sh[-1]
+            prows, _ = _summary_rows(line, types, biz_date=bd, shift=bs)
+            if prows:
+                pc = _ins_bucket(prows, mv, rules, ht)
+                for ck, cv in pc.items():
+                    for pk, pv in cv["items"].items():
+                        prev[(ck, pk)] = pv["qty"]
+    except Exception as e:
+        print(f"[INSIGHT] 비교 생략: {type(e).__name__}", flush=True)
+
+    out = []
+    total = tot.get("qty") or 0
+    for ck, cv in cards.items():
+        items = sorted(cv["items"].items(), key=lambda kv: -kv[1]["qty"])
+        rank = []
+        csum = 0
+        for path, v in items[:top_n]:
+            idle = v["idle"]
+            csum += v["qty"]
+            bl = sorted(v["blocked"].items(), key=lambda kv: -kv[1])
+            rank.append({
+                "path": list(path), "lots": v["lots"], "qty": v["qty"],
+                "pct": round(v["qty"] / total * 100, 1) if total else 0,
+                "wt0_qty": v["wt0_qty"],
+                "idle_avg": round(sum(idle) / len(idle), 1) if idle else None,
+                "idle_max": round(max(idle), 1) if idle else None,
+                "delta": (v["qty"] - prev[(ck, path)])
+                         if (ck, path) in prev else None,
+                # Bottleneck 전용: 호환 그룹에서 막힌 설비
+                "blocked": [{"name": a, "qty": b} for a, b in bl[:3]] or None,
+                "blocked_qty": v["blocked_qty"] or None,
+            })
+        out.append({"key": ck, "title": cv["title"],
+                    "qty": sum(v["qty"] for _, v in items),
+                    "shown": csum, "rank": rank})
+    return out
 
 
 def _top(d):
