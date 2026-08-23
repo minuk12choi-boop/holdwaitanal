@@ -101,12 +101,7 @@
          border-radius:6px;padding:10px 12px;margin-bottom:10px">
       <div class="cellttl"><span>지금 이 라인의 문제</span>
         <span class="v" id="insSub"></span>
-        <span class="seg">
-          <button class="on" id="ib_day" onclick="setInsBase('prev_day')"
-                  title="어제 같은 SHIFT 와 견준다">전일 동일 SHIFT</button>
-          <button id="ib_sh" onclick="setInsBase('prev_shift')"
-                  title="바로 앞 SHIFT 와 견준다">직전 SHIFT</button>
-        </span></div>
+</div>
       <div class="insrow" id="insBody"></div>
     </div>
 
@@ -1179,11 +1174,12 @@ function dfResetBelow(lv, keepCz) {
 
 // 같은 계층의 다른 차트 조건을 지운다.
 let DF = {};                 // {키: [값...]}
+let DF_X = {};               // 요약카드 전용 조건(x_prod / x_mod / x_area / x_eqp)
 let DF_CAUSE = null;         // {big, mid, subs:[], i}
 let DF_LABEL = {};           // 화면 표시용 라벨
 
 function dfReset() {
-  DF = {}; DF_CAUSE = null; DF_LABEL = {};
+  DF = {}; DF_CAUSE = null; DF_LABEL = {}; DF_X = {};
   Object.keys(DF_SRC).forEach(k => delete DF_SRC[k]);
   CZ_STACK = []; CZ_WIDE = null; CZ_SEL = { i: -1, path: [] };
 }
@@ -1338,6 +1334,7 @@ function dfClearAllConds() {
 
 function dfFilter() {
   const f = {};
+  Object.keys(DF_X).forEach(k => { f[k] = DF_X[k].join(","); });
   DF_DEF.forEach(d => { if (DF[d.k]) { f[d.param] = DF[d.k].join(","); } });
   if (DF_CAUSE) {
     // 서로 다른 대분류를 함께 고르면 AND 로는 늘 0 이다. OR 로 보낸다.
@@ -1367,6 +1364,8 @@ function dfTitle() {
   const out = [];
   DF_DEF.forEach(d => { const n = dfOneName(d); if (n) { out.push(n); } });
   if (DF_CAUSE) { out.push(causeName()); }
+  const XT = { x_prod: "제품", x_mod: "모듈", x_area: "AREA", x_eqp: "설비" };
+  Object.keys(DF_X).forEach(k => out.push(XT[k] + " " + DF_X[k].join(", ")));
   return out.join(" · ");
 }
 
@@ -1400,7 +1399,7 @@ function syncFromDF() {
   if (DATA) {
     renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
     }
-  const any = Object.keys(DF).length || DF_CAUSE;
+  const any = Object.keys(DF).length || DF_CAUSE || Object.keys(DF_X).length;
   markActiveCards();      // 표가 없어도 카드 강조는 항상 맞춘다
 
   // 요약(원인 분석)을 먼저 띄운다. 표는 응답이 수 MB 라 먼저 보내면
@@ -2140,15 +2139,6 @@ function syncLeftHeight() {
    매수가 많이 쌓인 곳을 순서대로 놓고, 그것이 만든 W/T 저해를 잇는다.
    카드를 누르면 그 원인으로 화면 전체가 좁혀진다.
 --------------------------------------------------------------------- */
-let INS_BASE = "prev_day";
-
-function setInsBase(v) {
-  INS_BASE = v;
-  document.getElementById("ib_day").className = (v === "prev_day") ? "on" : "";
-  document.getElementById("ib_sh").className = (v === "prev_shift") ? "on" : "";
-  loadSummary(true);
-}
-
 function renderInsight() {
   const box = document.getElementById("insight");
   const cards = (DATA && DATA.insights) || [];
@@ -2165,12 +2155,6 @@ function renderInsight() {
       // 경로: 첫 칸은 굵게, 나머지는 > 로 잇는다
       const p = x.path.map((v, k) => k === 0
         ? `<b>${v}</b>` : `<span>${v}</span>`).join(`<i>&gt;</i>`);
-      let tr = "";
-      if (x.delta !== null && x.delta !== undefined && x.delta !== 0) {
-        const up = x.delta > 0;
-        tr = `<span class="instr ${up ? "up" : "dn"}">`
-          + `${up ? "▲" : "▼"}${kfmt(Math.abs(x.delta))}</span>`;
-      }
       // 호환 그룹에서 막힌 설비가 있으면 그 때문에 neck 이 된 것이다.
       const bl = x.blocked
         ? `<span class="insbl" title="호환 그룹의 이 설비가 막혀 있다">`
@@ -2182,7 +2166,7 @@ function renderInsight() {
         + `<span class="insno">${n + 1}</span>`
         + `<span class="inspath">${p}</span>${bl}`
         + `<span class="insqty">${nf(x.qty)}<em>매</em></span>`
-        + `<span class="inspc">${x.pct}%</span>${tr}`
+        + `<span class="inspc">${x.pct}%</span>`
         + `<span class="inswt">W/T0 ${kfmt(x.wt0_qty)}${idle}</span></div>`;
     }).join("");
     return `<div class="inscard"><div class="insh">${c.title}`
@@ -2196,18 +2180,37 @@ function insPick(ci, n) {
   const x = c && (c.rank || [])[n];
   if (!x) { return; }
   dfReset();
-  const p = x.path;
+  const p = x.path.slice();
+  const head = p.shift();
+
+  // 요약카드 전용 조건. 최상단 필터를 건드리면 요약카드 자체가 바뀐다.
+  DF_X = {};
   if (c.key === "lot") {
-    // [머리, 제품, (모듈), LAYER] -> 제품은 최상단 필터, LAYER 는 조건
-    if (p[1]) { PROD2 = [p[1]]; }
-    if (p.length > 2) {
+    // [제품, (모듈), LAYER]
+    if (p[0]) { DF_X.x_prod = [p[0]]; }
+    if (p.length === 3) { DF_X.x_mod = [p[1]]; }
+    if (p.length >= 2) {
       setCond("layer", p[p.length - 1], null, null, false, "insight");
     }
   } else {
-    // [머리, AREA, 설비] -> AREA 는 최상단 필터
-    if (p[1]) { AREAS = [p[1]]; }
+    // [AREA, 설비]
+    if (p[0]) { DF_X.x_area = [p[0]]; }
+    if (p[1]) { DF_X.x_eqp = [p[1]]; }
   }
-  loadSummary();          // 최상단 필터가 바뀌었으니 전체를 다시 읽는다
+
+  // 원인도 함께 건다. 카드 머리가 곧 원인이다.
+  const CAUSE_OF = {
+    "HOLD": ["Hold", null],
+    "예약제외": ["Wait성 진행불가", "예약제외"],
+    "FTP": ["Wait성 진행불가", "FTP"],
+    "PREVENT": ["Wait성 진행불가", "TIP"],
+    "B/N": ["Bottleneck", null],
+  };
+  const cz = CAUSE_OF[head] || ["Wait성 진행불가", "설비이슈"];
+  const i = (DATA.causes || []).findIndex(g => g.name === cz[0]);
+  DF_CAUSE = { i: i < 0 ? 0 : i,
+               or: [{ big: cz[0], mid: cz[1], sub: null }] };
+  syncFromDF();
 }
 
 /* 클릭 진단 ------------------------------------------------------------
@@ -2673,7 +2676,7 @@ function renderConds() {
 function markActiveCards() {
   const btn = document.getElementById("clearAllBtn");
   if (btn) {
-    const any = Object.keys(DF).length || DF_CAUSE;
+    const any = Object.keys(DF).length || DF_CAUSE || Object.keys(DF_X).length;
     btn.style.display = any ? "" : "none";
   }
   const on = {
@@ -3057,7 +3060,10 @@ function loadSummary(keepFocus) {
         + "&prod2=" + encodeURIComponent(PROD2.join(","))
         + "&area=" + encodeURIComponent(AREAS.join(","))
         // 같은 필드를 여러 개 고를 수 있다. 조건 저장소를 그대로 보낸다.
-        + "&ins_base=" + encodeURIComponent(INS_BASE)
+        + "&x_prod=" + encodeURIComponent((DF_X.x_prod || []).join(","))
+        + "&x_mod=" + encodeURIComponent((DF_X.x_mod || []).join(","))
+        + "&x_area=" + encodeURIComponent((DF_X.x_area || []).join(","))
+        + "&x_eqp=" + encodeURIComponent((DF_X.x_eqp || []).join(","))
         + "&f_status=" + encodeURIComponent((DF.status || []).join(","))
         + "&f_wt=" + encodeURIComponent((DF.wt || []).join(","))
         + "&f_wt0=" + encodeURIComponent((DF.wt0 || []).join(","))

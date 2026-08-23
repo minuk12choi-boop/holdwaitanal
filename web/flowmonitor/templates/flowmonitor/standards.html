@@ -183,6 +183,23 @@ function render(key) {
 --------------------------------------------------------------------- */
 let DRAG = null;
 
+/* 끌고 가장자리에 다가가면 표를 자동으로 굴린다.
+   먼 곳으로 옮길 때 손으로 스크롤할 수 없어 필요하다. */
+function dragScroll(ev) {
+  const EDGE = 60;                   // 가장자리로 보는 폭(px)
+  const STEP = 18;                   // 한 번에 굴리는 양
+  const box = ev.currentTarget.closest(".gridwrap");
+  if (box) {
+    const b = box.getBoundingClientRect();
+    if (ev.clientY < b.top + EDGE) { box.scrollTop -= STEP; }
+    else if (ev.clientY > b.bottom - EDGE) { box.scrollTop += STEP; }
+  }
+  // 표 자체가 짧으면 창을 굴린다.
+  const h = window.innerHeight;
+  if (ev.clientY < EDGE) { window.scrollBy(0, -STEP); }
+  else if (ev.clientY > h - EDGE) { window.scrollBy(0, STEP); }
+}
+
 function dragStart(ev, key, r) {
   DRAG = { key: key, from: r };
   ev.dataTransfer.effectAllowed = "move";
@@ -195,6 +212,7 @@ function dragOver(ev) {
   if (!DRAG) { return; }
   ev.preventDefault();
   ev.dataTransfer.dropEffect = "move";
+  dragScroll(ev);                    // 가장자리에 오면 자동으로 굴린다
   const tr = ev.currentTarget;
   const box = tr.getBoundingClientRect();
   const up = (ev.clientY - box.top) < box.height / 2;

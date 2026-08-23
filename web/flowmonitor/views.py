@@ -261,6 +261,41 @@ def flowstack(request):
 # ---------------------------------------------------------------------------
 # 다운로드 (재공Raw)
 # ---------------------------------------------------------------------------
+# 요약카드에서 고른 행을 그대로 재현하는 조건.
+# 최상단 필터(prod2/area)를 건드리면 요약카드 자체가 바뀌므로 따로 둔다.
+XKEYS = (("x_prod", "prod2"), ("x_mod", "module1"),
+         ("x_area", "AREA"), ("x_eqp", None))
+
+
+def _xfilters(request):
+    """요약카드 전용 조건을 읽는다. 없으면 빈 dict."""
+    out = {}
+    for p, _col in XKEYS:
+        v = [x for x in request.GET.get(p, "").split(",") if x]
+        if v:
+            out[p] = v
+    return out
+
+
+def _xrow_ok(r, xf):
+    """행이 요약카드 조건에 맞는지."""
+    if not xf:
+        return True
+    for p, col in XKEYS:
+        want = xf.get(p)
+        if not want:
+            continue
+        if p == "x_eqp":                       # 설비 ID 는 목록으로 본다
+            ids = set(_eqp_ids(r))
+            ids.add(str(r.get("eqpgroup") or "").strip())
+            if not (ids & set(want)):
+                return False
+            continue
+        if (str(r.get(col) or "").strip() or UNCLASSIFIED) not in want:
+            return False
+    return True
+
+
 def _columns_of(name):
     """테이블의 컬럼 이름 집합. 없으면 빈 집합."""
     try:
@@ -1473,9 +1508,18 @@ def api_summary(request):
     wt0_st, wt0_tot = {}, {}      # W/T 0 재공의 status 분해
     tree = {}
 
+    xf = _xfilters(request)
+    # 요약카드는 최상단 필터까지만 반영한다. 카드에서 고른 조건(x_*)이
+    # 카드 목록 자체를 바꾸면 다음 행을 고를 수 없다.
+    ins_rows = [r for r in rows
+                if not (areas and (r.get("AREA") or UNCLASSIFIED) not in areas)]
+    ins_tot = {"qty": sum(num(r.get("qty")) for r in ins_rows)}
+
     for r in rows:
         # AREA 는 최상단 필터(레벨 1)라 좌측 차트까지 모두 좁힌다.
         if areas and (r.get("AREA") or UNCLASSIFIED) not in areas:
+            continue
+        if not _xrow_ok(r, xf):
             continue
         q = num(r.get("qty"))
         st = r.get("lot_status") or "-"
@@ -1615,8 +1659,8 @@ def api_summary(request):
             "color": STATUS_COLORS["HOLD"],
         })(next((x for x in status if x["name"] == "HOLD"),
                 {"lots": 0, "qty": 0})),
-        "insights": _build_insights(line, types, rows, mv, rules, ht, cls, tot,
-                                    base=request.GET.get("ins_base", "prev_day")),
+        "insights": _build_insights(line, types, ins_rows, mv, rules, ht,
+                                    cls, ins_tot),
         "wt0_bins": WT0_BINS,
         "wt0_dist": [{"name": b["key"], "label": b["label"],
                       **by_wt0.get(b["key"], {"lots": 0, "qty": 0}),
@@ -2082,12 +2126,15 @@ def api_balance(request):
 
     layers, by_plan, total = set(), {}, {}
     lay_mod = {}          # LAYER -> 모듈. x축 아래 경계 표시에 쓴다
+    xf = _xfilters(request)
     for r in rows:
         if prod1 and (r.get("prod1") or UNCLASSIFIED) not in prod1:
             continue
         if prod2 and (r.get("prod2") or UNCLASSIFIED) not in prod2:
             continue
         if areas and (r.get("AREA") or UNCLASSIFIED) not in areas:
+            continue
+        if not _xrow_ok(r, xf):
             continue
         st = r.get("lot_status") or "-"
         if f_type and (r.get("lot_type") or "-") not in f_type:
@@ -2260,7 +2307,7 @@ def _ins_bucket(rows, mv, rules, ht, cls=None):
         elif big == "Wait성 진행불가" and mid == "TIP":
             card, head = "tip", "PREVENT"
         elif big == "Bottleneck":
-            card, head = "neck", "Bottleneck"
+            card, head = "neck", "B/N"
             # 호환 그룹 안에 막힌 설비가 있으면 그것 때문에 neck 이 된 것이다.
             blocked = _blocked_eqps(r)
             extra = sorted(blocked) if blocked else None
@@ -2290,29 +2337,9 @@ def _ins_new():
             "blocked": defaultdict(int), "blocked_qty": 0}
 
 
-def _build_insights(line, types, rows, mv, rules, ht, cls, tot,
-                    top_n=5, base="prev_day"):
+def _build_insights(line, types, rows, mv, rules, ht, cls, tot, top_n=5):
     """카드 네 장. 각 카드 안에서 매수 순으로 5순위까지."""
     cards = _ins_bucket(rows, mv, rules, ht, cls)
-
-    # 비교 기준 스냅샷
-    prev = {}
-    try:
-        today = _biz_today()
-        sh = _shifts_started(today)
-        if sh and _table_exists("f3_history"):
-            if base == "prev_shift" and len(sh) > 1:
-                bd, bs = str(today), sh[-2]
-            else:
-                bd, bs = str(today - dt.timedelta(days=1)), sh[-1]
-            prows, _ = _summary_rows(line, types, biz_date=bd, shift=bs)
-            if prows:
-                pc = _ins_bucket(prows, mv, rules, ht)
-                for ck, cv in pc.items():
-                    for pk, pv in cv["items"].items():
-                        prev[(ck, pk)] = pv["qty"]
-    except Exception as e:
-        print(f"[INSIGHT] 비교 생략: {type(e).__name__}", flush=True)
 
     out = []
     total = tot.get("qty") or 0
@@ -2330,8 +2357,6 @@ def _build_insights(line, types, rows, mv, rules, ht, cls, tot,
                 "wt0_qty": v["wt0_qty"],
                 "idle_avg": round(sum(idle) / len(idle), 1) if idle else None,
                 "idle_max": round(max(idle), 1) if idle else None,
-                "delta": (v["qty"] - prev[(ck, path)])
-                         if (ck, path) in prev else None,
                 # Bottleneck 전용: 호환 그룹에서 막힌 설비
                 "blocked": [{"name": a, "qty": b} for a, b in bl[:3]] or None,
                 "blocked_qty": v["blocked_qty"] or None,
@@ -2429,6 +2454,7 @@ def api_lots_live(request):
         return JsonResponse({"rows": [], "cols": [], "reason": "f3_live 미적재"})
 
     # (미분류)가 섞이면 IN 절로 못 거른다. 그 경우만 파이썬에서 처리한다.
+    xf = _xfilters(request)
     p1_sql = prod1 if prod1 and UNCLASSIFIED not in prod1 else None
     p2_sql = prod2 if prod2 and UNCLASSIFIED not in prod2 else None
     rows, snap = _summary_rows(line, types, {
@@ -2473,6 +2499,8 @@ def api_lots_live(request):
             if wt > 0 or _wt0_bin(num_f(r.get("마지막작업경과_일"))) not in wt0:
                 continue
         b2, m2, s2 = classify_lot(r, rules, ht)
+        if not _xrow_ok(r, xf):
+            continue
         if or_causes:
             if not any((not a or b2 == a)
                        and (not b or (m2 or "") == b)
