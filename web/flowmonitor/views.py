@@ -24,8 +24,9 @@ LINE_TONES = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#A9C8E8"]
 MOVE_LOT_TYPES = ("PP", "PB", "PG")
 
 # 상단 메뉴는 모든 페이지가 공유한다.
-MENU = [("FAB현황", "/main/"), ("기준정보", "/master/"),
-        ("다운로드", "/downloads/"), ("업데이트", "/updates/")]
+# 기준정보는 메뉴에 두지 않는다. 주소로만 들어간다.
+#   SSO 로그인을 붙이면 다시 올리고 허용된 사용자만 들어가게 한다.
+MENU = [("FAB현황", "/main/"), ("다운로드", "/downloads/")]
 
 
 def _fmt_snap(v):
@@ -578,9 +579,7 @@ UPDATES = [
 ]
 
 
-def updates(request):
-    return render(request, "flowmonitor/updates.html",
-                  base_ctx(updates=UPDATES))
+
 
 
 def downloads(request):
@@ -2290,7 +2289,7 @@ def standards(request):
         cards.append({**c, "cols": cols, "rows": _std_rows(c["table"], c["cols"])})
 
     return render(request, "flowmonitor/standards.html",
-                  base_ctx(cards=cards, msg=msg,
+                  base_ctx(cards=cards, msg=msg, updates=UPDATES,
                            cards_json=json.dumps(cards, ensure_ascii=False)))
 
 

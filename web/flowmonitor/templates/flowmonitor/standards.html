@@ -52,6 +52,11 @@
 <div class="std">
   {% if msg %}<div class="msg">{{ msg }}</div>{% endif %}
 
+  <div class="updbar">
+    <button class="btn" onclick="openUpdates()">업데이트 내역 보기</button>
+    <span class="minittl">이 화면과 FAB현황에 무엇이 반영됐는지 봅니다.</span>
+  </div>
+
   <div class="applybar">
     <div>
       <b>지금 반영</b>
@@ -424,7 +429,68 @@ function stdSave(key, apply) {
 
 CARDS.forEach(c => { DATA[c.key] = c.rows.map(r => Object.assign({}, r)); render(c.key); });
 </script>
-{% endblock %}
+
+<!-- 업데이트 내역. 버튼을 눌러야 뜬다. -->
+<div id="updmask" class="updmask" onclick="closeUpdates(event)">
+  <div class="updbox" onclick="event.stopPropagation()">
+    <div class="updtop">
+      <b>업데이트 내역</b>
+      <button class="btn" onclick="closeUpdates()">닫기</button>
+    </div>
+    <div class="updbody">
+      <p class="updnote">
+        아래 내용은 <b>서버에 반영된 것</b>입니다.
+        쓰던 창은 <b>새로고침(Ctrl+F5)</b> 해야 바뀝니다.
+        일부 항목은 DB 작업이 함께 필요하며 해당 줄에 적어 두었습니다.
+      </p>
+      <p class="legend">
+        <span class="lg-ok">일반 항목</span> 지금 쓸 수 있습니다 &middot;
+        <span class="lg-no">취소선 항목</span> 되돌렸거나 다른 방식으로
+        바뀐 것입니다
+      </p>
+
+      {% for v in updates %}
+        <section class="updver">
+          <div class="vtag">
+            <b>{{ v.ver }}</b>
+            {% if v.date %}<span>{{ v.date }}</span>{% endif %}
+          </div>
+          <div class="vbody">
+            <h2>{{ v.title }}</h2>
+            <ul>
+              {% for it in v.items %}
+                <li class="{% if it.dropped %}gone{% endif %}">
+                  <span class="txt">{{ it.t }}</span>
+                  {% if it.superseded %}
+                    <span class="moved">&rarr; {{ it.superseded }}</span>
+                  {% endif %}
+                  {% if it.note %}
+                    <span class="note">{{ it.note }}</span>
+                  {% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        </section>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<script>
+function openUpdates() {
+  document.getElementById("updmask").classList.add("on");
+}
+
+function closeUpdates(ev) {
+  if (ev && ev.target !== ev.currentTarget) { return; }
+  document.getElementById("updmask").classList.remove("on");
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { closeUpdates(); }
+});
+</script>
 <script>
 // 첫 조회가 있으면 그것까지 끝난 뒤 가림막을 걷는다.
 // (없으면 base.html 이 알아서 걷는다)
@@ -439,3 +505,4 @@ CARDS.forEach(c => { DATA[c.key] = c.rows.map(r => Object.assign({}, r)); render
   });
 })();
 </script>
+{% endblock %}
