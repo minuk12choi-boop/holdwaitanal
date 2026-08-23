@@ -498,7 +498,10 @@ function setStatusInfo() {
     names = picked.map(x => x.name);
     lots = picked.reduce((a, x) => a + x.lots, 0);
     qty = picked.reduce((a, x) => a + x.qty, 0);
-    pct = d.total && d.total.lots ? (lots / d.total.lots * 100) : 0;
+    // total 은 '조건이 걸린 뒤' 의 합이라 분모로 쓰면 늘 100% 가 된다.
+    // 원차트 제 합계로 나눈다.
+    const stTot = (d.status || []).reduce((a, x) => a + x.lots, 0);
+    pct = stTot ? (lots / stTot * 100) : 0;
     color = picked.length === 1 ? picked[0].color : BRAND;
   }
   document.getElementById("dt").innerHTML =
@@ -1096,10 +1099,6 @@ function drawBalance() {
   if (BAL_OPEN) {
     html += `  ·  <a onclick="balCollapse()">${unit} `
       + `${BAL_PICK ? BAL_PICK.join(", ") : "전체"}</a>`;
-  }
-  if ((DF.layer || []).length) {
-    html += `  ·  <a class="balback" onclick="dfClear('layer')">`
-      + `◀ LAYER 선택 해제</a>`;
   }
   document.getElementById("balpath").innerHTML = html;
 
@@ -2270,6 +2269,8 @@ function czStackClose(n) {
 function renderCzStack() {
   const box = document.getElementById("czstack");
   if (!box) { return; }
+  // 비어 있으면 자리를 비운다. 안 그러면 gap 만큼 아래 카드가 밀린다.
+  box.style.display = CZ_STACK.length ? "" : "none";
 
   // 필요한 만큼만 카드를 만든다.
   if (box.childElementCount !== CZ_STACK.length) {
@@ -2349,11 +2350,13 @@ function syncLeftHeight() {
   const sm = document.querySelector(".summary");
   const lc = document.querySelector(".rowcards > .leftcol");
   if (!sm || !lc) { return; }
-  // 좌측 '마지막 카드의 아래선' 에 맞춘다. 컨테이너 높이는 여백을 포함한다.
+  // 좌측 '마지막 카드의 아래선' 에 맞춘다.
+  //   좌측은 페이지 위에서 시작하지만 우측 열은 요약카드 아래에서 시작한다.
+  //   그래서 좌측 높이를 그대로 주면 시작점 차이만큼 아래로 삐져나간다.
+  //   기준은 '이 열의 top' 이어야 한다.
   const last = sm.querySelector(".cell:last-of-type");
-  const a = sm.getBoundingClientRect();
   const b = (last || sm).getBoundingClientRect();
-  const h = Math.round(b.bottom - a.top);
+  const h = Math.round(b.bottom - lc.getBoundingClientRect().top);
   if (h > 0 && lc.style.height !== h + "px") {
     lc.style.height = h + "px";
     resizeCharts();
@@ -2986,6 +2989,41 @@ function renderConds() {
 }
 
 // 조건이 걸린 카드에 테두리와 개수 배지를 준다.
+/* 조건이 걸린 카드마다 제목 우측에 '해제' 버튼을 붙인다.
+   차트마다 따로 만들지 않고 한 곳에서 관리한다.
+--------------------------------------------------------------------- */
+const CARD_COND = {
+  wipcard: "type", stcard: "status", wtcard: "wt", wt0card: "wt0",
+  areacard: "iarea", balpanel: "layer", czcard: "cause",
+};
+
+function syncCardClear() {
+  Object.keys(CARD_COND).forEach(id => {
+    const card = document.getElementById(id);
+    if (!card) { return; }
+    const ttl = card.querySelector(".cellttl");
+    if (!ttl) { return; }
+    const key = CARD_COND[id];
+    const on = (key === "cause") ? !!DF_CAUSE : (DF[key] || []).length > 0;
+
+    let btn = ttl.querySelector(".cardclr");
+    if (!on) { if (btn) { btn.remove(); } return; }
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.className = "cardclr";
+      btn.title = "이 차트에서 고른 조건을 해제한다";
+      btn.textContent = "◀ 해제";
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        if (key === "cause") { czAskClose(); CZ_STACK = []; CZ_WIDE = null;
+                               CZ_SEL = { i: -1, path: [] }; }
+        dfClear(key);
+      };
+      ttl.appendChild(btn);
+    }
+  });
+}
+
 function markActiveCards() {
   const btn = document.getElementById("clearAllBtn");
   if (btn) {
@@ -3006,6 +3044,7 @@ function markActiveCards() {
     c.classList.toggle("active", !!on[id]);
     c.setAttribute("data-n", on[id] || "");
   });
+  syncCardClear();
 }
 
 function renderDrillHead() {

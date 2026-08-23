@@ -87,8 +87,25 @@
   /* 상태 원차트 */
   /* 화면 최상단에 뜨는 툴팁. 어떤 카드에도 가리지 않는다. */
   /* 하위가 있는 항목을 눌렀을 때 뜨는 선택 말풍선 */
-  /* LOT BALANCE 에서 고른 LAYER 를 되돌린다. */
-  .balpath .balback { color:#B91C1C; font-weight:700; }
+  /* 조건이 걸린 카드의 '해제' 버튼. 제목 줄 오른쪽 끝에 붙는다. */
+  .cardclr { margin-left:auto; border:1px solid var(--brand);
+             background:#fff; color:var(--brand); font-size:10px;
+             font-weight:700; border-radius:4px; padding:1px 7px;
+             cursor:pointer; white-space:nowrap; }
+  .cardclr:hover { background:var(--brand); color:#fff; }
+  .cellttl { display:flex; align-items:center; gap:6px; }
+
+  /* 누를 수 있는 곳은 모두 손가락 커서로. 눌리는 곳임을 알 수 있게 한다. */
+  button, a, label, summary, canvas,
+  .fchip i, .czback, .rankbtn, .hdrbtn, .seg > button,
+  .insline, .inscard, .czcol, .dd > button, .menu label,
+  .grid th.dh, .grid td.dh, .grid .expcol,
+  [onclick], [role="button"] { cursor:pointer; }
+  button:disabled, .dd > button:disabled { cursor:not-allowed; }
+  /* 값을 직접 고치는 칸은 글자 커서가 맞다. */
+  input[type="text"], input[type="number"], input[type="date"],
+  textarea, select { cursor:auto; }
+  input[type="checkbox"], input[type="radio"] { cursor:pointer; }
 
   .askpop { position:absolute; z-index:9998; background:#fff;
             border:1px solid var(--brand); border-radius:8px; padding:8px;
@@ -104,6 +121,14 @@
                    padding:6px 9px; cursor:pointer; color:var(--fg); }
   .askpop button + button { margin-top:4px; }
   .askpop button:hover { background:var(--brand); color:#fff; }
+
+  /* 누를 수 있는 곳은 모두 손가락 커서로. 눌러도 되는지 바로 알 수 있게. */
+  button, a, label, summary,
+  .seg > button, .rankbtn, .czback, .balback, .fchip i, .insline,
+  .inscard, .dd > button, .menu label, .lineseg button, .datef,
+  canvas, .stack i, .grid th.dh, .grid td.dh, .askpop button,
+  [onclick] { cursor:pointer; }
+  button:disabled, .lineseg button:disabled { cursor:not-allowed; }
 
   .htip { position:absolute; z-index:9999; pointer-events:none; opacity:0;
           background:rgba(17,24,39,.94); color:#fff; font-size:11px;
@@ -234,10 +259,13 @@
              border-left:3px solid #2E1A47; padding-left:14px; }
   /* 요약카드와 그 아래 내용도 가른다. */
   /* 요약카드와 그 아래를 가른다. .cell 규칙이 테두리를 덮으므로 뒤에 둔다. */
-  .maincol > #insight { border:1px solid var(--bd);
-                        border-bottom:3px solid #2E1A47;
-                        border-radius:6px; padding:10px 12px;
-                        margin:0 0 12px; box-sizing:border-box; }
+  .maincol > #insight { border:1px solid var(--bd); border-radius:6px;
+                        padding:10px 12px; margin:0 0 14px;
+                        box-sizing:border-box; position:relative; }
+  /* 요약카드와 아래 내용을 가르는 굵은 선. 카드 테두리가 아니라 여백에 둔다. */
+  .maincol > #insight::after { content:""; position:absolute;
+                               left:-14px; right:0; bottom:-8px; height:3px;
+                               background:#2E1A47; }
   .summary { flex:0 0 380px; display:flex; flex-direction:column; }
 
   .summary .cell { border:1px solid var(--bd); border-radius:6px; padding:11px 12px;
@@ -376,14 +404,17 @@
   /* 항목이 많으면 캔버스가 길어진다. 카드 안에서만 스크롤한다. */
   .czallbox { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; }
 
+  /* minmax(0,1fr) 이라야 내용이 행을 밀지 않는다. 1fr 만 쓰면 min-content
+     가 바닥이 되어 카드가 좌측 세로축보다 길어진다(224px 초과의 원인). */
   .cz3 { display:grid; grid-template-columns:1fr;
-         grid-template-rows:repeat(3, 1fr); gap:10px; flex:1; min-height:0; }
+         grid-template-rows:repeat(3, minmax(0, 1fr));
+         gap:10px; flex:1; min-height:0; overflow:hidden; }
   /* padding 은 선택 여부와 무관하게 늘 준다(선택 시 폭이 흔들리지 않게).
      선택 테두리는 ::before 로 그 안쪽에 그린다. */
   .cz3 .czcol { display:flex; flex-direction:column; min-height:0;
                 padding:8px 10px; position:relative; }
   /* 좌측이 길어지면 세 차트가 그만큼 균등하게 늘어난다. */
-  .cz3 .czcol > div:last-child { flex:1; min-height:90px; }
+  .cz3 .czcol > div:last-child { flex:1; min-height:0; }
   /* SHIFT 추이 + 원인 분석을 같은 등급 카드로 나란히 */
   /* 두 카드의 세로를 맞춘다. 추이가 길어지면 원인 분석도 같이 늘어난다. */
   /* ── 3열 배치 ─────────────────────────────────────────────────────────
