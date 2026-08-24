@@ -1506,7 +1506,7 @@ mos_kh_smi.smicdc_p3nrd_step	SMICDC_P3NRD.STEP	A PFR1_FABPLAN_STEP
 mos_kh_smi.smicdc_p3nrd_neweinecnspec	SMICDC_P3NRD.NEWEINECNSPEC	B PFR1_FABPLAN_NEWEINECNSPEC
 mos_kh_smi.smicdc_p3nrd_selectconnectspec	SMICDC_P3NRD.SELECTCONNECTSPEC	C PFR1_FABPLAN_SELECTCONNECTSPEC
 mos_kh_smi.smicdc_p3nrd_engr_lot_ppid	ORACLE 치환 안함 PFR1_ENGR_LOT_PPID
-
+mos_kh_smi.smicdc_p3nrd_skiprule ORACLE 치환 안함 PFR1_FABPLAN_SKIPRULE
 
 매칭기호	컬럼명	데이터타입
 A	PROCESSID	VARCHAR2(16)
@@ -1675,6 +1675,10 @@ B	TEMP3	VARCHAR2(40)
 C	FIRSTEINECNNO	VARCHAR2(20)
 C	NEXTEINECNNO	VARCHAR2(20)
 C	SELECTEINECNNO	VARCHAR2(20)
+D skiprule	STRING
+D lotid_ld	STRING
+D descript	STRING
+
 
 
 
