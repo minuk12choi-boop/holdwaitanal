@@ -1753,15 +1753,8 @@ def api_summary(request):
     def pv(r, k):
         return r.get(k) or UNCLASSIFIED
 
-    # 가상스텝 등 AREA 가 없는 재공도 고를 수 있어야 한다.
-    a_opts = sorted({r.get("AREA") for r in rows if r.get("AREA")})
-    if any(not r.get("AREA") for r in rows):
-        a_opts.append(UNCLASSIFIED)
-    p1_opts = sorted({pv(r, "prod1") for r in rows})
-    p2_opts = sorted({pv(r, "prod2") for r in rows
-                      if not prod1 or pv(r, "prod1") in prod1})
-
-    # 각 목록은 **자기 필터를 뺀** 나머지를 반영한다. 그래야 다시 고를 수 있다.
+    # 목록은 **자기 필터만 빼고** 나머지를 모두 반영한다.
+    #   그래야 지금 고를 수 있는 값만 남고, 자기 값은 다시 고를 수 있다.
     def _keep(r, skip=""):
         return ((skip == "p1" or not prod1 or pv(r, "prod1") in prod1)
                 and (skip == "p2" or not prod2 or pv(r, "prod2") in prod2)
@@ -1771,15 +1764,17 @@ def api_summary(request):
                      or (r.get("proc_id") or UNCLASSIFIED) in plans)
                 and (skip == "lt" or not lots or r.get("lot_id") in lots))
 
+    p1_opts = sorted({pv(r, "prod1") for r in rows if _keep(r, "p1")})
+    p2_opts = sorted({pv(r, "prod2") for r in rows if _keep(r, "p2")})
+    # 가상스텝 등 AREA 가 없는 재공도 고를 수 있어야 한다.
+    _ar = {(r.get("AREA") or UNCLASSIFIED) for r in rows if _keep(r, "ar")}
+    a_opts = sorted(x for x in _ar if x != UNCLASSIFIED)
+    if UNCLASSIFIED in _ar:
+        a_opts.append(UNCLASSIFIED)
     pl_opts = sorted({r.get("proc_id") or UNCLASSIFIED
                       for r in rows if _keep(r, "pl")})
     lt_opts = sorted({r.get("lot_id") for r in rows
                       if r.get("lot_id") and _keep(r, "lt")})[:3000]
-    a_opts = [x for x in a_opts
-              if x in {(r.get("AREA") or UNCLASSIFIED)
-                       for r in rows if _keep(r, "ar")}]
-    p2_opts = [x for x in p2_opts
-               if x in {pv(r, "prod2") for r in rows if _keep(r, "p2")}]
 
     rows = [r for r in rows if _keep(r)]
     if not rows:
