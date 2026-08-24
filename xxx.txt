@@ -1,4 +1,10 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> $u = "http://im-light-prd.kspprd.dks.cloud.samsungds.net/v1/roo/chat/completions"
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> $b = '{"model":"Code LLM - Pro","messages":[{"role":"user","content":"ping"}],"max_tokens":10}'
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> curl.exe -s -X POST $u -H "Content-Type: application/json" -d $b
-{"detail":[{"type":"json_invalid","loc":["body",1],"msg":"JSON decode error","input":{},"ctx":{"error":"Expecting property name enclosed in double quotes"}}]}
+'{"model":"Code LLM - Pro","messages":[{"role":"user","content":"ping"}],"max_tokens":10}' | Set-Content -Encoding ascii req.json
+curl.exe -s -X POST $u -H "Content-Type: application/json" -d "@req.json"
+
+
+Invoke-RestMethod -Uri $u -Method Post -ContentType "application/json" -Body '{"model":"Code LLM - Pro","messages":[{"role":"user","content":"ping"}],"max_tokens":10}'
+
+
+
+
+Invoke-RestMethod -Uri "http://im-light-prd.kspprd.dks.cloud.samsungds.net/v1/roo/models"
