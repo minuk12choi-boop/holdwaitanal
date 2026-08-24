@@ -1,2 +1,34 @@
 http://im-light-prd.kspprd.dks.cloud.samsungds.net/v1/roo
 
+Although smaller in parameter count compared to the DSllmO-Coder Large model—resulting in relatively lower response quality—it is a cost-effective model that offers a comparable level of performance, supports the same context window size, and delivers significantly faster inference speed. Particularly excels at solving textbook-style coding problems, consistently producing nearly flawless and accurate solutions.
+
+More
+Context Window: 200,000 tokens
+Max output: 16,384 tokens
+Does not support images
+Supports prompt caching
+Input price: $0.00 / 1M tokens
+Output price: $0.00 / 1M tokens
+The extension automatically fetches the latest list of models available on 
+OpenAI. If you're unsure which model to choose, Roo Code works best with 
+gpt-4o.
+Must be enabled when using R1 models such as QWQ to prevent 400 errors
+
+Send max output tokens parameter in API requests. Some providers may not support this.
+Custom Headers
+
+No custom headers defined. Click the + button to add one.
+Configure the capabilities and pricing for your custom OpenAI-compatible model. Be careful when specifying the model capabilities, as they can affect how Roo Code performs.
+16384
+Maximum number of tokens the model can generate in a response. (Specify -1 to allow the server to set the max tokens.)
+200000
+Total tokens (input + output) the model can process.
+Is this model capable of processing and understanding images?
+Is this model capable of caching prompts?
+0
+0
+0
+0
+Reset to Defaults
+
+Advanced settings
