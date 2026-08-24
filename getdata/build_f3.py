@@ -2735,6 +2735,18 @@ def main():
                                     s3_manifest_log + load_log)
                 print(f"[DB] f3_live 갱신 snapshot_at={snapshot_at} "
                       f"rows={len(df_f3):,}", flush=True)
+                # 재공 추이는 스냅샷마다 남긴다. f3_history 는 SHIFT 당
+                # 하나뿐이라 SHIFT 안의 변화를 볼 수 없다.
+                try:
+                    _bd = DB.biz_date(snapshot_at)
+                    _sh = DB.shift_of(snapshot_at)
+                    _n = DB.snap_wip_step(conn, snapshot_at, _bd, _sh)
+                    print(f"[DB] f3_wip_step {_n:,}행 (snapshot={snapshot_at})",
+                          flush=True)
+                except Exception as e:
+                    print(f"[DB] f3_wip_step 건너뜀: {type(e).__name__}: {e}",
+                          flush=True)
+
                 promoted = DB.promote_to_history(conn, SUMMARY_OUTPUT_COLUMNS)
                 if promoted:
                     bd, sh, snap, dist = promoted

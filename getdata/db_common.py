@@ -69,6 +69,16 @@ def biz_date(ts: dt.datetime) -> dt.date:
     return (ts + dt.timedelta(days=1)).date() if ts.hour >= 22 else ts.date()
 
 
+def shift_of(ts: dt.datetime) -> str:
+    """그 시각이 속한 SHIFT. 22시 GY · 6시 DAY · 14시 SW 로 시작한다."""
+    h = ts.hour
+    if 6 <= h < 14:
+        return "DAY"
+    if 14 <= h < 22:
+        return "SW"
+    return "GY"
+
+
 def shift_boundaries(around: dt.datetime, back_hours: int = 26):
     """`around` 이전 `back_hours` 안의 shift 기준시각들을 최신순으로."""
     out = []
@@ -611,6 +621,38 @@ def promote_to_history(conn, columns, now=None):
             (bd, shift, snap, dist, n, dt.datetime.now()))
     conn.commit()
     return bd, shift, snap, dist
+
+
+def snap_wip_step(conn, snap, bd, shift):
+    """그 스냅샷의 재공을 스텝 단위로 접어 f3_wip_step 에 남긴다.
+
+    f3_history 는 SHIFT 당 대표 하나만 두지만, 재공은 SHIFT 안에서도
+    변한다. 추이를 보려면 **모든 스냅샷**이 있어야 하므로 따로 쌓는다.
+    현스텝 행만 센다(연속블록은 아직 오지 않은 스텝이다).
+    """
+    now = dt.datetime.now()
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM f3_wip_step WHERE snapshot_at=%s", (snap,))
+        cur.execute("""
+            INSERT INTO f3_wip_step
+              (snapshot_at, biz_date, shift, `line`, prod2, proc_id, step_seq,
+               layer_id, module1, area, wip_qty, lot_cnt, loaded_at)
+            SELECT %s, %s, %s, `line`,
+                   COALESCE(NULLIF(TRIM(prod2), ''), '-'),
+                   COALESCE(NULLIF(TRIM(proc_id), ''), '-'),
+                   COALESCE(NULLIF(TRIM(step_seq), ''), '-'),
+                   MAX(layer_id), MAX(module1), MAX(AREA),
+                   SUM(qty), COUNT(DISTINCT lot_id), %s
+            FROM   f3_live
+            WHERE  snapshot_at = %s AND `현스텝` = '현스텝'
+            GROUP  BY `line`,
+                      COALESCE(NULLIF(TRIM(prod2), ''), '-'),
+                      COALESCE(NULLIF(TRIM(proc_id), ''), '-'),
+                      COALESCE(NULLIF(TRIM(step_seq), ''), '-')
+        """, (snap, bd, shift, now, snap))
+        n = cur.rowcount
+    conn.commit()
+    return n
 
 
 def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None,
