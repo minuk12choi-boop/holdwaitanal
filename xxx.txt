@@ -1,10 +1,19 @@
-'{"model":"Code LLM - Pro","messages":[{"role":"user","content":"ping"}],"max_tokens":10}' | Set-Content -Encoding ascii req.json
-curl.exe -s -X POST $u -H "Content-Type: application/json" -d "@req.json"
-
-
-Invoke-RestMethod -Uri $u -Method Post -ContentType "application/json" -Body '{"model":"Code LLM - Pro","messages":[{"role":"user","content":"ping"}],"max_tokens":10}'
-
-
-
-
-Invoke-RestMethod -Uri "http://im-light-prd.kspprd.dks.cloud.samsungds.net/v1/roo/models"
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> curl.exe -s -X POST $u -H "Content-Type: application/json" -d $b
+{"detail":[{"type":"json_invalid","loc":["body"'{"model":"Code LLM - Pro","messages":[{"role":"user","content":"ping"}],"max_tokens":10}' | Set-Content -Encoding ascii req.json
+>> curl.exe -s -X POST $u -H "Content-Type: application/json" -d "@req.json"
+{"detail":"CodeMate with Roo를 통해 사용해주세요."}
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> Invoke-RestMethod -Uri $u -Method Post -ContentType "application/json" -Body '{"model":"Code LLM - Pro","messages":[{"role":"user","content":"ping"}],"max_tokens":10}'
+Invoke-RestMethod : {"detail":"CodeMate with Roo를 통해 사용해주세요."}
+위치 줄:1 문자:1
++ Invoke-RestMethod -Uri $u -Method Post -ContentType "application/json ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (System.Net.HttpWebRequest:HttpWebRequest) [Invoke-RestMethod], WebException
+    + FullyQualifiedErrorId : WebCmdletWebResponseException,Microsoft.PowerShell.Commands.InvokeRestMethodCommand
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> Invoke-RestMethod -Uri "http://im-light-prd.kspprd.dks.cloud.samsungds.net/v1/roo/models"
+Invoke-RestMethod : {"detail":"An unexpected error occurred: 401: Invalid token"}
+위치 줄:1 문자:1
++ Invoke-RestMethod -Uri "http://im-light-prd.kspprd.dks.cloud.samsungd ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (System.Net.HttpWebRequest:HttpWebRequest) [Invoke-RestMethod], WebException
+    + FullyQualifiedErrorId : WebCmdletWebResponseException,Microsoft.PowerShell.Commands.InvokeRestMethodCommand
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal>
