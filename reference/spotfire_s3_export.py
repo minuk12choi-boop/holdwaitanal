@@ -16,6 +16,11 @@ spotfire_s3_export.py — Spotfire 데이터 함수용 S3 자동 적재
           PFR1_KFR7_HOLD
           PFR1_KFR7_MOVE
           PFR1_KFR7_SSPS_PROD_NAME
+          PFR1_FABPLAN_STEP
+          PFR1_FABPLAN_NEWEINECNSPEC
+          PFR1_FABPLAN_SELECTCONNECTSPEC
+          PFR1_FABPLAN_SKIPRULE
+          PFR1_ENGR_LOT_PPID
     - Output Parameters : upload_log (Table) — 적재 결과 확인용. 생략 가능.
   등록 후 Refresh Function 을 "Automatic" 으로 두면 분석 파일을 열 때마다,
   즉 데이터가 새로 로딩될 때마다 S3 에 올라간다.
@@ -103,9 +108,10 @@ USE_BOTO3 = True
 #     s3drive_big1 : ["PFR1_KFR7_STEP_PATH"]
 #     s3drive_big2 : ["PFR1_KFR7_TIP"]
 #     s3drive_rest : 나머지 6개
+#     s3drive_fab  : FabPlan 5개
 #
 #   매니페스트는 회차마다 병합되므로 어느 함수가 먼저 끝나든 상관없다.
-#   8개가 모두 채워졌을 때만 완결로 본다.
+#   ALL_TABLES 개가 모두 채워졌을 때만 완결로 본다.
 TABLE_NAMES = [
     "PFR1_KFR7_LOT",
     "PFR1_KFR7_MATERIALWORKSTATUS",
@@ -116,6 +122,12 @@ TABLE_NAMES = [
     "PFR1_KFR7_HOLD",
     "PFR1_KFR7_MOVE",
     "PFR1_KFR7_SSPS_PROD_NAME",
+    # ── FabPlan (PFR1 중 order_seq 가 비어 있는 lot 의 스텝 경로) ──
+    "PFR1_FABPLAN_STEP",
+    "PFR1_FABPLAN_NEWEINECNSPEC",
+    "PFR1_FABPLAN_SELECTCONNECTSPEC",
+    "PFR1_FABPLAN_SKIPRULE",
+    "PFR1_ENGR_LOT_PPID",
 ]
 
 # 저장 형식.
@@ -131,8 +143,10 @@ TABLE_NAMES = [
 # 전송량은 주기를 늦추는 대신 압축으로 줄인다.
 FMT = "parquet"
 
-# 파이프라인 전체가 기대하는 테이블 수. 함수를 나눠도 이 값은 8 로 둔다.
-ALL_TABLES = 9
+# 파이프라인 전체가 기대하는 테이블 수. 함수를 나눠 등록해도 이 값은
+# **전체 개수**로 둔다(각 함수의 TABLE_NAMES 길이가 아니다).
+#   기존 9 + FabPlan 5 = 14
+ALL_TABLES = 14
 
 
 # ---------------------------------------------------------------------------
