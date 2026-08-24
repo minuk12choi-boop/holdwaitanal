@@ -16,7 +16,8 @@ $sqlDir = Join-Path $root "getdata"
 $files = @(
   "migrate_holdtype_sort.sql",
   "migrate_virtual_step_status.sql",
-  "migrate_virtual_eqp.sql"
+  "migrate_virtual_eqp.sql",
+  "migrate_fill_area.sql"
 )
 
 $sec = Read-Host "MySQL root password" -AsSecureString

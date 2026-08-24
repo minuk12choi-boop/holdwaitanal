@@ -15,6 +15,7 @@ for %%F in (
   migrate_holdtype_sort.sql
   migrate_virtual_step_status.sql
   migrate_virtual_eqp.sql
+  migrate_fill_area.sql
 ) do (
   if exist "getdata\%%F" (
     echo.
