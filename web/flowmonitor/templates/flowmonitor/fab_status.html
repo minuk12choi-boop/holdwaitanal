@@ -192,6 +192,12 @@
                       onclick="setHeat('axis','layer')">LAYER</button>
               <button id="hm_step" onclick="setHeat('axis','step')">STEP</button>
             </span>
+            <span class="seg" id="hmdays">
+              <button id="hm_d7" class="on"
+                      onclick="setHeat('days',7)">7일</button>
+              <button id="hm_d14" onclick="setHeat('days',14)">14일</button>
+              <button id="hm_d30" onclick="setHeat('days',30)">30일</button>
+            </span>
             <div class="dd" id="hmdp">
               <button onclick="toggleProd('hmdp')" id="hmpb">제품 전체 &#9662;</button>
               <div class="menu" id="hmpm"></div>
@@ -2902,7 +2908,8 @@ function renderTrend() {
    가로 일자 · 세로 LAYER 또는 STEP · 값 MOVE(파랑) 또는 재공(빨강).
    세로축은 전부 보여 준다. 화면에 보이는 만큼만 그리고 스크롤에 맞춰 잇는다.
 --------------------------------------------------------------------- */
-let HEAT = { axis: "layer", metric: "move", prod: [], plan: [],
+// 기간은 팝업에서 고른다. 기본 7일, 최대 30일 전까지 볼 수 있다.
+let HEAT = { axis: "layer", metric: "move", days: 7, prod: [], plan: [],
              data: null, at: 0 };
 
 function openHeat() {
@@ -2923,6 +2930,9 @@ function setHeat(k, v) {
   ["layer", "step"].forEach(x =>
     document.getElementById("hm_" + x).className =
       (HEAT.axis === x) ? "on" : "");
+  [7, 14, 30].forEach(x =>
+    document.getElementById("hm_d" + x).className =
+      (HEAT.days === x) ? "on" : "");
   loadHeat();
 }
 
@@ -2964,7 +2974,8 @@ function loadHeat() {
   const box = document.getElementById("hmBody");
   box.innerHTML = `<div class="minittl">불러오는 중…</div>`;
   const q = "line=" + encodeURIComponent(LINE)
-    + "&axis=" + HEAT.axis + "&metric=" + HEAT.metric + "&days=30"
+    + "&axis=" + HEAT.axis + "&metric=" + HEAT.metric
+    + "&days=" + HEAT.days
     + "&prod2=" + encodeURIComponent(HEAT.prod.join(","))
     + "&plan=" + encodeURIComponent(HEAT.plan.join(","))
     + "&biz_date=" + encodeURIComponent(SNAP_DATE || "");

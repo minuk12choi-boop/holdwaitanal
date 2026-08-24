@@ -2972,7 +2972,8 @@ def api_heatmap(request):
     line = request.GET.get("line") or DEFAULT_LINE
     axis = request.GET.get("axis", "layer")
     metric = request.GET.get("metric", "move")
-    days = max(7, min(90, int(request.GET.get("days", "30") or 30)))
+    # 기간은 팝업에서 고른다. 기본 7일, 최대 30일 전까지.
+    days = max(1, min(30, int(request.GET.get("days", "7") or 7)))
     prod = [x for x in request.GET.get("prod2", "").split(",") if x]
     plan = [x for x in request.GET.get("plan", "").split(",") if x]
     bdate = request.GET.get("biz_date", "")
@@ -2983,7 +2984,9 @@ def api_heatmap(request):
 
     try:
         d = TR.heatmap(line, today, days, axis, metric, prod, plan)
-        d["options"] = TR.heat_options(line, today, days)
+        # 선택지는 기간과 무관하게 최대 범위에서 뽑는다.
+        d["options"] = TR.heat_options(line, today, 30)
+        d["days"] = days
     except Exception as e:
         print(f"[HEAT] 실패: {type(e).__name__}: {e}", flush=True)
         return JsonResponse({"ready": False, "reason": "이력이 아직 없습니다"})

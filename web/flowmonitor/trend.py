@@ -526,7 +526,7 @@ def summarize(line, today=None, prod=None, plan=None, seed=0, top=3):
 #   가로 일자 · 세로 LAYER 또는 STEP · 값 MOVE 또는 재공
 #   제품 / PLAN 을 여러 개 고르면 세로축을 합친다.
 # ---------------------------------------------------------------------------
-def heatmap(line, today=None, days=30, axis="layer", metric="move",
+def heatmap(line, today=None, days=7, axis="layer", metric="move",
             prod=None, plan=None):
     today = today or dt.date.today()
     since = today - dt.timedelta(days=days - 1)
