@@ -2787,13 +2787,18 @@ function renderInsight() {
         ? `<span class="insbl" title="호환 그룹의 이 설비가 막혀 있다">`
           + `막힘 ${x.blocked.map(z => z.name).join(", ")}</span>`
         : (c.key === "neck" ? `<span class="insbl ok">순수 몰림</span>` : "");
+      // 값과 단위를 또렷하게. 비율은 전체 대비(제품 대비) 순으로 적는다.
       const idle = (x.idle_avg !== null && x.idle_avg !== undefined)
-        ? ` · 평균 ${x.idle_avg}일` : "";
+        ? ` · 평균 ${x.idle_avg}일 대기` : "";
+      const pp = (x.ppct !== null && x.ppct !== undefined)
+        ? `<em>(${x.ppct}%)</em>` : "";
       const tip = x.path.join(" > ")
-        + `  ${nf(x.qty)}매 (${x.pct}%)`
-        + `  W/T0 ${nf(x.wt0_qty)}`
+        + `  ${nf(x.qty)}매 (전체 ${x.pct}%`
+        + (x.ppct !== null && x.ppct !== undefined
+           ? ` · ${x.prod_name} 안에서 ${x.ppct}%` : "") + ")"
+        + `  W/T 0 ${nf(x.wt0_qty)}매`
         + (x.idle_avg !== null && x.idle_avg !== undefined
-           ? `  평균 ${x.idle_avg}일 정체` : "")
+           ? `  평균 ${x.idle_avg}일 대기` : "")
         + (x.blocked ? `  막힘 ${x.blocked.map(z => z.name).join(", ")}` : "");
       const allrow = (INS_ALL[c.key])
         ? insAllRow(c.key, x.path[x.path.length - 1]) : "";
@@ -2801,8 +2806,8 @@ function renderInsight() {
         + `<span class="insno">${n + 1}</span>`
         + `<span class="inspath">${p}</span>${bl}`
         + `<span class="insqty">${nf(x.qty)}<em>매</em></span>`
-        + `<span class="inspc">${x.pct}%</span>`
-        + `<span class="inswt">W/T0 ${kfmt(x.wt0_qty)}${idle}</span></div>`
+        + `<span class="inspc">${x.pct}%${pp}</span>`
+        + `<span class="inswt">W/T 0 ${nf(x.wt0_qty)}매${idle}</span></div>`
         + allrow;
     }).join("");
     // 설비는 여러 라인이 나눠 쓴다. 전 라인 대기재공을 볼 수 있게 한다.

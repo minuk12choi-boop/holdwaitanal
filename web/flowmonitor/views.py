@@ -511,7 +511,9 @@ UPDATES = [
             {"t": "화면 위에 지금 이 라인의 문제를 네 장으로 요약합니다. "
                   "LOT 제약 · Bottleneck · 설비 이슈 · PREVENT."},
             {"t": "카드마다 제 계층으로 5순위까지 보여 주고, "
-                  "그것이 만든 W/T 저해와 정체 기간을 함께 적습니다."},
+                  "그것이 만든 W/T 저해와 대기 기간을 함께 적습니다."},
+            {"t": "비율을 라인 전체 대비와 그 제품 안에서의 비중 "
+                  "두 가지로 적습니다."},
             {"t": "Bottleneck 은 순수 몰림인지 호환 그룹이 막혀서인지 "
                   "배지로 구분합니다."},
             {"t": "행을 누르면 그 조건으로 화면 전체가 좁혀집니다. "
@@ -2681,6 +2683,7 @@ def _ins_bucket(rows, mv, rules, ht, cls=None, line=""):
     """카드 네 종류로 나누고, 각자의 경로로 5순위까지 센다."""
     from collections import defaultdict
 
+    prod_tot = {}          # 제품 -> 그 제품의 전체 재공(비율 분모)
     cards = {
         "lot":  {"title": "LOT 제약 (HOLD · 예약제외 · FTP)", "kind": "lot",
                  "items": defaultdict(lambda: _ins_new())},
@@ -2728,6 +2731,11 @@ def _ins_bucket(rows, mv, rules, ht, cls=None, line=""):
         path = tuple(pre + mid_head + _ins_path(r, cards[card]["kind"]))
         it = cards[card]["items"][path]
         q = num(r.get("qty"))
+        # 제품 대비 비율을 내려면 그 제품의 전체 재공도 알아야 한다.
+        prod_tot[str(r.get("prod2") or "").strip() or UNCLASSIFIED] = \
+            prod_tot.get(str(r.get("prod2") or "").strip() or UNCLASSIFIED,
+                         0) + q
+        it["prod"] = str(r.get("prod2") or "").strip() or UNCLASSIFIED
         it["lots"] += 1
         it["qty"] += q
         if extra:
@@ -2739,18 +2747,18 @@ def _ins_bucket(rows, mv, rules, ht, cls=None, line=""):
             d = num_f(r.get("마지막작업경과_일"))
             if d is not None:
                 it["idle"].append(d)
-    return cards
+    return cards, prod_tot
 
 
 def _ins_new():
     from collections import defaultdict
-    return {"lots": 0, "qty": 0, "wt0_qty": 0, "idle": [],
+    return {"lots": 0, "qty": 0, "wt0_qty": 0, "idle": [], "prod": None,
             "blocked": defaultdict(int), "blocked_qty": 0}
 
 
 def _build_insights(line, types, rows, mv, rules, ht, cls, tot, top_n=20):
     """카드 네 장. 각 카드 안에서 매수 순으로 5순위까지."""
-    cards = _ins_bucket(rows, mv, rules, ht, cls, line)
+    cards, prod_tot = _ins_bucket(rows, mv, rules, ht, cls, line)
 
     out = []
     total = tot.get("qty") or 0
@@ -2765,6 +2773,10 @@ def _build_insights(line, types, rows, mv, rules, ht, cls, tot, top_n=20):
             rank.append({
                 "path": list(path), "lots": v["lots"], "qty": v["qty"],
                 "pct": round(v["qty"] / total * 100, 1) if total else 0,
+                # 그 제품 안에서 이 항목이 차지하는 비중
+                "ppct": (round(v["qty"] / prod_tot[v["prod"]] * 100, 1)
+                         if v.get("prod") and prod_tot.get(v["prod"]) else None),
+                "prod_name": v.get("prod"),
                 "wt0_qty": v["wt0_qty"],
                 "idle_avg": round(sum(idle) / len(idle), 1) if idle else None,
                 "idle_max": round(max(idle), 1) if idle else None,
