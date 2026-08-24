@@ -1,7 +1,41 @@
+-- ============================================================
+-- ORA-02393 (CPU_PER_CALL 초과) 대응 최적화 버전
+--
+-- 핵심 변경
+--  1) 날짜 범위 바인드(:D_FROM, :D_TO) 추가  -> 전체 히스토리 스캔 제거 (최대 효과)
+--  2) TO_DATE/SUBSTR 중복 계산 제거 (인라인뷰에서 1회만 계산 후 재사용)
+--  3) DISTINCT 대상 컬럼 축소 (표현식 계산 전, 원본 컬럼 기준으로 선dedupe)
+--  4) MC_BASE MATERIALIZE -> 두 번 참조되는 CTE를 1회만 계산
+--  5) ORDER BY 제거 옵션 (하단 주석 참조)
+--
+-- :D_FROM / :D_TO 는 'YYYYMMDD' 문자열 (예: '20260101' / '20260131')
+-- LOT_TRANSN_TIME / RECENT_TKOUT_TIME 이 문자열 컬럼이므로
+-- 문자열 비교로 필터해야 인덱스/파티션 프루닝이 살아있음 (TO_DATE 씌우면 죽음)
+-- ============================================================
+
 WITH
 
+MC_BASE AS (
+    SELECT /*+ MATERIALIZE */
+        LOT_ID, LOT_TYPE, START_QTY, LOT_STATUS_SEG, CUR_QTY,
+        START_DATE, LAST_EVENT_DATE, PROC_ID, LOT_LEVEL
+    FROM SMICDC_P3NRD.MC_LOT
+    WHERE ORIGIN_LINE_ID = 'PFR1'
+      AND LOT_STATUS_SEG IN ('Finished', 'Archivable', 'Terminated')
+      -- 선택도 높은(=값 종류 많은) 조건을 앞에 두어 SUBSTR 평가 횟수 자체를 줄임
+      AND LAST_EVENT_DATE >= :D_FROM
+      AND LAST_EVENT_DATE <  :D_TO
+      AND SUBSTR(LOT_ID,1,1) NOT IN ('Q','P','E','B')
+      AND SUBSTR(LOT_ID,1,2) <> '1I'
+      AND SUBSTR(LOT_ID,1,4) <> '1GZZ'
+      AND INSTR(LOT_ID, '.') > INSTR(LOT_ID, 'E0', -1)
+),
+
 S AS (
-    SELECT DISTINCT
+    -- ORIGIN_ATTR_VALUE 는 최종 SELECT에서 전혀 쓰이지 않으나,
+    -- DISTINCT 대상에서 빼면 S의 행 수가 줄어 MC 조인 시 중복배수가 달라질 수 있어
+    -- 원본과의 결과 동등성을 위해 일단 유지. (아래 "확인 필요" 참조)
+    SELECT /*+ MATERIALIZE */ DISTINCT
         ORIGIN_ATTR_VALUE,
         NEW_ATTR_VALUE,
         TO_DATE(SUBSTR(LOT_TRANSN_TIME,1,15), 'YYYYMMDD HH24:MI:SS') AS SPLIT_DATE
@@ -9,135 +43,89 @@ S AS (
     WHERE LINE_ID = 'PFR1'
       AND LOT_TRANSN_TYPE = 'Split'
       AND WIP_ATTRIBUTE = 'LOTID'
+      AND LOT_TRANSN_TIME >= :D_FROM
+      AND LOT_TRANSN_TIME <  :D_TO
       AND SUBSTR(ORIGIN_ATTR_VALUE,1,1) = '1'
       AND INSTR(NEW_ATTR_VALUE, '.') > INSTR(NEW_ATTR_VALUE, 'E0', -1)
 ),
 
-MC_BASE AS (
-    -- 원본 MC CTE와 동일하게 WHERE절 필터를 먼저 적용해 스캔 범위를 줄임.
-    -- 원본은 FROM MC_LOT, S (조인조건 없는 카티션) 뒤 WHERE로 LOT_ID=NEW_ATTR_VALUE(+) 를 적용했는데,
-    -- 이는 옵티마이저가 조인 순서/방식을 잘못 선택할 위험이 있어 명시적 LEFT JOIN으로 변경.
-    SELECT
-        LOT_ID,
-        LOT_TYPE,
-        START_QTY,
-        LOT_STATUS_SEG,
-        CUR_QTY,
-        START_DATE,
-        LAST_EVENT_DATE,
-        PROC_ID,
-        LOT_LEVEL
-    FROM SMICDC_P3NRD.MC_LOT
-    WHERE ORIGIN_LINE_ID = 'PFR1'
-      AND LOT_STATUS_SEG IN ('Finished', 'Archivable', 'Terminated')
-      AND SUBSTR(LOT_ID,1,2) <> '1I'
-      AND SUBSTR(LOT_ID,1,1) NOT IN ('Q', 'P', 'E', 'B')
-      AND SUBSTR(LOT_ID,1,4) <> '1GZZ'
-      AND INSTR(LOT_ID, '.') > INSTR(LOT_ID, 'E0', -1)
-),
-
 MC AS (
     SELECT
-        (CASE WHEN MB.LOT_STATUS_SEG IN ('Finished','Archivable') THEN 'F/O' ELSE '중도F/O' END) AS 구분1,
+        CASE WHEN MB.LOT_STATUS_SEG IN ('Finished','Archivable') THEN 'F/O' ELSE '중도F/O' END AS 구분1,
         MB.LOT_ID,
         MB.LOT_TYPE,
         MB.START_QTY,
-        (CASE WHEN MB.LOT_STATUS_SEG = 'Terminated' THEN 0 ELSE MB.CUR_QTY END) AS FO매수,
-        TO_DATE(MB.START_DATE, 'YYYYMMDD HH24:MI:SS') AS START_DATE,
-        TO_DATE(MB.LAST_EVENT_DATE, 'YYYYMMDD HH24:MI:SS') AS LAST_EVENT_DATE,
-        (TO_DATE(MB.LAST_EVENT_DATE, 'YYYYMMDD HH24:MI:SS') - TO_DATE(MB.START_DATE, 'YYYYMMDD HH24:MI:SS')) AS TAT,
+        CASE WHEN MB.LOT_STATUS_SEG = 'Terminated' THEN 0 ELSE MB.CUR_QTY END AS FO매수,
+        MB.START_DT AS START_DATE,
+        MB.LAST_DT  AS LAST_EVENT_DATE,
+        MB.LAST_DT - MB.START_DT AS TAT,        -- TO_DATE 재계산 제거
         S.SPLIT_DATE,
-        (CASE
-            WHEN SUBSTR(MB.LOT_ID,1,1) = 'Q' THEN SUBSTR(MB.LOT_ID,1,1)
+        CASE
+            WHEN SUBSTR(MB.LOT_ID,1,1) = 'Q'  THEN SUBSTR(MB.LOT_ID,1,1)
             WHEN SUBSTR(MB.LOT_ID,1,2) = '1S' THEN SUBSTR(MB.LOT_ID,1,2)
             ELSE SUBSTR(MB.LOT_ID,1,4) || MB.PROC_ID
-         END) AS ID구분1,
+        END AS ID구분1,
         SUBSTR(MB.LOT_ID,1,4) AS ID구분2,
         MB.LOT_LEVEL
-    FROM MC_BASE MB
+    FROM (
+        SELECT B.*,
+               TO_DATE(B.START_DATE,      'YYYYMMDD HH24:MI:SS') AS START_DT,
+               TO_DATE(B.LAST_EVENT_DATE, 'YYYYMMDD HH24:MI:SS') AS LAST_DT
+        FROM MC_BASE B
+    ) MB
     LEFT JOIN S ON S.NEW_ATTR_VALUE = MB.LOT_ID
 ),
 
-T_BASE AS (
-    -- MC와의 조인을 EXISTS로 바꿔, MC_LOT 필터링 후에도 H가 MC 기준 lot만 스캔하도록 함.
-    -- (원래 FROM ..., MC + WHERE MC.LOT_ID=H.LOT_ID 와 결과는 동일하되, 불필요한 컬럼 브로드캐스트 없이 세미조인으로 처리)
-    SELECT
-        H.LOT_ID,
-        H.LOT_TYPE,
-        H.COMPONENT_QTY,
-        H.REAL_COMPONENT_QTY,
-        H.PROCESS_ID,
-        H.EQP_TYPE,
-        H.PROCESS_EQP_ID,
-        H.CHAMBER_ID,
-        H.DELAY_TIME,
-        H.REWORK_MAIN_STEP,
-        H.REWORK_YN,
-        H.LAYER_ID,
-        H.STEP_SEQ,
-        H.LOT_TRANSN_DESC,
-        H.TKIN_OPERTR_ID,
-        H.LINE_ID,
-        H.CURRENT_LINE_ID,
-        H.RECENT_TKOUT_TIME,
-        H.TKIN_DATE,
-        H.LOT_TRANSN_TIME,
-        H.PORT_LOAD_DATE,
-        H.PORT_UNLOAD_DATE,
-        H.PROCESS_START_DATE,
-        H.PROCESS_FINISH_DATE,
-        H.PPID
+-- TrackOut 이력: 원본 컬럼 기준으로 먼저 DISTINCT 처리
+-- (CASE/TO_DATE/REGEXP 표현식을 중복행에 대해 반복 계산하지 않도록 순서를 뒤집음)
+T_RAW AS (
+    SELECT DISTINCT
+        H.LOT_ID, H.LOT_TYPE, H.COMPONENT_QTY, H.REAL_COMPONENT_QTY, H.PROCESS_ID,
+        H.EQP_TYPE, H.PROCESS_EQP_ID, H.CHAMBER_ID, H.DELAY_TIME, H.REWORK_MAIN_STEP,
+        H.REWORK_YN, H.LAYER_ID, H.STEP_SEQ, H.LOT_TRANSN_DESC, H.TKIN_OPERTR_ID,
+        H.LINE_ID, H.CURRENT_LINE_ID, H.RECENT_TKOUT_TIME, H.TKIN_DATE,
+        H.LOT_TRANSN_TIME, H.PORT_LOAD_DATE, H.PORT_UNLOAD_DATE,
+        H.PROCESS_START_DATE, H.PROCESS_FINISH_DATE, H.PPID
     FROM SMIMES.MI_LOT_TRANSN_HIST H
     WHERE H.LINE_ID = 'PFR1'
       AND H.LOT_TRANSN_TYPE = 'TrackOut'
+      AND H.LOT_TRANSN_TIME >= :D_FROM
+      AND H.LOT_TRANSN_TIME <  :D_TO
       AND SUBSTR(H.LOT_ID,1,1) NOT IN ('Q','P','E','B')
-      AND EXISTS (
-            SELECT 1 FROM MC_BASE MB WHERE MB.LOT_ID = H.LOT_ID
-      )
+      AND EXISTS (SELECT 1 FROM MC_BASE MB WHERE MB.LOT_ID = H.LOT_ID)
 ),
 
 T AS (
-    SELECT DISTINCT
-        (CASE
+    SELECT
+        CASE
             WHEN TB.EQP_TYPE IN ('FSORTE','JSORTE') THEN '소터'
             WHEN UPPER(SUBSTR(TB.LOT_TRANSN_DESC,1,1)) = 'S' THEN '샘플'
-            WHEN TB.EQP_TYPE = 'POVLAY' OR UPPER(SUBSTR(TB.PROCESS_EQP_ID,1,1)) = 'M' THEN '계측'
+            WHEN TB.EQP_TYPE = 'POVLAY'
+              OR UPPER(SUBSTR(TB.PROCESS_EQP_ID,1,1)) = 'M' THEN '계측'
             ELSE '메인'
-         END) AS 구분2,
-        -- 원본의 7개 OR-INSTR 체인을 단일 REGEXP_INSTR로 대체 (".1E".."7E" 패턴 매칭, 함수 호출 1회로 축소)
-        (CASE
-            WHEN REGEXP_INSTR(TB.LOT_ID, '\.[1-7]E') > 0
-                THEN SUBSTR(TB.LOT_ID, 1, INSTR(TB.LOT_ID, '.') + 1)
-            ELSE TB.LOT_ID
-         END) AS REV_LOT_ID,
-        TB.LOT_ID,
-        TB.LOT_TYPE,
-        TB.COMPONENT_QTY,
-        TB.REAL_COMPONENT_QTY,
-        TB.PROCESS_ID,
-        TB.EQP_TYPE,
-        TB.PROCESS_EQP_ID,
-        TB.CHAMBER_ID,
-        TB.DELAY_TIME,
-        TB.REWORK_MAIN_STEP,
-        TB.REWORK_YN,
-        TB.LAYER_ID,
-        TB.STEP_SEQ,
-        TB.LOT_TRANSN_DESC,
-        TB.TKIN_OPERTR_ID,
-        TB.LINE_ID,
-        TB.CURRENT_LINE_ID,
-        TO_DATE(TB.RECENT_TKOUT_TIME, 'YYYYMMDD HH24:MI:SS') AS RECENT_TKOUT_DATE,
+        END AS 구분2,
+        -- 7중 OR-INSTR -> 단일 REGEXP_INSTR, 그리고 INSTR(.) 결과 재사용
+        CASE WHEN REGEXP_INSTR(TB.LOT_ID, '\.[1-7]E') > 0
+             THEN SUBSTR(TB.LOT_ID, 1, INSTR(TB.LOT_ID,'.') + 1)
+             ELSE TB.LOT_ID
+        END AS REV_LOT_ID,
+        TB.LOT_ID, TB.LOT_TYPE, TB.COMPONENT_QTY, TB.REAL_COMPONENT_QTY, TB.PROCESS_ID,
+        TB.EQP_TYPE, TB.PROCESS_EQP_ID, TB.CHAMBER_ID, TB.DELAY_TIME, TB.REWORK_MAIN_STEP,
+        TB.REWORK_YN, TB.LAYER_ID, TB.STEP_SEQ, TB.LOT_TRANSN_DESC, TB.TKIN_OPERTR_ID,
+        TB.LINE_ID, TB.CURRENT_LINE_ID,
+        TB.RECENT_TKOUT_DT AS RECENT_TKOUT_DATE,
         TB.TKIN_DATE,
-        TO_DATE(SUBSTR(TB.LOT_TRANSN_TIME,1,15), 'YYYYMMDD HH24:MI:SS') AS TKOUT_DATE,
-        TB.PORT_LOAD_DATE,
-        TB.PORT_UNLOAD_DATE,
-        TB.PROCESS_START_DATE,
-        TB.PROCESS_FINISH_DATE,
-        (TO_DATE(SUBSTR(TB.LOT_TRANSN_TIME,1,15), 'YYYYMMDD HH24:MI:SS') - TB.TKIN_DATE) AS NET,
-        (TB.TKIN_DATE - TO_DATE(TB.RECENT_TKOUT_TIME, 'YYYYMMDD HH24:MI:SS')) AS WAIT,
+        TB.TKOUT_DT        AS TKOUT_DATE,
+        TB.PORT_LOAD_DATE, TB.PORT_UNLOAD_DATE, TB.PROCESS_START_DATE, TB.PROCESS_FINISH_DATE,
+        TB.TKOUT_DT - TB.TKIN_DATE        AS NET,    -- TO_DATE 재계산 제거
+        TB.TKIN_DATE - TB.RECENT_TKOUT_DT AS WAIT,   -- TO_DATE 재계산 제거
         TB.PPID
-    FROM T_BASE TB
+    FROM (
+        SELECT R.*,
+               TO_DATE(SUBSTR(R.LOT_TRANSN_TIME,1,15), 'YYYYMMDD HH24:MI:SS') AS TKOUT_DT,
+               TO_DATE(R.RECENT_TKOUT_TIME,            'YYYYMMDD HH24:MI:SS') AS RECENT_TKOUT_DT
+        FROM T_RAW R
+    ) TB
 )
 
 SELECT
@@ -150,4 +138,7 @@ SELECT
     T.PORT_LOAD_DATE, T.PORT_UNLOAD_DATE, T.PROCESS_START_DATE, T.PROCESS_FINISH_DATE
 FROM T
 LEFT JOIN MC ON MC.LOT_ID = T.LOT_ID
-ORDER BY REV_LOT_ID, TKIN_DATE
+ORDER BY T.REV_LOT_ID, T.TKIN_DATE
+-- ★ 파이프라인이 S3/parquet -> pandas 라면 위 ORDER BY 를 제거하고
+--    df.sort_values(['REV_LOT_ID','TKIN_DATE']) 로 정렬하는 것을 강력 권장.
+--    전체 결과셋 정렬은 CPU_PER_CALL 를 크게 잡아먹는 구간임.
