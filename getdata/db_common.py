@@ -320,6 +320,24 @@ def ensure_standard_schema(conn):
 
         # 2) Hold 유형설정: 사유 문자열에 condition 이 모두 들어가면 type_name
         cur.execute("""
+        CREATE TABLE IF NOT EXISTS f3_std_product (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          -- lot_id 의 1~5 번째 글자. 비우면 그 자리는 따지지 않는다.
+          lot_char1 VARCHAR(4) NULL,
+          lot_char2 VARCHAR(4) NULL,
+          lot_char3 VARCHAR(4) NULL,
+          lot_char4 VARCHAR(4) NULL,
+          lot_char5 VARCHAR(4) NULL,
+          proc_id VARCHAR(32) NULL,       -- PLAN. 비우면 따지지 않는다
+          product_name VARCHAR(64) NOT NULL,
+          updated_at DATETIME NULL,
+          KEY ix_pd (lot_char1, lot_char2, lot_char3),
+          UNIQUE KEY uq_pd (lot_char1, lot_char2, lot_char3, lot_char4,
+                            lot_char5, proc_id, product_name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+
+        cur.execute("""
         CREATE TABLE IF NOT EXISTS f3_std_holdtype (
           id BIGINT AUTO_INCREMENT PRIMARY KEY,
           line VARCHAR(16) NULL,

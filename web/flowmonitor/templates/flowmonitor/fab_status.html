@@ -36,6 +36,14 @@
           <button onclick="toggleProd('dp3')" id="p3b">AREA 전체 &#9662;</button>
           <div class="menu" id="p3m"></div>
         </div>
+        <div class="dd" id="dp4">
+          <button onclick="toggleProd('dp4')" id="p4b">PLAN 전체 &#9662;</button>
+          <div class="menu" id="p4m"></div>
+        </div>
+        <div class="dd" id="dp5">
+          <button onclick="toggleProd('dp5')" id="p5b">LOT 전체 &#9662;</button>
+          <div class="menu" id="p5m"></div>
+        </div>
       </div>
     </div>
 
@@ -261,7 +269,8 @@ function onTypeCheck() {
   loadSummary();
 }
 
-let PROD1 = [], PROD2 = [], AREAS = [];
+let PROD1 = [], PROD2 = [], AREAS = [], PLANS = [], LOTS = [];
+const HAVE_DATES = new Set();      // 스냅샷이 있는 날짜
 let SNAP_DATE = "", SNAP_SHIFT = "";     // 빈 값이면 현재(f3_live)
 
 // 날짜 / SHIFT 선택. 맨 위 '현재' 가 f3_live 다.
@@ -281,6 +290,18 @@ function renderSnap(d) {
     // 비워 두면 '최신' 이지만, 그래도 어느 날짜인지는 보여야 한다.
     const snapD = (d.snapshot_at || "").slice(0, 10);
     lb.textContent = (SNAP_DATE || snapD).slice(2) || "최신";
+    // 고를 수 있는 날짜 범위를 좁힌다. 그 밖은 달력에서 눌리지 않는다.
+    HAVE_DATES.clear();
+    (DATA.snapshots || []).forEach(x => {
+      if (x.biz_date) { HAVE_DATES.add(x.biz_date); }
+    });
+    const el = document.getElementById("snapDate");
+    if (el && HAVE_DATES.size) {
+      const ds = [...HAVE_DATES].sort();
+      el.min = ds[0];
+      el.max = ds[ds.length - 1];
+      el.title = "데이터가 있는 날짜만 고를 수 있습니다";
+    }
   }
   if (el) {
     const ds = snaps.map(x => x.biz_date).sort();
@@ -316,6 +337,20 @@ function renderSnap(d) {
 }
 
 function pickSnapDate(v) {
+  // 데이터가 없는 날짜는 고를 수 없다.
+  //   <input type="date"> 는 개별 날짜 비활성화를 지원하지 않는다.
+  //   대신 min/max 로 범위를 좁히고, 빈 날짜는 되돌린다.
+  if (v && HAVE_DATES.size && !HAVE_DATES.has(v)) {
+    const el = document.getElementById("snapDate");
+    if (el) { el.value = SNAP_DATE || ""; }
+    const lb = document.getElementById("snapDateLb");
+    if (lb) {
+      const keep = lb.textContent;
+      lb.textContent = "데이터 없음";
+      setTimeout(() => { lb.textContent = keep; }, 1200);
+    }
+    return;
+  }
   SNAP_DATE = v;
   // 과거 날짜를 고르면 '최신' 이 없으므로 기본 SHIFT(GY) 로 맞춘다.
   //   그 날 GY 가 없으면 있는 것 중 첫 번째를 쓴다.
@@ -340,7 +375,7 @@ function toggleProd(id) {
   if (!open) { el.classList.add("open"); }
 }
 
-const PROD_LABEL = { 1: "제품군", 2: "제품", 3: "AREA" };
+const PROD_LABEL = { 1: "제품군", 2: "제품", 3: "AREA", 4: "PLAN", 5: "LOT" };
 
 // ALL 은 목록 맨 위의 전체 선택 스위치다.
 // 내부적으로는 "선택 없음 = 전체" 로 다루므로, ALL 이 켜지면 빈 배열로 둔다.
@@ -362,7 +397,9 @@ function prodPicked(which, isAll) {
   const eff = (sel.length === opts.length) ? [] : sel;
   if (which === 1) { PROD1 = eff; PROD2 = []; }
   else if (which === 2) { PROD2 = eff; }
-  else { AREAS = eff; }
+  else if (which === 3) { AREAS = eff; }
+  else if (which === 4) { PLANS = eff; }
+  else { LOTS = eff; }
   if (sel.length === 0) {
     document.getElementById("p" + which + "b").innerHTML =
       `<span>${PROD_LABEL[which]} 선택 없음</span><span>&#9662;</span>`;
@@ -407,6 +444,8 @@ function renderProd(d) {
   fill(1, d.prod1_options, PROD1);
   fill(2, d.prod2_options, PROD2);
   fill(3, d.area_options, AREAS);
+  fill(4, d.plan_options, PLANS);
+  fill(5, d.lot_options, LOTS);
 }
 
 function pickLine(line) {
@@ -415,6 +454,7 @@ function pickLine(line) {
     b.classList.toggle("on", b.dataset.line === line));
   document.getElementById("ddm").innerHTML = "";   // 라인마다 lot_type 이 다를 수 있다
   PROD1 = []; PROD2 = []; AREAS = [];              // 제품구분도 라인별로 다르다
+  PLANS = []; LOTS = [];
   loadSummary();
 }
 
@@ -1140,6 +1180,7 @@ function loadBalance(show) {
   const base = Object.assign({
     line: LINE, types: selectedTypes().join(","),
     prod1: PROD1.join(","), prod2: PROD2.join(","), area: AREAS.join(","),
+    plan: PLANS.join(","), lots: LOTS.join(","),
     biz_date: SNAP_DATE, shift: SNAP_SHIFT, by: (BAL_BY || "plan")
   }, dfFilter());
   delete base.layer_id;                 // LAYER 는 이 차트의 x축이라 뺀다
@@ -1213,8 +1254,13 @@ function drawBalance() {
     body.innerHTML = rows.map((r, i) => {
       const sep = (byProd && prev !== null && r.group !== prev);
       prev = (r.group === undefined) ? prev : r.group;
+      // 제품 > PLAN. 제품은 굵게, 구분자는 흐리게.
+      const parts = String(r.name).split(">");
+      const lab = parts.length > 1
+        ? `<b>${parts[0]}</b><i>&gt;</i><span>${parts.slice(1).join(">")}</span>`
+        : `<b>${parts[0]}</b>`;
       return `<div class="balrow${sep ? " gsep" : ""}">`
-        + `<div class="ballab">${r.name}</div>`
+        + `<div class="ballab" title="${r.name}">${lab}</div>`
         + `<div class="balc"><canvas id="balc${i}"></canvas></div></div>`;
     }).join("");
   } else {
@@ -2057,7 +2103,10 @@ function czApply(ch, nodes, u, selName, selList) {
   ch.data.labels = nodes.map(x => x.name);
   const line = ch.data.datasets.find(d => d.type === "line");
   // 안 좋은 지표라 적색 계열. 라인 ALL 이면 라인별 누적막대로 바꾼다.
-  const bars = lineStack(nodes, u, "#F08080");
+  // HOLD 는 건 주체로 색을 나눈다. System 이 옅다.
+  //   차트를 만들 때 붙여 둔 $big 을 본다.
+  const bars = lineStack(nodes, u,
+    (ch.$big === "System Hold") ? "#F2B8B5" : "#F08080");
   bars.forEach(b => { b.order = 2; b.yAxisID = "y"; b.borderRadius = 3; });
   if (line) {
     line.data = nodes.map(x =>
@@ -2520,6 +2569,7 @@ function renderCause() {
     const marks = causeSelNames(i);
     CZ_STACK.filter(x => x.i === i).forEach(x => marks.add(x.path[0].name));
     const here0 = nodes.filter(x => marks.has(x.name)).map(x => x.name);
+    czCharts[i].$big = czGroup(i).name;
     czApply(czCharts[i], nodes, u, null, here0);
     // Bottleneck 카드에는 전 라인 토글을 붙인다.
     const hdEl = document.getElementById("czh" + i);
@@ -2686,6 +2736,7 @@ function renderCzStack() {
     // 이 차트의 축에 실제로 있는 것만 고른 것으로 본다.
     const all = causeSelNames(step.i);
     const here = nodes.filter(x => all.has(x.name)).map(x => x.name);
+    czStackCharts[n].$big = czGroup(step.i).name;
     czApply(czStackCharts[n], nodes, CAUSE_UNIT, null, here);
   });
 }
@@ -3914,6 +3965,7 @@ function openDrill(filt, label, src, keepView) {
   const base = { line: LINE, types: selectedTypes().join(","),
                  prod1: PROD1.join(","), prod2: PROD2.join(","),
                  area: AREAS.join(","),
+                 plan: PLANS.join(","), lots: LOTS.join(","),
                  biz_date: SNAP_DATE, shift: SNAP_SHIFT,
                  src: src || "",
                  cols: keepView ? visibleKeys().join(",") : "" };
@@ -3980,6 +4032,8 @@ function loadSummary(keepFocus) {
         + "&prod1=" + encodeURIComponent(PROD1.join(","))
         + "&prod2=" + encodeURIComponent(PROD2.join(","))
         + "&area=" + encodeURIComponent(AREAS.join(","))
+        + "&plan=" + encodeURIComponent(PLANS.join(","))
+        + "&lots=" + encodeURIComponent(LOTS.join(","))
         // 같은 필드를 여러 개 고를 수 있다. 조건 저장소를 그대로 보낸다.
         + "&x_prod=" + encodeURIComponent((DF_X.x_prod || []).join(","))
         + "&x_mod=" + encodeURIComponent((DF_X.x_mod || []).join(","))

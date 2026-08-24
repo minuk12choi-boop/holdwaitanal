@@ -764,9 +764,13 @@
                    overflow:auto; min-width:190px; z-index:70; }
   .balpath { font-size:12px; font-weight:700; color:var(--accent);
              min-height:16px; margin-bottom:4px; }
-  .ballab { flex:0 0 92px; font-size:11px; font-weight:700; color:var(--brand);
-            display:flex; align-items:center; overflow:hidden;
-            text-overflow:ellipsis; white-space:nowrap; }
+  /* 제품 > PLAN 을 줄바꿈해 전부 보여 준다. 잘라내지 않는다. */
+  .ballab { flex:0 0 110px; font-size:10px; color:var(--brand);
+            display:flex; align-items:center; line-height:1.35;
+            word-break:break-all; white-space:normal; padding-right:4px; }
+  .ballab b { font-weight:700; }
+  .ballab i { font-style:normal; color:var(--mut); margin:0 2px; }
+  .ballab span { font-weight:400; }
   /* 아래에 모듈2 · 모듈1 두 단이 붙어 그만큼 높게 잡는다. */
   .balc { flex:1; min-width:0; height:186px; }
 

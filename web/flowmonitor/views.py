@@ -98,7 +98,12 @@ def wt_bins(max_wt):
         lo = hi
     return bins
 # 원인 대분류. 위에서부터 우선순위. 겹치면 하나에만 귀속한다.
-WT_CAUSES = ["Hold", "Wait성 진행불가", "설비", "TIP", "기타/미분류"]
+# HOLD 는 건 주체로 나눈다. 색은 같은 계열이되 System 이 옅다.
+HOLD_KINDS = ("User Hold", "System Hold")
+HOLD_LIGHT = "#F2B8B5"
+
+WT_CAUSES = ["User Hold", "System Hold", "Wait성 진행불가",
+             "설비", "TIP", "기타/미분류"]
 LOOKBACK_DAYS = 140
 
 # blueprint 7.3 권장 상대 높이. 템플릿에는 계산된 px 로 넘긴다.
@@ -281,6 +286,15 @@ def _xfilters(request):
 def _fline_ok(r, want):
     """라인 ALL 에서 조각(라인)을 고른 경우. 표와 LOT BALANCE 에도 걸린다."""
     return (not want) or (str(r.get("line") or "-") in want)
+
+
+def _plan_lot_ok(r, plans, lots):
+    """좌측 최상단 PLAN / LOT 필터. 세 API 가 같이 쓴다."""
+    if plans and (str(r.get("proc_id") or "").strip() or UNCLASSIFIED) not in plans:
+        return False
+    if lots and str(r.get("lot_id") or "") not in lots:
+        return False
+    return True
 
 
 def _fprod_ok(r, want):
@@ -514,6 +528,8 @@ UPDATES = [
                   "그것이 만든 W/T 저해와 대기 기간을 함께 적습니다."},
             {"t": "비율을 라인 전체 대비와 그 제품 안에서의 비중 "
                   "두 가지로 적습니다."},
+            {"t": "HOLD 를 건 주체에 따라 User Hold 와 System Hold 로 "
+                  "나눠 보여 줍니다."},
             {"t": "Bottleneck 은 순수 몰림인지 호환 그룹이 막혀서인지 "
                   "배지로 구분합니다."},
             {"t": "행을 누르면 그 조건으로 화면 전체가 좁혀집니다. "
@@ -560,6 +576,25 @@ UPDATES = [
                   "내는 진단을 더했습니다(diag.py holdtxt)."},
             {"t": "원인 분류 체계 전체를 펼쳐 보는 진단을 더했습니다"
                   "(diag.py tree)."},
+        ],
+    },
+    {
+        "ver": "v1.9",
+        "date": "",
+        "title": "필터와 제품구분",
+        "items": [
+            {"t": "왼쪽 필터에 PLAN 과 LOT 을 더했습니다. 둘 다 검색과 "
+                  "복수 선택이 되고 기본은 전체입니다."},
+            {"t": "필터끼리 서로 선택지를 좁혀 줍니다. 고를 수 없는 값은 "
+                  "목록에 나오지 않습니다."},
+            {"t": "달력은 데이터가 있는 날짜 범위만 고를 수 있습니다."},
+            {"t": "HOLD 를 건 주체에 따라 User Hold 와 System Hold 로 "
+                  "나눕니다. 원인 분석에서 색으로 구분됩니다."},
+            {"t": "기준정보에 제품구분 카드를 더했습니다. lot_id 의 글자와 "
+                  "PLAN 으로 제품명을 정하며, 여기서 정해지지 않은 것만 "
+                  "기존 SSPS 제품명을 씁니다."},
+            {"t": "LOT BALANCE 의 줄 이름을 제품 > PLAN 으로 적고 "
+                  "줄바꿈해 전부 보여 줍니다."},
         ],
     },
     {
@@ -1107,7 +1142,7 @@ def _preset_for(src, status, big, lot_type, wt_range, wt0):
         key = "WAIT"
     elif big == "Wait성 진행불가":
         key = "WAIT(진행불가)"
-    elif big == "Hold":
+    elif big in ("Hold", "User Hold", "System Hold"):
         key = "HOLD"
     if key == "WAIT":
         return "wait"
@@ -1321,6 +1356,12 @@ def _holdtype_rules():
 HOLDTYPE_ORDER = [("HOLD", "hold", "hold_reason"),
                   ("FTP", "ftp", "ftp_reason"),
                   ("예약제외", "exception", "exception_reason")]
+
+
+def _hold_kind(r):
+    """HOLD 를 건 주체. hold_user_name 첫 글자가 숫자면 사람이다."""
+    u = str(r.get("hold") or "").strip()
+    return "User Hold" if (u[:1].isdigit()) else "System Hold"
 
 
 def holdtype_of(r, rules):
@@ -1613,7 +1654,9 @@ def _classify_lot(r, rules, ht=None):
     # 원인은 상태의 하위 분류다. 상태를 먼저 보고 그 안에서 나눈다.
     # (예전에는 hold 플래그만 보고 Hold 로 보내, 상태와 원인이 어긋났다)
     if st == "HOLD":
-        return ("Hold", None,
+        # hold 컬럼에는 hold_user_name 이 들어온다.
+        #   첫 글자가 숫자면 사람이 건 것(User), 아니면 시스템이 건 것.
+        return (_hold_kind(r), None,
                 [_sub_name(r, ht, "HOLD", "hold_reason", rules, "hold")])
 
     # 가상스텝 판정. 실제 설비를 기다리는 게 아니므로 Bottleneck 이 아니다.
@@ -1679,6 +1722,8 @@ def api_summary(request):
     prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
     prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
     areas = [x for x in request.GET.get("area", "").split(",") if x]
+    plans = [x for x in request.GET.get("plan", "").split(",") if x]
+    lots = [x for x in request.GET.get("lots", "").split(",") if x]
     # 좌측에서 막대/조각을 고르면 원인 분석만 그 부분집합으로 다시 센다.
     # 같은 필드를 여러 개 고를 수 있으므로(Ctrl) 반드시 목록으로 받는다.
     def flist(name):
@@ -1714,14 +1759,34 @@ def api_summary(request):
     p1_opts = sorted({pv(r, "prod1") for r in rows})
     p2_opts = sorted({pv(r, "prod2") for r in rows
                       if not prod1 or pv(r, "prod1") in prod1})
-    rows = [r for r in rows
-            if (not prod1 or pv(r, "prod1") in prod1)
-            and (not prod2 or pv(r, "prod2") in prod2)
-            and (not areas or (r.get("AREA") or UNCLASSIFIED) in areas)]
+
+    # 각 목록은 **자기 필터를 뺀** 나머지를 반영한다. 그래야 다시 고를 수 있다.
+    def _keep(r, skip=""):
+        return ((skip == "p1" or not prod1 or pv(r, "prod1") in prod1)
+                and (skip == "p2" or not prod2 or pv(r, "prod2") in prod2)
+                and (skip == "ar" or not areas
+                     or (r.get("AREA") or UNCLASSIFIED) in areas)
+                and (skip == "pl" or not plans
+                     or (r.get("proc_id") or UNCLASSIFIED) in plans)
+                and (skip == "lt" or not lots or r.get("lot_id") in lots))
+
+    pl_opts = sorted({r.get("proc_id") or UNCLASSIFIED
+                      for r in rows if _keep(r, "pl")})
+    lt_opts = sorted({r.get("lot_id") for r in rows
+                      if r.get("lot_id") and _keep(r, "lt")})[:3000]
+    a_opts = [x for x in a_opts
+              if x in {(r.get("AREA") or UNCLASSIFIED)
+                       for r in rows if _keep(r, "ar")}]
+    p2_opts = [x for x in p2_opts
+               if x in {pv(r, "prod2") for r in rows if _keep(r, "p2")}]
+
+    rows = [r for r in rows if _keep(r)]
     if not rows:
-        return JsonResponse({"ready": False, "reason": "선택한 제품구분에 해당하는 재공이 없습니다",
+        return JsonResponse({"ready": False, "reason": "선택한 조건에 해당하는 재공이 없습니다",
                              "prod1_options": p1_opts, "prod2_options": p2_opts,
-                             "area_options": a_opts},
+                             "area_options": a_opts,
+        "plan_options": pl_opts, "lot_options": lt_opts,
+                             "plan_options": pl_opts, "lot_options": lt_opts},
                             json_dumps_params={"ensure_ascii": False})
 
     mv = _lot_move_map(line)
@@ -1944,7 +2009,7 @@ def api_summary(request):
     causes = []
     # 'Wait' 는 갈 수 있는 설비가 남아 있는 경우다(호환설비이슈).
     # 원인 분석 차트는 3칸이라 Bottleneck 쪽에 함께 담는다.
-    for big in ("Hold", "Wait성 진행불가", "Bottleneck"):
+    for big in ("User Hold", "System Hold", "Wait성 진행불가", "Bottleneck"):
         g = tree.get(big)
         if not g:
             causes.append({"name": big, "lots": 0, "qty": 0, "children": []})
@@ -1986,6 +2051,7 @@ def api_summary(request):
         "biz_date": bdate, "shift": bshift,
         "prod1_options": p1_opts, "prod2_options": p2_opts,
         "area_options": a_opts,
+        "plan_options": pl_opts, "lot_options": lt_opts,
         "selected_prod1": prod1, "selected_prod2": prod2,
         "total": tot,
         "by_lot_type": [{"name": k, **by_type[k]}
@@ -2089,6 +2155,19 @@ STD_CARDS = [
          {"k": "module1", "t": "MODULE1", "req": True, "w": "md"},
          {"k": "module2", "t": "MODULE2", "w": "md"},
      ]},
+    {"key": "product", "table": "f3_std_product", "title": "제품구분",
+     "desc": "lot_id 의 각 글자와 PLAN 이 모두 맞으면 그 PRODUCT_NAME 으로 "
+             "본다. 비운 칸은 따지지 않는다. 대소문자는 구분하지 않는다. "
+             "여기서 정해지지 않은 것만 SSPS 제품명을 쓴다.",
+     "cols": [
+         {"k": "lot_char1", "t": "1번째", "w": "xs"},
+         {"k": "lot_char2", "t": "2번째", "w": "xs"},
+         {"k": "lot_char3", "t": "3번째", "w": "xs"},
+         {"k": "lot_char4", "t": "4번째", "w": "xs"},
+         {"k": "lot_char5", "t": "5번째", "w": "xs"},
+         {"k": "proc_id", "t": "PLAN", "w": "md"},
+         {"k": "product_name", "t": "PRODUCT_NAME", "req": True, "w": "md"},
+     ]},
     {"key": "holdtype", "table": "f3_std_holdtype", "title": "HOLD 유형설정",
      "sortable": True,          # 행을 끌어 적용 순서를 바꾼다
      "desc": "각 유형의 사유 컬럼에 CONDITION 이 모두 포함되면 TYPE_NAME 으로 "
@@ -2179,7 +2258,9 @@ def _std_save(card, payload):
     clean, seen = [], set()
     for row in payload:
         v = {k: (str(row.get(k) or "").strip() or None) for k in cols}
-        for k in ("condition1", "condition2", "condition3"):
+        for k in ("condition1", "condition2", "condition3",
+                  "lot_char1", "lot_char2", "lot_char3", "lot_char4",
+                  "lot_char5", "proc_id"):
             if v.get(k):                     # 대소문자 구분 없이 걸리게
                 v[k] = v[k].upper()
         for c in card["cols"]:                         # 비면 기본값으로 채운다
@@ -2342,6 +2423,8 @@ def api_trend(request):
     prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
     prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
     areas = [x for x in request.GET.get("area", "").split(",") if x]
+    plans = [x for x in request.GET.get("plan", "").split(",") if x]
+    lots = [x for x in request.GET.get("lots", "").split(",") if x]
     bdate = request.GET.get("biz_date", "")
     drill = [x for x in request.GET.get("drill", "").split("|") if x]
     scope = request.GET.get("scope", "day")
@@ -2395,13 +2478,13 @@ def _trend_points(points, line, types, prod1, prod2, drill, rules, ht,
             if not big:
                 continue
             if not drill:
-                if big in ("Hold", "Wait성 진행불가"):
+                if big in HOLD_KINDS + ("Wait성 진행불가",):
                     series[big] = series.get(big, 0) + q
                 continue
 
             # Hold+Wait성 은 둘을 합쳐 소분류 상위를 본다
             if drill[0] == "Hold+Wait성":
-                if big not in ("Hold", "Wait성 진행불가"):
+                if big not in HOLD_KINDS + ("Wait성 진행불가",):
                     continue
                 key = subs[0] if subs else mid
                 if key:
@@ -2426,14 +2509,15 @@ def _trend_points(points, line, types, prod1, prod2, drill, rules, ht,
     for x in out:
         for k, v in x["series"].items():
             tot[k] = tot.get(k, 0) + v
-    order = ["Hold", "Wait성 진행불가"] if not drill else \
+    order = list(HOLD_KINDS) + ["Wait성 진행불가"] if not drill else \
         [k for k, _ in sorted(tot.items(), key=lambda kv: -kv[1])[:5]]
     order = [k for k in order if k in tot]
 
     return JsonResponse({
         "points": out, "series": order, "drill": drill,
         # 라인 색. Hold/Wait성 은 status 색을 그대로 쓴다.
-        "colors": {"Hold": STATUS_COLORS["HOLD"],
+        "colors": {"User Hold": STATUS_COLORS["HOLD"],
+                   "System Hold": HOLD_LIGHT,
                    "Wait성 진행불가": STATUS_COLORS["WAIT(진행불가)"]},
         "scope": scope, "wshift": wshift,
     }, json_dumps_params={"ensure_ascii": False})
@@ -2454,6 +2538,7 @@ def api_balance(request):
 
     prod1, prod2 = multi("prod1"), multi("prod2")
     areas = multi("area")
+    plans, lots = multi("plan"), multi("lots")
     bdate = request.GET.get("biz_date", "")
     bshift = request.GET.get("shift", "")
     # 표와 같은 조건
@@ -2478,6 +2563,8 @@ def api_balance(request):
         or_causes.append(tuple(x.strip() for x in parts))
 
     by = [x for x in request.GET.get("by", "plan").split(",") if x] or ["plan"]
+    # 화면 표기는 늘 제품 > PLAN 순이다. 고른 순서와 무관하게 맞춘다.
+    by = [x for x in ("prod", "plan") if x in by] or ["plan"]
     gcols = [("prod2" if x == "prod" else "proc_id") for x in by]
 
     rows, _ = _summary_rows(line, types, biz_date=bdate, shift=bshift)
@@ -2505,6 +2592,8 @@ def api_balance(request):
         if not _farea_ok(r, f_area_b):
             continue
         if not _fprod_ok(r, f_prod_b):
+            continue
+        if not _plan_lot_ok(r, plans, lots):
             continue
         st = r.get("lot_status") or "-"
         if f_type and (r.get("lot_type") or "-") not in f_type:
@@ -2545,7 +2634,8 @@ def api_balance(request):
         if r.get("module2"):
             lay_mod2.setdefault(lay, r.get("module2"))
         _bucket(total.setdefault(lay, {}), st, q)
-        key = " · ".join(str(r.get(c) or "-") for c in gcols)
+        # 제품 > PLAN 순서로 잇는다. 화면에서 제품을 굵게 쓴다.
+        key = ">".join(str(r.get(c) or "-") for c in gcols)
         _bucket(by_plan.setdefault(key, {}).setdefault(lay, {}), st, q)
         # 제품으로 나눌 때는 **그 제품이 실제로 있는 LAYER** 만 축으로 쓴다.
         #   PLAN 까지 나눠도 축은 제품 단위로 묶는다(줄끼리 견줄 수 있게).
@@ -2716,8 +2806,8 @@ def _ins_bucket(rows, mv, rules, ht, cls=None, line=""):
             continue
 
         card, head, extra = None, None, None
-        if big == "Hold":
-            card, head = "lot", "HOLD"
+        if big in HOLD_KINDS:
+            card, head = "lot", big.upper()
         elif big == "Wait성 진행불가" and mid in ("예약제외", "FTP"):
             card, head = "lot", mid
         elif big == "Wait성 진행불가" and mid == "설비이슈":
@@ -2917,6 +3007,8 @@ def api_lots_live(request):
     prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
     prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
     areas = [x for x in request.GET.get("area", "").split(",") if x]
+    plans = [x for x in request.GET.get("plan", "").split(",") if x]
+    lots = [x for x in request.GET.get("lots", "").split(",") if x]
     # 화면에 보이는 컬럼만 실어 보낸다. 응답 크기가 절반 이하로 준다.
     want_cols = [x for x in request.GET.get("cols", "").split(",") if x]
     bdate = request.GET.get("biz_date", "")
@@ -2995,6 +3087,8 @@ def api_lots_live(request):
         if not _farea_ok(r, f_area_x):
             continue
         if not _fprod_ok(r, f_prod_x):
+            continue
+        if not _plan_lot_ok(r, plans, lots):
             continue
         if or_causes:
             ids = set(_eqp_ids(r))

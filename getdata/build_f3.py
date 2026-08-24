@@ -621,6 +621,38 @@ DEST_LINE_MAP = {
 }
 
 
+# 특정 lot 이 어디서 빠지는지 단계마다 남긴다.
+#   실행:  set TRACE_LOT=7DDWG17.1  후 build_f3 실행
+#   또는:  python getdata/build_f3.py --trace-lot 7DDWG17.1
+TRACE_LOT = os.environ.get("TRACE_LOT", "").strip()
+
+
+def trace_lot(where, df, col="lot_id"):
+    """추적 대상 lot 이 이 단계에 몇 행 있는지 남긴다."""
+    if not TRACE_LOT or df is None:
+        return
+    try:
+        if col not in df.columns:
+            low = {c.lower(): c for c in df.columns}
+            col = low.get(col.lower(), "")
+            if not col:
+                print(f"[TRACE] {where:22s} {col or 'lot_id'} 컬럼 없음", flush=True)
+                return
+        hit = df[df[col].astype("string").str.strip().eq(TRACE_LOT)]
+        msg = f"[TRACE] {where:22s} {len(hit):>6,} 행"
+        if len(hit):
+            show = [c for c in ("line", "dest_line_id", "sys_line_id",
+                                "cur_line_id", "lot_type", "status",
+                                "order_seq", "step_seq", "proc_id", "현스텝")
+                    if c in hit.columns]
+            if show:
+                msg += "   " + " | ".join(
+                    f"{c}={hit.iloc[0][c]}" for c in show[:6])
+        print(msg, flush=True)
+    except Exception as e:
+        print(f"[TRACE] {where}: {type(e).__name__}", flush=True)
+
+
 def relabel_lines(f3, df_lot):
     """완성된 f3 의 line 만 dest_line_id 기준으로 다시 매긴다.
 
@@ -629,6 +661,7 @@ def relabel_lines(f3, df_lot):
     복잡해지고, 결과는 어차피 같다.
     """
     lot = _lower_cols(df_lot)
+    trace_lot("relabel 입력 f3", f3)
     if "dest_line_id" not in lot.columns:
         print("[LINE] dest_line_id 없음 - 재분류 생략", flush=True)
         return f3
@@ -1142,6 +1175,56 @@ def attach_module(f3):
     print(f"[STD] module {hit_total:,}/{len(out):,}행 매칭 (규칙 {len(rules)}건)",
           flush=True)
     return out
+
+
+def attach_std_product(lot):
+    """기준정보 제품구분(f3_std_product) 을 먼저 적용한다.
+
+    lot_id 의 1~5 번째 글자와 PLAN 이 **모두** 맞으면 그 이름을 쓴다.
+    비운 칸은 따지지 않는다. 조건이 많이 맞는(구체적인) 규칙이 이긴다.
+    여기서 정해진 lot 은 SSPS 제품명을 덮어쓰지 않는다.
+    """
+    rules = _std_table("f3_std_product",
+                       ["lot_char1", "lot_char2", "lot_char3", "lot_char4",
+                        "lot_char5", "proc_id", "product_name"])
+    if not rules:
+        return lot
+
+    up = lot["lot_id"].astype("string").str.upper()
+    plan = lot.get("proc_id", pd.Series("", index=lot.index))
+    plan = plan.astype("string").str.strip().str.upper().fillna("")
+    ch = {i: up.str.slice(i - 1, i) for i in range(1, 6)}
+
+    # 조건 수가 많은 규칙이 이긴다. 적은 것부터 덮어써 마지막에 큰 것이 남는다.
+    def _n(r):
+        return sum(1 for k in ("lot_char1", "lot_char2", "lot_char3",
+                               "lot_char4", "lot_char5", "proc_id")
+                   if str(r.get(k) or "").strip())
+
+    hit_n = pd.Series(-1, index=lot.index)
+    name = pd.Series(pd.NA, index=lot.index, dtype="string")
+    for r in sorted(rules, key=_n):
+        nm = str(r.get("product_name") or "").strip()
+        if not nm:
+            continue
+        m = pd.Series(True, index=lot.index)
+        for i in range(1, 6):
+            want = str(r.get(f"lot_char{i}") or "").strip().upper()
+            if want:
+                m &= ch[i].eq(want)
+        wp = str(r.get("proc_id") or "").strip().upper()
+        if wp:
+            m &= plan.eq(wp)
+        m &= hit_n.le(_n(r))
+        if m.any():
+            name = name.mask(m, nm)
+            hit_n = hit_n.mask(m, _n(r))
+
+    got = name.notna()
+    if got.any():
+        lot.loc[got, "prod2"] = name[got]
+        print(f"[JOIN] 기준정보 제품구분 적용 {int(got.sum()):,}행", flush=True)
+    return lot
 
 
 def attach_prod(df_lot, df_prod):
@@ -2471,6 +2554,8 @@ def main():
             df_prod = fetch("ssps_prod_name", None)
             with stage("제품구분 결합"):
                 df_lot = attach_prod(df_lot, df_prod)
+                # 기준정보가 우선이다. SSPS 로 채운 뒤 덮어쓴다.
+                df_lot = attach_std_product(df_lot)
 
         df_eqp = fetch("equipment", eqp_query)
         # 설비그룹은 하루에 한 번만 바뀌면 충분하다. 업무일(22시 기준) 단위로
@@ -2521,6 +2606,23 @@ def main():
         else:
             df_hold = fetch("hold", hold_query)
 
+    # 원천에는 있는데 최종에 없다면 여기 조건 중 하나에 걸린 것이다.
+    #   line = sys_line_id · lot_type IN (PP,PG,EG) · cur_line_id <> 'CHTV'
+    if TRACE_LOT:
+        _t = _lower_cols(df_lot)
+        _t = _t[_t["lot_id"].astype("string").str.strip().eq(TRACE_LOT)]
+        if len(_t):
+            r0 = _t.iloc[0]
+            print(f"[TRACE] 원천 lot 조건 점검  "
+                  f"line={r0.get('line')} sys={r0.get('sys_line_id')} "
+                  f"cur={r0.get('cur_line_id')} dest={r0.get('dest_line_id')} "
+                  f"type={r0.get('lot_type')} status={r0.get('status')} "
+                  f"order_seq={r0.get('order_seq')} step={r0.get('step_seq')}",
+                  flush=True)
+        else:
+            print("[TRACE] 원천 lot 에 없음 (Oracle 쿼리 단계에서 탈락)",
+                  flush=True)
+    trace_lot("원천 lot", df_lot)
     s_parts = []
     for line, sql in (("KFR7", kfr7_step_path_query), ("PFR1", pfr1_step_path_query)):
         df_path = fetch(f"{line}_step_path", sql)
@@ -2528,6 +2630,7 @@ def main():
             scope = narrow_step_to_scope(df_path, df_lot, line)
         del df_path
         print(f"[ROWS] {line} scope(step) = {len(scope):,}", flush=True)
+        trace_lot(f"{line} scope", scope)
         with stage(f"{line} 설비그룹전개"):
             s_parts.append(expand_with_equipment(scope, df_eqp, df_eqp_group, line))
 
@@ -2555,6 +2658,7 @@ def main():
 
     s = pd.concat(s_parts, ignore_index=True)
     print(f"[ROWS] s = {len(s):,}", flush=True)
+    trace_lot("s(스텝 전체)", s)
 
     t_parts = []
     for line, sql in (("KFR7", kfr7_tip_query), ("PFR1", pfr1_tip_query)):
@@ -2583,6 +2687,7 @@ def main():
 
     with stage("f3 생성"):
         df_f3, tip_match, eqpgroup_trace = build_f3(con)
+    trace_lot("f3 생성 직후", df_f3)
 
     # 조인·집계는 원천 라인으로 끝내고, 라벨만 마지막에 바꾼다.
     if SOURCE != "bdq":
