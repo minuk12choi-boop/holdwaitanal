@@ -1,1 +1,1 @@
-curl.exe -s -X POST "http://im-light-prd.kspprd.dks.cloud.samsungds.net/v1/roo/chat/completions" -H "Content-Type: application/json" -H "Authorization: Bearer 실제키" -d "{\"model\":\"Code LLM - Pro\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"max_tokens\":10}"
+curl.exe -s -X POST "http://im-light-prd.kspprd.dks.cloud.samsungds.net/v1/roo/chat/completions" -H "Content-Type: application/json" -d "{\"model\":\"Code LLM - Pro\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"max_tokens\":10}"
