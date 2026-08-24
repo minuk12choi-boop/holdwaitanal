@@ -1690,6 +1690,13 @@ D descript	STRING
   - SELECT * 를 쓰지 않는다. 실제 쓰는 컬럼만 뽑는다.
   - 서버(Oracle)에서 걸 수 있는 조건은 전부 서버에서 건다.
   - 정렬은 Spotfire / 파이썬 쪽에서 한다(ORDER BY 제거 → 조회 시간 단축).
+
+QUERY_TIME 컬럼 (필수)
+  기존 테이블과 마찬가지로 **원천 조회 시각**을 첫 컬럼으로 넣는다.
+  이 컬럼이 없으면 s3 업로드 로그(upload_log)와 f3_load_log 의
+  query_time 이 빈칸이 되어, 언제 조회된 데이터인지 알 수 없다.
+    Oracle : TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS')
+    Impala : FROM_TIMESTAMP(NOW(), 'yyyy-MM-dd HH:mm:ss')
 ===========================================================================
 
 
@@ -1702,7 +1709,8 @@ D descript	STRING
 --   2) 60여 개 컬럼 중 10개만.
 --   3) stepseq_type 은 여기서 만들어 보낸다(파이썬 계산량을 줄인다).
 --      3번째 글자부터 숫자가 아니면 '기타', 숫자뿐이면 '메인'.
-SELECT PROCESSID,
+SELECT TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS')  AS QUERY_TIME,
+       PROCESSID,
        STEPSEQ,
        CASE WHEN REGEXP_LIKE(SUBSTR(STEPSEQ, 3), '[^0-9]')
             THEN '기타' ELSE '메인' END           AS STEPSEQ_TYPE,
@@ -1724,7 +1732,8 @@ WHERE  REVSTATE = 'Active'
 --   1) 유효한 것만: 기간 안 + HOLDFLAG <> 'Y' + 잔여 카운트 조건.
 --      (원본 파이썬이 하던 필터를 서버로 내린다)
 --   2) 35개 컬럼 중 13개만.
-SELECT TYPE_                                      AS PEMS_TYPE,
+SELECT TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS')  AS QUERY_TIME,
+       TYPE_                                      AS PEMS_TYPE,
        EINECNNO,
        PROCESSID,
        CONNECTTYPE,
@@ -1750,7 +1759,8 @@ WHERE  SYSDATE BETWEEN STARTTIME AND ENDTIME
 -- 원천: SMICDC_P3NRD.SELECTCONNECTSPEC   (참고: SELECT * 기준 13초)
 -- 쓰임: EIN 연결 규칙(첫 EIN -> 다음 EIN -> 실제 적용 EIN).
 -- 줄이는 법: 3개 컬럼이 전부이고, 적용값이 있는 행만.
-SELECT FIRSTEINECNNO,
+SELECT TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS')  AS QUERY_TIME,
+       FIRSTEINECNNO,
        NEXTEINECNNO,
        SELECTEINECNNO
 FROM   SMICDC_P3NRD.SELECTCONNECTSPEC
@@ -1760,7 +1770,8 @@ WHERE  SELECTEINECNNO <> '-'
 --- D. PFR1_FABPLAN_SKIPRULE ------------------------------------------------
 -- 원천: mos_kh_smi.smicdc_p3nrd_skiprule   (Oracle 치환 안 함, 9초)
 -- 쓰임: 스텝 건너뛰기 판정. STEP.SKIPRULE 과 이어 붙인다.
-SELECT skiprule,
+SELECT FROM_TIMESTAMP(NOW(), 'yyyy-MM-dd HH:mm:ss') AS query_time,
+       skiprule,
        lotid_ld,
        descript
 FROM   mos_kh_smi.smicdc_p3nrd_skiprule
@@ -1769,7 +1780,8 @@ FROM   mos_kh_smi.smicdc_p3nrd_skiprule
 --- E. PFR1_ENGR_LOT_PPID ---------------------------------------------------
 -- 원천: mos_kh_smi.smicdc_p3nrd_engr_lot_ppid   (Oracle 치환 안 함, 13초)
 -- 쓰임: lot 별 사전지정. recipe 와 설비를 함께 제한한다.
-SELECT lotid,
+SELECT FROM_TIMESTAMP(NOW(), 'yyyy-MM-dd HH:mm:ss') AS query_time,
+       lotid,
        processid,
        stepseq,
        eqpid,
@@ -1786,6 +1798,7 @@ FROM   mos_kh_smi.smicdc_p3nrd_engr_lot_ppid
   smicdc_p3nrd_trackinprevent 기존 PFR1 경로의 Tip 조회를 그대로 쓴다
 
 전처리에서만 쓰고 f3 에 저장하지 않는 컬럼
+  QUERY_TIME                   적재 로그용. 본문 처리에서는 버린다
   STEPSEQ_TYPE, DELAYTIME      연속 판정에만 쓴다
   SKIPRULE, lotid_ld, descript SKIP 판정에만 쓴다
   PEMS_* , ECNRULE             recipe / 설비 제한 결과에만 반영
