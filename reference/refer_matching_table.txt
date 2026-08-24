@@ -1501,11 +1501,11 @@ N	SOURCELOCATION	VARCHAR2(40)
 
 
 <fabplan_기준 매칭테이블>
-IMPALA TABLE	ORACLE TABLE	매칭기호
-mos_kh_smi.smicdc_p3nrd_step	SMICDC_P3NRD.STEP	A
-mos_kh_smi.smicdc_p3nrd_neweinecnspec	SMICDC_P3NRD.NEWEINECNSPEC	B
-mos_kh_smi.smicdc_p3nrd_selectconnectspec	SMICDC_P3NRD.SELECTCONNECTSPEC	C
-mos_kh_smi.smicdc_p3nrd_engr_lot_ppid	ORACLE 치환 안함
+IMPALA TABLE	ORACLE TABLE	매칭기호 S3DRIVE저장명
+mos_kh_smi.smicdc_p3nrd_step	SMICDC_P3NRD.STEP	A PFR1_FABPLAN_STEP
+mos_kh_smi.smicdc_p3nrd_neweinecnspec	SMICDC_P3NRD.NEWEINECNSPEC	B PFR1_FABPLAN_NEWEINECNSPEC
+mos_kh_smi.smicdc_p3nrd_selectconnectspec	SMICDC_P3NRD.SELECTCONNECTSPEC	C PFR1_FABPLAN_SELECTCONNECTSPEC
+mos_kh_smi.smicdc_p3nrd_engr_lot_ppid	ORACLE 치환 안함 PFR1_ENGR_LOT_PPID
 
 
 매칭기호	컬럼명	데이터타입
