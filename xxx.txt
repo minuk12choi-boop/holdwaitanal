@@ -1,5 +1,4 @@
 WITH
-
 MC_BASE AS (
     SELECT /*+ MATERIALIZE */
         LOT_ID, LOT_TYPE, START_QTY, LOT_STATUS_SEG, CUR_QTY,
@@ -7,19 +6,14 @@ MC_BASE AS (
     FROM SMICDC_P3NRD.MC_LOT
     WHERE ORIGIN_LINE_ID = 'PFR1'
       AND LOT_STATUS_SEG IN ('Finished', 'Archivable', 'Terminated')
-      -- 선택도 높은(=값 종류 많은) 조건을 앞에 두어 SUBSTR 평가 횟수 자체를 줄임
-      AND LAST_EVENT_DATE >= :D_FROM
-      AND LAST_EVENT_DATE <  :D_TO
+      AND LAST_EVENT_DATE >= TO_CHAR(SYSDATE - 90, 'YYYYMMDD')
+      AND LAST_EVENT_DATE <  TO_CHAR(SYSDATE + 1,  'YYYYMMDD')
       AND SUBSTR(LOT_ID,1,1) NOT IN ('Q','P','E','B')
       AND SUBSTR(LOT_ID,1,2) <> '1I'
       AND SUBSTR(LOT_ID,1,4) <> '1GZZ'
       AND INSTR(LOT_ID, '.') > INSTR(LOT_ID, 'E0', -1)
 ),
-
 S AS (
-    -- ORIGIN_ATTR_VALUE 는 최종 SELECT에서 전혀 쓰이지 않으나,
-    -- DISTINCT 대상에서 빼면 S의 행 수가 줄어 MC 조인 시 중복배수가 달라질 수 있어
-    -- 원본과의 결과 동등성을 위해 일단 유지. (아래 "확인 필요" 참조)
     SELECT /*+ MATERIALIZE */ DISTINCT
         ORIGIN_ATTR_VALUE,
         NEW_ATTR_VALUE,
@@ -28,12 +22,10 @@ S AS (
     WHERE LINE_ID = 'PFR1'
       AND LOT_TRANSN_TYPE = 'Split'
       AND WIP_ATTRIBUTE = 'LOTID'
-      AND LOT_TRANSN_TIME >= :D_FROM
-      AND LOT_TRANSN_TIME <  :D_TO
       AND SUBSTR(ORIGIN_ATTR_VALUE,1,1) = '1'
       AND INSTR(NEW_ATTR_VALUE, '.') > INSTR(NEW_ATTR_VALUE, 'E0', -1)
+      AND EXISTS (SELECT 1 FROM MC_BASE MB WHERE MB.LOT_ID = NEW_ATTR_VALUE)
 ),
-
 MC AS (
     SELECT
         CASE WHEN MB.LOT_STATUS_SEG IN ('Finished','Archivable') THEN 'F/O' ELSE '중도F/O' END AS 구분1,
@@ -43,7 +35,7 @@ MC AS (
         CASE WHEN MB.LOT_STATUS_SEG = 'Terminated' THEN 0 ELSE MB.CUR_QTY END AS FO매수,
         MB.START_DT AS START_DATE,
         MB.LAST_DT  AS LAST_EVENT_DATE,
-        MB.LAST_DT - MB.START_DT AS TAT,        -- TO_DATE 재계산 제거
+        MB.LAST_DT - MB.START_DT AS TAT,
         S.SPLIT_DATE,
         CASE
             WHEN SUBSTR(MB.LOT_ID,1,1) = 'Q'  THEN SUBSTR(MB.LOT_ID,1,1)
@@ -60,9 +52,6 @@ MC AS (
     ) MB
     LEFT JOIN S ON S.NEW_ATTR_VALUE = MB.LOT_ID
 ),
-
--- TrackOut 이력: 원본 컬럼 기준으로 먼저 DISTINCT 처리
--- (CASE/TO_DATE/REGEXP 표현식을 중복행에 대해 반복 계산하지 않도록 순서를 뒤집음)
 T_RAW AS (
     SELECT DISTINCT
         H.LOT_ID, H.LOT_TYPE, H.COMPONENT_QTY, H.REAL_COMPONENT_QTY, H.PROCESS_ID,
@@ -74,12 +63,9 @@ T_RAW AS (
     FROM SMIMES.MI_LOT_TRANSN_HIST H
     WHERE H.LINE_ID = 'PFR1'
       AND H.LOT_TRANSN_TYPE = 'TrackOut'
-      AND H.LOT_TRANSN_TIME >= :D_FROM
-      AND H.LOT_TRANSN_TIME <  :D_TO
       AND SUBSTR(H.LOT_ID,1,1) NOT IN ('Q','P','E','B')
       AND EXISTS (SELECT 1 FROM MC_BASE MB WHERE MB.LOT_ID = H.LOT_ID)
 ),
-
 T AS (
     SELECT
         CASE
@@ -89,7 +75,6 @@ T AS (
               OR UPPER(SUBSTR(TB.PROCESS_EQP_ID,1,1)) = 'M' THEN '계측'
             ELSE '메인'
         END AS 구분2,
-        -- 7중 OR-INSTR -> 단일 REGEXP_INSTR, 그리고 INSTR(.) 결과 재사용
         CASE WHEN REGEXP_INSTR(TB.LOT_ID, '\.[1-7]E') > 0
              THEN SUBSTR(TB.LOT_ID, 1, INSTR(TB.LOT_ID,'.') + 1)
              ELSE TB.LOT_ID
@@ -100,10 +85,10 @@ T AS (
         TB.LINE_ID, TB.CURRENT_LINE_ID,
         TB.RECENT_TKOUT_DT AS RECENT_TKOUT_DATE,
         TB.TKIN_DATE,
-        TB.TKOUT_DT        AS TKOUT_DATE,
+        TB.TKOUT_DT AS TKOUT_DATE,
         TB.PORT_LOAD_DATE, TB.PORT_UNLOAD_DATE, TB.PROCESS_START_DATE, TB.PROCESS_FINISH_DATE,
-        TB.TKOUT_DT - TB.TKIN_DATE        AS NET,    -- TO_DATE 재계산 제거
-        TB.TKIN_DATE - TB.RECENT_TKOUT_DT AS WAIT,   -- TO_DATE 재계산 제거
+        TB.TKOUT_DT - TB.TKIN_DATE AS NET,
+        TB.TKIN_DATE - TB.RECENT_TKOUT_DT AS WAIT,
         TB.PPID
     FROM (
         SELECT R.*,
@@ -112,7 +97,6 @@ T AS (
         FROM T_RAW R
     ) TB
 )
-
 SELECT
     MC.구분1, T.구분2, T.REV_LOT_ID, T.LOT_ID, T.LOT_TYPE, T.COMPONENT_QTY, T.REAL_COMPONENT_QTY,
     T.PROCESS_ID, T.EQP_TYPE, T.PROCESS_EQP_ID, T.CHAMBER_ID, T.DELAY_TIME, T.REWORK_MAIN_STEP,
@@ -124,10 +108,3 @@ SELECT
 FROM T
 LEFT JOIN MC ON MC.LOT_ID = T.LOT_ID
 ORDER BY T.REV_LOT_ID, T.TKIN_DATE
-
-
-----------------------
-위처럼 넣으니까 아래 에러문 뜸
-
-에러 발생. 쿼리를 실행할 수 없습니다. 쿼리문이나 조건 설정부분을 다시 살펴보시기 바랍니다.
-"ERROR_TEST_QUERY_EXECUTION_01": "/test/query Error occurred!... PreparedStatementCallback; uncategorized SQLException; SQL state [99999]; error code [17041]; 인덱스에서 누락된 IN 또는 OUT 매개변수:: 1; nested exception is java.sql.SQLException: 인덱스에서 누락된 IN 또는 OUT 매개변수:: 1"
