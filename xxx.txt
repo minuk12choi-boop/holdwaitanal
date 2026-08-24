@@ -1,18 +1,3 @@
--- ============================================================
--- ORA-02393 (CPU_PER_CALL 초과) 대응 최적화 버전
---
--- 핵심 변경
---  1) 날짜 범위 바인드(:D_FROM, :D_TO) 추가  -> 전체 히스토리 스캔 제거 (최대 효과)
---  2) TO_DATE/SUBSTR 중복 계산 제거 (인라인뷰에서 1회만 계산 후 재사용)
---  3) DISTINCT 대상 컬럼 축소 (표현식 계산 전, 원본 컬럼 기준으로 선dedupe)
---  4) MC_BASE MATERIALIZE -> 두 번 참조되는 CTE를 1회만 계산
---  5) ORDER BY 제거 옵션 (하단 주석 참조)
---
--- :D_FROM / :D_TO 는 'YYYYMMDD' 문자열 (예: '20260101' / '20260131')
--- LOT_TRANSN_TIME / RECENT_TKOUT_TIME 이 문자열 컬럼이므로
--- 문자열 비교로 필터해야 인덱스/파티션 프루닝이 살아있음 (TO_DATE 씌우면 죽음)
--- ============================================================
-
 WITH
 
 MC_BASE AS (
@@ -139,6 +124,10 @@ SELECT
 FROM T
 LEFT JOIN MC ON MC.LOT_ID = T.LOT_ID
 ORDER BY T.REV_LOT_ID, T.TKIN_DATE
--- ★ 파이프라인이 S3/parquet -> pandas 라면 위 ORDER BY 를 제거하고
---    df.sort_values(['REV_LOT_ID','TKIN_DATE']) 로 정렬하는 것을 강력 권장.
---    전체 결과셋 정렬은 CPU_PER_CALL 를 크게 잡아먹는 구간임.
+
+
+----------------------
+위처럼 넣으니까 아래 에러문 뜸
+
+에러 발생. 쿼리를 실행할 수 없습니다. 쿼리문이나 조건 설정부분을 다시 살펴보시기 바랍니다.
+"ERROR_TEST_QUERY_EXECUTION_01": "/test/query Error occurred!... PreparedStatementCallback; uncategorized SQLException; SQL state [99999]; error code [17041]; 인덱스에서 누락된 IN 또는 OUT 매개변수:: 1; nested exception is java.sql.SQLException: 인덱스에서 누락된 IN 또는 OUT 매개변수:: 1"
