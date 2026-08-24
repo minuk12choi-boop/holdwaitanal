@@ -1,1 +1,4 @@
-curl.exe -s -o NUL -w "%{http_code}`n" http://im-light-prd.kspprd.dks.cloud.samsungds.net/v1/roo/models
+curl.exe -s http://im-light-prd.kspprd.dks.cloud.samsungds.net/v1/roo/chat/completions `
+  -H "Content-Type: application/json" `
+  -H "Authorization: Bearer <키>" `
+  -d "{\"model\":\"Code LLM - Pro\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"max_tokens\":10}"
