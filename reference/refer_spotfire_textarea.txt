@@ -1,4 +1,5 @@
 <span id="tick" style="color:#6B7280;font-size:11px"></span>
+<span id="pw" style="margin-left:10px;font-size:11px"></span>
 <P><SpotfireControl id="c7ef3ddaef704323adb29dbca2215b2d" /><BR>
 <SpotfireControl id="0963b0fd531a4c3caaf159001748e373" /></P>
 
@@ -11,8 +12,10 @@
   var MAX_WAIT    = 15 * 60 * 1000;     // 이 시간 넘으면 멈춘 것으로 보고 해제
 
   // 상태를 window 에 둬야 텍스트영역이 다시 그려져도 중복 실행을 막을 수 있다.
+  //   off  : 사용자가 잠시 꺼 둔 상태. 문서를 다시 열면 켜진 상태로 돌아온다.
   var S = window.__MFM = window.__MFM || { to: [], iv: [], busy: false,
-                                           startedAt: 0, lastEnd: 0 };
+                                           startedAt: 0, lastEnd: 0,
+                                           off: false };
   S.to.forEach(function (t) { clearTimeout(t); });
   S.iv.forEach(function (t) { clearInterval(t); });
   S.to = []; S.iv = [];
@@ -23,6 +26,51 @@
   function say(msg) {
     var t = document.getElementById("tick");
     if (t) { t.innerText = msg; }
+  }
+
+  // ── ON / OFF 버튼 ───────────────────────────────────────────────
+  //   OFF 를 누르면 예약을 모두 지운다. ON 을 누르면 다시 예약한다.
+  //   Spotfire 텍스트영역 안에서만 도는 스크립트라 문서를 닫으면 어차피 멈춘다.
+  function paint() {
+    var box = document.getElementById("pw");
+    if (!box) { return; }
+    box.innerHTML =
+      '<button id="mfmOn"  type="button">ON</button>' +
+      '<button id="mfmOff" type="button">OFF</button>' +
+      '<span id="mfmSt" style="margin-left:6px"></span>';
+
+    var on  = document.getElementById("mfmOn");
+    var off = document.getElementById("mfmOff");
+    var st  = document.getElementById("mfmSt");
+
+    function skin() {
+      var base = "font-size:11px;font-weight:700;border-radius:3px;" +
+                 "padding:1px 8px;margin-right:4px;cursor:pointer;";
+      on.style  = base + (S.off ? "border:1px solid #C9CDD4;background:#fff;color:#6B7280"
+                                : "border:1px solid #1F7A46;background:#1F7A46;color:#fff");
+      off.style = base + (S.off ? "border:1px solid #B91C1C;background:#B91C1C;color:#fff"
+                                : "border:1px solid #C9CDD4;background:#fff;color:#6B7280");
+      st.innerText = S.off ? "자동 실행 꺼짐" : "자동 실행 켜짐 (" + PERIOD_MIN + "분)";
+      st.style = "font-size:11px;color:" + (S.off ? "#B91C1C" : "#1F7A46");
+    }
+
+    on.onclick = function () {
+      if (!S.off) { return; }
+      S.off = false;
+      skin();
+      say("· " + now() + " 자동 실행 다시 켬");
+      scheduleNext();
+    };
+    off.onclick = function () {
+      if (S.off) { return; }
+      S.off = true;
+      S.to.forEach(function (t) { clearTimeout(t); });
+      S.iv.forEach(function (t) { clearInterval(t); });
+      S.to = []; S.iv = []; S.busy = false;
+      skin();
+      say("■ " + now() + " 자동 실행 멈춤. ON 을 누르면 다시 시작한다.");
+    };
+    skin();
   }
 
   // runlog 는 "HH:MM:SS 완료 (테이블 N개)" 형태다.
@@ -43,13 +91,17 @@
     for (var i = 0; i < 5 && box; i++) {
       var f = box.querySelectorAll(
         "input[type='button'], input[type='submit'], button");
-      if (f.length) { return f[0]; }
+      // ON / OFF 는 우리가 만든 것이라 건너뛴다.
+      for (var k = 0; k < f.length; k++) {
+        if (f[k].id !== "mfmOn" && f[k].id !== "mfmOff") { return f[k]; }
+      }
       box = box.parentNode;
     }
     return null;
   }
 
   function fire(reason) {
+    if (S.off) { return; }             // 꺼 둔 상태면 아무것도 하지 않는다
     var b = findBtn();
     if (!b) { say("✕ 버튼을 찾지 못함 " + now()); return; }
 
@@ -90,9 +142,15 @@
     return t - d;
   }
   function scheduleNext() {
+    if (S.off) { return; }
     later(function () { fire("정기"); scheduleNext(); }, msToNextSlot());
   }
 
+  paint();
+  if (S.off) {
+    say("■ 자동 실행 꺼짐. ON 을 누르면 다시 시작한다.");
+    return;
+  }
   if (!S.armed) { S.armed = true; later(function () { fire("최초"); }, FIRST_DELAY); }
   scheduleNext();
 })();
