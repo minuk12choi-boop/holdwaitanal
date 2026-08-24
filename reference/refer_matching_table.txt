@@ -1679,6 +1679,115 @@ D skiprule	STRING
 D lotid_ld	STRING
 D descript	STRING
 
+===========================================================================
+<fabplan Spotfire 조회 쿼리>
+---------------------------------------------------------------------------
+대상: PFR1 재공 중 order_seq 가 비어 있는 lot (= FabPlan lot).
+      lot 속성 / grade / hold / 경과일 등은 기존 PFR1 경로를 그대로 쓴다.
+      여기서 받는 것은 **스텝 경로(step path)** 를 만드는 데 필요한 원천뿐이다.
+
+효율화 방침
+  - SELECT * 를 쓰지 않는다. 실제 쓰는 컬럼만 뽑는다.
+  - 서버(Oracle)에서 걸 수 있는 조건은 전부 서버에서 건다.
+  - 정렬은 Spotfire / 파이썬 쪽에서 한다(ORDER BY 제거 → 조회 시간 단축).
+===========================================================================
 
 
+--- A. PFR1_FABPLAN_STEP ---------------------------------------------------
+-- 원천: SMICDC_P3NRD.STEP        (참고: SELECT * 기준 17초)
+-- 쓰임: 공정별 스텝 경로. 연속 판정(delaytime / areaname / stepseq_type),
+--       layer / area / eqptype / recipe / skiprule.
+-- 줄이는 법
+--   1) REVSTATE = 'Active' 만.
+--   2) 60여 개 컬럼 중 10개만.
+--   3) stepseq_type 은 여기서 만들어 보낸다(파이썬 계산량을 줄인다).
+--      3번째 글자부터 숫자가 아니면 '기타', 숫자뿐이면 '메인'.
+SELECT PROCESSID,
+       STEPSEQ,
+       CASE WHEN REGEXP_LIKE(SUBSTR(STEPSEQ, 3), '[^0-9]')
+            THEN '기타' ELSE '메인' END           AS STEPSEQ_TYPE,
+       SUBAREA                                    AS AREANAME,
+       EQPTYPE,
+       LAYERID,
+       DESCRIPT,
+       RECIPEID,
+       DELAYTIME,
+       SKIPRULE
+FROM   SMICDC_P3NRD.STEP
+WHERE  REVSTATE = 'Active'
 
+
+--- B. PFR1_FABPLAN_NEWEINECNSPEC -------------------------------------------
+-- 원천: SMICDC_P3NRD.NEWEINECNSPEC   (참고: SELECT * 기준 10초)
+-- 쓰임: EIN / ECN / RCS 규제. 연속을 끊고 ppid / 설비를 제한한다.
+-- 줄이는 법
+--   1) 유효한 것만: 기간 안 + HOLDFLAG <> 'Y' + 잔여 카운트 조건.
+--      (원본 파이썬이 하던 필터를 서버로 내린다)
+--   2) 35개 컬럼 중 13개만.
+SELECT TYPE_                                      AS PEMS_TYPE,
+       EINECNNO,
+       PROCESSID,
+       CONNECTTYPE,
+       STEPSEQ,
+       NEXTSTEPSEQ,
+       LOTIDS,
+       EQPIDS                                     AS PEMS_EQPIDS,
+       CHAMBERIDS                                 AS PEMS_CHAMBERIDS,
+       PPID                                       AS PEMS_PPID,
+       COMMENT_                                   AS PEMS_COMMENT,
+       ISSUEUSER                                  AS PEMS_USER,
+       ISSUEDATE                                  AS PEMS_DATE,
+       ECNRULE
+FROM   SMICDC_P3NRD.NEWEINECNSPEC
+WHERE  SYSDATE BETWEEN STARTTIME AND ENDTIME
+  AND  HOLDFLAG <> 'Y'
+  AND  (TOTALCOUNT = 0
+        OR (TKINCOUNT < TOTALCOUNT AND TYPE_ IN ('EIN', 'RCS'))
+        OR TYPE_ = 'ECN')
+
+
+--- C. PFR1_FABPLAN_SELECTCONNECTSPEC ---------------------------------------
+-- 원천: SMICDC_P3NRD.SELECTCONNECTSPEC   (참고: SELECT * 기준 13초)
+-- 쓰임: EIN 연결 규칙(첫 EIN -> 다음 EIN -> 실제 적용 EIN).
+-- 줄이는 법: 3개 컬럼이 전부이고, 적용값이 있는 행만.
+SELECT FIRSTEINECNNO,
+       NEXTEINECNNO,
+       SELECTEINECNNO
+FROM   SMICDC_P3NRD.SELECTCONNECTSPEC
+WHERE  SELECTEINECNNO <> '-'
+
+
+--- D. PFR1_FABPLAN_SKIPRULE ------------------------------------------------
+-- 원천: mos_kh_smi.smicdc_p3nrd_skiprule   (Oracle 치환 안 함, 9초)
+-- 쓰임: 스텝 건너뛰기 판정. STEP.SKIPRULE 과 이어 붙인다.
+SELECT skiprule,
+       lotid_ld,
+       descript
+FROM   mos_kh_smi.smicdc_p3nrd_skiprule
+
+
+--- E. PFR1_ENGR_LOT_PPID ---------------------------------------------------
+-- 원천: mos_kh_smi.smicdc_p3nrd_engr_lot_ppid   (Oracle 치환 안 함, 13초)
+-- 쓰임: lot 별 사전지정. recipe 와 설비를 함께 제한한다.
+SELECT lotid,
+       processid,
+       stepseq,
+       eqpid,
+       newppid,
+       userid,
+       updated
+FROM   mos_kh_smi.smicdc_p3nrd_engr_lot_ppid
+
+
+---------------------------------------------------------------------------
+쓰지 않는 원천
+  smicdc_p3nrd_mc_lot        FabPlan 판별을 order_seq IS NULL 로 하므로 불필요
+  smicdc_p3nrd_processplan   위와 같은 이유로 불필요
+  smicdc_p3nrd_trackinprevent 기존 PFR1 경로의 Tip 조회를 그대로 쓴다
+
+전처리에서만 쓰고 f3 에 저장하지 않는 컬럼
+  STEPSEQ_TYPE, DELAYTIME      연속 판정에만 쓴다
+  SKIPRULE, lotid_ld, descript SKIP 판정에만 쓴다
+  PEMS_* , ECNRULE             recipe / 설비 제한 결과에만 반영
+  n2_delay_time_mins           받지 않는다
+===========================================================================
