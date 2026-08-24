@@ -580,6 +580,26 @@ UPDATES = [
         ],
     },
     {
+        "ver": "v2.0",
+        "date": "",
+        "title": "MOVE 추이 진단",
+        "items": [
+            {"t": "화면 위에 '지금 무엇이 생산을 막고 있나' 를 더했습니다. "
+                  "어디서 언제부터 얼마나 MOVE 가 줄었는지 문장으로 "
+                  "알려 줍니다."},
+            {"t": "비교 기간을 미리 정하지 않습니다. 전일 · 3 · 7 · 14 · 30 · "
+                  "60일 평균과 함께 견줘 갑작스러운 문제인지 오래된 문제인지 "
+                  "가립니다."},
+            {"t": "REWORK 를 따로 셉니다. 설비는 돌았는데 진도가 안 나간 "
+                  "경우를 구분합니다."},
+            {"t": "재공을 함께 봅니다. 연속구간 첫 스텝에 쌓였으면 실제 "
+                  "제약인 뒤쪽 설비를 짚습니다."},
+            {"t": "원인이 잡히지 않으면 전산 이슈 점검을 안내합니다."},
+            {"t": "상위 3건을 보여 주고, 전체 보기로 모든 구간을 확인할 수 "
+                  "있습니다."},
+        ],
+    },
+    {
         "ver": "v1.9",
         "date": "",
         "title": "필터와 제품구분",
@@ -2894,6 +2914,53 @@ def _top(d):
         return None
     k = max(d, key=lambda x: d[x])
     return {"name": k, "qty": int(d[k])}
+
+
+def api_trend(request):
+    """MOVE 추이 요약. 계산에 몇 초 걸릴 수 있어 따로 부른다."""
+    from . import trend as TR
+
+    line = request.GET.get("line") or DEFAULT_LINE
+    prod = [x for x in request.GET.get("prod2", "").split(",") if x]
+    plan = [x for x in request.GET.get("plan", "").split(",") if x]
+    bdate = request.GET.get("biz_date", "")
+    try:
+        today = (dt.date.fromisoformat(bdate) if bdate else _biz_today())
+    except Exception:
+        today = _biz_today()
+
+    # 같은 스냅샷이면 같은 문장이 나오도록 씨앗을 고정한다.
+    snap = _latest_snapshot()
+    seed = int(snap.timestamp()) // 60 if hasattr(snap, "timestamp") else 0
+
+    try:
+        res = TR.summarize(line, today, prod=prod, plan=plan, seed=seed)
+    except Exception as e:
+        print(f"[TREND] 실패: {type(e).__name__}: {e}", flush=True)
+        return JsonResponse({"ready": False,
+                             "reason": "추이 데이터가 아직 없습니다"})
+
+    def _row(g):
+        ax = g["axes"]
+        return {
+            "group": g["group"], "a1": g["a1"], "a2": g["a2"],
+            "prod2": ax.get("prod2"), "proc_id": ax.get("proc_id"),
+            "layer_id": ax.get("layer_id"),
+            "ratio": (round(g["ratio"] * 100) if g["ratio"] else None),
+            "gap": g["gap"], "n": g["n"], "window": g["window"],
+            "since": (g["since"].isoformat() if g["since"] else None),
+            "run_days": g["run_days"], "rework": g["rework"],
+            "wip_ratio": (round(g["wip_ratio"], 1) if g["wip_ratio"] else None),
+            "cause": ((g["causes"] or [{}])[0].get("name") or ""),
+            "cause_kind": ((g["causes"] or [{}])[0].get("kind") or "미상"),
+        }
+
+    return JsonResponse({
+        "ready": True,
+        "items": res["items"],
+        "rest_n": res["rest_n"], "rest_gap": res["rest_gap"],
+        "all": [_row(g) for g in res["all"]],
+    }, json_dumps_params={"ensure_ascii": False})
 
 
 def api_eqp_wait(request):
