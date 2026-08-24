@@ -1,8 +1,1 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> curl.exe -s -o NUL -w "%{http_code}`n" http://im-light-prd.kspprd.dks.cloud.samsungds.net/v1/roo/models
-500
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> curl.exe -s http://im-light-prd.kspprd.dks.cloud.samsungds.net/v1/roo/chat/completions `
->>   -H "Content-Type: application/json" `
->>   -H "Authorization: Bearer <키>" `
->>   -d "{\"model\":\"Code LLM - Pro\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"max_tokens\":10}"
-curl: option -: is unknown
-curl: try 'curl --help' for more information
+curl.exe -s -X POST "http://im-light-prd.kspprd.dks.cloud.samsungds.net/v1/roo/chat/completions" -H "Content-Type: application/json" -H "Authorization: Bearer 실제키" -d "{\"model\":\"Code LLM - Pro\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"max_tokens\":10}"
