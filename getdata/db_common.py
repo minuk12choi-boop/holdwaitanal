@@ -154,6 +154,7 @@ def load_env(path=None):
 PROJECT_TABLES = (
     "f3_live", "f3_history", "f3_history_meta", "f3_load_log",
     "f3_move_shift", "f3_move_daily", "f3_move_lot",
+    "f3_move_step", "f3_wip_step",
     "f3_std_module", "f3_std_holdtype", "f3_cause_rules",
     "f3_std_hot", "f3_std_plan",
 )
@@ -463,6 +464,50 @@ def ensure_move_schema(conn):
       KEY ix_md_line (sys_line_id, biz_date)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """
+    # 스텝 단위 MOVE. 추이 분석(어느 구간에서 언제부터 줄었나)의 기반.
+    #   normal / rework 를 나눠 담는다. 평소치 비교는 normal 로 한다.
+    step_tbl = """
+    CREATE TABLE IF NOT EXISTS f3_move_step (
+      biz_date DATE NOT NULL,
+      shift VARCHAR(3) NOT NULL,
+      sys_line_id VARCHAR(32) NOT NULL,
+      prod2 VARCHAR(64) NOT NULL DEFAULT '-',
+      proc_id VARCHAR(32) NOT NULL DEFAULT '-',
+      step_seq VARCHAR(32) NOT NULL DEFAULT '-',
+      layer_id VARCHAR(16) NULL,
+      module1 VARCHAR(32) NULL,
+      area VARCHAR(16) NULL,
+      move_qty BIGINT NOT NULL DEFAULT 0,      -- 정상 + rework
+      normal_qty BIGINT NOT NULL DEFAULT 0,    -- 진도가 나간 양
+      rework_qty BIGINT NOT NULL DEFAULT 0,
+      lot_cnt INT NOT NULL DEFAULT 0,
+      loaded_at DATETIME NOT NULL,
+      PRIMARY KEY (biz_date, shift, sys_line_id, prod2, proc_id, step_seq),
+      KEY ix_mst_day (sys_line_id, biz_date),
+      KEY ix_mst_layer (sys_line_id, proc_id, layer_id, biz_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    # 스텝 단위 재공. 스냅샷을 그대로 둔다(SHIFT 안에서도 변한다).
+    wip_tbl = """
+    CREATE TABLE IF NOT EXISTS f3_wip_step (
+      snapshot_at DATETIME NOT NULL,
+      biz_date DATE NOT NULL,
+      shift VARCHAR(3) NOT NULL,
+      `line` VARCHAR(32) NOT NULL,
+      prod2 VARCHAR(64) NOT NULL DEFAULT '-',
+      proc_id VARCHAR(32) NOT NULL DEFAULT '-',
+      step_seq VARCHAR(32) NOT NULL DEFAULT '-',
+      layer_id VARCHAR(16) NULL,
+      module1 VARCHAR(32) NULL,
+      area VARCHAR(16) NULL,
+      wip_qty BIGINT NOT NULL DEFAULT 0,
+      lot_cnt INT NOT NULL DEFAULT 0,
+      loaded_at DATETIME NOT NULL,
+      PRIMARY KEY (snapshot_at, `line`, prod2, proc_id, step_seq),
+      KEY ix_ws_day (`line`, biz_date, shift),
+      KEY ix_ws_layer (`line`, proc_id, layer_id, biz_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
     lot_tbl = """
     CREATE TABLE IF NOT EXISTS f3_move_lot (
       biz_date DATE NOT NULL,
@@ -481,6 +526,8 @@ def ensure_move_schema(conn):
         cur.execute(shift_tbl)
         cur.execute(daily_tbl)
         cur.execute(lot_tbl)
+        cur.execute(step_tbl)
+        cur.execute(wip_tbl)
     conn.commit()
 
 
@@ -566,7 +613,8 @@ def promote_to_history(conn, columns, now=None):
     return bd, shift, snap, dist
 
 
-def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None):
+def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None,
+                 df_step=None):
     """이번 조회가 커버한 (업무일, shift) 만 교체한다.
 
     업무일 통째로 지우면 안 된다. 2시간 주기로 최근 몇 시간만 조회할 때
@@ -581,6 +629,7 @@ def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None):
         for bd, sh in pairs:
             cur.execute("DELETE FROM f3_move_shift WHERE biz_date=%s AND shift=%s", (bd, sh))
             cur.execute("DELETE FROM f3_move_lot   WHERE biz_date=%s AND shift=%s", (bd, sh))
+            cur.execute("DELETE FROM f3_move_step  WHERE biz_date=%s AND shift=%s", (bd, sh))
 
         if len(df_shift):
             cur.executemany(
@@ -598,6 +647,23 @@ def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None):
                 [(r.biz_date, r.shift, r.sys_line_id, str(r.lot_id)[:64],
                   int(r.move_qty), int(r.tkout_cnt), now)
                  for r in df_lot.itertuples(index=False)])
+
+        if df_step is not None and len(df_step):
+            cur.executemany(
+                "INSERT INTO f3_move_step "
+                "(biz_date, shift, sys_line_id, prod2, proc_id, step_seq, "
+                " layer_id, module1, area, move_qty, normal_qty, rework_qty, "
+                " lot_cnt, loaded_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                [(r.biz_date, r.shift, r.sys_line_id,
+                  str(r.prod2 or "-")[:64], str(r.proc_id or "-")[:32],
+                  str(r.step_seq or "-")[:32],
+                  (None if r.layer_id is None else str(r.layer_id)[:16]),
+                  (None if r.module1 is None else str(r.module1)[:32]),
+                  (None if r.area is None else str(r.area)[:16]),
+                  int(r.move_qty), int(r.normal_qty), int(r.rework_qty),
+                  int(r.lot_cnt), now)
+                 for r in df_step.itertuples(index=False)])
 
         # 영향받은 업무일의 일 집계를 shift 합으로 다시 만든다
         for bd in sorted({b for b, _ in pairs}):

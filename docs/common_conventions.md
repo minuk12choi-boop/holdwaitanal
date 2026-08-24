@@ -771,6 +771,37 @@ SKIP 은 PEMS 점프 · 비메인 · SKIPRULE 100 · HOTLOT · ID(ff/tt) 로 판
 
 원천이 아직 안 올라왔으면 `[FABPLAN] 건너뜀` 을 찍고 기존 결과만으로 간다.
 
+### MOVE 추이 분석 (기반 데이터)
+
+`/main/` 은 지금 이 순간만 본다. 어디서 언제부터 생산량이 줄었는지 보려고
+스텝 단위 이력을 따로 쌓는다.
+
+```
+f3_move_step   biz_date · shift · line · prod2 · proc_id · step_seq
+               layer_id · module1 · area
+               move_qty(전체) · normal_qty(정상) · rework_qty · lot_cnt
+f3_wip_step    스냅샷 단위 재공. SHIFT 안에서도 변하므로 접지 않는다
+```
+
+**LAYER** = `MID(step_seq, 3, 3)`. REWORK 스텝은 그 자리에 LAYER 가 없어
+같은 lot 에서 **직전 정상 LAYER 를 물려받는다**(`ffill`). RW 가 몇 개
+이어져도 한 번에 해결된다. lot 의 첫 스텝이 RW 면 뒤쪽 값으로 채운다.
+
+**REWORK** 판정 세 가지.
+
+```
+rework_yn = 'Y'
+step_seq 가 'RW' 로 시작
+같은 lot · PLAN · step_seq · ppid 의 두 번째 이후 진행
+```
+
+REWORK 도 MOVE 지만 성격이 달라 나눠 담는다. **평소치 비교는
+`normal_qty`** 로 한다. `normal` 은 줄었는데 `move` 는 그대로면
+REWORK 가 설비를 잡아먹은 것이다.
+
+450만 행(3개월) 기준 REWORK · LAYER 계산에 약 20초. 초기 1회뿐이고
+이후 증분은 1초 미만이다.
+
 ### 라인 색
 
 어느 차트에서 보든 같은 라인은 같은 색이다.

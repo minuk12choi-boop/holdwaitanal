@@ -52,6 +52,53 @@ BOUNDARY_SHIFT = {22: "GY", 6: "DAY", 14: "SW"}
 TARGET_LINES = ("KFR7", "PFR1")
 
 
+def _s(sr):
+    """비교용 문자열."""
+    return sr.astype("string").fillna("").str.strip()
+
+
+def mark_rework(d):
+    """REWORK 여부를 매긴다. 세 가지 중 하나면 REWORK 다.
+
+      1) rework_yn = 'Y'
+      2) step_seq 가 'RW' 로 시작
+      3) 같은 lot · PLAN · step_seq · ppid 의 두 번째 이후 진행
+    """
+    d = d.sort_values(["lot_id", "tkout_date"], kind="mergesort").copy()
+    yn = _s(d.get("rework_yn", pd.Series("", index=d.index))).str.upper().eq("Y")
+    rw = _s(d["step_seq"]).str.upper().str.startswith("RW")
+    dup = d.groupby(
+        [_s(d["lot_id"]), _s(d["process_id"]), _s(d["step_seq"]),
+         _s(d.get("ppid", pd.Series("", index=d.index)))],
+        sort=False).cumcount().gt(0)
+    d["is_rework"] = yn | rw | dup
+    return d
+
+
+def attach_layer(d):
+    """LAYER 를 붙인다.
+
+    정상 스텝은 step_seq 의 3~5 번째 글자가 곧 LAYER 다.
+    REWORK 스텝은 그 자리에 LAYER 가 없으므로, 같은 lot 에서
+    **직전에 나온 정상 LAYER** 를 물려받는다.
+    RW 가 몇 개 이어져도 ffill 한 번으로 해결된다.
+    """
+    ss = _s(d["step_seq"])
+    lay = ss.str.slice(2, 5)
+    # RW 로 시작하거나 세 글자가 안 되면 값이 없는 것으로 본다.
+    bad = ss.str.upper().str.startswith("RW") | lay.str.len().lt(3)
+    lay = lay.mask(bad, pd.NA)
+
+    d = d.sort_values(["lot_id", "tkout_date"], kind="mergesort").copy()
+    d["layer_id"] = lay.reindex(d.index)
+    g = d.groupby("lot_id", sort=False)["layer_id"]
+    d["layer_id"] = g.ffill()
+    # lot 의 첫 스텝이 RW 면 앞이 비어 있다. 뒤쪽 값으로 한 번 더 채운다.
+    d["layer_id"] = d.groupby("lot_id", sort=False)["layer_id"].bfill()
+    d["layer_id"] = d["layer_id"].fillna("(미상)")
+    return d
+
+
 def move_query(ts_from: dt.datetime, ts_to: dt.datetime) -> str:
     """TrackOut 시각 기준 구간 조회.
 
@@ -74,6 +121,7 @@ SELECT
     process_id,
     step_seq,
     step_desc,
+    rework_yn,
     eqp_type,
     FROM_UNIXTIME(UNIX_TIMESTAMP(recent_tkout_time, 'yyyyMMdd HHmmss'))
                                                        AS recent_tkout_date,
@@ -163,8 +211,10 @@ def aggregate(df, ts_from, ts_to):
     # MOVE 의 Line 기준은 sys_line_id 이므로 여기서 한 번 더 거른다.
     d = d[d["sys_line_id"].isin(TARGET_LINES)]
     d["move"] = pd.to_numeric(d["move"], errors="coerce").fillna(0)
+    d = mark_rework(d)
+    d = attach_layer(d)
 
-    rows, lot_rows = [], []
+    rows, lot_rows, step_rows = [], [], []
     boundary = shift_start_at_or_before(ts_to)
     while boundary >= ts_from:
         lo, hi = DB.shift_window(boundary)
@@ -183,18 +233,46 @@ def aggregate(df, ts_from, ts_to):
                                      "sys_line_id": line, "lot_id": lot,
                                      "move_qty": int(gl["move"].sum()),
                                      "tkout_cnt": int(len(gl))})
+                # 스텝 단위 (추이 분석용). 정상 / rework 를 나눠 담는다.
+                gg = g.copy()
+                gg["_p"] = _s(gg.get("prod2", pd.Series("-", index=gg.index)))
+                gg["_p"] = gg["_p"].mask(gg["_p"].eq(""), "-")
+                gg["_n"] = gg["move"].where(~gg["is_rework"], 0)
+                gg["_r"] = gg["move"].where(gg["is_rework"], 0)
+                agg = (gg.groupby(["_p", "process_id", "step_seq", "layer_id"],
+                                  dropna=False, as_index=False)
+                         .agg(move_qty=("move", "sum"),
+                              normal_qty=("_n", "sum"),
+                              rework_qty=("_r", "sum"),
+                              lot_cnt=("lot_id", "nunique")))
+                for _, a in agg.iterrows():
+                    step_rows.append({
+                        "biz_date": bd, "shift": shift, "sys_line_id": line,
+                        "prod2": a["_p"] or "-",
+                        "proc_id": str(a["process_id"] or "-"),
+                        "step_seq": str(a["step_seq"] or "-"),
+                        "layer_id": a["layer_id"],
+                        "module1": None, "area": None,
+                        "move_qty": int(a["move_qty"]),
+                        "normal_qty": int(a["normal_qty"]),
+                        "rework_qty": int(a["rework_qty"]),
+                        "lot_cnt": int(a["lot_cnt"])})
         boundary -= dt.timedelta(hours=8)
 
     df_shift = pd.DataFrame(rows, columns=["biz_date", "shift", "sys_line_id",
                                            "move_qty", "lot_cnt"])
     df_lot = pd.DataFrame(lot_rows, columns=["biz_date", "shift", "sys_line_id",
                                              "lot_id", "move_qty", "tkout_cnt"])
+    df_step = pd.DataFrame(step_rows, columns=[
+        "biz_date", "shift", "sys_line_id", "prod2", "proc_id", "step_seq",
+        "layer_id", "module1", "area",
+        "move_qty", "normal_qty", "rework_qty", "lot_cnt"])
     if len(df_shift):
         df_daily = (df_shift.groupby(["biz_date", "sys_line_id"], as_index=False)
                     .agg(move_qty=("move_qty", "sum"), lot_cnt=("lot_cnt", "sum")))
     else:
         df_daily = pd.DataFrame(columns=["biz_date", "sys_line_id", "move_qty", "lot_cnt"])
-    return df_shift, df_daily, df_lot
+    return df_shift, df_daily, df_lot, df_step
 
 
 def main():
@@ -240,9 +318,14 @@ def main():
     t_fetched = dt.datetime.now()
     print(f"[MOVE] 원천 {len(df):,}행 {perf_counter() - t0:.1f}s", flush=True)
 
-    df_shift, df_daily, df_lot = aggregate(df, ts_from, ts_to)
+    df_shift, df_daily, df_lot, df_step = aggregate(df, ts_from, ts_to)
     print(f"[MOVE] shift 집계 {len(df_shift):,}행 / 일 집계 {len(df_daily):,}행 "
-          f"/ lot 단위 {len(df_lot):,}행", flush=True)
+          f"/ lot 단위 {len(df_lot):,}행 / 스텝 단위 {len(df_step):,}행",
+          flush=True)
+    if len(df_step):
+        rw = int(df_step["rework_qty"].sum())
+        mv = int(df_step["move_qty"].sum()) or 1
+        print(f"[MOVE] REWORK {rw:,}매 ({rw / mv * 100:.1f}%)", flush=True)
     if len(df_daily):
         print(df_daily.tail(6).to_string(index=False), flush=True)
 
@@ -252,7 +335,8 @@ def main():
         return
 
     biz_dates = sorted(set(df_shift["biz_date"])) if len(df_shift) else []
-    pairs = DB.replace_move(conn, df_shift, df_daily, biz_dates, df_lot)
+    pairs = DB.replace_move(conn, df_shift, df_daily, biz_dates, df_lot,
+                            df_step)
     print(f"[MOVE] 적재 완료: {len(pairs)}개 (업무일,shift) 교체", flush=True)
     for bd, sh in pairs[-6:]:
         print(f"        {bd} {sh}", flush=True)
