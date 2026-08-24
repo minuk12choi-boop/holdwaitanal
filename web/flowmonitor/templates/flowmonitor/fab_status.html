@@ -2374,7 +2374,8 @@ function lineStack(items, u, flat) {
 }
 
 const STATUS_TONE = {
-  "Hold": "#F08080",
+  "User Hold": "#F08080",
+  "System Hold": "#F2B8B5",     // 같은 계열이되 옅게
   "Wait성 진행불가": "#E8C46A",
   "Bottleneck": "#84C09A",
 };
@@ -2925,7 +2926,8 @@ function insPick(ci, n) {
 
   // 원인도 함께 건다. 카드 머리가 곧 원인이다.
   const CAUSE_OF = {
-    "HOLD": ["Hold", null],
+    "USER HOLD": ["User Hold", null],
+    "SYSTEM HOLD": ["System Hold", null],
     "예약제외": ["Wait성 진행불가", "예약제외"],
     "FTP": ["Wait성 진행불가", "FTP"],
   };

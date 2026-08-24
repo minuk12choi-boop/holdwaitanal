@@ -102,8 +102,9 @@ def wt_bins(max_wt):
 HOLD_KINDS = ("User Hold", "System Hold")
 HOLD_LIGHT = "#F2B8B5"
 
-WT_CAUSES = ["User Hold", "System Hold", "Wait성 진행불가",
-             "설비", "TIP", "기타/미분류"]
+# _cause_of() 가 내는 값 목록이다. 원인 분석의 대분류와는 다른 축이라
+# 여기서는 Hold 를 나누지 않는다.
+WT_CAUSES = ["Hold", "Wait성 진행불가", "설비", "TIP", "기타/미분류"]
 LOOKBACK_DAYS = 140
 
 # blueprint 7.3 권장 상대 높이. 템플릿에는 계산된 px 로 넘긴다.
