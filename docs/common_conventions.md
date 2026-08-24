@@ -740,6 +740,37 @@ PREVENT      PREVENT > AREA > 설비ID
 자리 진단(`/api/debug-layout/`) 요청은 가리지 않는다. 빨리 끝나면
 가림막도 곧바로 사라지므로 동작마다 시간을 재서 나눌 필요가 없다.
 
+### FabPlan (NRD-P 전용 스텝 경로)
+
+PFR1 재공 중 **`order_seq` 가 비어 있는 lot** 은 StepPath 로 스텝이 붙지
+않는다. 공정 정의(`STEP`)를 직접 훑어 현스텝부터 연속끝까지를 만든다.
+
+```
+원천   PFR1_FABPLAN_STEP · _NEWEINECNSPEC · _SELECTCONNECTSPEC
+       PFR1_FABPLAN_SKIPRULE · PFR1_ENGR_LOT_PPID
+함수   fabplan_scope()  ->  narrow_step_to_scope 와 같은 컬럼
+```
+
+**lot 속성 · grade · hold · 경과일은 기존 PFR1 경로 그대로** 쓴다.
+FabPlan 이 채우는 것은 스텝 관련 컬럼뿐이다.
+
+연속 판정은 `delaytime` 으로 한다.
+
+```
+1000000020 · 1000000000   연속 아님(센티넬)
+그 밖의 값                 연속 core
+METRO · MI                뒤쪽 '메인·비METRO' 스텝의 값을 물려받음
+```
+
+`연속끝` 은 두지 않는다. 기존과 같이 `연속첫` / `연속` 만 쓰고 구간은
+`de_rank`(연속첫 누적 개수)로 가른다.
+
+SKIP 은 PEMS 점프 · 비메인 · SKIPRULE 100 · HOTLOT · ID(ff/tt) 로 판정하되,
+**사전지정(ENGR PPID)이 있으면 어떤 이유로도 SKIP 하지 않는다.**
+사전지정은 recipe 와 설비를 함께 제한한다.
+
+원천이 아직 안 올라왔으면 `[FABPLAN] 건너뜀` 을 찍고 기존 결과만으로 간다.
+
 ### 라인 색
 
 어느 차트에서 보든 같은 라인은 같은 색이다.

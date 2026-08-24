@@ -693,7 +693,16 @@ S3_MAP = {
     "PFR1_step_path": "PFR1_KFR7_STEP_PATH",
     "KFR7_tip": "PFR1_KFR7_TIP",
     "PFR1_tip": "PFR1_KFR7_TIP",
+    # FabPlan : PFR1 재공 중 order_seq 가 비어 있는 lot 의 스텝 경로
+    "fab_step": "PFR1_FABPLAN_STEP",
+    "fab_pems": "PFR1_FABPLAN_NEWEINECNSPEC",
+    "fab_sel": "PFR1_FABPLAN_SELECTCONNECTSPEC",
+    "fab_skiprule": "PFR1_FABPLAN_SKIPRULE",
+    "fab_engr": "PFR1_ENGR_LOT_PPID",
 }
+
+# FabPlan 을 처리할지. 원천이 아직 안 올라왔으면 자동으로 건너뛴다.
+FABPLAN = True
 
 # 엑셀 파일 저장 여부. 2시간마다 적재하므로 평상시엔 끈다.
 #   웹의 [다운로드] 메뉴에서 '재공Raw' 를 받으면 되고,
@@ -1266,6 +1275,423 @@ def narrow_step_to_scope(df_path, df_lot, line):
     })
 
 
+# ---------------------------------------------------------------------------
+# 1-2. FabPlan 스텝 경로
+#   PFR1 재공 중 order_seq 가 비어 있는 lot 은 StepPath 로 스텝이 붙지 않는다.
+#   대신 공정 정의(STEP) 를 직접 훑어 현스텝부터 연속끝까지를 만든다.
+#
+#   흐름
+#     1) lot 의 현스텝 위치를 STEP 안에서 찾는다
+#     2) 사전지정(ENGR PPID) 으로 recipe / 설비를 제한한다
+#     3) EIN / ECN / RCS 규제를 붙인다
+#     4) SKIP 을 판정한다
+#     5) delaytime 으로 연속을 매긴다
+#     6) 현스텝 ~ 연속끝만 남긴다
+#   결과 컬럼은 narrow_step_to_scope 와 같게 맞춘다.
+# ---------------------------------------------------------------------------
+FAB_SENTINEL = {"1000000020", "1000000000"}   # 이 delaytime 은 연속이 아니다
+FAB_METRO = {"METRO", "MI"}
+
+
+def _fab_str(sr):
+    """비교용 문자열. NaN 과 '-' 는 빈 문자열로 본다."""
+    out = sr.astype("string").fillna("").str.strip()
+    return out.mask(out.isin(["-", "nan", "None"]), "")
+
+
+def _fab_step_table(df_step):
+    """STEP 원천을 공정별 순번이 붙은 표로 만든다."""
+    st = _lower_cols(df_step)
+    for c in ("processid", "stepseq", "stepseq_type", "areaname", "eqptype",
+              "layerid", "descript", "recipeid", "delaytime", "skiprule"):
+        if c not in st.columns:
+            st[c] = pd.NA
+    st = st[["processid", "stepseq", "stepseq_type", "areaname", "eqptype",
+             "layerid", "descript", "recipeid", "delaytime", "skiprule"]].copy()
+    for c in ("processid", "stepseq", "stepseq_type", "areaname", "skiprule"):
+        st[c] = _fab_str(st[c])
+    # stepseq 가 R 로 시작하면 메인으로 본다(참고 구현과 같은 규칙).
+    st.loc[st["stepseq"].str.startswith("R"), "stepseq_type"] = "메인"
+    st = st.sort_values(["processid", "stepseq"], kind="mergesort")
+    st = st.reset_index(drop=True)
+    st["_ord"] = st.groupby("processid", sort=False).cumcount()
+    return st
+
+
+def _fab_delay_norm(sr):
+    """delaytime 을 문자열로 고른다. 12.0 과 12 가 갈리지 않게 한다."""
+    n = pd.to_numeric(sr, errors="coerce")
+    out = pd.Series("", index=sr.index, dtype="object")
+    ok = n.notna()
+    out[ok] = np.where(n[ok] == np.trunc(n[ok]),
+                       np.trunc(n[ok]).astype("int64").astype(str),
+                       n[ok].astype(str))
+    # 숫자가 아니면 원문을 쓴다.
+    raw = _fab_str(sr)
+    out[~ok] = raw[~ok]
+    return out
+
+
+def _fab_effective_delay(g):
+    """METRO / MI 는 뒤쪽 '메인·비METRO' 스텝의 delaytime 을 물려받는다."""
+    d = g["_delay"].to_numpy(dtype=object)
+    is_metro = g["_metro"].to_numpy()
+    is_mnm = g["_main_non_metro"].to_numpy()
+    out = d.copy()
+    nxt = ""
+    for i in range(len(d) - 1, -1, -1):
+        if is_mnm[i] and d[i]:
+            nxt = d[i]
+        if is_metro[i]:
+            out[i] = nxt
+    return pd.Series(out, index=g.index)
+
+
+def _fab_continuous(df):
+    """delaytime 으로 연속 구간을 매긴다.
+
+    연속첫  구간 바로 앞의 '메인·비METRO' 이면서 core 가 아닌 스텝
+    연속    구간 안의 core 스텝(마지막 포함)
+    f3 는 '연속끝' 을 따로 두지 않는다. de_rank 로 구간을 가른다.
+    """
+    df = df.copy()
+    df["연속"] = None
+    order = df.groupby("lot_id", sort=False).indices
+
+    core = df["_core"].to_numpy()
+    mnm = df["_main_non_metro"].to_numpy()
+    lab = np.array([None] * len(df), dtype=object)
+
+    for _, idx in order.items():
+        n = len(idx)
+        i = 0
+        while i < n:
+            if not core[idx[i]]:
+                i += 1
+                continue
+            j = i
+            while j + 1 < n and core[idx[j + 1]]:
+                j += 1
+            start = i
+            prev = i - 1
+            if prev >= 0 and mnm[idx[prev]] and not core[idx[prev]]:
+                lab[idx[prev]] = "연속첫"
+                start = prev
+            for p in range(start, j + 1):
+                if lab[idx[p]] == "연속첫":
+                    continue
+                lab[idx[p]] = "연속"
+            i = j + 1
+
+    df["연속"] = lab
+    return df
+
+
+def _fab_skip(df):
+    """SKIP 판정. 사전지정이 있으면 어떤 이유로도 SKIP 하지 않는다."""
+    lot = df["lot_id"]
+    # lot_id 의 '.' 바로 앞 한 글자(ff), 그 앞 한 글자(tt) 가 SKIP 키다.
+    dot = lot.str.find(".")
+    ff_ch = [l[p - 1:p] if p >= 1 else "" for l, p in zip(lot, dot)]
+    tt_ch = [l[p - 2:p - 1] if p >= 2 else "" for l, p in zip(lot, dot)]
+
+    def _hit(lst, tok):
+        if not tok:
+            return False
+        s = str(lst or "").strip()
+        if s in ("", "-"):
+            return False
+        return tok in [x.strip() for x in s.split(",")]
+
+    id_skip = pd.Series(
+        [_hit(a, b) or _hit(c, d)
+         for a, b, c, d in zip(df["_ff"], ff_ch, df["_tt"], tt_ch)],
+        index=df.index)
+
+    hot = _fab_str(df["hot_lot_level"])
+    cat = _fab_str(df["_category"])
+    hot_skip = (hot != "") & pd.Series(
+        [h in c for h, c in zip(hot, cat)], index=df.index)
+
+    rule_skip = df["skiprule"].eq("100")
+    pre = df["사전지정"].eq("O")
+
+    # PEMS 점프: START / CONNECT 는 nextstepseq 까지 건너뛴다.
+    ct = _fab_str(df["connecttype"]).str.upper()
+    ns = _fab_str(df["nextstepseq"])
+    trig = ct.isin(["START", "CONNECT"]) & ns.ne("")
+
+    jump = pd.Series(False, index=df.index)
+    tgt_hit = pd.Series(False, index=df.index)
+    for _, idx in df.groupby("lot_id", sort=False).indices.items():
+        steps = df["stepseq"].to_numpy()[idx]
+        pos = {st: k for k, st in enumerate(steps)}
+        tset = {t for t in ns.to_numpy()[idx] if t}
+        if tset:
+            tgt_hit.iloc[idx] = np.isin(steps, list(tset))
+        for k, gi in enumerate(idx):
+            if not trig.iloc[gi]:
+                continue
+            t = ns.iloc[gi]
+            end = pos.get(t, len(idx))
+            for p in range(k + 1, max(k + 1, end)):
+                if pre.iloc[idx[p]]:
+                    continue
+                jump.iloc[idx[p]] = True
+
+    # 비메인은 진행 지정이 없으면 건너뛴다.
+    designated = ct.isin(["START", "CONNECT"]) | tgt_hit
+    etc_skip = df["stepseq_type"].eq("기타") & (~pre) & (~designated)
+
+    skip = (jump | hot_skip | rule_skip | id_skip | etc_skip) & (~pre)
+    df = df.copy()
+    df["SKIP"] = np.where(skip, "O", "")
+    return df
+
+
+def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
+                  df_lot, line="PFR1"):
+    """FabPlan lot 의 스텝 경로를 narrow_step_to_scope 와 같은 모양으로 만든다."""
+    m = _lower_cols(df_lot)
+    m = m[m["line"].eq(line)].copy()
+    # order_seq 가 비어 있는 lot 만 FabPlan 이다.
+    m["order_seq"] = pd.to_numeric(m.get("order_seq"), errors="coerce")
+    m = m[m["order_seq"].isna()]
+    need = ["lot_id", "proc_id", "step_seq", "lot_level"]
+    for c in need:
+        if c not in m.columns:
+            m[c] = pd.NA
+    m = m[need].dropna(subset=["lot_id", "proc_id", "step_seq"]).drop_duplicates()
+    if m.empty:
+        return pd.DataFrame()
+
+    m = m.rename(columns={"lot_level": "hot_lot_level"})
+    for c in ("lot_id", "proc_id", "step_seq"):
+        m[c] = _fab_str(m[c])
+
+    st = _fab_step_table(df_step)
+    # SKIP 규칙(ff / tt) 을 스텝에 붙인다.
+    sk = _lower_cols(df_skiprule)
+    if not sk.empty and "skiprule" in sk.columns:
+        sk = sk[["skiprule", "lotid_ld", "descript"]].drop_duplicates("skiprule")
+        sk["skiprule"] = _fab_str(sk["skiprule"])
+        st = st.merge(sk.rename(columns={"lotid_ld": "_ff", "descript": "_tt"}),
+                      on="skiprule", how="left")
+    else:
+        st["_ff"] = pd.NA
+        st["_tt"] = pd.NA
+    if "category" in _lower_cols(df_step).columns:
+        st["_category"] = _fab_str(_lower_cols(df_step)["category"])
+    else:
+        st["_category"] = ""
+
+    # --- 1) 현스텝 위치를 찾아 그 뒤 구간만 붙인다 ---------------------------
+    cur = m.merge(st[["processid", "stepseq", "_ord"]],
+                  left_on=["proc_id", "step_seq"],
+                  right_on=["processid", "stepseq"], how="inner")
+    if cur.empty:
+        return pd.DataFrame()
+    cur = cur[["lot_id", "proc_id", "step_seq", "hot_lot_level", "_ord"]]
+    cur = cur.rename(columns={"_ord": "_cur_ord"})
+
+    # 연속은 길어야 수십 스텝이다. 넉넉히 뒤로 이만큼만 본다.
+    WIN = 100
+    rows = cur.merge(st, left_on="proc_id", right_on="processid", how="inner")
+    rows = rows[(rows["_ord"] >= rows["_cur_ord"])
+                & (rows["_ord"] < rows["_cur_ord"] + WIN)].copy()
+    if rows.empty:
+        return pd.DataFrame()
+    rows = rows.sort_values(["lot_id", "_ord"], kind="mergesort")
+    rows = rows.reset_index(drop=True)
+
+    # --- 2) 사전지정 : recipe 와 설비를 함께 제한한다 ------------------------
+    eg = _lower_cols(df_engr)
+    if not eg.empty and "lotid" in eg.columns:
+        eg = eg[["lotid", "processid", "stepseq", "eqpid", "newppid"]].copy()
+        for c in ("lotid", "processid", "stepseq"):
+            eg[c] = _fab_str(eg[c])
+        eg = eg.drop_duplicates(["lotid", "processid", "stepseq"])
+        rows = rows.merge(
+            eg.rename(columns={"lotid": "lot_id", "processid": "proc_id",
+                               "eqpid": "_pre_eqp", "newppid": "_pre_ppid"}),
+            on=["lot_id", "proc_id", "stepseq"], how="left")
+    else:
+        rows["_pre_eqp"] = pd.NA
+        rows["_pre_ppid"] = pd.NA
+    has_pre = _fab_str(rows["_pre_ppid"]).ne("")
+    rows["사전지정"] = np.where(has_pre, "O", "")
+
+    # --- 3) EIN / ECN / RCS 규제 -------------------------------------------
+    rows = _fab_join_pems(rows, df_pems, df_sel)
+
+    # --- 4) SKIP -----------------------------------------------------------
+    rows["skiprule"] = _fab_str(rows["skiprule"])
+    rows = _fab_skip(rows)
+
+    # --- 5) 연속 -----------------------------------------------------------
+    rows["_delay"] = _fab_delay_norm(rows["delaytime"])
+    rows["_metro"] = rows["areaname"].isin(FAB_METRO)
+    rows["_main_non_metro"] = rows["stepseq_type"].eq("메인") & (~rows["_metro"])
+    # groupby.apply 는 반환 모양이 상황따라 달라진다. 조각을 직접 모은다.
+    eff = pd.Series("", index=rows.index, dtype=object)
+    for _, idx in rows.groupby("lot_id", sort=False).indices.items():
+        g = rows.iloc[idx]
+        eff.iloc[idx] = _fab_effective_delay(g).to_numpy()
+    rows["_eff"] = eff
+    rows["_core"] = (rows["_eff"].ne("") & (~rows["_eff"].isin(FAB_SENTINEL))
+                     & rows["SKIP"].ne("O"))
+    rows = _fab_continuous(rows)
+
+    # --- 6) 현스텝 ~ 연속끝만 남긴다 ----------------------------------------
+    keep = []
+    for _, idx in rows.groupby("lot_id", sort=False).indices.items():
+        sub = rows.iloc[idx]
+        # 현스텝이 SKIP 이면 그 뒤 첫 비SKIP 을 현스텝으로 삼는다.
+        ok = sub.index[sub["SKIP"].ne("O")]
+        if len(ok) == 0:
+            keep.append(sub.index[0])
+            continue
+        head = ok[0]
+        keep.append(head)
+        if rows.at[head, "연속"] in ("연속첫", "연속"):
+            for ii in ok[1:]:
+                if rows.at[ii, "연속"] in ("연속첫", "연속"):
+                    keep.append(ii)
+                else:
+                    break
+    out = rows.loc[sorted(set(keep))].copy()
+
+    # --- 결과를 narrow_step_to_scope 모양으로 --------------------------------
+    #   de_rank : 연속첫 누적 개수. 기존과 같은 뜻이 되게 맞춘다.
+    out = out.sort_values(["lot_id", "_ord"], kind="mergesort")
+    first = out["연속"].eq("연속첫").astype(int)
+    out["de_rank"] = first.groupby(out["lot_id"]).cumsum()
+
+    # recipe : 사전지정 > PEMS > 원래 값
+    rec = _fab_str(out["recipeid"])
+    pem = _fab_str(out.get("pems_ppid", pd.Series("", index=out.index)))
+    pre = _fab_str(out["_pre_ppid"])
+    out["recipe_id"] = np.where(pre.ne(""), pre,
+                                np.where(pem.ne(""), pem, rec))
+
+    # 설비 : 사전지정이 있으면 그 설비만, PEMS 지정이 있으면 그 목록만
+    grp = _fab_str(out.get("eqpgroup", pd.Series("", index=out.index)))
+    lim = _fab_str(out["_pre_eqp"])
+    pe = _fab_str(out.get("pems_chamberids", pd.Series("", index=out.index)))
+    pe = pe.mask(pe.eq(""), _fab_str(
+        out.get("pems_eqpids", pd.Series("", index=out.index))))
+    eqp_raw = np.where(lim.ne(""), lim, np.where(pe.ne(""), pe, grp))
+
+    return pd.DataFrame({
+        "line": line,
+        "lot_id": out["lot_id"].to_numpy(),
+        "proc_id": out["proc_id"].to_numpy(),
+        # order_seq 는 FabPlan 판별 기준이라 비워 둔다. 대신 공정 내 순번을 쓴다.
+        "order_seq": pd.NA,
+        "de_rank": out["de_rank"].to_numpy(),
+        "연속": out["연속"].to_numpy(),
+        "layer_id": out["layerid"].to_numpy(),
+        "step_level": pd.NA,
+        "ein": out.get("적용PEMSNO", pd.Series(pd.NA, index=out.index)).to_numpy(),
+        "step_seq": out["stepseq"].to_numpy(),
+        "step_desc": out["descript"].to_numpy(),
+        "eqp_type": out["eqptype"].to_numpy(),
+        "eqp_group_raw": eqp_raw,
+        "recipe_id": out["recipe_id"].to_numpy(),
+        "_fab_cur": out["step_seq"].to_numpy(),   # 현스텝 표시에 쓴다
+    })
+
+
+def _fab_join_pems(rows, df_pems, df_sel):
+    """EIN / ECN / RCS 를 붙인다. 여럿이면 연결 규칙으로 하나를 고른다."""
+    cols = ["적용PEMSNO", "connecttype", "nextstepseq",
+            "pems_eqpids", "pems_chamberids", "pems_ppid"]
+    B = _lower_cols(df_pems)
+    if B.empty:
+        for c in cols:
+            rows[c] = pd.NA
+        return rows
+    for c in ("processid", "pems_type", "ecnrule", "lotids", "einecnno",
+              "stepseq", "connecttype", "nextstepseq", "pems_eqpids",
+              "pems_chamberids", "pems_ppid"):
+        if c not in B.columns:
+            B[c] = pd.NA
+        B[c] = _fab_str(B[c]) if B[c].dtype == object else B[c]
+    for c in ("processid", "pems_type", "ecnrule", "lotids", "einecnno",
+              "stepseq"):
+        B[c] = _fab_str(B[c])
+    B = B.reset_index(drop=True)
+    B["_b"] = np.arange(len(B))
+
+    A = rows.reset_index(drop=True).copy()
+    A["_aid"] = np.arange(len(A))
+    # lot_id 의 '.' 바로 앞 한 글자. ECN 규칙 키다.
+    A["_pre"] = A["lot_id"].str.extract(r"(.)\.", expand=False).fillna("")
+
+    parts = []
+    ecn = B[B["pems_type"].isin(["ECN", "RCS"])]
+    allr = ecn[ecn["ecnrule"].eq("-") | ecn["ecnrule"].eq("")]
+    if not allr.empty:
+        parts.append(A.merge(allr, left_on=["proc_id", "stepseq"],
+                             right_on=["processid", "stepseq"], how="inner"))
+    spec = ecn[~(ecn["ecnrule"].eq("-") | ecn["ecnrule"].eq(""))].copy()
+    if not spec.empty:
+        spec["_k"] = spec["ecnrule"].str.replace(" ", "", regex=False).str.split(",")
+        spec = spec.explode("_k")
+        spec["_k"] = _fab_str(spec["_k"])
+        parts.append(A.merge(spec, left_on=["proc_id", "stepseq", "_pre"],
+                             right_on=["processid", "stepseq", "_k"],
+                             how="inner"))
+    ein = B[B["pems_type"].eq("EIN")].copy()
+    if not ein.empty:
+        ein["_l"] = ein["lotids"].str.split(",")
+        ein = ein.explode("_l")
+        ein["_l"] = _fab_str(ein["_l"])
+        parts.append(A.merge(ein, left_on=["proc_id", "stepseq", "lot_id"],
+                             right_on=["processid", "stepseq", "_l"],
+                             how="inner"))
+
+    if not parts:
+        for c in cols:
+            rows[c] = pd.NA
+        return rows
+
+    cand = pd.concat(parts, ignore_index=True)
+    cand = cand.sort_values(["_aid", "_b"], kind="mergesort")
+
+    C = _lower_cols(df_sel)
+    sel = {}
+    if not C.empty and "firsteinecnno" in C.columns:
+        for a, b, c in zip(_fab_str(C["firsteinecnno"]),
+                           _fab_str(C["nexteinecnno"]),
+                           _fab_str(C["selecteinecnno"])):
+            sel[(a, b)] = c
+
+    def _pick(g):
+        if len(g) == 1:
+            return g.iloc[0]
+        w = g.iloc[0]
+        for i in range(1, len(g)):
+            c = g.iloc[i]
+            got = sel.get((w["einecnno"], c["einecnno"]))
+            if got is None:
+                got = sel.get((c["einecnno"], w["einecnno"]))
+            if got == c["einecnno"]:
+                w = c
+        return w
+
+    # groupby.apply 는 키를 인덱스로 올리기도 한다. 조각을 직접 고른다.
+    take = ["_aid", "einecnno", "connecttype", "nextstepseq",
+            "pems_eqpids", "pems_chamberids", "pems_ppid"]
+    picked = pd.DataFrame(
+        [ _pick(cand.iloc[idx])[take] for _, idx in
+          cand.groupby("_aid", sort=False).indices.items() ],
+        columns=take)
+    picked = picked.rename(columns={"einecnno": "적용PEMSNO"})
+    out = A.merge(picked, on="_aid", how="left").drop(columns=["_aid", "_pre"])
+    return out
+
+
 def expand_with_equipment(scope, df_eqp, df_eqp_group, line):
     """축약된 scope 에만 설비그룹·설비를 전개한다(전체 경로 전개 없음)."""
     eg = _lower_cols(df_eqp_group)
@@ -1369,12 +1795,18 @@ def build_f3(con):
             m.bay_name, m.sendfab,
             m.start_date, m.last_event_date, m.step_arrive_date, m.last_tkout_date,
             m.fa_object4, m.prod1, m.prod2, m.dept, m.dest_line_id,
-            m.status, m.order_seq AS m_order_seq,
+            m.status, m.order_seq AS m_order_seq, m.step_seq AS m_step_seq,
             s.proc_id, s.order_seq, s.de_rank, s."연속", s.AREA,
             s.layer_id, s.step_level, s.ein, s.step_seq, s.step_desc,
             s.eqp_type, s.recipe_id, s.eqp_group_raw, s.eqp_id, s.batch_kind, s.eqpline,
             s.body_status, s.eqp_status_change_time AS s_eqp_status_change_time,
-            CASE WHEN m.order_seq = s.order_seq THEN '현스텝' END AS "현스텝"
+            -- FabPlan(order_seq 없음)은 step_seq 로 현스텝을 가린다.
+            CASE
+              WHEN m.order_seq IS NOT NULL AND s.order_seq IS NOT NULL
+               AND m.order_seq = s.order_seq THEN '현스텝'
+              WHEN m.order_seq IS NULL AND s.order_seq IS NULL
+               AND m.step_seq = s.step_seq THEN '현스텝'
+            END AS "현스텝"
         FROM m
         LEFT JOIN s ON m.line = s.line AND m.lot_id = s.lot_id
     """)
@@ -2098,6 +2530,29 @@ def main():
         print(f"[ROWS] {line} scope(step) = {len(scope):,}", flush=True)
         with stage(f"{line} 설비그룹전개"):
             s_parts.append(expand_with_equipment(scope, df_eqp, df_eqp_group, line))
+
+    # FabPlan : PFR1 재공 중 order_seq 가 비어 있는 lot.
+    #   StepPath 로는 스텝이 붙지 않아 공정 정의를 직접 훑는다.
+    if FABPLAN:
+        try:
+            fab = {k: fetch(k, None) for k in
+                   ("fab_step", "fab_pems", "fab_sel", "fab_skiprule",
+                    "fab_engr")}
+            with stage("FabPlan 범위축약"):
+                fscope = fabplan_scope(fab["fab_step"], fab["fab_pems"],
+                                       fab["fab_sel"], fab["fab_skiprule"],
+                                       fab["fab_engr"], df_lot, "PFR1")
+            del fab
+            print(f"[ROWS] FabPlan scope(step) = {len(fscope):,}", flush=True)
+            if len(fscope):
+                with stage("FabPlan 설비그룹전개"):
+                    s_parts.append(expand_with_equipment(
+                        fscope.drop(columns=["_fab_cur"]),
+                        df_eqp, df_eqp_group, "PFR1"))
+        except Exception as e:
+            # 원천이 아직 안 올라왔으면 기존 결과만으로 계속 간다.
+            print(f"[FABPLAN] 건너뜀: {type(e).__name__}: {e}", flush=True)
+
     s = pd.concat(s_parts, ignore_index=True)
     print(f"[ROWS] s = {len(s):,}", flush=True)
 
