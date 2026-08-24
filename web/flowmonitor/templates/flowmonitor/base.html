@@ -186,6 +186,19 @@
   .trboxin .grid td { padding:3px 6px; border-top:1px solid var(--bd); }
   .trboxin .grid td.num { text-align:right; }
 
+  /* ── 추이 히트맵 ──────────────────────────────────────────────────── */
+  .hmbox { width:min(1280px, 100%); }
+  .hmtools { display:flex; align-items:center; gap:8px; }
+  .hmbody { max-height:70vh; overflow:auto; padding:10px 12px 16px; }
+  .hmt { border-collapse:separate; border-spacing:1px; font-size:10px; }
+  .hmt th { position:sticky; top:0; background:#fff; z-index:2;
+            color:var(--mut); font-weight:600; padding:2px 3px;
+            white-space:nowrap; }
+  .hmt th.hk, .hmt td.hk { position:sticky; left:0; background:#fff; z-index:3;
+                           text-align:left; padding:2px 6px 2px 2px;
+                           font-weight:700; color:var(--fg); }
+  .hmt td { width:16px; height:14px; border-radius:2px; }
+
   /* ── 업데이트 내역 ───────────────────────────────────────────────── */
   /* 업데이트 내역 버튼과 팝업 */
   .updbar { display:flex; align-items:center; gap:10px; margin-bottom:10px; }

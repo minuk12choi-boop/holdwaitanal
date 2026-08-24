@@ -519,3 +519,87 @@ def summarize(line, today=None, prod=None, plan=None, seed=0, top=3):
         "rest_gap": sum(x["gap"] for x in rest),
         "all": gs,
     }
+
+
+# ---------------------------------------------------------------------------
+# 히트맵
+#   가로 일자 · 세로 LAYER 또는 STEP · 값 MOVE 또는 재공
+#   제품 / PLAN 을 여러 개 고르면 세로축을 합친다.
+# ---------------------------------------------------------------------------
+def heatmap(line, today=None, days=30, axis="layer", metric="move",
+            prod=None, plan=None):
+    today = today or dt.date.today()
+    since = today - dt.timedelta(days=days - 1)
+    col = "layer_id" if axis == "layer" else "step_seq"
+
+    if metric == "wip":
+        tbl, lcol, val = "f3_wip_step", "`line`", "wip_qty"
+        if not _table_ok(tbl):
+            return {"ready": False, "reason": "재공 이력이 아직 없습니다"}
+        w = [f"{lcol} = %s", "biz_date >= %s", "biz_date <= %s"]
+        a = [line, since, today]
+        if prod:
+            w.append("prod2 IN (%s)" % ",".join(["%s"] * len(prod)))
+            a += list(prod)
+        if plan:
+            w.append("proc_id IN (%s)" % ",".join(["%s"] * len(plan)))
+            a += list(plan)
+        # 스냅샷별로 접은 뒤 그날 최대를 쓴다(순간 급증을 놓치지 않는다).
+        rows = _rows(
+            f"SELECT biz_date, {col} AS k, MAX(q) AS v FROM ("
+            f"  SELECT biz_date, {col}, snapshot_at, SUM({val}) AS q "
+            f"  FROM {tbl} WHERE {' AND '.join(w)} "
+            f"  GROUP BY biz_date, {col}, snapshot_at"
+            f") t GROUP BY biz_date, k", a)
+    else:
+        tbl = "f3_move_step"
+        if not _table_ok(tbl):
+            return {"ready": False, "reason": "MOVE 이력이 아직 없습니다"}
+        w = ["sys_line_id = %s", "biz_date >= %s", "biz_date <= %s"]
+        a = [line, since, today]
+        if prod:
+            w.append("prod2 IN (%s)" % ",".join(["%s"] * len(prod)))
+            a += list(prod)
+        if plan:
+            w.append("proc_id IN (%s)" % ",".join(["%s"] * len(plan)))
+            a += list(plan)
+        rows = _rows(
+            f"SELECT biz_date, {col} AS k, SUM(normal_qty) AS v "
+            f"FROM {tbl} WHERE {' AND '.join(w)} "
+            f"GROUP BY biz_date, k", a)
+
+    dates = [(since + dt.timedelta(days=i)).isoformat() for i in range(days)]
+    di = {d: i for i, d in enumerate(dates)}
+    grid = {}
+    for r in rows:
+        k = str(r["k"] or "-")
+        d = r["biz_date"]
+        d = d.isoformat() if hasattr(d, "isoformat") else str(d)[:10]
+        if d not in di:
+            continue
+        grid.setdefault(k, [0] * days)[di[d]] = int(r["v"] or 0)
+
+    keys = sorted(grid)
+    mx = max((max(v) for v in grid.values()), default=0)
+    return {
+        "ready": True, "axis": axis, "metric": metric,
+        "dates": dates, "keys": keys,
+        "rows": [grid[k] for k in keys],
+        "max": mx,
+    }
+
+
+def heat_options(line, today=None, days=30):
+    """히트맵 팝업의 제품 · PLAN 선택지."""
+    today = today or dt.date.today()
+    since = today - dt.timedelta(days=days - 1)
+    if not _table_ok("f3_move_step"):
+        return {"prod": [], "plan": []}
+    rows = _rows(
+        "SELECT DISTINCT prod2, proc_id FROM f3_move_step "
+        "WHERE sys_line_id=%s AND biz_date>=%s AND biz_date<=%s",
+        [line, since, today])
+    return {
+        "prod": sorted({r["prod2"] for r in rows if r["prod2"]}),
+        "plan": sorted({r["proc_id"] for r in rows if r["proc_id"]}),
+    }

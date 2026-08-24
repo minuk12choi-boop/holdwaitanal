@@ -597,6 +597,8 @@ UPDATES = [
             {"t": "원인이 잡히지 않으면 전산 이슈 점검을 안내합니다."},
             {"t": "상위 3건을 보여 주고, 전체 보기로 모든 구간을 확인할 수 "
                   "있습니다."},
+            {"t": "히트맵으로 최근 30일 흐름을 봅니다. 가로가 일자, 세로가 "
+                  "LAYER 또는 STEP 이며 MOVE 와 재공을 토글로 바꿉니다."},
         ],
     },
     {
@@ -2961,6 +2963,31 @@ def api_trend(request):
         "rest_n": res["rest_n"], "rest_gap": res["rest_gap"],
         "all": [_row(g) for g in res["all"]],
     }, json_dumps_params={"ensure_ascii": False})
+
+
+def api_heatmap(request):
+    """추이 히트맵. 가로 일자 · 세로 LAYER 또는 STEP."""
+    from . import trend as TR
+
+    line = request.GET.get("line") or DEFAULT_LINE
+    axis = request.GET.get("axis", "layer")
+    metric = request.GET.get("metric", "move")
+    days = max(7, min(90, int(request.GET.get("days", "30") or 30)))
+    prod = [x for x in request.GET.get("prod2", "").split(",") if x]
+    plan = [x for x in request.GET.get("plan", "").split(",") if x]
+    bdate = request.GET.get("biz_date", "")
+    try:
+        today = (dt.date.fromisoformat(bdate) if bdate else _biz_today())
+    except Exception:
+        today = _biz_today()
+
+    try:
+        d = TR.heatmap(line, today, days, axis, metric, prod, plan)
+        d["options"] = TR.heat_options(line, today, days)
+    except Exception as e:
+        print(f"[HEAT] 실패: {type(e).__name__}: {e}", flush=True)
+        return JsonResponse({"ready": False, "reason": "이력이 아직 없습니다"})
+    return JsonResponse(d, json_dumps_params={"ensure_ascii": False})
 
 
 def api_eqp_wait(request):

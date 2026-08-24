@@ -119,6 +119,7 @@
     <div class="cell" id="trend" style="display:none">
       <div class="cellttl trtt"><span>지금 무엇이 생산을 막고 있나</span>
         <span class="v" id="trSub">분석 중…</span>
+        <button class="cardclr" onclick="openHeat()">히트맵</button>
         <button class="cardclr" id="trAll" onclick="openTrendAll()"
                 style="display:none">전체 보기</button>
       </div>
@@ -174,6 +175,37 @@
     <!-- 원인 분석에서 파고들 때마다 카드가 하나씩 쌓인다(LOT BALANCE 위). -->
     <div id="czstack"></div>
     <div id="czask" class="askpop" style="display:none"></div>
+
+    <!-- 추이 히트맵 -->
+    <div id="hmmask" class="updmask" onclick="closeHeat(event)">
+      <div class="updbox hmbox" onclick="event.stopPropagation()">
+        <div class="updtop">
+          <b>MOVE · 재공 추이</b>
+          <div class="hmtools">
+            <span class="seg">
+              <button class="on" id="hm_move"
+                      onclick="setHeat('metric','move')">MOVE</button>
+              <button id="hm_wip" onclick="setHeat('metric','wip')">재공</button>
+            </span>
+            <span class="seg">
+              <button class="on" id="hm_layer"
+                      onclick="setHeat('axis','layer')">LAYER</button>
+              <button id="hm_step" onclick="setHeat('axis','step')">STEP</button>
+            </span>
+            <div class="dd" id="hmdp">
+              <button onclick="toggleProd('hmdp')" id="hmpb">제품 전체 &#9662;</button>
+              <div class="menu" id="hmpm"></div>
+            </div>
+            <div class="dd" id="hmdl">
+              <button onclick="toggleProd('hmdl')" id="hmlb">PLAN 전체 &#9662;</button>
+              <div class="menu" id="hmlm"></div>
+            </div>
+            <button class="btn" onclick="closeHeat()">닫기</button>
+          </div>
+        </div>
+        <div class="updbody hmbody" id="hmBody"></div>
+      </div>
+    </div>
 
     <!-- 추이 전체 목록 -->
     <div id="trmask" class="updmask" onclick="closeTrendAll(event)">
@@ -2864,6 +2896,133 @@ function renderTrend() {
         + `<span class="trno">${i + 1}</span>`
         + `<span class="trtx">${x.text}</span></div>`).join("")
   ).join("");
+}
+
+/* 히트맵 ------------------------------------------------------------------
+   가로 일자 · 세로 LAYER 또는 STEP · 값 MOVE(파랑) 또는 재공(빨강).
+   세로축은 전부 보여 준다. 화면에 보이는 만큼만 그리고 스크롤에 맞춰 잇는다.
+--------------------------------------------------------------------- */
+let HEAT = { axis: "layer", metric: "move", prod: [], plan: [],
+             data: null, at: 0 };
+
+function openHeat() {
+  document.getElementById("hmmask").classList.add("on");
+  loadHeat();
+}
+
+function closeHeat(ev) {
+  if (ev && ev.target !== ev.currentTarget) { return; }
+  document.getElementById("hmmask").classList.remove("on");
+}
+
+function setHeat(k, v) {
+  HEAT[k] = v;
+  ["move", "wip"].forEach(x =>
+    document.getElementById("hm_" + x).className =
+      (HEAT.metric === x) ? "on" : "");
+  ["layer", "step"].forEach(x =>
+    document.getElementById("hm_" + x).className =
+      (HEAT.axis === x) ? "on" : "");
+  loadHeat();
+}
+
+function heatPick(which) {
+  const id = which === "prod" ? "hmpm" : "hmlm";
+  const sel = [...document.querySelectorAll("#" + id + " input[type=checkbox]")]
+    .filter(x => x.checked && x.value).map(x => x.value);
+  const all = document.querySelectorAll(
+    "#" + id + " input[type=checkbox][value]").length;
+  HEAT[which] = (sel.length === all) ? [] : sel;
+  loadHeat();
+}
+
+function heatMenu(which, opts) {
+  const id = which === "prod" ? "hmpm" : "hmlm";
+  const btn = which === "prod" ? "hmpb" : "hmlb";
+  const on = HEAT[which].length ? new Set(HEAT[which]) : new Set(opts);
+  document.getElementById(id).innerHTML =
+    `<input class="ddq" type="text" placeholder="검색"`
+    + ` oninput="heatSearch('${id}')" onclick="event.stopPropagation()">`
+    + opts.map(o => `<label data-opt="${o}"><input type="checkbox"`
+        + ` value="${o}"${on.has(o) ? " checked" : ""}`
+        + ` onclick="heatPick('${which}')">${o}</label>`).join("");
+  const lb = which === "prod" ? "제품" : "PLAN";
+  document.getElementById(btn).innerHTML =
+    `${lb} ${HEAT[which].length ? HEAT[which].length + "개" : "전체"} &#9662;`;
+}
+
+function heatSearch(id) {
+  const q = (document.querySelector("#" + id + " .ddq").value || "")
+    .trim().toUpperCase();
+  document.querySelectorAll("#" + id + " label[data-opt]").forEach(el => {
+    el.style.display = (!q || el.dataset.opt.toUpperCase().indexOf(q) >= 0)
+      ? "" : "none";
+  });
+}
+
+function loadHeat() {
+  const box = document.getElementById("hmBody");
+  box.innerHTML = `<div class="minittl">불러오는 중…</div>`;
+  const q = "line=" + encodeURIComponent(LINE)
+    + "&axis=" + HEAT.axis + "&metric=" + HEAT.metric + "&days=30"
+    + "&prod2=" + encodeURIComponent(HEAT.prod.join(","))
+    + "&plan=" + encodeURIComponent(HEAT.plan.join(","))
+    + "&biz_date=" + encodeURIComponent(SNAP_DATE || "");
+  fetch("/api/heatmap/?" + q).then(r => r.json()).then(d => {
+    HEAT.data = d;
+    if (d.options) {
+      heatMenu("prod", d.options.prod || []);
+      heatMenu("plan", d.options.plan || []);
+    }
+    renderHeat();
+  });
+}
+
+function heatColor(v, mx) {
+  if (!v || !mx) { return "#fff"; }
+  const t = Math.min(1, v / mx);
+  // MOVE 는 파랑, 재공은 빨강. 흰색에서 짙어진다.
+  return (HEAT.metric === "wip")
+    ? `rgba(200,30,40,${(0.08 + t * 0.85).toFixed(2)})`
+    : `rgba(30,80,190,${(0.08 + t * 0.85).toFixed(2)})`;
+}
+
+function renderHeat() {
+  const d = HEAT.data || {};
+  const box = document.getElementById("hmBody");
+  if (!d.ready || !(d.keys || []).length) {
+    box.innerHTML = `<div class="minittl">${d.reason || "데이터가 없습니다"}</div>`;
+    return;
+  }
+  const head = `<tr><th class="hk">${d.axis === "layer" ? "LAYER" : "STEP"}</th>`
+    + d.dates.map(x => `<th>${x.slice(5)}</th>`).join("") + `</tr>`;
+  HEAT.at = 0;
+  box.innerHTML = `<table class="hmt"><thead>${head}</thead>`
+    + `<tbody id="hmTb"></tbody></table>`;
+  heatMore(60);
+  box.onscroll = () => {
+    if (HEAT.at >= (d.keys || []).length) { return; }
+    if (box.scrollTop + box.clientHeight < box.scrollHeight - 200) { return; }
+    heatMore(60);
+  };
+}
+
+function heatMore(n) {
+  const d = HEAT.data || {};
+  const tb = document.getElementById("hmTb");
+  if (!tb) { return; }
+  const to = Math.min(HEAT.at + n, d.keys.length);
+  const unit = (HEAT.metric === "wip") ? "매" : "매";
+  let out = "";
+  for (let i = HEAT.at; i < to; i++) {
+    out += `<tr><td class="hk">${d.keys[i]}</td>`;
+    out += d.rows[i].map((v, k) =>
+      `<td style="background:${heatColor(v, d.max)}"`
+      + ` title="${d.keys[i]} · ${d.dates[k]} · ${nf(v)}${unit}"></td>`).join("");
+    out += `</tr>`;
+  }
+  tb.insertAdjacentHTML("beforeend", out);
+  HEAT.at = to;
 }
 
 function openTrendAll() {
