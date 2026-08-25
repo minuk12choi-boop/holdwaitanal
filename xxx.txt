@@ -1,2 +1,29 @@
-Not Found: /static/flowmonitor/chart.umd.js.map
-WARNING:django.request:Not Found: /static/flowmonitor/chart.umd.js.map
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python getdata/build_f3.py --trace-drop
+[SKIP] 이미 처리한 회차입니다 (finished_at=2026-08-25 13:11:30). Spotfire 가 아직 새로 올리지 않았습니다.
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python getdata/build_f3.py --trace-drop --force
+[TIMER] 소형 원천 조회 start
+[QUERY] lot 조회 시작 2026-08-25 13:42:47
+[QUERY] lot rows=10,286 cols=23 0.2s
+[QUERY] materialworkstatus 조회 시작 2026-08-25 13:42:47
+[QUERY] materialworkstatus rows=155,853 cols=4 0.2s
+[STAGE] fa_object4 결합 시작
+[JOIN] fa_object4 10,193/10,286 lot 매칭
+[STAGE] fa_object4 결합 0.1s
+[QUERY] ssps_prod_name 조회 시작 2026-08-25 13:42:47
+[QUERY] ssps_prod_name rows=1,157 cols=7 0.0s
+[STAGE] 제품구분 결합 시작
+[JOIN] 제품구분 8,122/10,286 lot 매칭
+[JOIN] 기준정보 제품구분 적용 152행
+[STAGE] 제품구분 결합 0.1s
+[QUERY] equipment 조회 시작 2026-08-25 13:42:47
+[QUERY] equipment rows=19,465 cols=8 0.1s
+[CACHE] eqp_group 재사용 (eqp_group_20260825.csv) rows=12,902
+[QUERY] hold 조회 시작 2026-08-25 13:42:48
+[QUERY] hold rows=7,685 cols=10 0.1s
+[TIMER] 소형 원천 조회 elapsed=0.782s
+Traceback (most recent call last):
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py", line 2891, in <module>
+    main()
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py", line 2714, in main
+    trace_lot("원천 lot", df_lot)
+NameError: name 'trace_lot' is not defined
