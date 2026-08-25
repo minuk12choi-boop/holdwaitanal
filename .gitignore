@@ -12,3 +12,4 @@ __pycache__/
 .venv/
 getdata/cache/
 getdata/s3cache/
+getdata/out/

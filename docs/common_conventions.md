@@ -824,6 +824,33 @@ summarize()  상위 3 + 나머지 규모
 다양성은 **여는 주어 · 담을 항목 수 · 순서**에서 얻는다. 어휘를 늘려
 얻지 않는다.
 
+### 빠진 lot 진단
+
+원천에는 있는데 최종 f3 에 없는 lot 을 **전부** 뽑아 엑셀로 남긴다.
+
+```
+set TRACE_DROP=1
+python getdata/build_f3.py
+   또는
+python getdata/build_f3.py --trace-drop
+```
+
+`getdata/out/dropped_lots_*.xlsx` 에 두 장이 생긴다.
+
+```
+빠진 lot     lot 마다 라인 · 타입 · 상태 · 탈락사유
+사유별 집계   무엇이 몇 건인지
+```
+
+사유는 위에서부터 먼저 걸리는 것을 쓴다.
+
+```
+line <> sys_line_id · lot_type 제외 · cur_line_id = CHTV
+proc_id 없음 · step_seq 없음 · StepPath 에서 스텝을 못 찾음
+```
+
+한 lot 만 쫓으려면 `TRACE_LOT` 이나 `--trace-lot <LOT>` 을 쓴다.
+
 ### 라인 색
 
 어느 차트에서 보든 같은 라인은 같은 색이다.

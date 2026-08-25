@@ -625,6 +625,82 @@ DEST_LINE_MAP = {
 #   실행:  set TRACE_LOT=7DDWG17.1  후 build_f3 실행
 #   또는:  python getdata/build_f3.py --trace-lot 7DDWG17.1
 TRACE_LOT = os.environ.get("TRACE_LOT", "").strip()
+for _i, _a in enumerate(sys.argv):
+    if _a == "--trace-lot" and _i + 1 < len(sys.argv):
+        TRACE_LOT = sys.argv[_i + 1].strip()
+
+# 원천에는 있는데 최종 f3 에 없는 lot 을 전부 뽑아 엑셀로 남긴다.
+#   실행:  set TRACE_DROP=1   또는  python getdata/build_f3.py --trace-drop
+#   결과:  getdata/out/dropped_lots_YYYYmmdd_HHMM.xlsx
+TRACE_DROP = (os.environ.get("TRACE_DROP", "").strip() not in ("", "0")
+              or "--trace-drop" in sys.argv)
+
+
+def dump_dropped(df_lot, df_f3, path=None):
+    """어느 단계에서 빠졌는지 lot 별로 적어 엑셀로 남긴다.
+
+    한 lot 만 쫓으면 개별 사정은 알 수 있어도 전체 규모를 모른다.
+    빠진 것을 모두 모아 사유를 붙이면 무엇을 고쳐야 할지 바로 보인다.
+    """
+    m = _lower_cols(df_lot).copy()
+    if "lot_id" not in m.columns:
+        print("[DROP] lot_id 없음", flush=True)
+        return None
+
+    keep = set(_lower_cols(df_f3)["lot_id"].astype("string")) if len(df_f3) \
+        else set()
+    m["lot_id"] = m["lot_id"].astype("string")
+    out = m[~m["lot_id"].isin(keep)].copy()
+    if out.empty:
+        print("[DROP] 빠진 lot 없음", flush=True)
+        return None
+
+    # 사유를 붙인다. 위에서부터 먼저 걸리는 것을 쓴다.
+    def _why(r):
+        line = str(r.get("line") or "")
+        sysl = str(r.get("sys_line_id") or "")
+        cur = str(r.get("cur_line_id") or "")
+        lt = str(r.get("lot_type") or "")
+        if sysl and line != sysl:
+            return "line <> sys_line_id"
+        if lt not in ("PP", "PG", "EG"):
+            return f"lot_type 제외({lt or '-'})"
+        if cur == "CHTV":
+            return "cur_line_id = CHTV"
+        if pd.isna(r.get("proc_id")) or str(r.get("proc_id") or "") == "":
+            return "proc_id 없음"
+        if pd.isna(r.get("step_seq")) or str(r.get("step_seq") or "") == "":
+            return "step_seq 없음"
+        return "StepPath 에서 스텝을 못 찾음"
+
+    out["탈락사유"] = out.apply(_why, axis=1)
+
+    cols = [c for c in ("line", "sys_line_id", "cur_line_id", "dest_line_id",
+                        "lot_id", "lot_type", "status", "proc_id", "step_seq",
+                        "order_seq", "prod2", "탈락사유") if c in out.columns]
+    out = out[cols].sort_values(["탈락사유", "lot_id"], kind="mergesort")
+
+    if path is None:
+        d = os.path.join(os.path.dirname(os.path.abspath(__file__)), "out")
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(
+            d, f"dropped_lots_{dt.datetime.now():%Y%m%d_%H%M}.xlsx")
+
+    try:
+        with pd.ExcelWriter(path, engine="openpyxl") as w:
+            out.to_excel(w, sheet_name="빠진 lot", index=False)
+            (out.groupby("탈락사유").size().rename("건수").reset_index()
+                .sort_values("건수", ascending=False)
+                .to_excel(w, sheet_name="사유별 집계", index=False))
+    except Exception as e:
+        path = path.replace(".xlsx", ".csv")
+        out.to_csv(path, index=False, encoding="utf-8-sig")
+        print(f"[DROP] 엑셀 실패({type(e).__name__}) - CSV 로 저장", flush=True)
+
+    print(f"[DROP] 원천 {len(m):,} 중 {len(out):,} 빠짐 -> {path}", flush=True)
+    for why, n in out["탈락사유"].value_counts().items():
+        print(f"[DROP]   {why:28s} {n:>6,}", flush=True)
+    return path
 
 
 def trace_lot(where, df, col="lot_id"):
@@ -2705,6 +2781,9 @@ def main():
     with stage("f3 생성"):
         df_f3, tip_match, eqpgroup_trace = build_f3(con)
     trace_lot("f3 생성 직후", df_f3)
+    if TRACE_DROP:
+        with stage("빠진 lot 정리"):
+            dump_dropped(df_lot, df_f3)
 
     # 조인·집계는 원천 라인으로 끝내고, 라벨만 마지막에 바꾼다.
     if SOURCE != "bdq":

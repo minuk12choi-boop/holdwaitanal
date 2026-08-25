@@ -70,16 +70,17 @@
   .wip .top .rankbtn, .wip .top .dd > button { white-space:nowrap;
                                                font-size:10px;
                                                padding:2px 7px; }
-  /* 좌측 최상단 필터 다섯 개.
-     좌측 칸 폭(380px)은 그대로 두고, 두 줄로 접어 칸마다 폭을 고르게 한다.
-     한 줄에 세 개면 글자가 끊기므로 세 칸 격자로 둔다. */
-  .prodf { display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; }
-  .prodf > .dd { min-width:0; }
-  .prodf > .dd > button { width:100%; font-size:10px; padding:2px 4px;
-                          white-space:nowrap; overflow:hidden;
-                          text-overflow:ellipsis; justify-content:space-between; }
-  .prodf > .dd > button > span:first-child { overflow:hidden;
-                                             text-overflow:ellipsis; }
+  /* 제품 필터 다섯 개만 격자로 접는다(날짜 · SHIFT · 라인 줄은 그대로).
+     좌측 칸 폭(380px)은 유지하고 3 x 2 로 놓아 칸마다 폭을 고르게 한다. */
+  .prodf.pgrid { display:grid; grid-template-columns:repeat(3, 1fr);
+                 gap:4px; }
+  .prodf.pgrid > .dd { min-width:0; }
+  .prodf.pgrid > .dd > button {
+      width:100%; font-size:10px; padding:2px 4px; white-space:nowrap;
+      overflow:hidden; text-overflow:ellipsis;
+      justify-content:space-between; }
+  .prodf.pgrid > .dd > button > span:first-child {
+      overflow:hidden; text-overflow:ellipsis; }
   /* 선택지가 많으면 메뉴 안에서 굴린다. */
   .dd .menu { max-height:300px; overflow-y:auto; }
   .wip .stack { display:flex; height:10px; border-radius:5px; overflow:hidden;
