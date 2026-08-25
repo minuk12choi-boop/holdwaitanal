@@ -647,6 +647,11 @@ DEST_LINE_MAP = {
 # 특정 lot 이 어디서 빠지는지 단계마다 남긴다.
 #   실행:  set TRACE_LOT=7DDWG17.1  후 build_f3 실행
 #   또는:  python getdata/build_f3.py --trace-lot 7DDWG17.1
+# 치명적 실패를 모아 둔다. 하나라도 있으면 0 이 아닌 코드로 끝낸다.
+#   종료 코드가 늘 0 이면 스케줄러가 성공으로 보고, 며칠씩 옛 데이터를
+#   보고 있어도 아무도 모른다.
+FAILED = []
+
 TRACE_LOT = os.environ.get("TRACE_LOT", "").strip()
 for _i, _a in enumerate(sys.argv):
     if _a == "--trace-lot" and _i + 1 < len(sys.argv):
@@ -3315,6 +3320,9 @@ def main():
             traceback.print_exc()
             print("확인: .env 의 HOLDWAITANAL_DB_* / pymysql 설치 여부", flush=True)
             print("=" * 70, flush=True)
+            # 종료 코드를 0 으로 두면 스케줄러가 성공으로 본다.
+            #   실패를 알아채지 못해 며칠씩 옛 데이터를 보게 된다.
+            FAILED.append("DB 적재")
 
     # ---- 엑셀 저장 (기본 비활성. 필요할 때만 SAVE_EXCEL=True) ---------------
     if SAVE_EXCEL:
@@ -3338,3 +3346,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+    if FAILED:
+        print(f"[EXIT] 실패: {', '.join(FAILED)}", flush=True)
+        sys.exit(1)

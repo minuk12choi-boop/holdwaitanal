@@ -58,16 +58,25 @@ echo ===== %DATE% %TIME% =====>> logs\pipeline.log
 echo [ENV] python=%PYEXE%>> logs\pipeline.log
 echo [ENV] args=%ARGS%>> logs\pipeline.log
 
-if "%RUN_MOVE%"=="1" (
-    echo --- get_move --->> logs\pipeline.log
-    "%PYEXE%" getdata\get_move.py %ARGS% >> logs\pipeline.log 2>&1
-    echo [EXIT] get_move =%ERRORLEVEL%>> logs\pipeline.log
+REM  NOTE: inside an if-block, %ERRORLEVEL% expands once, before the
+REM  command runs, so it always logs the OLD value. Call a label and
+REM  read ERRORLEVEL right after the command instead.
+set "RC=0"
+
+if "%RUN_MOVE%"=="1" call :step get_move getdata\get_move.py
+if "%RUN_F3%"=="1"   call :step build_f3 getdata\build_f3.py
+
+if not "%RC%"=="0" (
+    echo [FAIL] pipeline finished with errors. See logs\pipeline.log>> logs\pipeline.log
+    echo [FAIL] pipeline finished with errors. See logs\pipeline.log
 )
 
-if "%RUN_F3%"=="1" (
-    echo --- build_f3 --->> logs\pipeline.log
-    "%PYEXE%" getdata\build_f3.py %ARGS% >> logs\pipeline.log 2>&1
-    echo [EXIT] build_f3 =%ERRORLEVEL%>> logs\pipeline.log
-)
+endlocal & exit /b %RC%
 
-endlocal
+:step
+echo --- %~1 --->> logs\pipeline.log
+"%PYEXE%" %~2 %ARGS% >> logs\pipeline.log 2>&1
+set "STEPRC=%ERRORLEVEL%"
+echo [EXIT] %~1 =%STEPRC%>> logs\pipeline.log
+if not "%STEPRC%"=="0" set "RC=%STEPRC%"
+exit /b 0
