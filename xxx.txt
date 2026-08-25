@@ -2,3 +2,4 @@ const b=document.querySelector('.hmbox'), t=b.querySelector('.hmt');
 console.log('팝업', b.getBoundingClientRect().width,
             '표', t.getBoundingClientRect().width,
             '본문', b.querySelector('.hmbody').scrollWidth);
+VM304:2 팝업 821.671875 표 288.109375 본문 807
