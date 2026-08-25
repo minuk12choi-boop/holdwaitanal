@@ -2301,7 +2301,12 @@ def _ensure_std(table):
         return
     if _table_exists(table):
         return
-    body = ", ".join(f"`{k}` {t}" for k, t in spec)
+    # id 는 조회·정렬에 쓰이므로 반드시 둔다. 자동 증가 문법은 DB 마다
+    # 다르므로 지금 연결에 맞춰 고른다.
+    vendor = connection.vendor
+    pk = ("id INTEGER PRIMARY KEY AUTOINCREMENT" if vendor == "sqlite"
+          else "id BIGINT AUTO_INCREMENT PRIMARY KEY")
+    body = ", ".join([pk] + [f"`{k}` {t}" for k, t in spec])
     try:
         with connection.cursor() as cur:
             cur.execute(f"CREATE TABLE IF NOT EXISTS `{table}` ({body})")
