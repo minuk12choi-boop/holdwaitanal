@@ -1,39 +1,14 @@
-All migrations finished. Restart the web server.
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> netstat -ano | findstr :8020
-  TCP    0.0.0.0:8020           0.0.0.0:0              LISTENING       4
-  TCP    12.81.64.130:8020      12.81.64.130:53600     TIME_WAIT       0
-  TCP    12.81.64.130:8020      12.81.64.130:63805     TIME_WAIT       0
-  TCP    [::]:8020              [::]:0                 LISTENING       4
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> taskkill /PID 53600 /F
-오류: 프로세스 "53600"을(를) 찾을 수 없습니다.
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> taskkill /PID 63805 /F
-오류: 프로세스 "63805"을(를) 찾을 수 없습니다.
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> taskkill /PID 4 /F
-오류: 프로세스(PID 4)를 종료할 수 없습니다.
-원인: 액세스가 거부되었습니다.
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> taskkill /PID 4 /F
-오류: 프로세스(PID 4)를 종료할 수 없습니다.
-원인: 액세스가 거부되었습니다.
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> ^C
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> ^C
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> ^C
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> Get-NetTCPConnection -LocalPort 8020 -ErrorAction SilentlyContinue |
->>   Select-Object -Expand OwningProcess -Unique |
->>   ForEach-Object { Stop-Process -Id $_ -Force }
->>
-Stop-Process : 다음 오류가 발생하여 "System (4)" 프로세스를 중지할 수 없습니다. 액세스가 거부되었습니다
-위치 줄:3 문자:20
-+   ForEach-Object { Stop-Process -Id $_ -Force }
-+                    ~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : CloseError: (System.Diagnostics.Process (System):Process) [Stop-Process], ProcessCommandException
-    + FullyQualifiedErrorId : CouldNotStopProcess,Microsoft.PowerShell.Commands.StopProcessCommand
+netsh interface ipv4 show excludedportrange protocol=tcp
 
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> Get-NetTCPConnection -LocalPort 8020 -ErrorAction SilentlyContinue |  Select-Object -Expand OwningProcess -Unique |  ForEach-Object { Stop-Process -Id $_ -Force }
-Stop-Process : 다음 오류가 발생하여 "System (4)" 프로세스를 중지할 수 없습니다. 액세스가 거부되었습니다
-위치 줄:1 문자:135
-+ ... wningProcess -Unique |  ForEach-Object { Stop-Process -Id $_ -Force }
-+                                              ~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : CloseError: (System.Diagnostics.Process (System):Process) [Stop-Process], ProcessCommandException
-    + FullyQualifiedErrorId : CouldNotStopProcess,Microsoft.PowerShell.Commands.StopProcessCommand
 
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal>
+
+cd D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web
+$env:DJANGO_ALLOWED_HOSTS="*"
+waitress-serve --listen=0.0.0.0:8025 config.wsgi:application
+
+
+
+
+net stop winnat
+netsh int ipv4 add excludedportrange protocol=tcp startport=8020 numberofports=1
+net start winnat
