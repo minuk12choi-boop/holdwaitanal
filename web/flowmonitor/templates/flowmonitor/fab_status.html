@@ -80,13 +80,11 @@
 
     <!-- status 뷰 -->
     <div class="cell" id="stcard">
-      <div class="sttop">
-        <span class="seg stbase">
-          <button id="stb_qty" class="on"
-                  onclick="setStatusBase('qty')">매수</button>
+      <div class="cellttl"><span>STATUS</span>
+        <span class="seg">
           <button id="stb_lots" onclick="setStatusBase('lots')">LOT</button>
-        </span>
-      </div>
+          <button class="on" id="stb_qty" onclick="setStatusBase('qty')">매</button>
+        </span></div>
       <div class="donut">
         <div class="legend" id="lg"></div>
         <div class="cv"><canvas id="dn"></canvas></div>
@@ -180,7 +178,7 @@
 
     <!-- 추이 히트맵 -->
     <div id="hmmask" class="updmask" onclick="closeHeat(event)">
-      <div class="updbox hmbox" onclick="event.stopPropagation()">
+      <div class="updbox hmbox" onclick="ddCloseOutside(event)">
         <div class="updtop">
           <b>LAYER별 MOVE/재공 추이</b>
           <div class="hmtools">
@@ -208,9 +206,9 @@
               <button onclick="toggleProd('hmdl')" id="hmlb">PLAN 전체 &#9662;</button>
               <div class="menu" id="hmlm"></div>
             </div>
-            <button class="btn" id="hmCopy" onclick="copyHeat()"
+            <button class="dfclear" id="hmCopy" onclick="copyHeat()"
                     title="엑셀에 그대로 붙여넣을 수 있습니다">복사</button>
-            <button class="btn" onclick="closeHeat()">닫기</button>
+            <button class="dfclear" onclick="closeHeat()">닫기</button>
           </div>
         </div>
         <div class="updbody hmbody" id="hmBody"></div>
@@ -297,9 +295,19 @@ function toggleDd() {
   document.getElementById("dd").classList.toggle("open");
 }
 // 바깥을 누르면 열려 있는 드롭다운을 모두 닫는다(.dd 전체 대상)
-document.addEventListener("click", e => {
-  if (e.target.closest(".dd")) { return; }
+// 드롭다운 밖을 누르면 닫는다.
+//   팝업 안에서는 stopPropagation 때문에 이 핸들러가 안 돈다.
+//   그래서 팝업 상자도 ddCloseOutside 를 직접 부른다.
+function ddCloseOutside(e) {
+  if (e && e.target && e.target.closest(".dd")) { return; }
   document.querySelectorAll(".dd.open").forEach(d => d.classList.remove("open"));
+}
+
+document.addEventListener("click", ddCloseOutside);
+
+// Esc 로도 닫는다.
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { ddCloseOutside(); }
 });
 
 function selectedTypes() {
@@ -728,11 +736,10 @@ function stPct(st) {
   return tot ? ((st[ST_BASE] || 0) / tot * 100) : 0;
 }
 
-function setStatusBase(v) {
-  ST_BASE = v;
-  ["qty", "lots"].forEach(k =>
-    document.getElementById("stb_" + k).className =
-      (ST_BASE === k) ? "on" : "");
+function setStatusBase(u) {
+  ST_BASE = u;
+  document.getElementById("stb_lots").className = (u === "lots") ? "on" : "";
+  document.getElementById("stb_qty").className = (u === "qty") ? "on" : "";
   renderStatus();
 }
 

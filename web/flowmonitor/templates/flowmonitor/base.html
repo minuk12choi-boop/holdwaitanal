@@ -95,7 +95,9 @@
   .dd { position:relative; }
   .dd > button { font-size:11px; padding:4px 8px; border:1px solid var(--bd);
                  border-radius:4px; background:#fff; cursor:pointer; }
-  .dd .menu { display:none; position:absolute; right:0; top:26px; z-index:20;
+  /* 열린 메뉴는 표의 sticky 헤더(z 20~30) 보다 위에 와야 가리지 않는다. */
+  .dd.open { position:relative; z-index:80; }
+  .dd .menu { display:none; position:absolute; right:0; top:26px; z-index:80;
               background:#fff; border:1px solid var(--bd); border-radius:5px;
               box-shadow:0 4px 14px rgba(0,0,0,.10); padding:6px; min-width:118px; }
   .dd.open .menu { display:block; }
@@ -223,7 +225,6 @@
   .hmtools { display:flex; align-items:center; gap:8px; }
   /* 위 여백을 두면 sticky 헤더 위쪽에 틈이 생겨 셀이 그 사이로 지나간다.
      여백은 표 안쪽(첫 행 padding)으로 옮긴다. */
-  .hmbody { max-height:70vh; overflow:auto; padding:0 12px 16px; }
   .hmbody .hmt { margin-top:0; }
   .hmt { border-collapse:separate; border-spacing:1px; font-size:10px; }
   /* 틀고정 층
@@ -270,12 +271,19 @@
             box-shadow:0 12px 40px rgba(0,0,0,.25); }
   /* 히트맵은 표 크기에 맞춘다. .updbox 의 고정 폭을 덮어야 하므로
      반드시 그 규칙 **뒤에** 둔다. */
-  /* 7일이면 좁게, 30일이면 넓게. 도구줄이 길어 최소 폭만 지킨다. */
-  .updbox.hmbox { width:fit-content; min-width:520px;
+  /* 팝업은 표 폭에 맞춘다. 7일이면 좁게, 30일이면 넓게.
+     도구줄은 제 폭을 주장하지 않도록 0 으로 두고 줄바꿈시킨다.
+     그래야 표보다 넓어져 여백이 남는 일이 없다. */
+  .updbox.hmbox { width:fit-content; min-width:0;
                   max-width:min(1400px, 100%); }
-  /* 도구줄이 팝업 폭을 늘리지 않도록 넘치면 줄바꿈한다. */
-  .hmbox .updtop { flex-wrap:wrap; gap:6px; }
-  .hmbox .hmtools { flex-wrap:wrap; }
+  .hmbox .updtop { flex-wrap:wrap; gap:6px 8px; }
+  .hmbox .hmtools { flex-wrap:wrap; min-width:0; }
+  .hmbox .updtop > b, .hmbox .hmtools > * { flex:0 0 auto; }
+  /* 드릴다운 표와 같은 버튼을 쓴다. 도구줄에서 눌리지 않게 높이를 준다. */
+  .hmbox .dfclear { height:24px; line-height:22px; }
+  /* 본문(표)이 팝업 폭을 정한다. */
+  .hmbody { max-height:70vh; overflow:auto; padding:0 12px 16px;
+            width:fit-content; max-width:100%; }
   .updtop { display:flex; align-items:center; justify-content:space-between;
             padding:12px 16px; border-bottom:1px solid var(--bd); }
   .updtop b { font-family:var(--f-title); font-size:16px; }
@@ -340,10 +348,6 @@
           transition:opacity .08s; }
   .htip i { width:9px; height:9px; border-radius:2px; display:inline-block; }
   .htip b { color:#FFD700; }
-  /* 원차트 기준 토글. 카드 오른쪽 위에 작게 둔다. */
-  .sttop { display:flex; justify-content:flex-end; margin-bottom:2px; }
-  .stbase > button { font-size:9px; padding:1px 6px; }
-
   .donut { display:flex; align-items:center; gap:10px; }
   .donut .cv { width:112px; height:112px; flex:0 0 112px; }
   .legend { display:flex; flex-direction:column; gap:6px; flex:0 0 auto; }
