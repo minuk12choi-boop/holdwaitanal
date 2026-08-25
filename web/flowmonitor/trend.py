@@ -16,6 +16,18 @@ from django.db import connection
 # 비교 창. 며칠짜리 문제인지 여기서 갈린다.
 WINDOWS = (1, 3, 7, 14, 30, 60)
 
+
+def biz_today(now=None):
+    """업무일. D 는 D-1 22:00 ~ D 22:00 을 덮는다.
+
+    date.today() 를 쓰면 22시 이후에 하루가 어긋난다.
+    파이프라인(db_common.biz_date) · views(_biz_today) 와 같은 규칙이어야
+    같은 날을 본다.
+    """
+    now = now or dt.datetime.now()
+    d = now.date()
+    return (d + dt.timedelta(days=1)) if now.hour >= 22 else d
+
 # MOVE 원천에는 아직 KFR7 / KFR4 를 가를 컬럼이 없다. 둘 다 KFR7 로 들어온다.
 #   화면에서 NRD(KFR4) 를 골라도 빈 화면이 되지 않도록 여기서 맞춘다.
 #   구분 컬럼이 생기면 이 표를 지우면 된다.
@@ -169,7 +181,7 @@ def _since(hist, today, med, key="n", limit=0.75, back=60):
 
 def shape(line, today=None, prod=None, plan=None):
     """구간마다 무슨 일이 있었는지 정리한다. 문구는 여기서 만들지 않는다."""
-    today = today or dt.date.today()
+    today = today or biz_today()
     mv = move_series(line, today, prod=prod, plan=plan)
     wp = wip_series(line, today, prod=prod, plan=plan)
 
@@ -353,7 +365,7 @@ def group_findings(rows):
 
 def diagnose(line, today=None, prod=None, plan=None):
     """추이 분석 + 원인 결합. 문구 생성이 이 결과를 받는다."""
-    today = today or dt.date.today()
+    today = today or biz_today()
     rows = shape(line, today, prod=prod, plan=plan)
     # 원인은 **한 번에** 읽는다. 구간마다 묻으면 왕복이 그만큼 늘어난다.
     sin = [r["since"] for r in rows if r["since"]]
@@ -548,7 +560,7 @@ def summarize(line, today=None, prod=None, plan=None, seed=0, top=3):
 # ---------------------------------------------------------------------------
 def heatmap(line, today=None, days=7, axis="layer", metric="move",
             prod=None, plan=None):
-    today = today or dt.date.today()
+    today = today or biz_today()
     since = today - dt.timedelta(days=days - 1)
     col = "layer_id" if axis == "layer" else "step_seq"
 
@@ -632,7 +644,7 @@ def heat_options(line, today=None, days=30, prod=None, plan=None):
       PLAN 을 고르면 그 PLAN 에 있는 제품만 남는다.
     자기 목록은 그대로 둔다(그래야 다시 고를 수 있다).
     """
-    today = today or dt.date.today()
+    today = today or biz_today()
     since = today - dt.timedelta(days=days - 1)
     if not _table_ok("f3_move_step"):
         return {"prod": [], "plan": []}

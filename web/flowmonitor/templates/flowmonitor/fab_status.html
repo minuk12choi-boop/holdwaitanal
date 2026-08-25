@@ -272,6 +272,16 @@ const BRAND = "#2F4B7C";
 const TYPE_COLORS = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#B9D4F2", "#D8E5F5"];
 const nf = (n) => Number(n || 0).toLocaleString("ko-KR");
 
+// DB 값을 onclick 인자나 속성에 넣을 때 쓴다.
+//   PLAN·LAYER·설비명에 따옴표가 섞이면 그 자리가 통째로 깨진다.
+//   HTML 특수문자를 실체참조로 바꾼다. 속성값과 본문에 안전하다.
+//   [주의] onclick="f('${q(v)}')" 는 여전히 깨진다. 브라우저가 속성을
+//   먼저 풀어 &#39; 가 작은따옴표로 돌아오기 때문이다.
+//   값을 다룰 때는 data-* 로 넘기고 dataset 으로 읽는다.
+const q = (v) => String(v == null ? "" : v)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
 let LINE = "{{ default_line }}";
 let DATA = null;
 let WT_UNIT = "qty";
@@ -687,7 +697,8 @@ function renderWip() {
   document.getElementById("ws").innerHTML = d.by_lot_type.map((x, k) =>
     `<i class="${(DF.type || []).indexOf(x.name) >= 0 ? 'sel' : ''}"
         style="width:${x.lots / tot * 100}%;background:${TYPE_COLORS[k % 5]}"
-        onclick="pickType('${x.name}', event)"
+        data-n="${q(x.name)}"
+        onclick="pickType(this.dataset.n, event)"
         title="${x.name} ${nf(x.lots)} LOT / ${nf(x.qty)} 매 (Ctrl 다중선택)"
         ></i>`).join("");
   document.getElementById("wg").innerHTML = d.by_lot_type.map((x, k) =>
@@ -3154,8 +3165,8 @@ function heatMenu(which, opts) {
     + ` onchange="heatPicked('${which}', true)">ALL</label>`
     + `<input class="ddq" type="text" placeholder="검색"`
     + ` oninput="heatSearch('${id}')" onclick="event.stopPropagation()">`
-    + opts.map(o => `<label data-opt="${o}"><input type="checkbox"`
-        + ` value="${o}"${on.has(o) ? " checked" : ""}`
+    + opts.map(o => `<label data-opt="${q(o)}"><input type="checkbox"`
+        + ` value="${q(o)}"${on.has(o) ? " checked" : ""}`
         + ` onchange="heatPicked('${which}', false)">${o}</label>`).join("");
   const lb = which === "prod" ? "제품" : "PLAN";
   const sel = HEAT[which];
@@ -3357,7 +3368,8 @@ function heatMore(n) {
       const gone = MISS.has(k);
       return `<td class="hcell${gone ? " nod" : ""}"`
         + ` style="background:${gone ? "" : heatColor(v, d.max)}"`
-        + ` onclick="heatPick('${d.keys[i]}','${d.dates[k]}')"`
+        + ` data-k="${q(d.keys[i])}" data-d="${d.dates[k]}"`
+        + ` onclick="heatPick(this.dataset.k, this.dataset.d)"`
         + ` title="${d.keys[i]} · ${d.dates[k]} · `
         + `${gone ? "자료 없음(그날 적재가 없습니다)"
                   : nf(v) + unit}`
