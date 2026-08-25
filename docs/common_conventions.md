@@ -922,6 +922,29 @@ FabPlan lot 은 정의상 order_seq 가 비어 있다.
 [ROWS]    FabPlan scope(step) = N
 ```
 
+### order_seq 의 두 가지 쓰임
+
+같은 이름이지만 층이 다르다. 섞으면 안 된다.
+
+```
+mc_lot 의 order_seq     비어 있으면 그 lot 이 FabPlan 이다(판별 기준)
+스텝의 order_seq        파이프라인 전체가 쓰는 **스텝 식별 키**
+```
+
+파이프라인은 `(line, lot_id, order_seq)` 로 스텝을 가른다. GROUP BY 여덟
+곳과 JOIN 세 곳이 이 키를 쓴다. FabPlan 스텝의 order_seq 를 비워 두면
+
+```
+GROUP BY  NULL 끼리 뭉쳐 한 lot 의 모든 스텝이 한 덩어리가 된다
+JOIN      NULL = NULL 이 참이 아니라 아예 안 붙는다 -> 설비가 통째로 빈다
+```
+
+그래서 FabPlan 스텝에도 **공정 정의상의 순번**을 넣는다. lot 판별은
+`mc_lot` 쪽 값으로만 하므로 서로 간섭하지 않는다.
+
+현스텝은 order_seq 로 가리지 않고 `fab_cur` 표시를 쓴다(SKIP 으로 밀린
+경우를 order_seq 나 step_seq 비교로는 못 맞춘다).
+
 ### FabPlan 설비 그룹
 
 StepPath 에는 `eqp_group_id` 가 있지만 **STEP 정의에는 없다.**

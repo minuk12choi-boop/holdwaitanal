@@ -1954,8 +1954,13 @@ def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
         "line": line,
         "lot_id": out["lot_id"].to_numpy(),
         "proc_id": out["proc_id"].to_numpy(),
-        # order_seq 는 FabPlan 판별 기준이라 비워 둔다. 대신 공정 내 순번을 쓴다.
-        "order_seq": pd.NA,
+        # order_seq 는 **mc_lot 에서** 비어 있는 것이 FabPlan 판별 기준이다.
+        #   스텝 쪽 order_seq 는 그것과 별개로, 파이프라인 전체가
+        #   (line, lot_id, order_seq) 를 스텝 식별 키로 쓴다.
+        #   비워 두면 GROUP BY 가 한 lot 을 한 덩어리로 뭉치고
+        #   JOIN 은 NULL = NULL 이라 아예 안 붙어 설비가 통째로 빈다.
+        #   공정 정의상의 순번을 그대로 넣어 lotplan 과 같게 다룬다.
+        "order_seq": out["_ord"].to_numpy(),
         "de_rank": out["de_rank"].to_numpy(),
         "연속": out["연속"].to_numpy(),
         "layer_id": out["layerid"].to_numpy(),
