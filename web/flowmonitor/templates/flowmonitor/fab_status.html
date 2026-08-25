@@ -122,7 +122,8 @@
     <!-- 라인 요약: 지금 무엇이 문제인가 -->
     <div class="cell" id="insight" style="display:none">
       <div class="cellttl instt"><span id="insTtl">지금 이 라인의 문제</span>
-        <button class="cardclr hmbtn" onclick="openHeat()">히트맵</button>
+        <button class="cardclr hmbtn" onclick="openHeat()"
+                title="가로 일자 · 세로 LAYER 또는 STEP">LAYER별 MOVE/재공 추이</button>
         <span class="v" id="insSub"></span>
 </div>
       <div class="insrow" id="insBody"></div>
@@ -174,7 +175,7 @@
     <div id="hmmask" class="updmask" onclick="closeHeat(event)">
       <div class="updbox hmbox" onclick="event.stopPropagation()">
         <div class="updtop">
-          <b>MOVE · 재공 추이</b>
+          <b>LAYER별 MOVE/재공 추이</b>
           <div class="hmtools">
             <span class="seg">
               <button class="on" id="hm_move"
@@ -3082,23 +3083,28 @@ function stickDiag(tag) {
   });
 }
 
-// 칸을 누르면 그 조건으로 화면을 좁힌다.
-//   날짜와 LAYER 는 좌측 필터에 그대로 있다. STEP 축일 때는 LAYER 를
-//   못 정하므로 날짜만 건다.
+// 칸을 누르면 팝업을 닫고 그 조건으로 화면을 좁힌 뒤 표까지 연다.
+//   날짜 · LAYER · 제품 · PLAN 은 좌측 필터에 그대로 있다.
+//   STEP 축일 때는 좌측에 STEP 필터가 없어 표 쪽 조건으로 넘긴다.
 function heatPick(key, date) {
   const isStep = HEAT.axis === "step";
   closeHeat();
+
   SNAP_DATE = date;
   SNAP_SHIFT = "";
   if (!isStep) { LAYERS = [key]; }
   if (HEAT.prod.length) { PROD2 = HEAT.prod.slice(); }
   if (HEAT.plan.length) { PLANS = HEAT.plan.slice(); }
+
+  // 좌측 차트·원인 조건은 남겨 두면 서로 어긋난다. 여기서 정리한다.
+  dfReset();
+  CZ_STACK = []; CZ_WIDE = null; CZ_SEL = { i: -1, path: [] };
+  czAskClose();
+
+  const lb = isStep ? `${date} · STEP ${key}` : `${date} · LAYER ${key}`;
   loadSummary();
-  if (isStep) {
-    // STEP 은 좌측 필터에 없다. 무엇으로 좁혔는지 알려 준다.
-    const lb = document.getElementById("snapDateLb");
-    if (lb) { lb.title = `${date} · STEP ${key} (STEP 필터는 없어 날짜만 적용)`; }
-  }
+  // 표는 STEP 축일 때만 따로 조건을 준다(LAYER 는 좌측 필터가 이미 건다).
+  openDrill(isStep ? { step_seq: key } : {}, lb, "heat");
 }
 
 function heatMore(n) {
@@ -4315,7 +4321,6 @@ function openDrill(filt, label, src, keepView) {
                  area: AREAS.join(","),
                  plan: PLANS.join(","), lots: LOTS.join(","),
                  flayer: LAYERS.join(","),
-    flayer: LAYERS.join(","),
                  biz_date: SNAP_DATE, shift: SNAP_SHIFT,
                  src: src || "",
                  cols: keepView ? visibleKeys().join(",") : "" };

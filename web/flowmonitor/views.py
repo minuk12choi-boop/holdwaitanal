@@ -2618,6 +2618,9 @@ def api_balance(request):
     xf = _xfilters(request)
     f_area_b = [x for x in request.GET.get("f_area", "").split(",") if x]
     f_prod_b = [x for x in request.GET.get("f_prod", "").split(",") if x]
+    # 히트맵을 STEP 축으로 보다가 칸을 누르면 여기로 온다.
+    #   좌측에는 STEP 필터가 없어 이 API 에서만 받는다.
+    f_step = [x for x in request.GET.get("step_seq", "").split(",") if x]
     for r in rows:
         if prod1 and (r.get("prod1") or UNCLASSIFIED) not in prod1:
             continue
@@ -2632,6 +2635,10 @@ def api_balance(request):
         if not _fprod_ok(r, f_prod_b):
             continue
         if not _plan_lot_ok(r, plans, lots, flayers):
+            continue
+        # 히트맵을 STEP 축으로 보다가 칸을 누른 경우. 좌측에는 이 필터가
+        # 없으므로 표에서만 받는다.
+        if f_step and str(r.get("step_seq") or "").strip() not in f_step:
             continue
         st = r.get("lot_status") or "-"
         if f_type and (r.get("lot_type") or "-") not in f_type:
@@ -3104,6 +3111,9 @@ def api_lots_live(request):
     xf = _xfilters(request)
     f_area_x = [x for x in request.GET.get("f_area", "").split(",") if x]
     f_prod_x = [x for x in request.GET.get("f_prod", "").split(",") if x]
+    # 히트맵을 STEP 축으로 보다가 칸을 누르면 여기로 온다.
+    #   좌측에는 STEP 필터가 없어 이 API 에서만 받는다.
+    f_step = [x for x in request.GET.get("step_seq", "").split(",") if x]
     p1_sql = prod1 if prod1 and UNCLASSIFIED not in prod1 else None
     p2_sql = prod2 if prod2 and UNCLASSIFIED not in prod2 else None
     rows, snap = _summary_rows(line, types, {
@@ -3156,6 +3166,10 @@ def api_lots_live(request):
         if not _fprod_ok(r, f_prod_x):
             continue
         if not _plan_lot_ok(r, plans, lots, flayers):
+            continue
+        # 히트맵을 STEP 축으로 보다가 칸을 누른 경우. 좌측에는 이 필터가
+        # 없으므로 표에서만 받는다.
+        if f_step and str(r.get("step_seq") or "").strip() not in f_step:
             continue
         if or_causes:
             ids = set(_eqp_ids(r))
