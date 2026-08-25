@@ -623,6 +623,9 @@ UPDATES = [
             {"t": "기준정보에 '과거까지' 를 더했습니다. 규칙을 바꾸면 "
                   "지난 이력도 새 규칙으로 다시 맞춥니다. 기간은 "
                   "7일 · 30일 · 90일 · 1년 중에 고릅니다."},
+            {"t": "'지금 반영' 과 '과거까지' 모두 HOLD 유형 · 모듈 · "
+                  "제품구분을 함께 다시 냅니다. 모듈은 스텝마다 따로 "
+                  "판정하므로 한 LOT 안에서도 구간별로 달라집니다."},
             {"t": "기준정보에 제품구분 카드를 더했습니다. lot_id 의 글자와 "
                   "PLAN 으로 제품명을 정하며, 여기서 정해지지 않은 것만 "
                   "기존 SSPS 제품명을 씁니다."},
@@ -2422,17 +2425,48 @@ def _std_save(card, payload):
     return len(clean)
 
 
+# 기준정보를 다시 반영할 때 손대는 컬럼과 그 근거.
+#   HOLD 유형  cause_detail   hold_reason 등으로 판정
+#   모듈       module1/2      line · PLAN · LAYER/STEP 범위로 판정
+#   제품구분   prod2          lot_id 글자 + PLAN 으로 판정
+STD_TARGETS = ("cause_detail", "module1", "module2", "prod2")
+
+
+def _restate(recs, ht, mods, prods):
+    """행마다 새 기준정보로 값을 다시 낸다. 바뀐 것만 돌려준다.
+
+    한 lot 이 여러 스텝 행으로 나뉘어 있어도 모듈은 스텝마다 다를 수 있다.
+    그래서 lot 단위가 아니라 **행 단위** 로 본다.
+    """
+    out = []
+    for r in recs:
+        new = {}
+        if ht:
+            new["cause_detail"] = holdtype_of(r, ht)
+        if mods:
+            m1, m2 = module_of(r, mods)
+            new["module1"], new["module2"] = m1, m2
+        if prods:
+            p = product_of(r, prods)
+            if p:
+                new["prod2"] = p
+        diff = {k: v for k, v in new.items() if v != r.get(k)}
+        if diff:
+            out.append((r, diff))
+    return out
+
+
 def _apply_standards():
     """기준정보를 f3_live 에 즉시 반영한다.
 
     평상시에는 build_f3 가 미리 계산해 두지만, 규칙을 방금 고쳤을 때
     다음 배치까지 기다리지 않도록 여기서 다시 채운다.
-    지금은 HOLD 유형(cause_detail)만 대상이다. 모듈은 layer/step 범위 비교라
-    SQL 로 옮기기 어려워 다음 배치에서 반영된다.
+    HOLD 유형 · 모듈 · 제품구분을 모두 다시 낸다.
     """
     if not _table_exists("f3_live"):
         return 0, 0
-    ht = _holdtype_rules()
+    ht, mods, prods = _holdtype_rules(), _module_rules(), _product_rules()
+    have = set(_columns_of("f3_live"))
     with connection.cursor() as cur:
         cur.execute("SELECT MAX(snapshot_at) FROM f3_live")
         row = cur.fetchone()
@@ -2440,25 +2474,153 @@ def _apply_standards():
         if not snap:
             return 0, 0
         cur.execute(
-            "SELECT lot_id, `line`, hold, hold_reason, ftp, ftp_reason,"
-            " exception, exception_reason FROM f3_live WHERE snapshot_at=%s",
-            [snap])
+            "SELECT lot_id, `line`, proc_id, step_seq, layer_id,"
+            " hold, hold_reason, ftp, ftp_reason,"
+            " exception, exception_reason, cause_detail,"
+            " module1, module2, prod2"
+            " FROM f3_live WHERE snapshot_at=%s", [snap])
         names = [d[0] for d in cur.description]
         recs = [dict(zip(names, r)) for r in cur.fetchall()]
 
-        upd, seen = [], {}
-        for r in recs:
-            v = holdtype_of(r, ht) if ht else None
-            if seen.get(r["lot_id"]) == v:
-                continue
-            seen[r["lot_id"]] = v
-            upd.append((v, snap, r["lot_id"]))
-        if upd:
-            cur.executemany(
-                "UPDATE f3_live SET cause_detail=%s "
-                "WHERE snapshot_at=%s AND lot_id=%s", upd)
-        hit = sum(1 for v in seen.values() if v)
-    return hit, len(seen)
+        n = _write_back(cur, "f3_live", snap,
+                        _restate(recs, ht, mods, prods), have)
+        hit = sum(1 for r in recs if holdtype_of(r, ht)) if ht else 0
+    return hit, len(recs)
+
+
+def _write_back(cur, table, snap, changes, have):
+    """바뀐 값만 되쓴다. 컬럼별로 묶어 한 번에 보낸다."""
+    total = 0
+    by_col = {}
+    for r, diff in changes:
+        for k, v in diff.items():
+            if k in have:
+                by_col.setdefault(k, []).append(
+                    (v, snap, r["lot_id"], r.get("step_seq")))
+    for col, rows in by_col.items():
+        # step_seq 까지 맞춰야 한 lot 의 여러 스텝을 따로 고칠 수 있다.
+        cur.executemany(
+            f"UPDATE {table} SET `{col}`=%s "
+            f"WHERE snapshot_at=%s AND lot_id=%s "
+            f"AND COALESCE(step_seq,'')=COALESCE(%s,'')", rows)
+        total += len(rows)
+    return total
+
+
+def _as_num(v):
+    """앞자리 0 이 붙거나 빠져도 같은 값으로 보도록 숫자로 바꾼다."""
+    t = str(v if v is not None else "").strip()
+    if not t:
+        return None
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
+def _in_range(v, lo, hi):
+    """lo~hi 범위 판정. 경계는 포함하고, 비어 있으면 와일드카드.
+
+    build_f3._in_range 와 같은 규칙이어야 화면과 배치 결과가 맞는다.
+    """
+    t = str(v if v is not None else "").strip()
+    if not t:
+        return lo in (None, "") and hi in (None, "")
+    nv, nlo, nhi = _as_num(t), _as_num(lo), _as_num(hi)
+    use_num = nv is not None and \
+        (lo in (None, "") or nlo is not None) and \
+        (hi in (None, "") or nhi is not None)
+    if use_num:
+        if nlo is not None and nv < nlo:
+            return False
+        if nhi is not None and nv > nhi:
+            return False
+        return True
+    if lo not in (None, "") and t < str(lo):
+        return False
+    if hi not in (None, "") and t > str(hi):
+        return False
+    return True
+
+
+def _module_rules():
+    """모듈 기준정보. 덜 구체적인 것부터(뒤에 오는 것이 이긴다)."""
+    if not _table_exists("f3_std_module"):
+        return []
+    cols = ["line", "proc_id", "start_layer", "end_layer",
+            "start_stepseq", "end_stepseq", "module1", "module2"]
+    with connection.cursor() as cur:
+        cur.execute(f"SELECT {', '.join(cols)} FROM f3_std_module")
+        rules = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+    def spec(r):
+        return sum(1 for k in ("line", "proc_id", "start_layer", "end_layer",
+                               "start_stepseq", "end_stepseq") if r.get(k))
+    rules.sort(key=spec)
+    return rules
+
+
+def module_of(row, rules):
+    """한 행의 module1 / module2. 못 찾으면 (None, None)."""
+    m1 = m2 = None
+    for r in rules:
+        if r.get("line") and str(r["line"]) != str(row.get("line") or ""):
+            continue
+        if r.get("proc_id") and \
+                str(r["proc_id"]) != str(row.get("proc_id") or ""):
+            continue
+        if (r.get("start_layer") or r.get("end_layer")) and not _in_range(
+                row.get("layer_id"), r.get("start_layer"), r.get("end_layer")):
+            continue
+        if (r.get("start_stepseq") or r.get("end_stepseq")) and not _in_range(
+                row.get("step_seq"), r.get("start_stepseq"),
+                r.get("end_stepseq")):
+            continue
+        m1 = r["module1"]
+        m2 = r.get("module2") or r["module1"]
+    return m1, m2
+
+
+def _product_rules():
+    """제품구분 기준정보. 조건이 적은 것부터(뒤에 오는 것이 이긴다)."""
+    _ensure_std("f3_std_product")
+    if not _table_exists("f3_std_product"):
+        return []
+    cols = ["lot_char1", "lot_char2", "lot_char3", "lot_char4",
+            "lot_char5", "proc_id", "product_name"]
+    with connection.cursor() as cur:
+        cur.execute(f"SELECT {', '.join(cols)} FROM f3_std_product")
+        rules = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+    def n(r):
+        return sum(1 for k in cols[:-1] if str(r.get(k) or "").strip())
+    rules.sort(key=n)
+    return [r for r in rules if str(r.get("product_name") or "").strip()]
+
+
+def product_of(row, rules):
+    """한 행의 제품구분. 못 찾으면 None.
+
+    lot_id 의 1~5 번째 글자와 PLAN 이 **모두** 맞아야 한다.
+    비운 칸은 따지지 않고, 조건이 많은 규칙이 이긴다.
+    """
+    lot = str(row.get("lot_id") or "").upper()
+    plan = str(row.get("proc_id") or "").strip().upper()
+    got = None
+    for r in rules:                       # 적은 것부터라 마지막이 가장 구체적
+        ok = True
+        for i in range(1, 6):
+            want = str(r.get(f"lot_char{i}") or "").strip().upper()
+            if want and lot[i - 1:i] != want:
+                ok = False
+                break
+        if not ok:
+            continue
+        wp = str(r.get("proc_id") or "").strip().upper()
+        if wp and plan != wp:
+            continue
+        got = str(r["product_name"]).strip()
+    return got
 
 
 def _apply_standards_history(days=90, progress=None):
@@ -2473,45 +2635,37 @@ def _apply_standards_history(days=90, progress=None):
     if not _table_exists("f3_history"):
         return {"ok": False, "reason": "과거 이력이 없습니다"}
     ht = _holdtype_rules()
-    if not ht:
-        return {"ok": False, "reason": "HOLD 유형 기준정보가 비어 있습니다"}
+    mods = _module_rules()
+    prods = _product_rules()
+    if not (ht or mods or prods):
+        return {"ok": False, "reason": "기준정보가 비어 있습니다"}
 
+    have = set(_columns_of("f3_history"))
     since = _biz_today() - dt.timedelta(days=max(1, int(days)))
     with connection.cursor() as cur:
         cur.execute("SELECT DISTINCT snapshot_at FROM f3_history "
                     "WHERE biz_date >= %s ORDER BY snapshot_at", [since])
         snaps = [r[0] for r in cur.fetchall()]
 
-        done = changed = hit = 0
+        done = changed = rows = 0
         for snap in snaps:
             cur.execute(
-                "SELECT lot_id, `line`, hold, hold_reason, ftp, ftp_reason,"
-                " exception, exception_reason, cause_detail"
+                "SELECT lot_id, `line`, proc_id, step_seq, layer_id,"
+                " hold, hold_reason, ftp, ftp_reason,"
+                " exception, exception_reason, cause_detail,"
+                " module1, module2, prod2"
                 " FROM f3_history WHERE snapshot_at=%s", [snap])
             names = [d[0] for d in cur.description]
             recs = [dict(zip(names, r)) for r in cur.fetchall()]
-
-            upd, seen = [], {}
-            for r in recs:
-                lot = r["lot_id"]
-                if lot in seen:
-                    continue
-                v = holdtype_of(r, ht)
-                seen[lot] = v
-                if v != r.get("cause_detail"):     # 바뀐 것만 쓴다
-                    upd.append((v, snap, lot))
-            if upd:
-                cur.executemany(
-                    "UPDATE f3_history SET cause_detail=%s "
-                    "WHERE snapshot_at=%s AND lot_id=%s", upd)
-                changed += len(upd)
-            hit += sum(1 for v in seen.values() if v)
+            rows += len(recs)
+            changed += _write_back(cur, "f3_history", snap,
+                                   _restate(recs, ht, mods, prods), have)
             done += 1
             if progress and done % 20 == 0:
                 progress(done, len(snaps))
 
-    return {"ok": True, "snapshots": len(snaps),
-            "changed": changed, "matched": hit, "days": int(days)}
+    return {"ok": True, "snapshots": len(snaps), "rows": rows,
+            "changed": changed, "days": int(days)}
 
 
 @csrf_exempt
@@ -2528,7 +2682,9 @@ def standards(request):
     if request.method == "POST" and request.POST.get("card") == "__apply__":
         # 카드별이 아니라 기준정보 전체를 현재 스냅샷에 반영한다.
         hit, tot = _apply_standards()
-        msg = f"기준정보를 f3_live 에 반영했습니다. 원인 유형 {hit:,}/{tot:,} LOT"
+        msg = (f"기준정보를 지금 화면에 반영했습니다. "
+               f"{tot:,}행 검토 · HOLD 유형 {hit:,}건"
+               f"(모듈 · 제품구분도 함께 맞췄습니다)")
     elif request.method == "POST" and request.POST.get("card") == "__apply_hist__":
         # 과거 스냅샷까지 다시 맞춘다. 규칙을 바꾸면 옛 조회 결과가
         # 옛 규칙 그대로라 앞뒤가 안 맞는다.
@@ -2539,8 +2695,9 @@ def standards(request):
         r = _apply_standards_history(days)
         if r.get("ok"):
             msg = (f"과거 {r['days']}일에도 반영했습니다. "
-                   f"스냅샷 {r['snapshots']:,}개 · 바뀐 행 {r['changed']:,} · "
-                   f"원인 유형 {r['matched']:,} LOT")
+                   f"스냅샷 {r['snapshots']:,}개 · 전체 {r['rows']:,}행 중 "
+                   f"{r['changed']:,}건 고쳤습니다"
+                   f"(HOLD 유형 · 모듈 · 제품구분)")
         else:
             msg = f"과거 반영을 하지 못했습니다: {r.get('reason')}"
     elif request.method == "POST":
