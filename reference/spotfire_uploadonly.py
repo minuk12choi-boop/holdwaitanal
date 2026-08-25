@@ -1,0 +1,45 @@
+# -*- coding: utf-8 -*-
+"""
+spotfire_uploadonly.py — Spotfire IronPython 스크립트 (UploadOnly)
+
+[등록]
+  Edit > Document Properties > Script > New...
+    Name     : UploadOnly
+    Language : IronPython 2.7
+  아래 내용을 그대로 붙여넣는다.
+
+[하는 일]
+  등록된 데이터 함수만 실행한다. **원천 재조회는 하지 않는다.**
+  지금 문서에 들어 있는 데이터를 그대로 S3 로 올린다.
+
+[언제 쓰나]
+  - 컬럼을 추가하는 등 쿼리를 고쳐 이미 한 번 조회해 둔 상태에서,
+    재조회 없이 올리기만 하고 싶을 때
+  - 업로드가 실패해 다시 올리고 싶을 때
+
+[RefreshAll 과 차이]
+  RefreshAll  : 원천 재조회 → 데이터 함수 실행
+  UploadOnly  : 데이터 함수 실행만
+
+진행 상황은 문서 속성 runlog 에 남는다. 자동 실행기가 이 값을 읽어
+'완료' 를 판정하므로 문구 형식을 RefreshAll 과 같게 맞춘다.
+"""
+
+from System import DateTime
+
+
+def log(msg):
+    Document.Properties["runlog"] = DateTime.Now.ToString("HH:mm:ss") + "  " + msg
+
+
+log("업로드만 실행 (원천 재조회 없음)")
+
+n = 0
+for f in Document.Data.DataFunctions:
+    try:
+        f.Execute()
+        n += 1
+    except:
+        pass
+
+log("완료 (테이블 %d개)" % n)

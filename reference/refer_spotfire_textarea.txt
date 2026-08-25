@@ -1,11 +1,14 @@
 <span id="tick" style="color:#6B7280;font-size:11px"></span>
 <span id="pw" style="margin-left:10px;font-size:11px"></span>
 <P><SpotfireControl id="c7ef3ddaef704323adb29dbca2215b2d" /><BR>
-<SpotfireControl id="0963b0fd531a4c3caaf159001748e373" /></P>
+<SpotfireControl id="0963b0fd531a4c3caaf159001748e373" /><BR>
+<!-- UploadOnly 버튼. 여기 id 는 새로 만든 버튼의 것으로 바꾼다. -->
+<SpotfireControl id="UPLOADONLY_BUTTON_ID" /></P>
 
 <SCRIPT>
 (function () {
   var BTN_ID      = "0963b0fd531a4c3caaf159001748e373";  // RefreshAll 버튼
+  var UP_BTN_ID   = "UPLOADONLY_BUTTON_ID";              // UploadOnly 버튼
   var PERIOD_MIN  = 30;                 // 벽시계 :00, :30 에 실행
   var MIN_GAP_MIN = 15;                 // 직전 완료 후 이만큼 안 지났으면 건너뜀
   var FIRST_DELAY = 60000;              // 문서를 연 뒤 첫 실행까지
@@ -91,9 +94,10 @@
     for (var i = 0; i < 5 && box; i++) {
       var f = box.querySelectorAll(
         "input[type='button'], input[type='submit'], button");
-      // ON / OFF 는 우리가 만든 것이라 건너뛴다.
+      // ON / OFF 와 UploadOnly 는 자동 실행 대상이 아니다.
       for (var k = 0; k < f.length; k++) {
-        if (f[k].id !== "mfmOn" && f[k].id !== "mfmOff") { return f[k]; }
+        if (f[k].id !== "mfmOn" && f[k].id !== "mfmOff"
+            && f[k].id !== UP_BTN_ID) { return f[k]; }
       }
       box = box.parentNode;
     }
