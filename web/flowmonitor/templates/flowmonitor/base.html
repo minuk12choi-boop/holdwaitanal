@@ -270,20 +270,25 @@
             max-height:86vh; display:flex; flex-direction:column;
             box-shadow:0 12px 40px rgba(0,0,0,.25); }
   /* 히트맵은 표 크기에 맞춘다. .updbox 의 고정 폭을 덮어야 하므로
-     반드시 그 규칙 **뒤에** 둔다. */
-  /* 팝업은 표 폭에 맞춘다. 7일이면 좁게, 30일이면 넓게.
-     도구줄은 제 폭을 주장하지 않도록 0 으로 두고 줄바꿈시킨다.
-     그래야 표보다 넓어져 여백이 남는 일이 없다. */
-  .updbox.hmbox { width:fit-content; min-width:0;
-                  max-width:min(1400px, 100%); }
+     반드시 그 규칙 **뒤에** 둔다.
+
+     [주의] .updbox 는 display:flex + column 이다. 그 안에서
+     overflow:auto 인 자식(.hmbody)은 **내용 폭을 부모에게 알리지 않는다.**
+     그래서 fit-content 를 줘도 부모가 표 폭을 모른다.
+     블록 레이아웃으로 바꾸고 자식이 스스로 폭을 정하게 한다. */
+  .updbox.hmbox { display:block; width:max-content; min-width:0;
+                  max-width:min(1400px, 100%); overflow:hidden;
+                  max-height:86vh; }
+  /* 머리글 높이를 뺀 만큼만 본문에 준다(세로도 팝업 안에서만 굴린다). */
+  .hmbox .updtop { position:sticky; top:0; background:#fff; z-index:5; }
   .hmbox .updtop { flex-wrap:wrap; gap:6px 8px; }
   .hmbox .hmtools { flex-wrap:wrap; min-width:0; }
   .hmbox .updtop > b, .hmbox .hmtools > * { flex:0 0 auto; }
   /* 드릴다운 표와 같은 버튼을 쓴다. 도구줄에서 눌리지 않게 높이를 준다. */
   .hmbox .dfclear { height:24px; line-height:22px; }
-  /* 본문(표)이 팝업 폭을 정한다. */
-  .hmbody { max-height:70vh; overflow:auto; padding:0 12px 16px;
-            width:fit-content; max-width:100%; }
+  /* 본문(표)이 팝업 폭을 정한다.
+     내용이 max-width 를 넘을 때만 가로로 굴린다. */
+  .hmbody { max-height:70vh; overflow:auto; padding:0 12px 16px; }
   .updtop { display:flex; align-items:center; justify-content:space-between;
             padding:12px 16px; border-bottom:1px solid var(--bd); }
   .updtop b { font-family:var(--f-title); font-size:16px; }
