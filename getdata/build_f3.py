@@ -1563,34 +1563,29 @@ def _fab_continuous(df):
     f3 는 '연속끝' 을 따로 두지 않는다. de_rank 로 구간을 가른다.
     """
     df = df.copy()
-    df["연속"] = None
-    order = df.groupby("lot_id", sort=False).indices
-
+    # lot 마다 while 로 훑으면 수십만 행에서 수십 초가 걸린다.
+    #   행은 이미 (lot, 순번) 으로 정렬돼 있으므로 배열 연산으로 끝낸다.
     core = df["_core"].to_numpy()
     mnm = df["_main_non_metro"].to_numpy()
-    lab = np.array([None] * len(df), dtype=object)
+    lot = df["lot_id"].to_numpy()
+    n = len(df)
+    lab = np.array([None] * n, dtype=object)
+    if n == 0:
+        df["연속"] = lab
+        return df
 
-    for _, idx in order.items():
-        n = len(idx)
-        i = 0
-        while i < n:
-            if not core[idx[i]]:
-                i += 1
-                continue
-            j = i
-            while j + 1 < n and core[idx[j + 1]]:
-                j += 1
-            start = i
-            prev = i - 1
-            if prev >= 0 and mnm[idx[prev]] and not core[idx[prev]]:
-                lab[idx[prev]] = "연속첫"
-                start = prev
-            for p in range(start, j + 1):
-                if lab[idx[p]] == "연속첫":
-                    continue
-                lab[idx[p]] = "연속"
-            i = j + 1
+    same = np.empty(n, dtype=bool)          # 앞 행이 같은 lot 인가
+    same[0] = False
+    same[1:] = lot[1:] == lot[:-1]
 
+    prev_core = np.zeros(n, dtype=bool)     # 앞 행이 core 인가(같은 lot 안에서)
+    prev_core[1:] = core[:-1] & same[1:]
+
+    lab[core] = "연속"
+    # core 구간이 시작되는 바로 앞이 '메인·비METRO' 이고 core 가 아니면 연속첫.
+    head = np.zeros(n, dtype=bool)
+    head[:-1] = core[1:] & same[1:] & (~core[:-1]) & mnm[:-1]
+    lab[head] = "연속첫"
     df["연속"] = lab
     return df
 
@@ -1629,23 +1624,33 @@ def _fab_skip(df):
     ns = _fab_str(df["nextstepseq"])
     trig = ct.isin(["START", "CONNECT"]) & ns.ne("")
 
-    jump = pd.Series(False, index=df.index)
-    tgt_hit = pd.Series(False, index=df.index)
+    # 여기는 lot 수만큼 도는 자리다. pandas 접근(iloc)을 쓰면 수천 lot 에서
+    # 수십 초가 걸린다. numpy 배열로 바꿔 인덱스로만 다룬다.
+    n = len(df)
+    jump_a = np.zeros(n, dtype=bool)
+    tgt_a = np.zeros(n, dtype=bool)
+    steps_a = df["stepseq"].to_numpy()
+    trig_a = trig.to_numpy()
+    ns_a = ns.to_numpy()
+    pre_a = pre.to_numpy()
+
     for _, idx in df.groupby("lot_id", sort=False).indices.items():
-        steps = df["stepseq"].to_numpy()[idx]
+        steps = steps_a[idx]
         pos = {st: k for k, st in enumerate(steps)}
-        tset = {t for t in ns.to_numpy()[idx] if t}
+        tset = {t for t in ns_a[idx] if t}
         if tset:
-            tgt_hit.iloc[idx] = np.isin(steps, list(tset))
+            tgt_a[idx] = np.isin(steps, list(tset))
         for k, gi in enumerate(idx):
-            if not trig.iloc[gi]:
+            if not trig_a[gi]:
                 continue
-            t = ns.iloc[gi]
-            end = pos.get(t, len(idx))
-            for p in range(k + 1, max(k + 1, end)):
-                if pre.iloc[idx[p]]:
-                    continue
-                jump.iloc[idx[p]] = True
+            end = pos.get(ns_a[gi], len(idx))
+            if end <= k + 1:
+                continue
+            seg = idx[k + 1:end]
+            jump_a[seg] = jump_a[seg] | ~pre_a[seg]
+
+    jump = pd.Series(jump_a, index=df.index)
+    tgt_hit = pd.Series(tgt_a, index=df.index)
 
     # 비메인은 진행 지정이 없으면 건너뛴다.
     designated = ct.isin(["START", "CONNECT"]) | tgt_hit
@@ -1787,23 +1792,38 @@ def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
     rows = _fab_continuous(rows)
 
     # --- 6) 현스텝 ~ 연속끝만 남긴다 ----------------------------------------
-    keep = []
-    for _, idx in rows.groupby("lot_id", sort=False).indices.items():
-        sub = rows.iloc[idx]
-        # 현스텝이 SKIP 이면 그 뒤 첫 비SKIP 을 현스텝으로 삼는다.
-        ok = sub.index[sub["SKIP"].ne("O")]
-        if len(ok) == 0:
-            keep.append(sub.index[0])
-            continue
-        head = ok[0]
-        keep.append(head)
-        if rows.at[head, "연속"] in ("연속첫", "연속"):
-            for ii in ok[1:]:
-                if rows.at[ii, "연속"] in ("연속첫", "연속"):
-                    keep.append(ii)
-                else:
-                    break
-    out = rows.loc[sorted(set(keep))].copy()
+    #   행마다 rows.at[...] 로 읽으면 25만 행에서 십수 초가 걸린다.
+    #   SKIP 이 아닌 행만 모아 배열로 판정한다.
+    ok = rows[rows["SKIP"].ne("O")]
+    if len(ok):
+        lot_a = ok["lot_id"].to_numpy()
+        cont = np.isin(ok["연속"].to_numpy(), ["연속첫", "연속"])
+        first = np.empty(len(ok), dtype=bool)      # lot 의 첫 비SKIP 행
+        first[0] = True
+        first[1:] = lot_a[1:] != lot_a[:-1]
+        # 첫 행부터 연속이 끊기지 않은 구간만 남긴다.
+        run = np.zeros(len(ok), dtype=bool)
+        carry = False
+        for i in range(len(ok)):
+            if first[i]:
+                carry = cont[i]
+                run[i] = True
+            else:
+                carry = carry and cont[i]
+                run[i] = carry
+        take = ok.index[run]
+    else:
+        take = pd.Index([])
+    # 전부 SKIP 인 lot 은 첫 행이라도 남긴다(그래야 화면에서 안 사라진다).
+    miss = set(rows["lot_id"]) - set(rows.loc[take, "lot_id"])
+    if miss:
+        extra = (rows[rows["lot_id"].isin(miss)]
+                 .drop_duplicates("lot_id", keep="first").index)
+        take = take.append(extra)
+    out = rows.loc[sorted(set(take))].copy()
+    # 각 lot 에서 실제로 고른 첫 행이 현스텝이다. SKIP 때문에 lot 의
+    # step_seq 와 다를 수 있으므로 여기서 표시해 SQL 이 그대로 쓰게 한다.
+    out["_is_cur"] = ~out.duplicated("lot_id", keep="first")
 
     # --- 결과를 narrow_step_to_scope 모양으로 --------------------------------
     #   de_rank : 연속첫 누적 개수. 기존과 같은 뜻이 되게 맞춘다.
@@ -1842,7 +1862,9 @@ def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
         "eqp_type": out["eqptype"].to_numpy(),
         "eqp_group_raw": eqp_raw,
         "recipe_id": out["recipe_id"].to_numpy(),
-        "_fab_cur": out["step_seq"].to_numpy(),   # 현스텝 표시에 쓴다
+        # FabPlan 은 현스텝을 여기서 정한다(SQL 의 step_seq 비교로는
+        # SKIP 으로 밀린 경우를 못 맞춘다).
+        "fab_cur": np.where(out["_is_cur"].to_numpy(), "현스텝", None),
     })
 
 
@@ -1924,13 +1946,20 @@ def _fab_join_pems(rows, df_pems, df_sel):
                 w = c
         return w
 
-    # groupby.apply 는 키를 인덱스로 올리기도 한다. 조각을 직접 고른다.
+    # 대부분은 후보가 하나다. 그건 통째로 처리하고, 둘 이상인 것만 고른다.
     take = ["_aid", "einecnno", "connecttype", "nextstepseq",
             "pems_eqpids", "pems_chamberids", "pems_ppid"]
-    picked = pd.DataFrame(
-        [ _pick(cand.iloc[idx])[take] for _, idx in
-          cand.groupby("_aid", sort=False).indices.items() ],
-        columns=take)
+    cnt = cand.groupby("_aid", sort=False)["_b"].transform("size")
+    one = cand[cnt.eq(1)][take]
+    many = cand[cnt.gt(1)]
+    if len(many):
+        rest = pd.DataFrame(
+            [_pick(many.iloc[idx])[take] for _, idx in
+             many.groupby("_aid", sort=False).indices.items()],
+            columns=take)
+        picked = pd.concat([one, rest], ignore_index=True)
+    else:
+        picked = one.reset_index(drop=True)
     picked = picked.rename(columns={"einecnno": "적용PEMSNO"})
     out = A.merge(picked, on="_aid", how="left").drop(columns=["_aid", "_pre"])
     return out
@@ -2044,12 +2073,12 @@ def build_f3(con):
             s.layer_id, s.step_level, s.ein, s.step_seq, s.step_desc,
             s.eqp_type, s.recipe_id, s.eqp_group_raw, s.eqp_id, s.batch_kind, s.eqpline,
             s.body_status, s.eqp_status_change_time AS s_eqp_status_change_time,
-            -- FabPlan(order_seq 없음)은 step_seq 로 현스텝을 가린다.
+            -- FabPlan 은 fab_cur 에 이미 표시돼 있다(SKIP 으로 밀린 현스텝을
+            -- step_seq 비교로는 못 맞춘다). 그 외는 order_seq 로 가린다.
             CASE
+              WHEN s.fab_cur IS NOT NULL THEN s.fab_cur
               WHEN m.order_seq IS NOT NULL AND s.order_seq IS NOT NULL
                AND m.order_seq = s.order_seq THEN '현스텝'
-              WHEN m.order_seq IS NULL AND s.order_seq IS NULL
-               AND m.step_seq = s.step_seq THEN '현스텝'
             END AS "현스텝"
         FROM m
         LEFT JOIN s ON m.line = s.line AND m.lot_id = s.lot_id
@@ -2828,16 +2857,35 @@ def main():
             if not len(fscope):
                 print("[FABPLAN] 결과 0행. 위 [FABPLAN] 줄에서 어느 단계까지 "
                       "갔는지 확인한다.", flush=True)
+            if len(fscope) and TRACE_DROP:
+                # 현스텝 표기가 lot 과 어긋나면 뒤 SQL 에서 통째로 빠진다.
+                _mm = _lower_cols(df_lot)
+                _mm = _mm[_mm["line"].eq("PFR1")]
+                _mm = _mm[pd.to_numeric(_mm.get("order_seq"),
+                                        errors="coerce").isna()]
+                _pair = set(zip(_mm["lot_id"].astype(str),
+                                _mm["step_seq"].astype(str)))
+                _cur = fscope[fscope["fab_cur"].notna()]
+                _have = set(_cur["lot_id"].astype(str))
+                _want = set(_mm["lot_id"].astype(str))
+                print(f"[FABPLAN] 현스텝 표시 {len(_have):,} / 대상 "
+                      f"{len(_want):,}", flush=True)
+                if _want - _have:
+                    print(f"[FABPLAN]   표시 없는 lot 예 "
+                          f"{sorted(_want - _have)[:3]}", flush=True)
             if len(fscope):
                 with stage("FabPlan 설비그룹전개"):
                     s_parts.append(expand_with_equipment(
-                        fscope.drop(columns=["_fab_cur"]),
+                        fscope,
                         df_eqp, df_eqp_group, "PFR1"))
         except Exception as e:
             # 원천이 아직 안 올라왔으면 기존 결과만으로 계속 간다.
             print(f"[FABPLAN] 건너뜀: {type(e).__name__}: {e}", flush=True)
 
     s = pd.concat(s_parts, ignore_index=True)
+    # FabPlan 만 fab_cur 를 채운다. 다른 라인은 없으므로 만들어 둔다.
+    if "fab_cur" not in s.columns:
+        s["fab_cur"] = None
     print(f"[ROWS] s = {len(s):,}", flush=True)
     trace_lot("s(스텝 전체)", s)
 
