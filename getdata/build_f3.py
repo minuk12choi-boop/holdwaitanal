@@ -1545,6 +1545,7 @@ def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
         if c not in m.columns:
             m[c] = pd.NA
     m = m[need].dropna(subset=["lot_id", "proc_id", "step_seq"]).drop_duplicates()
+    print(f"[FABPLAN] 대상 lot {len(m):,}", flush=True)
     if m.empty:
         return pd.DataFrame()
 
@@ -1572,7 +1573,14 @@ def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
     cur = m.merge(st[["processid", "stepseq", "_ord"]],
                   left_on=["proc_id", "step_seq"],
                   right_on=["processid", "stepseq"], how="inner")
+    print(f"[FABPLAN] STEP 에서 현스텝 찾음 {len(cur):,} "
+          f"(STEP 원천 {len(st):,}행)", flush=True)
     if cur.empty:
+        # 못 찾으면 여기서 끝난다. PLAN·STEPSEQ 표기가 다른지 본다.
+        print(f"[FABPLAN] lot 쪽 예시 {m[['proc_id','step_seq']].head(3).values.tolist()}",
+              flush=True)
+        print(f"[FABPLAN] STEP 쪽 예시 {st[['processid','stepseq']].head(3).values.tolist()}",
+              flush=True)
         return pd.DataFrame()
     cur = cur[["lot_id", "proc_id", "step_seq", "hot_lot_level", "_ord"]]
     cur = cur.rename(columns={"_ord": "_cur_ord"})
@@ -2641,6 +2649,15 @@ def main():
             fab = {k: fetch(k, None) for k in
                    ("fab_step", "fab_pems", "fab_sel", "fab_skiprule",
                     "fab_engr")}
+            for k, v in fab.items():
+                print(f"[FABPLAN] {k:14s} {len(v):>8,}행  "
+                      f"{list(v.columns)[:6]}", flush=True)
+            # 대상 lot 수를 먼저 밝힌다. 0 이면 order_seq 판정을 봐야 한다.
+            _m = _lower_cols(df_lot)
+            _m = _m[_m["line"].eq("PFR1")]
+            _o = pd.to_numeric(_m.get("order_seq"), errors="coerce")
+            print(f"[FABPLAN] PFR1 lot {len(_m):,} 중 order_seq 없음 "
+                  f"{int(_o.isna().sum()):,}", flush=True)
             with stage("FabPlan 범위축약"):
                 fscope = fabplan_scope(fab["fab_step"], fab["fab_pems"],
                                        fab["fab_sel"], fab["fab_skiprule"],

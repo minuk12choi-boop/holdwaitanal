@@ -62,37 +62,107 @@ def _s(sr):
 def attach_prod2(d):
     """lot 에 제품(prod2) 을 붙인다.
 
-    MOVE 원천에는 제품 구분이 없다. f3_live / f3_history 에 이미 lot 별
-    제품이 들어 있으므로 그것을 가져다 쓴다. 없으면 '-' 로 둔다.
-    이 값이 없으면 히트맵 제품 필터에 '-' 만 뜨고 추이도 제품별로 못 가른다.
+    MOVE 원천에는 제품 구분이 없다. **규칙으로 계산**한다.
+    지난 lot 은 이미 재공에서 빠져 f3 를 뒤져도 못 찾는다(3개월치면
+    대부분이 그렇다). 그래서 lot_id 와 PLAN 만 있으면 되는 규칙을 쓴다.
+
+      1) 기준정보 제품구분(f3_std_product)  lot_id 글자 + PLAN
+      2) SSPS 제품명(f3_std_ssps)          line + lot_type + lot_id 접두
+    기준정보가 우선이고, 거기서 안 잡힌 것만 SSPS 를 쓴다.
     """
-    if "prod2" in d.columns and _s(d["prod2"]).ne("").any():
-        return d
+    d = d.copy()
+    up = _s(d["lot_id"]).str.upper()
+    plan = _s(d.get("process_id", pd.Series("", index=d.index))).str.upper()
+    out = pd.Series(pd.NA, index=d.index, dtype="string")
+
+    # --- 1) 기준정보 제품구분 -------------------------------------------
+    rules = _std_rows(
+        "SELECT lot_char1, lot_char2, lot_char3, lot_char4, lot_char5,"
+        " proc_id, product_name FROM f3_std_product")
+    if rules:
+        ch = {i: up.str.slice(i - 1, i) for i in range(1, 6)}
+
+        def _n(r):
+            return sum(1 for v in r[:6] if str(v or "").strip())
+
+        hit = pd.Series(-1, index=d.index)
+        for r in sorted(rules, key=_n):        # 구체적인 규칙이 이긴다
+            nm = str(r[6] or "").strip()
+            if not nm:
+                continue
+            m = pd.Series(True, index=d.index)
+            for i in range(1, 6):
+                want = str(r[i - 1] or "").strip().upper()
+                if want:
+                    m &= ch[i].eq(want)
+            wp = str(r[5] or "").strip().upper()
+            if wp:
+                m &= plan.eq(wp)
+            m &= hit.le(_n(r))
+            if m.any():
+                out = out.mask(m, nm)
+                hit = hit.mask(m, _n(r))
+
+    # --- 2) SSPS 제품명 --------------------------------------------------
+    ss = _ssps_rules()
+    if ss:
+        ln = _s(d.get("sys_line_id", pd.Series("", index=d.index))).str.upper()
+        lt = _s(d.get("lot_type", pd.Series("", index=d.index))).str.upper()
+        # id 가 긴(구체적인) 규칙이 이긴다. 긴 것부터 채우고 이미 찬 자리는
+        # 건드리지 않는다.
+        for line_id, lot_type, pid, nm in sorted(
+                ss, key=lambda r: -len(str(r[2] or ""))):
+            pid = str(pid or "").strip().upper()
+            if not pid or not str(nm or "").strip():
+                continue
+            m = out.isna() | out.eq("")
+            m &= up.str.startswith(pid)
+            if str(line_id or "").strip():
+                m &= ln.eq(str(line_id).strip().upper())
+            if str(lot_type or "").strip():
+                m &= lt.eq(str(lot_type).strip().upper())
+            if m.any():
+                out = out.mask(m, str(nm).strip())
+
+    d["prod2"] = out.fillna("-")
+    got = d["prod2"].ne("-").mean() * 100
+    print(f"[MOVE] 제품 계산 {got:.1f}% "
+          f"(기준정보 {len(rules)}건 · SSPS {len(ss)}건)", flush=True)
+    return d
+
+
+def _ssps_rules():
+    """SSPS 제품명 규칙. S3 의 PFR1_KFR7_SSPS_PROD_NAME 을 읽는다."""
+    try:
+        import s3_source
+        p = s3_source.read_table("PFR1_KFR7_SSPS_PROD_NAME")
+    except Exception as e:
+        print(f"[MOVE] SSPS 원천 없음: {type(e).__name__}", flush=True)
+        return []
+    if p is None or not len(p):
+        return []
+    p = p.rename(columns={c: str(c).lower() for c in p.columns})
+    lcol = "line_id" if "line_id" in p.columns else "line"
+    need = [lcol, "lot_type", "id", "prod2"]
+    if any(c not in p.columns for c in need):
+        print(f"[MOVE] SSPS 컬럼 부족: {list(p.columns)[:8]}", flush=True)
+        return []
+    p = p[need].dropna(subset=["id", "prod2"]).drop_duplicates()
+    return [tuple(x) for x in p.itertuples(index=False, name=None)]
+
+
+def _std_rows(sql):
+    """기준정보 조회. 테이블이 없으면 빈 목록."""
     try:
         conn = DB.connect()
         try:
             with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT lot_id, MAX(prod2) FROM ("
-                    "  SELECT lot_id, prod2 FROM f3_live "
-                    "   WHERE prod2 IS NOT NULL AND prod2 <> '' "
-                    "  UNION ALL "
-                    "  SELECT lot_id, prod2 FROM f3_history "
-                    "   WHERE prod2 IS NOT NULL AND prod2 <> '' "
-                    ") t GROUP BY lot_id")
-                m = dict(cur.fetchall())
+                cur.execute(sql)
+                return list(cur.fetchall())
         finally:
             conn.close()
-    except Exception as e:
-        print(f"[MOVE] 제품 붙이기 건너뜀: {type(e).__name__}", flush=True)
-        d["prod2"] = "-"
-        return d
-
-    d = d.copy()
-    d["prod2"] = _s(d["lot_id"]).map(m).fillna("-")
-    got = d["prod2"].ne("-").mean() * 100
-    print(f"[MOVE] 제품 매칭 {got:.1f}% ({len(m):,} lot 사전)", flush=True)
-    return d
+    except Exception:
+        return []
 
 
 def mark_rework(d):

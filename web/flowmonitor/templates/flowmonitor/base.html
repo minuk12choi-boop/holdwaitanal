@@ -70,12 +70,14 @@
   .wip .top .rankbtn, .wip .top .dd > button { white-space:nowrap;
                                                font-size:10px;
                                                padding:2px 7px; }
-  /* 좌측 최상단 필터 다섯 개. 폭을 고르게 하고 글자를 줄여 안 끊기게 한다. */
-  .prodf { display:flex; gap:4px; }
-  .prodf > .dd { flex:1 1 0; min-width:0; }
+  /* 좌측 최상단 필터 다섯 개.
+     좌측 칸 폭(380px)은 그대로 두고, 두 줄로 접어 칸마다 폭을 고르게 한다.
+     한 줄에 세 개면 글자가 끊기므로 세 칸 격자로 둔다. */
+  .prodf { display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; }
+  .prodf > .dd { min-width:0; }
   .prodf > .dd > button { width:100%; font-size:10px; padding:2px 4px;
                           white-space:nowrap; overflow:hidden;
-                          text-overflow:ellipsis; }
+                          text-overflow:ellipsis; justify-content:space-between; }
   .prodf > .dd > button > span:first-child { overflow:hidden;
                                              text-overflow:ellipsis; }
   /* 선택지가 많으면 메뉴 안에서 굴린다. */

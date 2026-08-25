@@ -692,6 +692,12 @@ def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None,
 
         if df_step is not None and len(df_step):
             # PK 가 겹치면 통째로 실패한다. 같은 키는 미리 합친다.
+            # MySQL 기본 콜레이션은 대소문자를 같게 본다.
+            #   'D0a' 와 'D0A' 가 파이썬에서는 다른 키지만 DB 에서는 충돌한다.
+            #   미리 대문자로 맞춰 합친다.
+            for c in ("prod2", "proc_id", "step_seq"):
+                df_step[c] = (df_step[c].astype("string").fillna("-")
+                              .str.strip().str.upper().replace("", "-"))
             key = ["biz_date", "shift", "sys_line_id", "prod2", "proc_id",
                    "step_seq"]
             if df_step.duplicated(key).any():
