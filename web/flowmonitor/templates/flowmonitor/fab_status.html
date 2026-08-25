@@ -5,11 +5,11 @@
   <div class="summary">
     <div class="gfilter">
       <div class="prodf" style="margin-bottom:8px">
-        <!-- 날짜는 목록에서 고른다. <input type="date"> 는 개별 날짜를
-             막을 수 없어 없는 날을 눌러 봐야 알 수 있다. -->
+        <!-- 달력을 직접 그린다. 브라우저 기본 <input type="date"> 는
+             개별 날짜를 막을 수 없어 없는 날을 눌러 봐야 알 수 있다. -->
         <div class="dd datef" id="datefw">
-          <button onclick="toggleProd('datefw')" id="snapDateLb">-</button>
-          <div class="menu" id="dtm"></div>
+          <button onclick="openCal()" id="snapDateLb">-</button>
+          <div class="menu cal" id="dtm"></div>
         </div>
         <div class="dd" id="dsh">
           <button onclick="toggleProd('dsh')" id="shb">SHIFT 최신 &#9662;</button>
@@ -354,13 +354,10 @@ function renderSnap(d) {
     (DATA.snapshots || []).forEach(x => {
       if (x.biz_date) { HAVE_DATES.add(x.biz_date); }
     });
-    const ds = [...HAVE_DATES].sort().reverse();
-    document.getElementById("dtm").innerHTML =
-      `<label><input type="radio" name="snapd"${!SNAP_DATE ? " checked" : ""}`
-      + ` onchange="pickSnapDate('')"><b>최신</b></label>`
-      + ds.map(d => `<label><input type="radio" name="snapd" value="${d}"`
-          + `${SNAP_DATE === d ? " checked" : ""}`
-          + ` onchange="pickSnapDate('${d}')">${d}</label>`).join("");
+    // 달력이 열려 있으면 다시 그린다.
+    if (document.getElementById("datefw").classList.contains("open")) {
+      drawCal();
+    }
   }
   if (el) {
     const ds = snaps.map(x => x.biz_date).sort();
@@ -397,7 +394,76 @@ function renderSnap(d) {
   document.getElementById("shb").classList.toggle("on", !!SNAP_SHIFT);
 }
 
+/* 달력 --------------------------------------------------------------------
+   적재된 날만 고를 수 있다. 그 밖의 날은 회색으로 두고 누르지 못하게 한다.
+   브라우저 기본 날짜 입력은 개별 날짜를 막을 수 없어 직접 그린다.
+--------------------------------------------------------------------- */
+let CAL_YM = null;                  // 지금 보고 있는 달. [연, 월(0~11)]
+
+function openCal() {
+  const el = document.getElementById("datefw");
+  const open = el.classList.contains("open");
+  document.querySelectorAll(".dd").forEach(d => d.classList.remove("open"));
+  if (open) { return; }
+  // 고른 날, 없으면 가장 최근 적재일이 있는 달부터 연다.
+  const base = SNAP_DATE || [...HAVE_DATES].sort().pop() || "";
+  const d = base ? new Date(base + "T00:00:00") : new Date();
+  CAL_YM = [d.getFullYear(), d.getMonth()];
+  el.classList.add("open");
+  drawCal();
+}
+
+function calMove(n) {
+  const d = new Date(CAL_YM[0], CAL_YM[1] + n, 1);
+  CAL_YM = [d.getFullYear(), d.getMonth()];
+  drawCal();
+}
+
+function drawCal() {
+  const box = document.getElementById("dtm");
+  if (!box || !CAL_YM) { return; }
+  const [y, m] = CAL_YM;
+  const first = new Date(y, m, 1);
+  const last = new Date(y, m + 1, 0).getDate();
+  const lead = first.getDay();                 // 1일 앞의 빈 칸 수
+  const today = new Date();
+  const tkey = `${today.getFullYear()}-`
+    + String(today.getMonth() + 1).padStart(2, "0") + "-"
+    + String(today.getDate()).padStart(2, "0");
+
+  // 적재된 날이 하나도 없는 달이면 화살표만 살린다.
+  let cells = "";
+  for (let i = 0; i < lead; i++) { cells += `<i class="pad"></i>`; }
+  for (let d = 1; d <= last; d++) {
+    const key = `${y}-${String(m + 1).padStart(2, "0")}-`
+      + String(d).padStart(2, "0");
+    const ok = HAVE_DATES.has(key);
+    const cls = [ok ? "ok" : "no",
+                 SNAP_DATE === key ? "sel" : "",
+                 key === tkey ? "today" : ""].filter(Boolean).join(" ");
+    cells += ok
+      ? `<i class="${cls}" onclick="pickSnapDate('${key}')"`
+        + ` title="${key}">${d}</i>`
+      : `<i class="${cls}" title="${key} 데이터 없음">${d}</i>`;
+  }
+
+  box.innerHTML =
+    `<div class="calhd">`
+    + `<button type="button" onclick="event.stopPropagation();calMove(-1)">&lsaquo;</button>`
+    + `<b>${y}. ${String(m + 1).padStart(2, "0")}</b>`
+    + `<button type="button" onclick="event.stopPropagation();calMove(1)">&rsaquo;</button>`
+    + `</div>`
+    + `<div class="calwk">`
+    + ["일", "월", "화", "수", "목", "금", "토"]
+        .map(x => `<i>${x}</i>`).join("")
+    + `</div>`
+    + `<div class="calgrid">${cells}</div>`
+    + `<button type="button" class="calnow"`
+    + ` onclick="event.stopPropagation();pickSnapDate('')">최신으로</button>`;
+}
+
 function pickSnapDate(v) {
+  if (v && HAVE_DATES.size && !HAVE_DATES.has(v)) { return; }
   document.getElementById("datefw").classList.remove("open");
   SNAP_DATE = v;
   // 과거 날짜를 고르면 '최신' 이 없으므로 기본 SHIFT(GY) 로 맞춘다.

@@ -724,6 +724,35 @@
                        color:#fff; }
   /* 고를 수 없는 SHIFT 는 흐리게. 눌러도 반응하지 않는다. */
   .menu label.off { color:var(--mut); cursor:not-allowed; }
+
+  /* 달력. 적재된 날만 고를 수 있고 나머지는 회색이다. */
+  .menu.cal { width:224px; padding:8px; max-height:none; overflow:visible; }
+  .calhd { display:flex; align-items:center; justify-content:space-between;
+           margin-bottom:6px; }
+  .calhd b { font-size:12px; font-family:var(--f-title); }
+  .calhd button { border:1px solid var(--bd); background:#fff;
+                  border-radius:4px; width:22px; height:22px; cursor:pointer;
+                  font-size:13px; line-height:1; color:var(--fg); }
+  .calhd button:hover { border-color:var(--brand); color:var(--brand); }
+  .calwk, .calgrid { display:grid; grid-template-columns:repeat(7, 1fr);
+                     gap:2px; }
+  .calwk i { font-style:normal; font-size:10px; color:var(--mut);
+             text-align:center; padding:2px 0; }
+  .calgrid i { font-style:normal; font-size:11px; text-align:center;
+               padding:4px 0; border-radius:4px; }
+  .calgrid i.pad { visibility:hidden; }
+  .calgrid i.ok { color:var(--fg); cursor:pointer; }
+  .calgrid i.ok:hover { background:#EEF2FA; }
+  /* 데이터가 없는 날. 회색이고 눌리지 않는다. */
+  .calgrid i.no { color:#C9CDD4; cursor:not-allowed; }
+  .calgrid i.today { box-shadow:inset 0 0 0 1px var(--bd); }
+  .calgrid i.sel { background:var(--brand); color:#fff; font-weight:700; }
+  .calnow { width:100%; margin-top:8px; border:1px solid var(--bd);
+            background:#fff; border-radius:4px; padding:4px 0;
+            font-size:11px; cursor:pointer; color:var(--brand);
+            font-weight:600; }
+  .calnow:hover { background:var(--brand); color:#fff;
+                  border-color:var(--brand); }
   .prodf .dd { flex:1; min-width:0; }
   .prodf .dd > button { width:100%; }
   /* ── 전환 효과 ─────────────────────────────────────────────────────────
