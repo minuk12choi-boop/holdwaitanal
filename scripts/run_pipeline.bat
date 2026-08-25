@@ -12,6 +12,10 @@ REM   Runs, in order:
 REM     1) getdata\build_f3.py   f3_live / f3_history
 REM     2) getdata\get_move.py   move_shift / move_daily / move_lot
 REM
+REM   NOTE: get_move runs FIRST. build_f3 computes W/T from f3_move_lot,
+REM         so the move data must be current before f3 is built. Running
+REM         f3 first leaves W/T one cycle behind.
+REM
 REM   Manual use (same file, arguments are passed through):
 REM     scripts\run_pipeline.bat --force        force build_f3 even if no new cycle
 REM     scripts\run_pipeline.bat --move-only --full
@@ -54,16 +58,16 @@ echo ===== %DATE% %TIME% =====>> logs\pipeline.log
 echo [ENV] python=%PYEXE%>> logs\pipeline.log
 echo [ENV] args=%ARGS%>> logs\pipeline.log
 
-if "%RUN_F3%"=="1" (
-    echo --- build_f3 --->> logs\pipeline.log
-    "%PYEXE%" getdata\build_f3.py %ARGS% >> logs\pipeline.log 2>&1
-    echo [EXIT] build_f3 =%ERRORLEVEL%>> logs\pipeline.log
-)
-
 if "%RUN_MOVE%"=="1" (
     echo --- get_move --->> logs\pipeline.log
     "%PYEXE%" getdata\get_move.py %ARGS% >> logs\pipeline.log 2>&1
     echo [EXIT] get_move =%ERRORLEVEL%>> logs\pipeline.log
+)
+
+if "%RUN_F3%"=="1" (
+    echo --- build_f3 --->> logs\pipeline.log
+    "%PYEXE%" getdata\build_f3.py %ARGS% >> logs\pipeline.log 2>&1
+    echo [EXIT] build_f3 =%ERRORLEVEL%>> logs\pipeline.log
 )
 
 endlocal

@@ -3211,7 +3211,7 @@ function renderHeat() {
   box.innerHTML = `<table class="hmt"><thead>${head}</thead>`
     + `<tbody id="hmTb"></tbody></table>`;
   heatMore(60);
-  requestAnimationFrame(() => stickDiag("첫 렌더"));
+  requestAnimationFrame(() => { fitHeat(); stickDiag("첫 렌더"); });
   box.onscroll = () => {
     stickDiag("스크롤 " + Math.round(box.scrollTop));
     if (HEAT.at >= (d.keys || []).length) { return; }
@@ -3267,6 +3267,21 @@ function heatPick(key, date) {
   loadSummary();
   // 표는 STEP 축일 때만 따로 조건을 준다(LAYER 는 좌측 필터가 이미 건다).
   openDrill(isStep ? { step_seq: key } : {}, lb, "heat");
+}
+
+// 팝업 폭을 표에 맞춘다.
+//   CSS 의 max-content 는 도구줄까지 재서 표보다 넓어진다.
+//   표 실제 폭을 재서 직접 정한다.
+function fitHeat() {
+  const box = document.querySelector(".hmbox");
+  const body = document.getElementById("hmBody");
+  const tb = body && body.querySelector(".hmt");
+  if (!box || !body || !tb) { return; }
+  box.style.width = "";                     // 재기 전에 되돌린다
+  const pad = body.offsetWidth - body.clientWidth;   // 세로 스크롤바 몫
+  const w = Math.ceil(tb.scrollWidth) + 24 + pad;    // 좌우 여백 12+12
+  const cap = Math.min(1400, window.innerWidth - 48);
+  box.style.width = Math.min(Math.max(w, 320), cap) + "px";
 }
 
 function heatMore(n) {
