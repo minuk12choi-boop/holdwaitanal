@@ -583,6 +583,7 @@ function pickLine(line) {
   document.getElementById("ddm").innerHTML = "";   // 라인마다 lot_type 이 다를 수 있다
   PROD1 = []; PROD2 = []; AREAS = [];              // 제품구분도 라인별로 다르다
   PLANS = []; LOTS = []; LAYERS = [];
+  heatReset();                                     // 라인이 바뀌면 히트맵도
   loadSummary();
 }
 
@@ -1860,6 +1861,9 @@ function dfClearAllConds() {
   DRILL_KEY = { i: -1, node: null, list: [] };
   czAskClose();
   PROD1 = []; PROD2 = []; AREAS = []; PLANS = []; LOTS = []; LAYERS = [];
+  // 히트맵 안에서 고른 것도 함께 푼다. 남겨 두면 다음에 열 때
+  // 조건이 없는데도 그 필터가 걸린 채로 뜬다.
+  heatReset();
   syncFromDF();
   loadSummary();          // 좌측 필터가 풀렸으니 목록부터 다시 받는다
 }
@@ -3008,8 +3012,33 @@ function syncLeftHeight() {
 let HEAT = { axis: "layer", metric: "move", days: 7, prod: [], plan: [],
              data: null, at: 0 };
 
+// 히트맵에서 고른 것을 처음 상태로 되돌린다.
+function heatReset() {
+  HEAT.prod = [];
+  HEAT.plan = [];
+  HEAT.axis = "layer";
+  HEAT.metric = "move";
+  HEAT.days = 7;
+  HEAT.data = null;
+}
+
 function openHeat() {
   document.getElementById("hmmask").classList.add("on");
+  // 좌측 필터가 걸려 있으면 그것을 이어받아 연다. 없으면 전체다.
+  HEAT.prod = PROD2.slice();
+  HEAT.plan = PLANS.slice();
+  ["move", "wip"].forEach(x => {
+    const b = document.getElementById("hm_" + x);
+    if (b) { b.className = (HEAT.metric === x) ? "on" : ""; }
+  });
+  ["layer", "step"].forEach(x => {
+    const b = document.getElementById("hm_" + x);
+    if (b) { b.className = (HEAT.axis === x) ? "on" : ""; }
+  });
+  [7, 14, 30].forEach(x => {
+    const b = document.getElementById("hm_d" + x);
+    if (b) { b.className = (HEAT.days === x) ? "on" : ""; }
+  });
   loadHeat();
 }
 
