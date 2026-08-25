@@ -1398,8 +1398,8 @@ function drawBalance() {
         data: { labels: axOf(r), datasets: datasets },
         options: {
           responsive: true, maintainAspectRatio: false, animation: false,
-          // 아래에 모듈2 · 모듈1 두 단을 그린다. 그만큼 자리를 비운다.
-          layout: { padding: { bottom: 26 } },
+          // 아래에 모듈2 · 모듈1 두 단(중괄호)을 그린다. 그만큼 비운다.
+          layout: { padding: { bottom: 30 } },
           onHover: (e, els, ch) => hoverCursor(ch, e.native || e),
           plugins: { legend: { display: false },
                      tooltip: { callbacks: { label: (t) => {
@@ -1472,31 +1472,45 @@ function drawBalance() {
               ? Math.abs(meta[1].x - meta[0].x) / 2
               : (ch.chartArea.right - ch.chartArea.left) / 2;
 
-            const ROW = 13;                 // 한 단 높이
+            const ROW = 15;                 // 한 단 높이
             ctx.save();
             ctx.font = "bold 9px 'Poppins','Noto Sans KR',sans-serif";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.lineWidth = 1;
+            ctx.strokeStyle = "#9CA3AF";
+            ctx.fillStyle = "#374151";
+
+            // 구간을 중괄호로 감싼다. 경계선만 그으면 그 자리 LAYER 에만
+            // 설정된 것처럼 보인다. 중괄호는 '여기부터 여기까지' 가 한눈에
+            // 들어온다.
+            //     000  014  020 ... 041 ... 100
+            //     └────────── c/p ──────────┘
+            const brace = (x1, x2, top, name) => {
+              const y = top + 3;             // 중괄호 윗변
+              const tip = 4;                 // 가운데로 모이는 깊이
+              const mid = (x1 + x2) / 2;
+              ctx.beginPath();
+              ctx.moveTo(x1, y + tip);       // 왼쪽 끝을 아래로 접는다
+              ctx.lineTo(x1, y + 2);
+              ctx.lineTo(mid - 6, y + 2);    // 가운데 이름 자리를 비운다
+              ctx.moveTo(mid + 6, y + 2);
+              ctx.lineTo(x2, y + 2);
+              ctx.lineTo(x2, y + tip);       // 오른쪽 끝을 아래로 접는다
+              ctx.stroke();
+              ctx.fillText(czLabel(name, 12), mid, y + 2);
+            };
 
             // n = 0 이면 모듈2(가운데), 1 이면 모듈1(맨 아래)
             [[b2, 0], [b1, 1]].forEach(([bands, n]) => {
               const top = h - ROW * (2 - n);
-              const cy = top + ROW / 2;
               bands.forEach(b => {
                 const a = meta[b.from], z = meta[b.to];
                 if (!a || !z) { return; }
-                const x1 = a.x - half, x2 = z.x + half;
-                ctx.strokeStyle = "#D7DEE8";     // 단 구분 밑줄
-                ctx.beginPath();
-                ctx.moveTo(x1, top); ctx.lineTo(x2, top);
-                ctx.stroke();
-                ctx.strokeStyle = "#9CA3AF";     // 구간 경계
-                ctx.beginPath();
-                ctx.moveTo(x2, top); ctx.lineTo(x2, top + ROW);
-                ctx.stroke();
-                ctx.fillStyle = "#374151";
-                ctx.fillText(czLabel(b.name, 10), (x1 + x2) / 2, cy);
+                // 한 칸짜리 구간도 눈에 보이게 최소 폭을 준다.
+                const x1 = a.x - half + 1;
+                const x2 = Math.max(z.x + half - 1, x1 + 14);
+                brace(x1, x2, top, b.name);
               });
             });
             ctx.restore();

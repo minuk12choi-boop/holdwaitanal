@@ -132,18 +132,23 @@
   textarea, select { cursor:auto; }
   input[type="checkbox"], input[type="radio"] { cursor:pointer; }
 
-  /* HOLD 유형 적용 순서 칸. 손잡이로 끌거나 번호를 직접 넣는다. */
-  .grid th.dh, .grid td.dh { width:46px; min-width:46px; max-width:46px;
+  /* HOLD 유형 적용 순서 칸. 손잡이로 끌거나 번호를 직접 넣는다.
+     손잡이와 입력칸이 함께 들어가야 하므로 폭을 넉넉히 둔다.
+     칸 전체에 user-select:none 을 걸면 입력칸까지 막힌다. */
+  .grid th.dh, .grid td.dh { width:62px; min-width:62px; max-width:62px;
                              text-align:center; color:var(--mut);
                              font-size:11px; white-space:nowrap;
-                             padding:2px 3px; user-select:none; }
-  .grid td.dh .grip { cursor:grab; margin-right:1px; font-size:10px;
-                      display:inline-block; }
-  .grid td.dh .ordin { width:24px; text-align:center; font-size:11px;
-                       font-weight:600; color:var(--fg); border:1px solid #fff;
-                       border-radius:3px; background:transparent;
-                       padding:1px 0; cursor:text; }
-  .grid td.dh .ordin:hover { border-color:var(--bd); background:#fff; }
+                             padding:2px 3px; }
+  .grid td.dh { display:table-cell; }
+  .grid td.dh .grip { cursor:grab; margin-right:2px; font-size:10px;
+                      display:inline-block; user-select:none;
+                      vertical-align:middle; }
+  .grid td.dh .ordin { width:28px; text-align:center; font-size:11px;
+                       font-weight:600; color:var(--fg);
+                       border:1px solid var(--bd); border-radius:3px;
+                       background:#fff; padding:1px 0; cursor:text;
+                       vertical-align:middle; box-sizing:border-box; }
+  .grid td.dh .ordin:hover { border-color:var(--brand); }
   .grid td.dh .ordin:focus { border-color:var(--brand); background:#fff;
                              outline:none; }
   .grid tr.dragging { opacity:.45; }
@@ -919,7 +924,7 @@
   .ballab i { font-style:normal; color:var(--mut); margin:0 2px; }
   .ballab span { font-weight:400; }
   /* 아래에 모듈2 · 모듈1 두 단이 붙어 그만큼 높게 잡는다. */
-  .balc { flex:1; min-width:0; height:186px; }
+  .balc { flex:1; min-width:0; height:190px; }
 
   /* 조건 칩 */
   .hdrbtn { border:1px solid var(--brand); background:var(--brand); color:#fff;
