@@ -16,6 +16,15 @@ from django.db import connection
 # 비교 창. 며칠짜리 문제인지 여기서 갈린다.
 WINDOWS = (1, 3, 7, 14, 30, 60)
 
+# MOVE 원천에는 아직 KFR7 / KFR4 를 가를 컬럼이 없다. 둘 다 KFR7 로 들어온다.
+#   화면에서 NRD(KFR4) 를 골라도 빈 화면이 되지 않도록 여기서 맞춘다.
+#   구분 컬럼이 생기면 이 표를 지우면 된다.
+MOVE_LINE = {"KFR4": "KFR7"}
+
+
+def move_line(line):
+    return MOVE_LINE.get(str(line or "").upper(), line)
+
 # 이 아래로 떨어지면 저하로 본다.
 DROP = 0.75
 # 이 위로 오르면 증가로 본다.
@@ -54,7 +63,7 @@ def move_series(line, today, days=61, prod=None, plan=None):
     if not _table_ok("f3_move_step"):
         return {}
     w = ["sys_line_id = %s", "biz_date > %s", "biz_date <= %s"]
-    a = [line, today - dt.timedelta(days=days), today]
+    a = [move_line(line), today - dt.timedelta(days=days), today]
     if prod:
         w.append("prod2 IN (%s)" % ",".join(["%s"] * len(prod)))
         a += list(prod)
@@ -567,7 +576,7 @@ def heatmap(line, today=None, days=7, axis="layer", metric="move",
         if not _table_ok(tbl):
             return {"ready": False, "reason": "MOVE 이력이 아직 없습니다"}
         w = ["sys_line_id = %s", "biz_date >= %s", "biz_date <= %s"]
-        a = [line, since, today]
+        a = [move_line(line), since, today]
         if prod:
             w.append("prod2 IN (%s)" % ",".join(["%s"] * len(prod)))
             a += list(prod)
@@ -609,7 +618,7 @@ def heat_options(line, today=None, days=30):
     rows = _rows(
         "SELECT DISTINCT prod2, proc_id FROM f3_move_step "
         "WHERE sys_line_id=%s AND biz_date>=%s AND biz_date<=%s",
-        [line, since, today])
+        [move_line(line), since, today])
     return {
         "prod": sorted({r["prod2"] for r in rows if r["prod2"]}),
         "plan": sorted({r["proc_id"] for r in rows if r["proc_id"]}),

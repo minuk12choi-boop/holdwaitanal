@@ -871,6 +871,22 @@ border-collapse:separate + border-spacing:0
  0  본문
 ```
 
+### MOVE 라인 표기
+
+MOVE 원천(`M_LOT_TRANSN_HIST`)에는 **KFR7 과 KFR4 를 가를 컬럼이 없다.**
+둘 다 `sys_line_id = KFR7` 로 들어온다.
+
+```
+get_move.py   RELABEL_LINE = False  -> sys_line_id 를 그대로 쓴다
+trend.py      MOVE_LINE = {"KFR4": "KFR7"}  -> 조회할 때만 맞춘다
+```
+
+lot 단위로 f3 를 뒤져 맞추면 지난 lot 은 못 찾아 절반만 옮겨지고
+라인이 오히려 뒤섞인다. 구분 컬럼이 생기면 두 곳을 함께 지운다.
+
+재공(`f3_wip_step`)과 원인(`f3_history`)은 f3 기준(`line`)이라
+매핑하지 않는다.
+
 ### 라인 색
 
 어느 차트에서 보든 같은 라인은 같은 색이다.

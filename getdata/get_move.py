@@ -67,6 +67,11 @@ DEST_LINE_MAP = {
              "KFR7C": "KFR4", "KFR7D": "KFR4"},
 }
 
+# 지금은 MOVE 원천에 KFR7 / KFR4 를 가를 컬럼이 없다. lot 단위로 f3 를
+# 뒤져 맞추면 지난 lot 은 못 찾아 절반만 옮겨지고, 오히려 라인이 뒤섞인다.
+# 구분 컬럼이 생기기 전까지는 sys_line_id 를 그대로 쓴다.
+RELABEL_LINE = False
+
 
 def relabel_line(d):
     """sys_line_id 를 f3 와 같은 표시 라인으로 바꾼다.
@@ -374,7 +379,8 @@ def aggregate(df, ts_from, ts_to):
     d = mark_rework(d)
     d = attach_layer(d)
     d = attach_prod2(d)
-    d = relabel_line(d)
+    if RELABEL_LINE:
+        d = relabel_line(d)
 
     rows, lot_rows, step_rows = [], [], []
     boundary = shift_start_at_or_before(ts_to)
