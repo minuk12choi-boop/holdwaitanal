@@ -1562,31 +1562,46 @@ function drawBalance() {
             // 들어온다.
             //     000  014  020 ... 041 ... 100
             //     └────────── c/p ──────────┘
+            // 중괄호는 **위(막대 쪽)를 감싼다.** 양끝을 위로 올려
+            //   그 구간이 어디부터 어디까지인지 한눈에 보이게 한다.
+            //     └────── c/p ──────┘   가 아니라
+            //     ┌────── c/p ──────┐   모양이다.
             const brace = (x1, x2, top, name) => {
-              const y = top + 3;             // 중괄호 윗변
-              const tip = 4;                 // 가운데로 모이는 깊이
+              const y = top + ROW - 5;       // 가로선 높이
+              const tip = 5;                 // 양끝을 위로 올리는 깊이
               const mid = (x1 + x2) / 2;
+              const w = Math.min(ctx.measureText(name).width / 2 + 3,
+                                 (x2 - x1) / 2 - 2);
               ctx.beginPath();
-              ctx.moveTo(x1, y + tip);       // 왼쪽 끝을 아래로 접는다
-              ctx.lineTo(x1, y + 2);
-              ctx.lineTo(mid - 6, y + 2);    // 가운데 이름 자리를 비운다
-              ctx.moveTo(mid + 6, y + 2);
-              ctx.lineTo(x2, y + 2);
-              ctx.lineTo(x2, y + tip);       // 오른쪽 끝을 아래로 접는다
+              ctx.moveTo(x1, y - tip);       // 왼쪽 끝을 위로
+              ctx.lineTo(x1, y);
+              if (w > 2) {                   // 가운데 이름 자리를 비운다
+                ctx.lineTo(mid - w, y);
+                ctx.moveTo(mid + w, y);
+              }
+              ctx.lineTo(x2, y);
+              ctx.lineTo(x2, y - tip);       // 오른쪽 끝을 위로
               ctx.stroke();
-              ctx.fillText(czLabel(name, 12), mid, y + 2);
+              ctx.fillText(name, mid, y);
             };
 
-            // n = 0 이면 모듈2(가운데), 1 이면 모듈1(맨 아래)
-            [[b2, 0], [b1, 1]].forEach(([bands, n]) => {
-              const top = h - ROW * (2 - n);
+            // 모듈1 과 모듈2 가 같은 값이면 한 단만 그린다.
+            //   구간과 이름이 모두 같으면 두 줄이 똑같이 겹쳐 보인다.
+            const same = b1.length === b2.length && b1.every((x, i) =>
+              b2[i] && x.name === b2[i].name
+              && x.from === b2[i].from && x.to === b2[i].to);
+            const rows = same ? [[b1, 1]] : [[b2, 0], [b1, 1]];
+
+            // 한 단만 그리면 그 단을 아래에 붙인다(빈 자리를 남기지 않는다).
+            rows.forEach(([bands, n], i2) => {
+              const top = h - ROW * (rows.length - i2);
               bands.forEach(b => {
                 const a = meta[b.from], z = meta[b.to];
                 if (!a || !z) { return; }
                 // 한 칸짜리 구간도 눈에 보이게 최소 폭을 준다.
                 const x1 = a.x - half + 1;
                 const x2 = Math.max(z.x + half - 1, x1 + 14);
-                brace(x1, x2, top, b.name);
+                brace(x1, x2, top, czLabel(b.name, 14));
               });
             });
             ctx.restore();

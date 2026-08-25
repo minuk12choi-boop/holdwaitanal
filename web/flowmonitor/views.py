@@ -2756,6 +2756,11 @@ def api_balance(request):
 
     bands = _bands(lay_mod)
     bands2 = _bands(lay_mod2)
+    # 모듈2 가 모듈1 과 똑같으면 굳이 두 단을 그리지 않는다.
+    if len(bands) == len(bands2) and all(
+            a["name"] == b["name"] and a["from"] == b["from"]
+            and a["to"] == b["to"] for a, b in zip(bands, bands2)):
+        bands2 = []
 
     return JsonResponse({
         "layers": xs, "by": ",".join(by),
