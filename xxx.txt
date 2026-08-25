@@ -1,8 +1,1 @@
-netsh int ipv4 delete excludedportrange protocol=tcp startport=8020 numberofports=1
-
-
-netsh int ipv4 set dynamicport tcp start=49152 num=16384
-netsh int ipv6 set dynamicport tcp start=49152 num=16384
-
-
-
+Get-NetTCPConnection -LocalPort 8020 | Format-List LocalAddress,OwningProcess,State
