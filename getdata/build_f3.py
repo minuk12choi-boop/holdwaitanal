@@ -1434,6 +1434,60 @@ def attach_std_product(lot):
     return lot
 
 
+def save_ssps_rules(df_prod):
+    """SSPS 제품명 규칙을 DB 에 남긴다.
+
+    이 규칙은 S3 에만 있어 웹에서 읽을 수 없다. 그래서 기준정보 제품구분을
+    지웠을 때 SSPS 값으로 되돌리지 못했다. 배치가 받을 때 함께 저장해
+    화면에서도 같은 판정을 할 수 있게 한다.
+    """
+    if df_prod is None or not len(df_prod):
+        return 0
+    p = _lower_cols(df_prod).copy()
+    lcol = "line_id" if "line_id" in p.columns else "line"
+    need = [lcol, "lot_type", "id"] + [c for c in PROD_COLS if c in p.columns]
+    if any(c not in p.columns for c in (lcol, "lot_type", "id")):
+        return 0
+    p = p[need].dropna(subset=["id"]).drop_duplicates()
+    p = p.rename(columns={lcol: "line_id"})
+    for c in PROD_COLS:
+        if c not in p.columns:
+            p[c] = None
+
+    cols = ["line_id", "lot_type", "id"] + list(PROD_COLS)
+    rows = [tuple(None if pd.isna(v) else str(v) for v in r)
+            for r in p[cols].itertuples(index=False, name=None)]
+    try:
+        import db_common as DB
+        conn = DB.connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS f3_std_ssps (
+                      line_id VARCHAR(16) NULL,
+                      lot_type VARCHAR(8) NULL,
+                      id VARCHAR(16) NOT NULL,
+                      prod1 VARCHAR(64) NULL,
+                      prod2 VARCHAR(64) NULL,
+                      dept VARCHAR(64) NULL,
+                      KEY ix_ssps (line_id, lot_type, id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+                cur.execute("DELETE FROM f3_std_ssps")
+                cur.executemany(
+                    "INSERT INTO f3_std_ssps "
+                    "(line_id, lot_type, id, prod1, prod2, dept) "
+                    "VALUES (%s, %s, %s, %s, %s, %s)", rows)
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[STD] f3_std_ssps 저장 생략: {type(e).__name__}", flush=True)
+        return 0
+    print(f"[STD] f3_std_ssps {len(rows):,}건 저장", flush=True)
+    return len(rows)
+
+
 def attach_prod(df_lot, df_prod):
     """SSPS_PROD_NAME 을 lot 에 붙인다.
 
@@ -2991,6 +3045,7 @@ def main():
             # 제품구분(SSPS_PROD_NAME). a.id 는 lot_id 의 앞 2~4글자다.
             # 길이가 제각각이라 길이별로 나눠 붙이고, 더 구체적인(긴) 것을 우선한다.
             df_prod = fetch("ssps_prod_name", None)
+            save_ssps_rules(df_prod)     # 화면에서도 같은 판정을 하도록
             with stage("제품구분 결합"):
                 df_lot = attach_prod(df_lot, df_prod)
                 # 기준정보가 우선이다. SSPS 로 채운 뒤 덮어쓴다.

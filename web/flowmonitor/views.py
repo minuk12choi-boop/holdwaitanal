@@ -626,6 +626,9 @@ UPDATES = [
             {"t": "'지금 반영' 과 '과거까지' 모두 HOLD 유형 · 모듈 · "
                   "제품구분을 함께 다시 냅니다. 모듈은 스텝마다 따로 "
                   "판정하므로 한 LOT 안에서도 구간별로 달라집니다."},
+            {"t": "제품구분 규칙을 지우면 SSPS 제품명으로 돌아갑니다. "
+                  "배치가 SSPS 규칙을 f3_std_ssps 에 남겨 두어 화면에서도 "
+                  "같은 판정을 합니다."},
             {"t": "기준정보에 제품구분 카드를 더했습니다. lot_id 의 글자와 "
                   "PLAN 으로 제품명을 정하며, 여기서 정해지지 않은 것만 "
                   "기존 SSPS 제품명을 씁니다."},
@@ -2435,18 +2438,16 @@ def _std_save(card, payload):
 STD_TARGETS = ("cause_detail", "module1", "module2", "prod2")
 
 
-def _restate(recs, ht, mods, prods):
+def _restate(recs, ht, mods, prods, ssps=None):
     """행마다 새 기준정보로 값을 다시 낸다. 바뀐 것만 돌려준다.
 
     한 lot 이 여러 스텝 행으로 나뉘어 있어도 모듈은 스텝마다 다를 수 있다.
     그래서 lot 단위가 아니라 **행 단위** 로 본다.
 
-    [되돌릴 수 없는 것]
-      제품구분은 SSPS 값을 덮어쓴 결과다. 규칙을 지워도 여기서는 SSPS
-      값을 알 수 없어 되돌리지 못한다. 그래서 **새 이름이 나올 때만**
-      쓴다. 완전히 되돌리려면 build_f3 를 다시 돌려야 한다.
+    제품구분은 기준정보가 우선이고, 거기서 안 잡히면 SSPS 로 돌아간다.
+    규칙을 지우면 SSPS 값으로 되돌아간다(배치와 같은 결과).
 
-      모듈은 기준정보에만 근거하므로 규칙이 없어지면 비우는 것이 맞다.
+    모듈은 기준정보에만 근거하므로 규칙이 없어지면 비우는 것이 맞다.
     """
     out = []
     for r in recs:
@@ -2456,9 +2457,12 @@ def _restate(recs, ht, mods, prods):
         if mods:
             m1, m2 = module_of(r, mods)
             new["module1"], new["module2"] = m1, m2
-        if prods:
-            p = product_of(r, prods)
-            if p:                      # None 이면 손대지 않는다(위 설명 참고)
+        if prods or ssps:
+            # 기준정보가 먼저다. 없으면 SSPS 로 돌아간다.
+            p = product_of(r, prods) if prods else None
+            if p is None and ssps:
+                p = ssps_of(r, ssps)
+            if p is not None:
                 new["prod2"] = p
         diff = {k: v for k, v in new.items() if v != r.get(k)}
         if diff:
@@ -2476,6 +2480,7 @@ def _apply_standards():
     if not _table_exists("f3_live"):
         return 0, 0
     ht, mods, prods = _holdtype_rules(), _module_rules(), _product_rules()
+    ssps = _ssps_rules()
     have = set(_columns_of("f3_live"))
     if not mods:
         # 규칙이 하나도 없으면 전부 비우게 된다. 실수로 다 지운 경우
@@ -2490,7 +2495,7 @@ def _apply_standards():
         if not snap:
             return 0, 0
         cur.execute(
-            "SELECT lot_id, `line`, proc_id, step_seq, layer_id,"
+            "SELECT lot_id, `line`, lot_type, proc_id, step_seq, layer_id,"
             " hold, hold_reason, ftp, ftp_reason,"
             " exception, exception_reason, cause_detail,"
             " module1, module2, prod2"
@@ -2499,7 +2504,7 @@ def _apply_standards():
         recs = [dict(zip(names, r)) for r in cur.fetchall()]
 
         n = _write_back(cur, "f3_live", snap,
-                        _restate(recs, ht, mods, prods), have)
+                        _restate(recs, ht, mods, prods, ssps), have)
         hit = sum(1 for r in recs if holdtype_of(r, ht)) if ht else 0
     return hit, len(recs)
 
@@ -2639,6 +2644,43 @@ def product_of(row, rules):
     return got
 
 
+def _ssps_rules():
+    """SSPS 제품명 규칙. 기준정보에서 안 잡힌 lot 은 이것으로 돌아간다.
+
+    배치(build_f3.save_ssps_rules)가 채워 둔다. 없으면 되돌릴 수 없다.
+    """
+    if not _table_exists("f3_std_ssps"):
+        return []
+    with connection.cursor() as cur:
+        cur.execute("SELECT line_id, lot_type, id, prod2 FROM f3_std_ssps "
+                    "WHERE prod2 IS NOT NULL AND prod2 <> ''")
+        rules = [{"line_id": a, "lot_type": b, "id": c, "prod2": d}
+                 for a, b, c, d in cur.fetchall()]
+    # id 가 긴(구체적인) 규칙이 이긴다. 짧은 것부터 두고 뒤가 덮게 한다.
+    rules.sort(key=lambda r: len(str(r["id"] or "")))
+    return rules
+
+
+def ssps_of(row, rules):
+    """SSPS 기준의 제품명. 못 찾으면 None."""
+    lot = str(row.get("lot_id") or "").upper()
+    line = str(row.get("line") or "").upper()
+    lt = str(row.get("lot_type") or "").upper()
+    got = None
+    for r in rules:
+        pid = str(r["id"] or "").strip().upper()
+        if not pid or not lot.startswith(pid):
+            continue
+        if str(r["line_id"] or "").strip() and \
+                str(r["line_id"]).strip().upper() != line:
+            continue
+        if str(r["lot_type"] or "").strip() and \
+                str(r["lot_type"]).strip().upper() != lt:
+            continue
+        got = str(r["prod2"]).strip()
+    return got
+
+
 def _apply_standards_history(days=90, progress=None):
     """기준정보를 **과거 스냅샷(f3_history)** 에도 다시 반영한다.
 
@@ -2653,7 +2695,8 @@ def _apply_standards_history(days=90, progress=None):
     ht = _holdtype_rules()
     mods = _module_rules()
     prods = _product_rules()
-    if not (ht or mods or prods):
+    ssps = _ssps_rules()
+    if not (ht or mods or prods or ssps):
         return {"ok": False, "reason": "기준정보가 비어 있습니다"}
 
     have = set(_columns_of("f3_history"))
@@ -2666,7 +2709,7 @@ def _apply_standards_history(days=90, progress=None):
         done = changed = rows = 0
         for snap in snaps:
             cur.execute(
-                "SELECT lot_id, `line`, proc_id, step_seq, layer_id,"
+                "SELECT lot_id, `line`, lot_type, proc_id, step_seq, layer_id,"
                 " hold, hold_reason, ftp, ftp_reason,"
                 " exception, exception_reason, cause_detail,"
                 " module1, module2, prod2"
@@ -2678,7 +2721,8 @@ def _apply_standards_history(days=90, progress=None):
             # 잠금이 오래 걸리고, 실패 시 전부 되돌아가 재시도가 비싸다.
             with transaction.atomic():
                 changed += _write_back(cur, "f3_history", snap,
-                                       _restate(recs, ht, mods, prods), have)
+                                       _restate(recs, ht, mods, prods, ssps),
+                                       have)
             done += 1
             if progress and done % 20 == 0:
                 progress(done, len(snaps))
