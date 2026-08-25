@@ -9,7 +9,7 @@ import datetime as dt
 
 import json
 
-from django.db import connection, ProgrammingError, OperationalError
+from django.db import connection, transaction, ProgrammingError, OperationalError
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
@@ -795,7 +795,8 @@ def api_health(request):
 def _latest_snapshot():
     if not _table_exists("f3_live"):
         return None
-    with connection.cursor() as cur:
+    # 여러 컬럼을 나눠 쓴다. 중간에 실패하면 반쪽만 바뀐 상태가 된다.
+    with transaction.atomic(), connection.cursor() as cur:
         cur.execute("SELECT MAX(snapshot_at) FROM f3_live")
         return cur.fetchone()[0]
 
@@ -2407,7 +2408,9 @@ def _std_save(card, payload):
 
     ph = ", ".join(["%s"] * len(cols))
     names = ", ".join(f"`{k}`" for k in cols)
-    with connection.cursor() as cur:
+    # DELETE 뒤 INSERT 다. 중간에 실패하면 기준정보가 통째로 사라진다.
+    # 한 트랜잭션으로 묶어 실패하면 원래대로 돌아가게 한다.
+    with transaction.atomic(), connection.cursor() as cur:
         cur.execute(f"DELETE FROM `{card['table']}`")
         if clean:
             now = dt.datetime.now()
@@ -2437,6 +2440,13 @@ def _restate(recs, ht, mods, prods):
 
     한 lot 이 여러 스텝 행으로 나뉘어 있어도 모듈은 스텝마다 다를 수 있다.
     그래서 lot 단위가 아니라 **행 단위** 로 본다.
+
+    [되돌릴 수 없는 것]
+      제품구분은 SSPS 값을 덮어쓴 결과다. 규칙을 지워도 여기서는 SSPS
+      값을 알 수 없어 되돌리지 못한다. 그래서 **새 이름이 나올 때만**
+      쓴다. 완전히 되돌리려면 build_f3 를 다시 돌려야 한다.
+
+      모듈은 기준정보에만 근거하므로 규칙이 없어지면 비우는 것이 맞다.
     """
     out = []
     for r in recs:
@@ -2448,7 +2458,7 @@ def _restate(recs, ht, mods, prods):
             new["module1"], new["module2"] = m1, m2
         if prods:
             p = product_of(r, prods)
-            if p:
+            if p:                      # None 이면 손대지 않는다(위 설명 참고)
                 new["prod2"] = p
         diff = {k: v for k, v in new.items() if v != r.get(k)}
         if diff:
@@ -2467,7 +2477,13 @@ def _apply_standards():
         return 0, 0
     ht, mods, prods = _holdtype_rules(), _module_rules(), _product_rules()
     have = set(_columns_of("f3_live"))
-    with connection.cursor() as cur:
+    if not mods:
+        # 규칙이 하나도 없으면 전부 비우게 된다. 실수로 다 지운 경우
+        # 화면이 통째로 비어 버리므로 손대지 않는다.
+        print("[STD] 모듈 기준정보가 비어 있어 모듈은 건드리지 않는다",
+              flush=True)
+    # 여러 컬럼을 나눠 쓴다. 중간에 실패하면 반쪽만 바뀐 상태가 된다.
+    with transaction.atomic(), connection.cursor() as cur:
         cur.execute("SELECT MAX(snapshot_at) FROM f3_live")
         row = cur.fetchone()
         snap = row[0] if row else None
@@ -2658,8 +2674,11 @@ def _apply_standards_history(days=90, progress=None):
             names = [d[0] for d in cur.description]
             recs = [dict(zip(names, r)) for r in cur.fetchall()]
             rows += len(recs)
-            changed += _write_back(cur, "f3_history", snap,
-                                   _restate(recs, ht, mods, prods), have)
+            # 스냅샷 단위로 묶는다. 전체를 한 트랜잭션에 넣으면 1년치에서
+            # 잠금이 오래 걸리고, 실패 시 전부 되돌아가 재시도가 비싸다.
+            with transaction.atomic():
+                changed += _write_back(cur, "f3_history", snap,
+                                       _restate(recs, ht, mods, prods), have)
             done += 1
             if progress and done % 20 == 0:
                 progress(done, len(snaps))
