@@ -1509,13 +1509,18 @@ def _fab_str(sr):
 
 def _fab_step_table(df_step):
     """STEP 원천을 공정별 순번이 붙은 표로 만든다."""
+    keep = ["processid", "stepseq", "stepseq_type", "areaname", "eqptype",
+            "eqpgroup", "eqpids", "layerid", "category", "descript",
+            "recipeid", "delaytime", "skiprule"]
     st = _lower_cols(df_step)
-    for c in ("processid", "stepseq", "stepseq_type", "areaname", "eqptype",
-              "layerid", "descript", "recipeid", "delaytime", "skiprule"):
+    miss = [c for c in keep if c not in st.columns]
+    if miss:
+        # 설비 경로(eqpgroup/eqpids)가 없으면 화면에서 설비가 통째로 빈다.
+        print(f"[FABPLAN] STEP 원천에 없는 컬럼 {miss}", flush=True)
+    for c in keep:
         if c not in st.columns:
             st[c] = pd.NA
-    st = st[["processid", "stepseq", "stepseq_type", "areaname", "eqptype",
-             "layerid", "descript", "recipeid", "delaytime", "skiprule"]].copy()
+    st = st[keep].copy()
     for c in ("processid", "stepseq", "stepseq_type", "areaname", "skiprule"):
         st[c] = _fab_str(st[c])
     # stepseq 가 R 로 시작하면 메인으로 본다(참고 구현과 같은 규칙).
@@ -1725,10 +1730,7 @@ def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
     else:
         st["_ff"] = pd.NA
         st["_tt"] = pd.NA
-    if "category" in _lower_cols(df_step).columns:
-        st["_category"] = _fab_str(_lower_cols(df_step)["category"])
-    else:
-        st["_category"] = ""
+    st["_category"] = _fab_str(st["category"])
 
     # --- 1) 현스텝 위치를 찾아 그 뒤 구간만 붙인다 ---------------------------
     cur = m.merge(st[["processid", "stepseq", "_ord"]],
@@ -1838,13 +1840,21 @@ def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
     out["recipe_id"] = np.where(pre.ne(""), pre,
                                 np.where(pem.ne(""), pem, rec))
 
-    # 설비 : 사전지정이 있으면 그 설비만, PEMS 지정이 있으면 그 목록만
+    # 설비 : 사전지정이 있으면 그 설비만, PEMS 지정이 있으면 그 목록만.
+    #   기본은 STEP 의 EQPGROUP 이고, 비어 있으면 EQPIDS 를 쓴다.
     grp = _fab_str(out.get("eqpgroup", pd.Series("", index=out.index)))
+    grp = grp.mask(grp.eq(""), _fab_str(
+        out.get("eqpids", pd.Series("", index=out.index))))
     lim = _fab_str(out["_pre_eqp"])
     pe = _fab_str(out.get("pems_chamberids", pd.Series("", index=out.index)))
     pe = pe.mask(pe.eq(""), _fab_str(
         out.get("pems_eqpids", pd.Series("", index=out.index))))
     eqp_raw = np.where(lim.ne(""), lim, np.where(pe.ne(""), pe, grp))
+    _got = int((pd.Series(eqp_raw).astype("string").fillna("").str.strip()
+                != "").sum())
+    print(f"[FABPLAN] 설비그룹 채워짐 {_got:,}/{len(out):,}"
+          f" (STEP {int(grp.ne('').sum()):,} · PEMS {int(pe.ne('').sum()):,}"
+          f" · 사전지정 {int(lim.ne('').sum()):,})", flush=True)
 
     return pd.DataFrame({
         "line": line,

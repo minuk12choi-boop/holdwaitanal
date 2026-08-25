@@ -1706,7 +1706,9 @@ QUERY_TIME 컬럼 (필수)
 --       layer / area / eqptype / recipe / skiprule.
 -- 줄이는 법
 --   1) REVSTATE = 'Active' 만.
---   2) 60여 개 컬럼 중 10개만.
+--   2) 60여 개 컬럼 중 14개만.
+--      EQPGROUP / EQPIDS 가 설비 경로다. 빠뜨리면 화면에서 설비가 비어 보인다.
+--      CATEGORY 는 HOTLOT SKIP 판정에 쓴다.
 --   3) stepseq_type 은 여기서 만들어 보낸다(파이썬 계산량을 줄인다).
 --      3번째 글자부터 숫자가 아니면 '기타', 숫자뿐이면 '메인'.
 SELECT TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS')  AS QUERY_TIME,
@@ -1714,9 +1716,12 @@ SELECT TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS')  AS QUERY_TIME,
        STEPSEQ,
        CASE WHEN REGEXP_LIKE(SUBSTR(STEPSEQ, 3), '[^0-9]')
             THEN '기타' ELSE '메인' END           AS STEPSEQ_TYPE,
-       SUBAREA                                    AS AREANAME,
+       AREANAME,
        EQPTYPE,
+       EQPGROUP,
+       EQPIDS,
        LAYERID,
+       CATEGORY,
        DESCRIPT,
        RECIPEID,
        DELAYTIME,
