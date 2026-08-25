@@ -2637,8 +2637,11 @@ def api_balance(request):
     grp_lay = {}          # 제품 -> 그 제품의 LAYER 집합
     grp_of = {}           # 줄 이름 -> 어느 제품에 속하는지
     prod_seen, plan_seen = set(), set()
-    lay_mod = {}          # LAYER -> 모듈1. x축 아래 경계 표시에 쓴다
+    lay_mod = {}          # LAYER -> 모듈1. 합산 한 줄에 쓴다
     lay_mod2 = {}         # LAYER -> 모듈2
+    # 모듈은 (PLAN, LAYER) 로 정해진다. 줄마다 따로 담아야
+    # 다른 PLAN 의 모듈이 섞이지 않는다.
+    grp_mod, grp_mod2 = {}, {}
     xf = _xfilters(request)
     f_area_b = [x for x in request.GET.get("f_area", "").split(",") if x]
     f_prod_b = [x for x in request.GET.get("f_prod", "").split(",") if x]
@@ -2701,6 +2704,9 @@ def api_balance(request):
         if not lay:
             continue
         layers.add(lay)
+        # 모듈은 (PLAN, LAYER) 로 정해진다. LAYER 하나만 보고 담으면
+        #   다른 PLAN 의 모듈이 먼저 들어와 엉뚱한 이름이 붙는다.
+        #   합산 한 줄에 쓸 값과, 줄마다 쓸 값을 따로 모은다.
         if r.get("module1"):
             lay_mod.setdefault(lay, r.get("module1"))
         if r.get("module2"):
@@ -2709,6 +2715,10 @@ def api_balance(request):
         # 제품 > PLAN 순서로 잇는다. 화면에서 제품을 굵게 쓴다.
         key = ">".join(str(r.get(c) or "-") for c in gcols)
         _bucket(by_plan.setdefault(key, {}).setdefault(lay, {}), st, q)
+        if r.get("module1"):
+            grp_mod.setdefault(key, {}).setdefault(lay, r.get("module1"))
+        if r.get("module2"):
+            grp_mod2.setdefault(key, {}).setdefault(lay, r.get("module2"))
         # 제품으로 나눌 때는 **그 제품이 실제로 있는 LAYER** 만 축으로 쓴다.
         #   PLAN 까지 나눠도 축은 제품 단위로 묶는다(줄끼리 견줄 수 있게).
         if "prod" in by:
@@ -2752,10 +2762,10 @@ def api_balance(request):
         return {st: [int(round(src.get(l, {}).get(st, {}).get("lots", 0)))
                      for l in ax] for st in sts}
 
-    def _bands(src):
-        """같은 값이 이어지는 구간을 묶는다."""
+    def _bands(src, ax=None):
+        """같은 값이 이어지는 구간을 묶는다. ax 는 그 줄의 x축."""
         out, cur = [], None
-        for i2, l in enumerate(xs):
+        for i2, l in enumerate(ax if ax is not None else xs):
             m = src.get(l)
             if cur and cur["name"] == m:
                 cur["to"] = i2
@@ -2764,13 +2774,17 @@ def api_balance(request):
                 out.append(cur)
         return [b for b in out if b["name"]]
 
-    bands = _bands(lay_mod)
-    bands2 = _bands(lay_mod2)
-    # 모듈2 가 모듈1 과 똑같으면 굳이 두 단을 그리지 않는다.
-    if len(bands) == len(bands2) and all(
-            a["name"] == b["name"] and a["from"] == b["from"]
-            and a["to"] == b["to"] for a, b in zip(bands, bands2)):
-        bands2 = []
+    def _pair(m1, m2, ax=None):
+        """모듈1 · 모듈2 구간. 둘이 같으면 모듈2 는 비운다."""
+        b1 = _bands(m1, ax)
+        b2 = _bands(m2, ax)
+        if len(b1) == len(b2) and all(
+                a["name"] == b["name"] and a["from"] == b["from"]
+                and a["to"] == b["to"] for a, b in zip(b1, b2)):
+            b2 = []
+        return b1, b2
+
+    bands, bands2 = _pair(lay_mod, lay_mod2)
 
     return JsonResponse({
         "layers": xs, "by": ",".join(by),
@@ -2784,7 +2798,13 @@ def api_balance(request):
                    # 줄마다 제 x축을 함께 내려보낸다(제품별 LAYER 가 다르다).
                    "layers": axis_of(p), "group": grp_of.get(p),
                    "qty": pack(by_plan[p], axis_of(p)),
-                   "lots": packl(by_plan[p], axis_of(p))}
+                   "lots": packl(by_plan[p], axis_of(p)),
+                   # 모듈은 그 줄(PLAN)의 기준정보만 쓴다. 전체를 합쳐 쓰면
+                   # 다른 PLAN 의 모듈이 섞여 이름과 범위가 어긋난다.
+                   "modules": _pair(grp_mod.get(p, {}),
+                                    grp_mod2.get(p, {}), axis_of(p))[0],
+                   "modules2": _pair(grp_mod.get(p, {}),
+                                     grp_mod2.get(p, {}), axis_of(p))[1]}
                   for p in sorted(by_plan, key=rank)],
     }, json_dumps_params={"ensure_ascii": False})
 

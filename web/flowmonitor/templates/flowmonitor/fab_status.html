@@ -1549,8 +1549,11 @@ function drawBalance() {
                아래  모듈1
              겹치지 않게 단마다 자리를 따로 잡는다. */
           afterDraw(ch) {
-            const b1 = (BAL_DATA && BAL_DATA.modules) || [];
-            const b2 = (BAL_DATA && BAL_DATA.modules2) || [];
+            // 줄마다 제 모듈을 쓴다. 펼친 뒤에는 그 PLAN 의 기준정보만
+            // 보여야 한다(전체를 합쳐 쓰면 다른 PLAN 것이 섞인다).
+            const own = ch.$mod;
+            const b1 = (own ? own.m1 : (BAL_DATA && BAL_DATA.modules)) || [];
+            const b2 = (own ? own.m2 : (BAL_DATA && BAL_DATA.modules2)) || [];
             if (!b1.length && !b2.length) { return; }
             const meta = ch.getDatasetMeta(0).data;
             if (!meta.length) { return; }
@@ -1624,6 +1627,9 @@ function drawBalance() {
       balCharts[i].data.labels = axOf(r);
       balCharts[i].data.datasets = datasets;
     }
+    // 펼친 줄이면 그 줄의 모듈을, 합산 한 줄이면 전체 모듈을 쓴다.
+    balCharts[i].$mod = (BAL_OPEN && r.modules)
+      ? { m1: r.modules, m2: r.modules2 || [] } : null;
     balCharts[i].$tot = tot;
     const bk = (DF.layer || []).map(v => axOf(r).indexOf(v)).filter(k => k >= 0);
     const bd = (DF.status || []).map(n => sts.findIndex(x => x.name === n))
