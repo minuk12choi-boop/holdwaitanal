@@ -568,6 +568,12 @@
   /* 기준정보 */
   /* 기준정보는 컬럼이 많아 가로를 다 쓴다. 카드는 아래로 쌓인다. */
   .std { padding:18px; max-width:none; }
+  /* 지금 반영 · 과거까지 두 버튼을 한 덩어리로 둔다. */
+  .applybtns { display:inline-flex; align-items:center; gap:6px; }
+  .daysel { border:1px solid var(--bd); border-radius:5px; padding:3px 6px;
+            font-size:11px; background:#fff; color:var(--fg);
+            cursor:pointer; }
+
   .std table { border-collapse:collapse; width:100%; font-size:13px;
                margin-bottom:16px; }
   .std th, .std td { border-bottom:1px solid var(--bd); padding:6px 8px;

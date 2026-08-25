@@ -620,6 +620,9 @@ UPDATES = [
                   "더 보여 줍니다. 둘이 섞여 있을 때만 나뉩니다."},
             {"t": "드릴다운 표의 제약원인에도 User Hold(사유) · "
                   "SYS Hold(사유) 로 적습니다."},
+            {"t": "기준정보에 '과거까지' 를 더했습니다. 규칙을 바꾸면 "
+                  "지난 이력도 새 규칙으로 다시 맞춥니다. 기간은 "
+                  "7일 · 30일 · 90일 · 1년 중에 고릅니다."},
             {"t": "기준정보에 제품구분 카드를 더했습니다. lot_id 의 글자와 "
                   "PLAN 으로 제품명을 정하며, 여기서 정해지지 않은 것만 "
                   "기존 SSPS 제품명을 씁니다."},
@@ -2458,6 +2461,59 @@ def _apply_standards():
     return hit, len(seen)
 
 
+def _apply_standards_history(days=90, progress=None):
+    """기준정보를 **과거 스냅샷(f3_history)** 에도 다시 반영한다.
+
+    '바로 반영' 은 지금 화면(f3_live)만 고친다. 규칙을 바꾸면 과거 조회
+    결과는 옛 규칙 그대로라 앞뒤가 안 맞는다. 이 함수가 그것을 맞춘다.
+
+    스냅샷이 많아 한 번에 읽으면 메모리가 버티지 못한다. 스냅샷 단위로
+    끊어 처리하고, 값이 바뀐 행만 갱신한다.
+    """
+    if not _table_exists("f3_history"):
+        return {"ok": False, "reason": "과거 이력이 없습니다"}
+    ht = _holdtype_rules()
+    if not ht:
+        return {"ok": False, "reason": "HOLD 유형 기준정보가 비어 있습니다"}
+
+    since = _biz_today() - dt.timedelta(days=max(1, int(days)))
+    with connection.cursor() as cur:
+        cur.execute("SELECT DISTINCT snapshot_at FROM f3_history "
+                    "WHERE biz_date >= %s ORDER BY snapshot_at", [since])
+        snaps = [r[0] for r in cur.fetchall()]
+
+        done = changed = hit = 0
+        for snap in snaps:
+            cur.execute(
+                "SELECT lot_id, `line`, hold, hold_reason, ftp, ftp_reason,"
+                " exception, exception_reason, cause_detail"
+                " FROM f3_history WHERE snapshot_at=%s", [snap])
+            names = [d[0] for d in cur.description]
+            recs = [dict(zip(names, r)) for r in cur.fetchall()]
+
+            upd, seen = [], {}
+            for r in recs:
+                lot = r["lot_id"]
+                if lot in seen:
+                    continue
+                v = holdtype_of(r, ht)
+                seen[lot] = v
+                if v != r.get("cause_detail"):     # 바뀐 것만 쓴다
+                    upd.append((v, snap, lot))
+            if upd:
+                cur.executemany(
+                    "UPDATE f3_history SET cause_detail=%s "
+                    "WHERE snapshot_at=%s AND lot_id=%s", upd)
+                changed += len(upd)
+            hit += sum(1 for v in seen.values() if v)
+            done += 1
+            if progress and done % 20 == 0:
+                progress(done, len(snaps))
+
+    return {"ok": True, "snapshots": len(snaps),
+            "changed": changed, "matched": hit, "days": int(days)}
+
+
 @csrf_exempt
 @ensure_csrf_cookie
 def standards(request):
@@ -2473,6 +2529,20 @@ def standards(request):
         # 카드별이 아니라 기준정보 전체를 현재 스냅샷에 반영한다.
         hit, tot = _apply_standards()
         msg = f"기준정보를 f3_live 에 반영했습니다. 원인 유형 {hit:,}/{tot:,} LOT"
+    elif request.method == "POST" and request.POST.get("card") == "__apply_hist__":
+        # 과거 스냅샷까지 다시 맞춘다. 규칙을 바꾸면 옛 조회 결과가
+        # 옛 규칙 그대로라 앞뒤가 안 맞는다.
+        try:
+            days = int(request.POST.get("days") or 90)
+        except ValueError:
+            days = 90
+        r = _apply_standards_history(days)
+        if r.get("ok"):
+            msg = (f"과거 {r['days']}일에도 반영했습니다. "
+                   f"스냅샷 {r['snapshots']:,}개 · 바뀐 행 {r['changed']:,} · "
+                   f"원인 유형 {r['matched']:,} LOT")
+        else:
+            msg = f"과거 반영을 하지 못했습니다: {r.get('reason')}"
     elif request.method == "POST":
         key = request.POST.get("card")
         card = next((c for c in STD_CARDS if c["key"] == key), None)

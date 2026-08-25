@@ -61,9 +61,20 @@
     <div>
       <b>지금 반영</b>
       <span class="minittl">저장한 기준정보를 현재 스냅샷(f3_live)에 즉시
-        적용합니다. 누르지 않아도 다음 배치에서 자동 반영됩니다.</span>
+        적용합니다. 누르지 않아도 다음 배치에서 자동 반영됩니다.<br>
+        <b>과거까지</b> 는 지난 스냅샷(f3_history)도 새 규칙으로 다시
+        맞춥니다. 과거 조회 결과가 옛 규칙 그대로면 앞뒤가 안 맞습니다.</span>
     </div>
-    <button class="btn pri" onclick="stdApply()">지금 반영</button>
+    <span class="applybtns">
+      <button class="btn pri" onclick="stdApply()">지금 반영</button>
+      <select id="histDays" class="daysel" title="되돌아갈 기간">
+        <option value="7">7일</option>
+        <option value="30">30일</option>
+        <option value="90" selected>90일</option>
+        <option value="365">1년</option>
+      </select>
+      <button class="btn" onclick="stdApplyHist()">과거까지</button>
+    </span>
   </div>
 
   {% for c in cards %}
@@ -109,6 +120,7 @@
 
   <form method="post" id="stdForm" style="display:none">{% csrf_token %}
     <input type="hidden" name="card" id="f_card">
+    <input type="hidden" name="days" id="f_days">
     <input type="hidden" name="rows" id="f_rows">
     <input type="hidden" name="apply" id="f_apply">
   </form>
@@ -415,6 +427,19 @@ function fallbackCopy(text, done) {
 function stdApply() {
   document.getElementById("f_card").value = "__apply__";
   document.getElementById("f_rows").value = "[]";
+  document.getElementById("stdForm").submit();
+}
+
+// 과거 스냅샷까지 다시 맞춘다. 되돌릴 수 없으므로 한 번 묻는다.
+function stdApplyHist() {
+  const d = document.getElementById("histDays").value;
+  if (!confirm(`지난 ${d}일의 과거 이력을 새 기준정보로 다시 맞춥니다.\n`
+             + `되돌릴 수 없고, 기간이 길면 몇 분 걸립니다. 계속할까요?`)) {
+    return;
+  }
+  document.getElementById("f_card").value = "__apply_hist__";
+  document.getElementById("f_rows").value = "[]";
+  document.getElementById("f_days").value = d;
   document.getElementById("stdForm").submit();
 }
 
