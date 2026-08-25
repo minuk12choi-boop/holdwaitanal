@@ -1,10 +1,2 @@
-console.table(window.__bootTrace())
-VM131:1 Uncaught TypeError: window.__bootTrace is not a function
-    at <anonymous>:1:22
-[NEW] Explain Console errors by using Copilot in Edge: click 
- to explain an error. Learn more
-Don't show again
-console.table(window.__bootTrace())
-VM135:1 Uncaught TypeError: window.__bootTrace is not a function
-    at <anonymous>:1:22
-(anonymous)	@	VM135:1
+Not Found: /static/flowmonitor/chart.umd.js.map
+WARNING:django.request:Not Found: /static/flowmonitor/chart.umd.js.map
