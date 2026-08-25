@@ -1003,6 +1003,12 @@
     if (url.indexOf("/api/debug-layout/") >= 0) {
       return orig.apply(this, arguments);
     }
+    // 요약처럼 오래 걸리는 조회는 화면을 가리지 않는다.
+    //   부르는 쪽이 __noBusy 를 올려 두면 이 요청은 세지 않는다.
+    if (window.__noBusy) {
+      mark("fetch 시작(가리지 않음)", url.split("?")[0]);
+      return orig.apply(this, arguments);
+    }
     n++;
     mark("fetch 시작", url.split("?")[0] + "  (동시 " + n + ")");
     show();

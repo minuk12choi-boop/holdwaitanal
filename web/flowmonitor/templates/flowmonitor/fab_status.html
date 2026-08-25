@@ -2925,17 +2925,20 @@ function loadTrend() {
     + "&plan=" + encodeURIComponent(PLANS.join(","))
     + "&biz_date=" + encodeURIComponent(SNAP_DATE || "");
   // 이 조회는 오래 걸린다. 화면 전체를 덮지 않고 이 카드만 흐리게 한다.
+  //   __noBusy 를 fetch **전에** 올려야 가림막이 켜지지 않는다.
   box.classList.add("upd");
   window.__noBusy = (window.__noBusy || 0) + 1;
-  fetch("/api/trend/?" + q).then(r => r.json()).then(d => {
+  const done = () => {
     window.__noBusy = Math.max(0, window.__noBusy - 1);
     box.classList.remove("upd");
+  };
+  fetch("/api/trend/?" + q).then(r => r.json()).then(d => {
+    done();
     if (seq !== TREND_SEQ) { return; }          // 지난 요청은 버린다
     TREND = d;
     renderTrend();
   }).catch(() => {
-    window.__noBusy = Math.max(0, window.__noBusy - 1);
-    box.classList.remove("upd");
+    done();
     if (seq !== TREND_SEQ) { return; }
     sub.textContent = "추이 데이터를 불러오지 못했습니다";
   });
@@ -4457,13 +4460,15 @@ function loadSummary(keepFocus) {
       renderWip(); renderStatus(); renderWt(); renderWt0(); renderArea();
       renderCause();
       renderInsight();
-      loadTrend();               // 추이는 따로. 화면을 막지 않는다.
       dbgMark("요약 갱신");
       requestAnimationFrame(() => {
         syncLeftHeight();
         dbgSnapshot("요약 갱신");
         // 첫 화면은 여기까지 그려야 완성이다. 그때 가림막을 걷는다.
         if (window.__bootDone) { window.__bootDone(); }
+        // 추이는 **가림막을 걷은 뒤에** 부른다. 먼저 부르면 그 조회가
+        // 첫 화면 대기에 얹혀 '불러오는 중' 이 끝나지 않는다.
+        loadTrend();
       });
       if (location.search.indexOf("debug=layout") >= 0) {
         setTimeout(checkLayout, 800);      // 차트가 그려진 뒤에 잰다
