@@ -80,6 +80,13 @@
 
     <!-- status 뷰 -->
     <div class="cell" id="stcard">
+      <div class="sttop">
+        <span class="seg stbase">
+          <button id="stb_qty" class="on"
+                  onclick="setStatusBase('qty')">매수</button>
+          <button id="stb_lots" onclick="setStatusBase('lots')">LOT</button>
+        </span>
+      </div>
       <div class="donut">
         <div class="legend" id="lg"></div>
         <div class="cv"><canvas id="dn"></canvas></div>
@@ -694,17 +701,40 @@ const sliceLabels = {
     ctx.save();
     ctx.font = "600 10px 'Poppins','Noto Sans KR',sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    // 비율은 고른 기준(매수 또는 LOT)으로 다시 낸다.
+    const tot = st.reduce((a2, x) => a2 + (x[ST_BASE] || 0), 0);
     ch.getDatasetMeta(0).data.forEach((arc, k) => {
       const v = st[k];
-      if (!v || v.pct < 6) return;
+      if (!v || !tot) { return; }
+      const p = (v[ST_BASE] || 0) / tot * 100;
+      if (p < 6) { return; }
       const a = (arc.startAngle + arc.endAngle) / 2;
       const r = arc.outerRadius * 0.62;
       ctx.fillStyle = "#fff";
-      ctx.fillText(v.pct + "%", arc.x + Math.cos(a) * r, arc.y + Math.sin(a) * r);
+      ctx.fillText(p.toFixed(1) + "%",
+                   arc.x + Math.cos(a) * r, arc.y + Math.sin(a) * r);
     });
     ctx.restore();
   }
 };
+
+// 원차트 기준. 기본은 매수다. LOT 으로도 볼 수 있다.
+let ST_BASE = "qty";
+
+// 그 상태가 전체에서 차지하는 비율. 고른 기준으로 낸다.
+function stPct(st) {
+  const all = (DATA && DATA.status) || [];
+  const tot = all.reduce((a, x) => a + (x[ST_BASE] || 0), 0);
+  return tot ? ((st[ST_BASE] || 0) / tot * 100) : 0;
+}
+
+function setStatusBase(v) {
+  ST_BASE = v;
+  ["qty", "lots"].forEach(k =>
+    document.getElementById("stb_" + k).className =
+      (ST_BASE === k) ? "on" : "");
+  renderStatus();
+}
 
 function setStatusInfo() {
   const d = DATA;
@@ -714,7 +744,10 @@ function setStatusInfo() {
   let names, pct, lots, qty, color;
   if (!picked.length) {
     names = [d.default.label];
-    pct = d.default.pct; lots = d.default.lots; qty = d.default.qty;
+    lots = d.default.lots; qty = d.default.qty;
+    // 비율도 고른 기준으로 다시 낸다.
+    const tot = (d.status || []).reduce((a, x) => a + (x[ST_BASE] || 0), 0);
+    pct = tot ? ((ST_BASE === "qty" ? qty : lots) / tot * 100) : 0;
     color = d.default.color || BRAND;
   } else {
     // 여러 개를 고르면 합계를 보여 준다. 이름은 줄바꿈해 나열한다.
@@ -723,8 +756,8 @@ function setStatusInfo() {
     qty = picked.reduce((a, x) => a + x.qty, 0);
     // total 은 '조건이 걸린 뒤' 의 합이라 분모로 쓰면 늘 100% 가 된다.
     // 원차트 제 합계로 나눈다.
-    const stTot = (d.status || []).reduce((a, x) => a + x.lots, 0);
-    pct = stTot ? (lots / stTot * 100) : 0;
+    const stTot = (d.status || []).reduce((a, x) => a + (x[ST_BASE] || 0), 0);
+    pct = stTot ? ((ST_BASE === "qty" ? qty : lots) / stTot * 100) : 0;
     color = picked.length === 1 ? picked[0].color : BRAND;
   }
   document.getElementById("dt").innerHTML =
@@ -763,7 +796,7 @@ function dnTooltip(ctx) {
   const i = (tt.dataPoints && tt.dataPoints[0]) ? tt.dataPoints[0].dataIndex : -1;
   const st = ((ctx.chart.$status || [])[i]) || {};
   el.innerHTML = `<i style="background:${st.color}"></i>${st.name}`
-    + `<b>${st.pct}%</b>${nf(st.lots)} LOT · ${nf(st.qty)} 매`;
+    + `<b>${stPct(st).toFixed(1)}%</b>${nf(st.lots)} LOT · ${nf(st.qty)} 매`;
 
   const box = ctx.chart.canvas.getBoundingClientRect();
   el.style.opacity = "1";
@@ -783,7 +816,7 @@ function renderStatus() {
     dnChart = new Chart(document.getElementById("dn"), {
       type: "doughnut",
       data: { labels: d.status.map(s => s.name),
-              datasets: [{ data: d.status.map(s => s.lots),
+              datasets: [{ data: d.status.map(s => s[ST_BASE] || 0),
                            backgroundColor: d.status.map(s => s.color),
                            borderWidth: 0 }] },
       options: {
@@ -803,7 +836,8 @@ function renderStatus() {
     });
   }
   dnChart.data.labels = d.status.map(s => s.name);
-  dnChart.data.datasets[0].data = d.status.map(s => s.lots);
+  // 조각 크기도 고른 기준을 따른다(매수 또는 LOT).
+  dnChart.data.datasets[0].data = d.status.map(s => s[ST_BASE] || 0);
   dnChart.data.datasets[0].backgroundColor = d.status.map(s => s.color);
   dnChart.$status = d.status;
   // 고른 상태를 전부 표시한다(Ctrl 로 여러 개 고를 수 있다).
