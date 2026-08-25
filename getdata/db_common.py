@@ -691,6 +691,18 @@ def replace_move(conn, df_shift, df_daily, biz_dates, df_lot=None,
                  for r in df_lot.itertuples(index=False)])
 
         if df_step is not None and len(df_step):
+            # PK 가 겹치면 통째로 실패한다. 같은 키는 미리 합친다.
+            key = ["biz_date", "shift", "sys_line_id", "prod2", "proc_id",
+                   "step_seq"]
+            if df_step.duplicated(key).any():
+                n0 = len(df_step)
+                df_step = (df_step.groupby(key, as_index=False, dropna=False)
+                           .agg({"layer_id": "first", "module1": "first",
+                                 "area": "first", "move_qty": "sum",
+                                 "normal_qty": "sum", "rework_qty": "sum",
+                                 "lot_cnt": "sum"}))
+                print(f"[MOVE] 스텝 중복 합침 {n0:,} -> {len(df_step):,}행",
+                      flush=True)
             cur.executemany(
                 "INSERT INTO f3_move_step "
                 "(biz_date, shift, sys_line_id, prod2, proc_id, step_seq, "

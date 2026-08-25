@@ -239,12 +239,22 @@ def aggregate(df, ts_from, ts_to):
                 gg["_p"] = gg["_p"].mask(gg["_p"].eq(""), "-")
                 gg["_n"] = gg["move"].where(~gg["is_rework"], 0)
                 gg["_r"] = gg["move"].where(gg["is_rework"], 0)
-                agg = (gg.groupby(["_p", "process_id", "step_seq", "layer_id"],
+                # PK 는 (제품, PLAN, step_seq) 다. layer_id 를 키에 넣으면
+                # 같은 REWORK 스텝이 lot 마다 다른 LAYER 를 물려받아
+                # 같은 PK 로 여러 행이 생겨 충돌한다.
+                # LAYER 는 대표값(가장 많이 나온 것) 하나만 남긴다.
+                agg = (gg.groupby(["_p", "process_id", "step_seq"],
                                   dropna=False, as_index=False)
                          .agg(move_qty=("move", "sum"),
                               normal_qty=("_n", "sum"),
                               rework_qty=("_r", "sum"),
                               lot_cnt=("lot_id", "nunique")))
+                lay = (gg.groupby(["_p", "process_id", "step_seq"],
+                                  dropna=False)["layer_id"]
+                         .agg(lambda x: x.mode().iat[0] if len(x.mode()) else None)
+                         .reset_index().rename(columns={"layer_id": "layer_id"}))
+                agg = agg.merge(lay, on=["_p", "process_id", "step_seq"],
+                                how="left")
                 for _, a in agg.iterrows():
                     step_rows.append({
                         "biz_date": bd, "shift": shift, "sys_line_id": line,
