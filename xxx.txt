@@ -1,5 +1,1 @@
--- Oracle (A · B · C)
-SELECT TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') AS QUERY_TIME, ...
-
--- Impala (D · E)
-SELECT FROM_TIMESTAMP(NOW(), 'yyyy-MM-dd HH:mm:ss') AS query_time, ...
+powershell -ExecutionPolicy Bypass -File scripts\run_migrations.ps1
