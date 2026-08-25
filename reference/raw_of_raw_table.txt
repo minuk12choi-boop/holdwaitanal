@@ -212,19 +212,23 @@ WHERE      l.last_event_date = l.max_event_date
 --    #1 과 datasource 가 달라 따로 부른다. 라인은 LINE 컬럼으로 구분한다.
 --    python 이 lot 결과에 (line, lot_id) 로 LEFT JOIN 해 fa_object4 를 붙인다.
 --------------------------------------------------------------------------------
-SELECT 'PFR1' AS line,
+SELECT TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') AS query_time,
+       'PFR1' AS line,
        lotid  AS lot_id,
        fa_object4
 FROM   smicdc_p3nrd.materialworkstatus
 UNION ALL
-SELECT
-       TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') AS query_time,
-      'KFR7' AS line,
+SELECT TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') AS query_time,
+       'KFR7' AS line,
        lotid  AS lot_id,
        fa_object4
 FROM   smicdc_nrdk.materialworkstatus
 ;
 
+--------------------------------------------------------------------------------
+-- [UNION ALL 주의] 두 블록의 **컬럼 수와 순서가 같아야** 한다.
+--    다르면 ORA-01789(부정확한 블록/열 수). QUERY_TIME 을 한쪽에만 넣어
+--    생기는 실수가 잦다. 양쪽 첫 컬럼에 똑같이 둔다.
 --------------------------------------------------------------------------------
 -- 3) PFR1_KFR7_STEP_PATH: smicdc_p3nrd.mc_lot_step_path, smicdc_nrdk.mc_lot_step_path *호출시간: 62초
 --    대상 lot(Active/Hold) 만 추리고 **order_seq 로는 자르지 않는다.**
@@ -236,9 +240,9 @@ FROM   smicdc_nrdk.materialworkstatus
 --    (build_f3.narrow_step_to_scope). 두 값이 같은 스냅샷에서 나오므로
 --    어긋나지 않는다.
 --------------------------------------------------------------------------------
-SELECT 
-'PFR1' AS LINE_ID, 
-p.lot_id,
+SELECT TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') AS query_time,
+       'PFR1' AS line_id,
+       p.lot_id,
        p.order_seq,
        p.proc_id,
        p.step_seq,
@@ -261,10 +265,9 @@ WHERE  p.lot_id = c.lot_id
 
 UNION ALL
 
-SELECT 
-       TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') AS query_time,
-	'KFR7' AS LINE_ID, 
-	p.lot_id,
+SELECT TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') AS query_time,
+       'KFR7' AS line_id,
+       p.lot_id,
        p.order_seq,
        p.proc_id,
        p.step_seq,
