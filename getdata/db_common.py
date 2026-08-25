@@ -545,13 +545,31 @@ def ensure_move_schema(conn):
 # 적재
 # ---------------------------------------------------------------------------
 def _rows(df, columns):
-    """VARCHAR 컬럼은 정의 길이에 맞춰 자른다(TEXT 는 자르지 않음)."""
+    """VARCHAR 컬럼은 정의 길이에 맞춰 자른다(TEXT 는 자르지 않음).
+
+    자른 사실을 조용히 넘기면 화면에서 값이 잘린 줄 모른다.
+    어느 컬럼이 몇 건 잘렸는지 남긴다. 잦으면 TEXT_COLUMNS 에 넣는다.
+    """
     limits = [None if c in TEXT_COLUMNS else SHORT_LEN for c in columns]
+    cut = {}
     out = []
     for r in df[columns].itertuples(index=False, name=None):
-        out.append(tuple(None if _isna(v) else
-                         (str(v) if lim is None else str(v)[:lim])
-                         for v, lim in zip(r, limits)))
+        row = []
+        for c, v, lim in zip(columns, r, limits):
+            if _isna(v):
+                row.append(None)
+                continue
+            t = str(v)
+            if lim is not None and len(t) > lim:
+                cut[c] = cut.get(c, 0) + 1
+                t = t[:lim]
+            row.append(t)
+        out.append(tuple(row))
+    if cut:
+        top = ", ".join(f"{k} {v:,}건" for k, v in
+                        sorted(cut.items(), key=lambda x: -x[1])[:5])
+        print(f"[CUT] {SHORT_LEN}자를 넘어 잘린 값: {top}"
+              f"  (자주 잘리면 TEXT_COLUMNS 에 넣으세요)", flush=True)
     return out
 
 
@@ -619,8 +637,36 @@ def promote_to_history(conn, columns, now=None):
             "(biz_date, shift, snapshot_at, dist_sec, row_count, loaded_at) "
             "VALUES (%s,%s,%s,%s,%s,%s)",
             (bd, shift, snap, dist, n, dt.datetime.now()))
+        _purge_history(cur, bd)
     conn.commit()
     return bd, shift, snap, dist
+
+
+# 과거 이력 보관 기간. 하루 6만 행 남짓이라 1년이면 2천만 행이 넘는다.
+#   화면은 60일치만 목록에 올리므로 그보다 넉넉히 두되 무한히 쌓지는 않는다.
+HISTORY_KEEP_DAYS = 400
+
+
+def _purge_history(cur, bd):
+    """보관 기간을 넘은 이력을 지운다.
+
+    쌓아 두기만 하면 조회가 느려지고 디스크가 찬다. 지운 뒤에는
+    메타도 함께 정리해 목록에 빈 날짜가 남지 않게 한다.
+    """
+    cut = bd - dt.timedelta(days=HISTORY_KEEP_DAYS)
+    cur.execute("DELETE FROM f3_history WHERE biz_date < %s", (cut,))
+    n = cur.rowcount
+    cur.execute("DELETE FROM f3_history_meta WHERE biz_date < %s", (cut,))
+    for t in ("f3_wip_step", "f3_move_step", "f3_move_lot"):
+        try:
+            cur.execute(f"DELETE FROM {t} WHERE biz_date < %s", (cut,))
+            n += cur.rowcount
+        except Exception:
+            pass                      # 아직 없는 테이블은 넘어간다
+    if n:
+        print(f"[PURGE] {cut} 이전 이력 {n:,}행 정리 "
+              f"(보관 {HISTORY_KEEP_DAYS}일)", flush=True)
+    return n
 
 
 def snap_wip_step(conn, snap, bd, shift):
