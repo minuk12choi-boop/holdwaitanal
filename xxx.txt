@@ -1,3 +1,4 @@
 const b=document.querySelector('.hmbox'), t=b.querySelector('.hmt');
-console.log('팝업', b.getBoundingClientRect().width, '표', t.getBoundingClientRect().width);
-VM281:2 팝업 0 표 0
+console.log('팝업', b.getBoundingClientRect().width,
+            '표', t.getBoundingClientRect().width,
+            '본문', b.querySelector('.hmbody').scrollWidth);
