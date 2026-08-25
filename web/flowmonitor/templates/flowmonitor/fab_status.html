@@ -201,6 +201,8 @@
               <button onclick="toggleProd('hmdl')" id="hmlb">PLAN 전체 &#9662;</button>
               <div class="menu" id="hmlm"></div>
             </div>
+            <button class="btn" id="hmCopy" onclick="copyHeat()"
+                    title="엑셀에 그대로 붙여넣을 수 있습니다">복사</button>
             <button class="btn" onclick="closeHeat()">닫기</button>
           </div>
         </div>
@@ -3076,6 +3078,45 @@ function loadHeat() {
     }
     renderHeat();
   });
+}
+
+// 표를 탭으로 이어 붙여 복사한다. 엑셀에 그대로 붙는다.
+//   화면은 k 단위로 줄여 쓰지만 복사는 실제 값(1342)을 넣는다.
+function copyHeat() {
+  const d = HEAT.data || {};
+  if (!d.ready || !(d.keys || []).length) { return; }
+  const head = [(d.axis === "layer") ? "LAYER" : "STEP"].concat(d.dates);
+  const body = d.keys.map((k, i) => [k].concat(d.rows[i]));
+  const txt = [head].concat(body).map(r => r.join("\t")).join("\n");
+
+  const done = (ok) => {
+    const b = document.getElementById("hmCopy");
+    if (!b) { return; }
+    const keep = b.textContent;
+    b.textContent = ok ? "복사됨" : "복사 실패";
+    setTimeout(() => { b.textContent = keep; }, 1200);
+  };
+
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(txt).then(() => done(true),
+                                           () => fallback(txt, done));
+  } else {
+    fallback(txt, done);
+  }
+}
+
+// http 로 열면 clipboard API 가 막힌다. 그때는 옛 방식으로 복사한다.
+function fallback(txt, done) {
+  const ta = document.createElement("textarea");
+  ta.value = txt;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  done(ok);
 }
 
 function heatColor(v, mx) {

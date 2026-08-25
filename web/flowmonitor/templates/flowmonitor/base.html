@@ -220,8 +220,6 @@
   /* 팝업 폭은 기간에 맞춘다. 7일인데 30일 폭이면 여백만 남는다.
      fit-content 로 표 크기를 따라가되, 넘치면 상한에서 멈추고
      본문 안에서만 가로로 굴린다. 도구줄이 밀리지 않게 min-width 를 둔다. */
-  .hmbox { width:fit-content; min-width:560px;
-           max-width:min(1280px, 100%); }
   .hmtools { display:flex; align-items:center; gap:8px; }
   /* 위 여백을 두면 sticky 헤더 위쪽에 틈이 생겨 셀이 그 사이로 지나간다.
      여백은 표 안쪽(첫 행 padding)으로 옮긴다. */
@@ -270,6 +268,14 @@
   .updbox { background:#fff; border-radius:8px; width:min(900px, 100%);
             max-height:86vh; display:flex; flex-direction:column;
             box-shadow:0 12px 40px rgba(0,0,0,.25); }
+  /* 히트맵은 표 크기에 맞춘다. .updbox 의 고정 폭을 덮어야 하므로
+     반드시 그 규칙 **뒤에** 둔다. */
+  /* 7일이면 좁게, 30일이면 넓게. 도구줄이 길어 최소 폭만 지킨다. */
+  .updbox.hmbox { width:fit-content; min-width:520px;
+                  max-width:min(1400px, 100%); }
+  /* 도구줄이 팝업 폭을 늘리지 않도록 넘치면 줄바꿈한다. */
+  .hmbox .updtop { flex-wrap:wrap; gap:6px; }
+  .hmbox .hmtools { flex-wrap:wrap; }
   .updtop { display:flex; align-items:center; justify-content:space-between;
             padding:12px 16px; border-bottom:1px solid var(--bd); }
   .updtop b { font-family:var(--f-title); font-size:16px; }
