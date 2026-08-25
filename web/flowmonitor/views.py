@@ -1513,7 +1513,19 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
     if hist:
         if not _table_exists("f3_history"):
             return [], None
+        # 화면에 '적재시각' 으로 그대로 나가는 값이다. "8/24 SW" 처럼
+        # 뭉뚱그리지 말고 그 스냅샷의 실제 시각을 쓴다.
         snap = f"{biz_date} {shift}"
+        try:
+            with connection.cursor() as cur:
+                cur.execute(
+                    "SELECT MAX(snapshot_at) FROM f3_history "
+                    "WHERE biz_date=%s AND shift=%s", (biz_date, shift))
+                got = cur.fetchone()
+            if got and got[0]:
+                snap = got[0]
+        except Exception:
+            pass
     else:
         snap = _latest_snapshot()
         if not snap:
