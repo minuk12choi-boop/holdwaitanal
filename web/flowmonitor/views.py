@@ -2662,20 +2662,23 @@ def _ssps_rules():
 
 
 def ssps_of(row, rules):
-    """SSPS 기준의 제품명. 못 찾으면 None."""
+    """SSPS 기준의 제품명. 못 찾으면 None.
+
+    배치(build_f3.attach_prod)와 **같은 규칙**이어야 한다.
+      line_id · lot_type 은 정확히 일치해야 한다(와일드카드 없음).
+      lot_id 앞부분이 id 와 같아야 하고, 긴 id 가 이긴다.
+    """
     lot = str(row.get("lot_id") or "").upper()
     line = str(row.get("line") or "").upper()
     lt = str(row.get("lot_type") or "").upper()
     got = None
-    for r in rules:
+    for r in rules:                       # 짧은 것부터라 마지막이 가장 김
         pid = str(r["id"] or "").strip().upper()
         if not pid or not lot.startswith(pid):
             continue
-        if str(r["line_id"] or "").strip() and \
-                str(r["line_id"]).strip().upper() != line:
+        if str(r["line_id"] or "").strip().upper() != line:
             continue
-        if str(r["lot_type"] or "").strip() and \
-                str(r["lot_type"]).strip().upper() != lt:
+        if str(r["lot_type"] or "").strip().upper() != lt:
             continue
         got = str(r["prod2"]).strip()
     return got

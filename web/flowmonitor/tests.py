@@ -6,7 +6,9 @@
 
     cd web && python manage.py test flowmonitor
 """
+import os
 import re
+import sys
 from pathlib import Path
 
 from django.test import SimpleTestCase
@@ -210,3 +212,74 @@ class TemplateJsTest(SimpleTestCase):
         css = (TPL_DIR / "base.html").read_text(encoding="utf-8")
         missing = [r for r in self.REQUIRED_CSS if r not in css]
         self.assertEqual(missing, [], f"base.html: 사라진 CSS {missing}")
+
+
+class StdRuleParityTest(SimpleTestCase):
+    """웹과 배치가 **같은 판정**을 하는지 본다.
+
+    같은 규칙이 두 벌로 있다(views.py / build_f3.py). 한쪽만 고치면
+    화면과 적재 결과가 어긋난다. 실제로 여러 번 그랬다.
+    이 테스트는 값 없이 로직만 비교하므로 사내 데이터가 필요 없다.
+    """
+
+    @staticmethod
+    def _pipeline():
+        import importlib.util
+        import types
+        import pandas as pd
+        gd = str(Path(__file__).resolve().parents[2] / "getdata")
+        for m in ("s3_source", "bigdataquery"):
+            sys.modules.setdefault(m, types.ModuleType(m))
+        if "db_common" not in sys.modules:
+            db = types.ModuleType("db_common")
+            db.to_datetime = lambda x: pd.to_datetime(x, errors="coerce")
+            sys.modules["db_common"] = db
+        spec = importlib.util.spec_from_file_location(
+            "_bf3", os.path.join(gd, "build_f3.py"))
+        mod = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(mod)
+        except Exception:
+            pass
+        return mod
+
+    def test_in_range_matches(self):
+        from . import views as V
+        bf3 = self._pipeline()
+        if not hasattr(bf3, "_in_range"):
+            self.skipTest("build_f3 를 불러오지 못했다")
+        cases = [("050", "0", "110"), ("050", "000", "110"), ("5", "0", "110"),
+                 ("A5", "0", "110"), ("050", None, None), (None, "0", "110"),
+                 ("", "0", "110"), ("120", "0", "110"), ("0010", "10", "20"),
+                 ("abc", "aaa", "zzz"), ("10", None, "5"), ("10", "20", None)]
+        for v, lo, hi in cases:
+            self.assertEqual(V._in_range(v, lo, hi), bf3._in_range(v, lo, hi),
+                             f"_in_range({v!r}, {lo!r}, {hi!r}) 가 다르다")
+
+    def test_ssps_matches(self):
+        """SSPS 는 line_id · lot_type 이 정확히 맞아야 한다(와일드카드 없음)."""
+        from . import views as V
+        bf3 = self._pipeline()
+        import pandas as pd
+        if not hasattr(bf3, "attach_prod"):
+            self.skipTest("build_f3 를 불러오지 못했다")
+        prod = pd.DataFrame(
+            [("KFR4", "PP", "1D", "g", "D1 계열", "d"),
+             ("KFR4", "PP", "1DB", "g", "D1d SD", "d"),
+             ("KFR4", "", "2A", "g", "D2 계열", "d")],
+            columns=["line_id", "lot_type", "id", "prod1", "prod2", "dept"])
+        lot = pd.DataFrame(
+            [("KFR4", "1DB100.1", "PP"), ("KFR4", "1DX.1", "PP"),
+             ("KFR4", "2AA.1", "PP"), ("KFR4", "2AA.1", "EG"),
+             ("PFR1", "1DB100.1", "PP")],
+            columns=["line", "lot_id", "lot_type"])
+        out = bf3.attach_prod(lot, prod)
+        rules = [{"line_id": a, "lot_type": b, "id": c, "prod2": e}
+                 for a, b, c, _, e, _ in prod.itertuples(index=False,
+                                                         name=None)]
+        rules.sort(key=lambda r: len(str(r["id"] or "")))
+        for i, r in lot.iterrows():
+            want = out.iloc[i]["prod2"]
+            want = None if pd.isna(want) else want
+            self.assertEqual(V.ssps_of(dict(r), rules), want,
+                             f"{r['lot_id']} 판정이 다르다")

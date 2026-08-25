@@ -1448,7 +1448,9 @@ def save_ssps_rules(df_prod):
     need = [lcol, "lot_type", "id"] + [c for c in PROD_COLS if c in p.columns]
     if any(c not in p.columns for c in (lcol, "lot_type", "id")):
         return 0
-    p = p[need].dropna(subset=["id"]).drop_duplicates()
+    # attach_prod 와 같은 조건으로 거른다. line_id · lot_type 이 비면
+    # 어차피 붙지 않으므로 저장할 필요가 없다.
+    p = p[need].dropna(subset=[lcol, "lot_type", "id"]).drop_duplicates()
     p = p.rename(columns={lcol: "line_id"})
     for c in PROD_COLS:
         if c not in p.columns:

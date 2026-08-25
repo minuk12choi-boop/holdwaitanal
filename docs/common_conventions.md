@@ -978,6 +978,30 @@ TIP 조인은 **left** 로 한다. 설비를 못 찾은 스텝도 남겨야 한�
 자기 라인과 호환 라인 설비를 **함께** 담되 순서는 자기 라인이 앞이다.
 `line_rank`(0=자기 · 1=호환)를 f1_base 까지 넘겨 STRING_AGG 정렬에 쓴다.
 
+### 판정 로직이 두 벌인 것들
+
+같은 규칙이 화면(`views.py`)과 배치(`build_f3.py`)에 각각 있다.
+한쪽만 고치면 **화면과 적재 결과가 어긋난다.** 실제로 여러 번 그랬다.
+
+```
+holdtype_of   HOLD 유형
+module_of     모듈        (배치: attach_module)
+product_of    제품구분     (배치: attach_std_product)
+ssps_of       SSPS 제품명  (배치: attach_prod)
+_in_range     범위 판정
+_as_num       숫자 변환
+```
+
+`StdRuleParityTest` 가 두 구현을 실제로 돌려 비교한다. 한쪽을 고치면
+**반드시 다른 쪽도** 고치고 이 테스트를 돌린다.
+
+```
+cd web && python manage.py test flowmonitor
+```
+
+SSPS 는 `line_id` · `lot_type` 이 **정확히 일치**해야 한다. 와일드카드가
+없다. 빈 값 행은 아무 lot 에도 안 붙으므로 저장하지 않는다.
+
 ### 데이터 점검 도구
 
 값은 사내 자료라 밖으로 낼 수 없다. 그래도 **모양**은 낼 수 있다.
