@@ -1247,10 +1247,22 @@ function balBy(which, on, openId) {
   const set = new Set(BAL_BY.split(",").filter(Boolean));
   if (on) { set.add(which); } else { set.delete(which); }
   BAL_BY = ["prod", "plan"].filter(x => set.has(x)).join(",");
-  // 축을 켰다고 바로 펼치지 않는다. 목록에서 고르면 그때 나뉜다.
-  BAL_SEL = { prod: null, plan: null };
-  BAL_PICK = [];
-  BAL_OPEN = false;
+
+  // **다른 축에서 고른 것은 그대로 둔다.**
+  //   제품을 고른 뒤 PLAN 을 켤 때 제품 선택이 날아가면
+  //   그 제품의 PLAN 만 고르는 일이 불가능해진다.
+  //   끄는 축의 선택만 비운다.
+  if (!on) { BAL_SEL[which] = null; }
+
+  // 켜 둔 축 중 하나라도 고른 것이 있으면 그 상태를 유지한다.
+  const picked = ["prod", "plan"]
+    .filter(k => BAL_BY.indexOf(k) >= 0 && BAL_SEL[k])
+    .flatMap(k => BAL_SEL[k]);
+  const anyPick = ["prod", "plan"]
+    .some(k => BAL_BY.indexOf(k) >= 0 && BAL_SEL[k]);
+  BAL_PICK = anyPick ? picked : null;
+  BAL_OPEN = anyPick && picked.length > 0;
+
   BAL_OPEN_ID = openId || null;
   loadBalance(true);
 }
