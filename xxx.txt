@@ -1,123 +1,31 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python getdata/get_move.py --full
-[MOVE] 조회구간 2026-04-30 22:00 ~ 2026-08-25 10:30
-[MOVE] 조회구간이 7일을 넘어 Impala 로 직접 조회합니다(S3 parquet 은 최근 구간만 담고 있습니다)
-
-### Notice ###
-# [WARNING] [중요][2026-07-20~09-09]Data Lake Impala 클러스터 VM 전환 작업
-
-현재 Data Lake Impala 클러스터는 총 5개 클러스터(VM 기반 3개, BM 기반 2개)를 운영 중입니다.
-
-연초부터 BM(Baremetal Machine)으로 구축된 클러스터를 순차적으로 VM(Virtual Machine)으로  전환하고 있으며, 이제 2개의 BM 클러스터의 전환이 남은 상황입니다.
-
-BM 기반 클러스터 2개를 VM으로 전환하는 작업을 9월 초까지 클러스터 단위로 순차적으로 진행 됩니다.
-
-작업 기간 중 일부 조회 성능 저하가 발생할 수 있는 점 양해 부탁 드립니다.
-자세한 일정 및 내용은 아래 링크를 참조해주시기 부탁 드립니다.
-https://confluence.samsungds.net/spaces/DataServiceGuide/pages/3738364733
-
-
---------------------------------------------------------------------------------
-
-# [WARNING] [Lake Data] 중복 적재 중인 TPSS 테이블 close 공지
-
-중복테이블 적재로 인한 close 예정 테이블 목록 안내 드립니다.
-현재 사용 중이신 테이블들이 close 예정 목록에 포함되어 있는지 확인 부탁드립니다.
-대체 테이블들을 함께 첨부하오니 사용 테이블 변경을 부탁드립니다.
-
-[ close 예정 테이블 목록 ]
-https://confluence.samsungds.net/spaces/DataServiceGuide/pages/3803659985
-대체 테이블은 원천 담당자가 신규로 생성한 Catalog이며, 테이블 스키마나 라인이 기존과 상이할 수 있으니 Catalog 참고해주시기 바랍니다.
-8/21(금) 내로 close 예정으로, 기간 내에 변경이 불가능한 시스템은 sshoney.lee@samsung.com 으로 회신 부탁드립니다.
-
---------------------------------------------------------------------------------
-
-# [WARNING] [2026-08-20][대체 테이블 안내][데이터 누락] fab.m_fab_wf_met 테이블 잦은 적재 실패로 인한 대체 테이블 안내
-
-□ 대상 테이블 : fab.m_fab_wf_met
-□ 대체 테이블 : fab.m_fab_wf_met_rt_temp
-□ 누락 사유 : 원천 시스템 Storage CPU 부하로 인한 Data Fetch 시간 증가. 데이터 추출 불가능한 구간 존재
-□ Data Lake 조치 사항 : Storage CPU 사용량이 적은 시간대에 소급 시도, Connection Pool 증가 및 라인 별 분기 추출 시도 완료(2026-08-19 10:00)
-□ Data Lake 추가 조치 사항 : 대체 테이블 생성(fab.m_fab_wf_met_rt_temp)
-□ 문의처 : sshoney.lee(Platform Engineering그룹 이상헌)
-□ 상세 공지 사항 : https://confluence.samsungds.net/spaces/DataServiceGuide/pages/3840377933
-
-BDQ 및 Spotfire User 대상으로 fab.m_fab_wf_met_rt_temp 테이블을 open 합니다. 
-해당 테이블은 쿼리 적재 방식이 아닌, DB에서 발생한 데이터 변경 로그를 tracking 하여 변경 사항을 capture 하는 방식의 ETL 로 구성되어 있습니다.
-추출 방법 차이에 따라 DataLake에는 다수의 파일이 생성되어 기존 테이블보다는 Query 수행시간이 더 오래걸릴 수 있습니다.
-필수로 tkout_time 컬럼을 지정해주셔야 사용가능하며, 현재 날짜에서 5일 이내 데이터를 조회하시는 것을 권장드립니다.
-기존 테이블과 컬럼 명이 상이 할 수 있으니, 아래 테이블 스키마 확인 후 전환 부탁드리겠습니다.
-해당 테이블은 임시로 제공해드리는 테이블이며, 추후 테이블 명 변경될 예정입니다.
-
-### Version ###
-Installed version of bigdataquery : 2.4.4
-Latest version of bigdataquery : 2.5.0
-
-### Power User ###
-You are the DataLake Poweruser. You can use SQL statements on getData()
-
-### Help ###
-Guide : https://go/data
-Functions:
-    __version__ : display current version of bigdataquery
-    getData() : extract data based on condition you passed (dictionary or SQL)
-    getTraceData() : extract FDC Trace data based on condition you passed (dictionary only)
-    getTableList() : search the table lists based on keyword
-    getColumnInfo() : search column information based on table name
-    login() : authenticate AD user and get token on server environment (server env only)
-    getTokenTime() : check the remaining token expiration time (server env only)
-    setDebugMode() : enable|disable mode to display detailed execution time of primary internal functions (getData only)
-    setTimeZone() : set timezone information of bigdataquery during runtime (IANA format)
-    getTimeZone() : get timezone information of bigdataquery (default: system local timezone)
-    exportDataDecorator() : extend the existing bigdataquery function to export segmented data as the desired output during runtime
-
 Query Executed Successfully...
->> Execution Time: 46.192 sec
+>> Execution Time: 32.181 sec
 ==================================================
-    Rows    :  1554495
+    Rows    :  1554921
     Columns :  18
     Size    :  1.38+ GB
 ==================================================
-[MOVE] 원천 1,554,495행 67.2s
-[MOVE] 제품 매칭 24.1% (10,256 lot 사전)
-[MOVE] shift 집계 699행 / 일 집계 234행 / lot 단위 370,363행 / 스텝 단위 842,870행
-[MOVE] REWORK 1,592,345매 (7.3%)
+[MOVE] 원천 1,554,921행 38.0s
+[MOVE] 제품 계산 96.7% (기준정보 0건 · SSPS 1156건)
+[MOVE] shift 집계 699행 / 일 집계 234행 / lot 단위 370,468행 / 스텝 단위 891,784행
+[MOVE] REWORK 1,592,913매 (7.3%)
   biz_date sys_line_id  move_qty  lot_cnt
 2026-08-23        KFR7    174358     2371
 2026-08-23        PFR1    150729     2016
 2026-08-24        KFR7    169624     2847
 2026-08-24        PFR1    145753     2327
-2026-08-25        KFR7     77682     1616
-2026-08-25        PFR1     65327     1230
-Traceback (most recent call last):
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\get_move.py", line 420, in <module>
-    main()
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\get_move.py", line 399, in main
-    pairs = DB.replace_move(conn, df_shift, df_daily, biz_dates, df_lot,
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\db_common.py", line 706, in replace_move
-    cur.executemany(
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 182, in executemany
-    return self._do_execute_many(
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 215, in _do_execute_many
-    rows += self.execute(sql + postfix)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 153, in execute
-    result = self._query(query)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\cursors.py", line 322, in _query
-    conn.query(q)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 575, in query
-    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 826, in _read_query_result
-    result.read()
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 1203, in read
-    first_packet = self.connection._read_packet()
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\connections.py", line 782, in _read_packet
-    packet.raise_for_error()
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\protocol.py", line 219, in raise_for_error
-    err.raise_mysql_exception(self._data)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pymysql\err.py", line 150, in raise_mysql_exception
-    raise errorclass(errno, errval)
-pymysql.err.IntegrityError: (1062, "Duplicate entry '2026-08-24-DAY-PFR1-D0a-RMCUAADRAM2_T-RMCUAA10R01' for key 'f3_move_step.PRIMARY'")
-
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> getdata/backfill_wip.py
+2026-08-25        KFR7     80899     1674
+2026-08-25        PFR1     67803     1277
+[MOVE] 적재 완료: 350개 (업무일,shift) 교체
+        2026-08-23 SW
+        2026-08-24 DAY
+        2026-08-24 GY
+        2026-08-24 SW
+        2026-08-25 DAY
+        2026-08-25 GY
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> getdata/backfill_wip.py          
 PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> 
-
-
+                                               getdata/backfill_wip.py
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> 
+                                               getdata/build_f3.py    
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> 
