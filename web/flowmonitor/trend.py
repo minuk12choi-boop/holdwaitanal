@@ -609,8 +609,14 @@ def heatmap(line, today=None, days=7, axis="layer", metric="move",
     }
 
 
-def heat_options(line, today=None, days=30):
-    """히트맵 팝업의 제품 · PLAN 선택지."""
+def heat_options(line, today=None, days=30, prod=None, plan=None):
+    """히트맵 팝업의 제품 · PLAN 선택지.
+
+    **상대 축에서 고른 것만 반영해 좁힌다.**
+      제품을 고르면 그 제품에 있는 PLAN 만,
+      PLAN 을 고르면 그 PLAN 에 있는 제품만 남는다.
+    자기 목록은 그대로 둔다(그래야 다시 고를 수 있다).
+    """
     today = today or dt.date.today()
     since = today - dt.timedelta(days=days - 1)
     if not _table_ok("f3_move_step"):
@@ -619,7 +625,14 @@ def heat_options(line, today=None, days=30):
         "SELECT DISTINCT prod2, proc_id FROM f3_move_step "
         "WHERE sys_line_id=%s AND biz_date>=%s AND biz_date<=%s",
         [move_line(line), since, today])
+
+    sp = set(prod or ())
+    sl = set(plan or ())
     return {
-        "prod": sorted({r["prod2"] for r in rows if r["prod2"]}),
-        "plan": sorted({r["proc_id"] for r in rows if r["proc_id"]}),
+        # 제품 목록은 고른 PLAN 으로 좁힌다.
+        "prod": sorted({r["prod2"] for r in rows if r["prod2"]
+                        and (not sl or r["proc_id"] in sl)}),
+        # PLAN 목록은 고른 제품으로 좁힌다.
+        "plan": sorted({r["proc_id"] for r in rows if r["proc_id"]
+                        and (not sp or r["prod2"] in sp)}),
     }

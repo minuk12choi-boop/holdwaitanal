@@ -3022,8 +3022,9 @@ def api_heatmap(request):
 
     try:
         d = TR.heatmap(line, today, days, axis, metric, prod, plan)
-        # 선택지는 기간과 무관하게 최대 범위에서 뽑는다.
-        d["options"] = TR.heat_options(line, today, 30)
+        # 선택지는 기간과 무관하게 최대 범위에서 뽑되,
+        # 상대 축에서 고른 것에 맞춰 좁힌다.
+        d["options"] = TR.heat_options(line, today, 30, prod, plan)
         d["days"] = days
     except Exception as e:
         print(f"[HEAT] 실패: {type(e).__name__}: {e}", flush=True)

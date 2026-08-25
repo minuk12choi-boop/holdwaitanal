@@ -3176,8 +3176,16 @@ function loadHeat() {
   fetch("/api/heatmap/?" + q).then(r => r.json()).then(d => {
     HEAT.data = d;
     if (d.options) {
+      // 목록을 다시 그려도 열려 있던 메뉴는 그대로 열어 둔다.
+      //   (고르는 도중 목록이 좁혀지면서 메뉴가 닫히면 쓰기 불편하다)
+      const wasOpen = [...document.querySelectorAll(".dd.open")]
+        .map(x => x.id);
       heatMenu("prod", d.options.prod || []);
       heatMenu("plan", d.options.plan || []);
+      wasOpen.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.classList.add("open"); }
+      });
     }
     renderHeat();
   });

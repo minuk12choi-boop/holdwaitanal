@@ -34,12 +34,23 @@ def log(msg):
 
 log("업로드만 실행 (원천 재조회 없음)")
 
-n = 0
-for f in Document.Data.DataFunctions:
-    try:
-        f.Execute()
-        n += 1
-    except:
-        pass
+# 데이터 함수가 하나도 없으면 여기서 끝난다. 그 사실을 먼저 밝힌다.
+funcs = list(Document.Data.DataFunctions)
+if not funcs:
+    log("실패: 등록된 데이터 함수가 없습니다")
+else:
+    n = 0
+    bad = []
+    for f in funcs:
+        try:
+            log("실행 중 %s" % f.Name)
+            f.Execute()
+            n += 1
+        except Exception, e:          # noqa: E999  (IronPython 2.7 문법)
+            # 오류를 삼키면 '완료' 로 찍혀 무엇이 잘못됐는지 알 수 없다.
+            bad.append("%s: %s" % (f.Name, str(e)[:120]))
 
-log("완료 (테이블 %d개)" % n)
+    if bad:
+        log("실패 %d/%d - %s" % (len(bad), len(funcs), " | ".join(bad)[:300]))
+    else:
+        log("완료 (테이블 %d개)" % n)
