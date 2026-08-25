@@ -98,8 +98,8 @@ def wt_bins(max_wt):
         lo = hi
     return bins
 # 원인 대분류. 위에서부터 우선순위. 겹치면 하나에만 귀속한다.
-# HOLD 는 건 주체로 나눈다. 색은 같은 계열이되 System 이 옅다.
-HOLD_KINDS = ("User Hold", "System Hold")
+# HOLD 를 건 주체. 대분류가 아니라 소분류 아래 단으로 쓴다.
+#   원차트 색과 같은 계열이되 System 이 옅다.
 HOLD_LIGHT = "#F2B8B5"
 
 # _cause_of() 가 내는 값 목록이다. 원인 분석의 대분류와는 다른 축이라
@@ -529,8 +529,7 @@ UPDATES = [
                   "그것이 만든 W/T 저해와 대기 기간을 함께 적습니다."},
             {"t": "비율을 라인 전체 대비와 그 제품 안에서의 비중 "
                   "두 가지로 적습니다."},
-            {"t": "HOLD 를 건 주체에 따라 User Hold 와 System Hold 로 "
-                  "나눠 보여 줍니다."},
+
             {"t": "Bottleneck 은 순수 몰림인지 호환 그룹이 막혀서인지 "
                   "배지로 구분합니다."},
             {"t": "행을 누르면 그 조건으로 화면 전체가 좁혀집니다. "
@@ -611,8 +610,8 @@ UPDATES = [
             {"t": "필터끼리 서로 선택지를 좁혀 줍니다. 고를 수 없는 값은 "
                   "목록에 나오지 않습니다."},
             {"t": "달력은 데이터가 있는 날짜 범위만 고를 수 있습니다."},
-            {"t": "HOLD 를 건 주체에 따라 User Hold 와 System Hold 로 "
-                  "나눕니다. 원인 분석에서 색으로 구분됩니다."},
+            {"t": "HOLD 사유 아래에 누가 걸었는지(User · System)를 한 겹 "
+                  "더 보여 줍니다. 둘이 섞여 있을 때만 나뉩니다."},
             {"t": "기준정보에 제품구분 카드를 더했습니다. lot_id 의 글자와 "
                   "PLAN 으로 제품명을 정하며, 여기서 정해지지 않은 것만 "
                   "기존 SSPS 제품명을 씁니다."},
@@ -1165,7 +1164,7 @@ def _preset_for(src, status, big, lot_type, wt_range, wt0):
         key = "WAIT"
     elif big == "Wait성 진행불가":
         key = "WAIT(진행불가)"
-    elif big in ("Hold", "User Hold", "System Hold"):
+    elif big == "Hold":
         key = "HOLD"
     if key == "WAIT":
         return "wait"
@@ -1677,9 +1676,9 @@ def _classify_lot(r, rules, ht=None):
     # 원인은 상태의 하위 분류다. 상태를 먼저 보고 그 안에서 나눈다.
     # (예전에는 hold 플래그만 보고 Hold 로 보내, 상태와 원인이 어긋났다)
     if st == "HOLD":
-        # hold 컬럼에는 hold_user_name 이 들어온다.
-        #   첫 글자가 숫자면 사람이 건 것(User), 아니면 시스템이 건 것.
-        return (_hold_kind(r), None,
+        # 대분류는 Hold 하나다. 건 주체(User / System)는 소분류 **아래** 단으로
+        # 내려 LOT BALANCE 의 모듈 표시처럼 사유 밑에 붙인다.
+        return ("Hold", None,
                 [_sub_name(r, ht, "HOLD", "hold_reason", rules, "hold")])
 
     # 가상스텝 판정. 실제 설비를 기다리는 게 아니므로 Bottleneck 이 아니다.
@@ -1984,6 +1983,13 @@ def api_summary(request):
             sc = m["sub"].setdefault(sname, {"lots": 0.0, "qty": 0.0,
                                              "eld": 0.0, "eln": 0, "eqp": {}})
             sc.setdefault("eqp", {})
+            # HOLD 는 사유 밑에 '누가 걸었나' 를 한 겹 더 둔다.
+            #   LOT BALANCE 가 LAYER 밑에 모듈을 적는 것과 같은 방식이다.
+            if big == "Hold":
+                kc = sc.setdefault("who", {}).setdefault(
+                    _hold_kind(r), {"lots": 0.0, "qty": 0.0,
+                                    "eld": 0.0, "eln": 0})
+                _add(kc, 1, q, eld)
             _add(sc, w, q * w, eld, lnm)
             # 소분류 이름이 곧 설비그룹인 경우, 그 그룹의 설비 ID 로 나눈다.
             ids = [x for x in eqp_ids if x.startswith(sname)] or eqp_ids
@@ -2017,17 +2023,25 @@ def api_summary(request):
         for k, v in items[:limit]:
             extra = {"kind": "sub"}
             eq = v.get("eqp") or {}
+            who = v.get("who") or {}
             if len(eq) > 1:
                 eqs = sorted(eq.items(), key=lambda kv: (-kv[1]["qty"], kv[0]))
                 extra["children"] = [node(a, b, {"kind": "eqp"})
                                      for a, b in eqs[:limit]]
+            elif len(who) > 1:
+                # User / System 이 섞여 있을 때만 나눈다. 하나뿐이면 접는다.
+                ws = sorted(who.items(), key=lambda kv: (-kv[1]["qty"], kv[0]))
+                extra["children"] = [node(a, b, {"kind": "who"})
+                                     for a, b in ws]
+            if who:
+                extra["who"] = {a: int(round(b["qty"])) for a, b in who.items()}
             out.append(node(k, v, extra))
         return out
 
     causes = []
     # 'Wait' 는 갈 수 있는 설비가 남아 있는 경우다(호환설비이슈).
     # 원인 분석 차트는 3칸이라 Bottleneck 쪽에 함께 담는다.
-    for big in ("User Hold", "System Hold", "Wait성 진행불가", "Bottleneck"):
+    for big in ("Hold", "Wait성 진행불가", "Bottleneck"):
         g = tree.get(big)
         if not g:
             causes.append({"name": big, "lots": 0, "qty": 0, "children": []})
@@ -2496,13 +2510,13 @@ def _trend_points(points, line, types, prod1, prod2, drill, rules, ht,
             if not big:
                 continue
             if not drill:
-                if big in HOLD_KINDS + ("Wait성 진행불가",):
+                if big in ("Hold", "Wait성 진행불가"):
                     series[big] = series.get(big, 0) + q
                 continue
 
             # Hold+Wait성 은 둘을 합쳐 소분류 상위를 본다
             if drill[0] == "Hold+Wait성":
-                if big not in HOLD_KINDS + ("Wait성 진행불가",):
+                if big not in ("Hold", "Wait성 진행불가"):
                     continue
                 key = subs[0] if subs else mid
                 if key:
@@ -2527,15 +2541,14 @@ def _trend_points(points, line, types, prod1, prod2, drill, rules, ht,
     for x in out:
         for k, v in x["series"].items():
             tot[k] = tot.get(k, 0) + v
-    order = list(HOLD_KINDS) + ["Wait성 진행불가"] if not drill else \
+    order = ["Hold", "Wait성 진행불가"] if not drill else \
         [k for k, _ in sorted(tot.items(), key=lambda kv: -kv[1])[:5]]
     order = [k for k in order if k in tot]
 
     return JsonResponse({
         "points": out, "series": order, "drill": drill,
         # 라인 색. Hold/Wait성 은 status 색을 그대로 쓴다.
-        "colors": {"User Hold": STATUS_COLORS["HOLD"],
-                   "System Hold": HOLD_LIGHT,
+        "colors": {"Hold": STATUS_COLORS["HOLD"],
                    "Wait성 진행불가": STATUS_COLORS["WAIT(진행불가)"]},
         "scope": scope, "wshift": wshift,
     }, json_dumps_params={"ensure_ascii": False})
@@ -2824,8 +2837,8 @@ def _ins_bucket(rows, mv, rules, ht, cls=None, line=""):
             continue
 
         card, head, extra = None, None, None
-        if big in HOLD_KINDS:
-            card, head = "lot", big.upper()
+        if big == "Hold":
+            card, head = "lot", "HOLD"
         elif big == "Wait성 진행불가" and mid in ("예약제외", "FTP"):
             card, head = "lot", mid
         elif big == "Wait성 진행불가" and mid == "설비이슈":

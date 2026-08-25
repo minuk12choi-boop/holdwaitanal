@@ -2164,10 +2164,12 @@ function czApply(ch, nodes, u, selName, selList) {
   ch.data.labels = nodes.map(x => x.name);
   const line = ch.data.datasets.find(d => d.type === "line");
   // 안 좋은 지표라 적색 계열. 라인 ALL 이면 라인별 누적막대로 바꾼다.
-  // HOLD 는 건 주체로 색을 나눈다. System 이 옅다.
-  //   차트를 만들 때 붙여 둔 $big 을 본다.
-  const bars = lineStack(nodes, u,
-    (ch.$big === "System Hold") ? "#F2B8B5" : "#F08080");
+  // HOLD 를 건 주체(System)는 같은 계열의 옅은 색으로 나눈다.
+  const bars = lineStack(nodes, u, "#F08080");
+  bars.forEach(b => {
+    b.backgroundColor = nodes.map(
+      (x) => (x.name === "System Hold") ? "#F2B8B5" : "#F08080");
+  });
   bars.forEach(b => { b.order = 2; b.yAxisID = "y"; b.borderRadius = 3; });
   if (line) {
     line.data = nodes.map(x =>
@@ -2435,8 +2437,7 @@ function lineStack(items, u, flat) {
 }
 
 const STATUS_TONE = {
-  "User Hold": "#F08080",
-  "System Hold": "#F2B8B5",     // 같은 계열이되 옅게
+  "Hold": "#F08080",
   "Wait성 진행불가": "#E8C46A",
   "Bottleneck": "#84C09A",
 };
@@ -3249,8 +3250,7 @@ function insPick(ci, n) {
 
   // 원인도 함께 건다. 카드 머리가 곧 원인이다.
   const CAUSE_OF = {
-    "USER HOLD": ["User Hold", null],
-    "SYSTEM HOLD": ["System Hold", null],
+    "HOLD": ["Hold", null],
     "예약제외": ["Wait성 진행불가", "예약제외"],
     "FTP": ["Wait성 진행불가", "FTP"],
   };
