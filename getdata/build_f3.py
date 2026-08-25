@@ -766,6 +766,51 @@ def dump_dropped(df_lot, df_f3, path=None, base=None):
     return path
 
 
+def _check_fab(f3, df_lot):
+    """FabPlan 결과가 lotplan 과 같은 수준으로 채워졌는지 본다.
+
+    비는 컬럼이 있으면 그 자리에서 알려 준다. 화면을 열어 보고서야
+    비었다는 것을 아는 일이 없도록 한다.
+    """
+    if f3 is None or not len(f3):
+        return
+    lot = _lower_cols(df_lot)
+    fab = set(lot[pd.to_numeric(lot.get("order_seq"), errors="coerce").isna()
+                  & lot["line"].eq("PFR1")]["lot_id"].astype(str))
+    if not fab:
+        return
+
+    f = _lower_cols(f3)
+    is_fab = f["lot_id"].astype(str).isin(fab)
+    a, b = f[is_fab], f[~is_fab & f["line"].eq("PFR1")]
+    if not len(a):
+        print("[CHECK] FabPlan 행이 f3 에 없다", flush=True)
+        return
+
+    def _fill(d, c):
+        if c not in d.columns or not len(d):
+            return None
+        v = d[c].astype("string").fillna("").str.strip()
+        return v.ne("").mean() * 100
+
+    print(f"[CHECK] FabPlan {len(a):,}행 · lotplan(PFR1) {len(b):,}행 "
+          f"채움 비율", flush=True)
+    # _lower_cols 를 거쳤으므로 컬럼 이름은 모두 소문자다.
+    for c in ("eqpgroup", "eqpgroup_cham", "area", "layer_id", "recipe_id",
+              "step_desc", "eqp_type", "lot_status", "prod2", "module1"):
+        x, y = _fill(a, c), _fill(b, c)
+        if x is None:
+            continue
+        mark = ""
+        if y is not None and y > 30 and x < y * 0.5:
+            mark = "  <-- 크게 낮다"
+        print(f"[CHECK]   {c:16s} FabPlan {x:5.1f}%  lotplan {y or 0:5.1f}%"
+              f"{mark}", flush=True)
+    cur = a[a["현스텝"].astype("string").eq("현스텝")]
+    print(f"[CHECK]   현스텝 있는 lot {cur['lot_id'].nunique():,}"
+          f" / FabPlan lot {len(fab):,}", flush=True)
+
+
 def relabel_lines(f3, df_lot):
     """완성된 f3 의 line 만 dest_line_id 기준으로 다시 매긴다.
 
@@ -3054,6 +3099,8 @@ def main():
     n_tip = int(df_f3["tip"].notna().sum())
     print(f"[TIP] f3 tip 값 있는 행 = {n_tip:,} / {len(df_f3):,}", flush=True)
     print(f"[ROWS] f3 = {len(df_f3):,}  (lot {df_f3['lot_id'].nunique():,}개)", flush=True)
+    if FABPLAN:
+        _check_fab(df_f3, df_lot)
 
     dup_rows, dup_cols = diagnose_duplicates(df_f3)
     if len(dup_rows):
