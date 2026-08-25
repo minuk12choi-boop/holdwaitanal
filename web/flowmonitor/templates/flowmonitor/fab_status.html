@@ -496,6 +496,7 @@ function prodPicked(which, isAll) {
   else if (which === 4) { PLANS = eff; }
   else if (which === 5) { LOTS = eff; }
   else { LAYERS = eff; }
+  markActiveCards();              // 해제 버튼 표시를 지금 상태에 맞춘다
   if (sel.length === 0) {
     document.getElementById("p" + which + "b").innerHTML =
       `<span>${PROD_LABEL[which]} 선택 없음</span><span>&#9662;</span>`;
@@ -1749,12 +1750,15 @@ function dfClear(k, v) {
   syncFromDF();
 }
 
+// 드릴다운 조건과 **좌측 필터**를 함께 푼다. 한 번에 처음 상태로 돌린다.
 function dfClearAllConds() {
   dfReset();
   CZ_STACK = []; CZ_WIDE = null; CZ_SEL = { i: -1, path: [] };
   DRILL_KEY = { i: -1, node: null, list: [] };
   czAskClose();
+  PROD1 = []; PROD2 = []; AREAS = []; PLANS = []; LOTS = []; LAYERS = [];
   syncFromDF();
+  loadSummary();          // 좌측 필터가 풀렸으니 목록부터 다시 받는다
 }
 
 // 지금 걸린 조건이 모두 한 차트에서 나왔으면 그 차트 이름. 아니면 "".
@@ -3904,8 +3908,13 @@ function syncCardClear() {
 function markActiveCards() {
   const btn = document.getElementById("clearAllBtn");
   if (btn) {
-    const any = Object.keys(DF).length || DF_CAUSE || Object.keys(DF_X).length;
+    // 좌측 필터도 '걸린 조건' 이다. 그것만 걸려 있어도 해제 버튼을 보인다.
+    const left = PROD1.length || PROD2.length || AREAS.length
+      || PLANS.length || LOTS.length || LAYERS.length;
+    const any = Object.keys(DF).length || DF_CAUSE
+      || Object.keys(DF_X).length || left;
     btn.style.display = any ? "" : "none";
+    btn.textContent = "조건 ALL 해제";
   }
   const on = {
     wipcard: (DF.type || []).length,

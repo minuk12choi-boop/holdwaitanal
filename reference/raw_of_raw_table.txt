@@ -227,13 +227,14 @@ FROM   smicdc_nrdk.materialworkstatus
 
 --------------------------------------------------------------------------------
 -- 3) PFR1_KFR7_STEP_PATH: smicdc_p3nrd.mc_lot_step_path, smicdc_nrdk.mc_lot_step_path *호출시간: 62초
---    현재 Impala 버전과 동일하게 mc_lot(Active/Hold) 조인으로 행을 줄인다.
---    delay_step_type S/Y 는 de_rank 누적 계산에 필요해 위치와 무관하게 남긴다.
+--    대상 lot(Active/Hold) 만 추리고 **order_seq 로는 자르지 않는다.**
 --
---    [주의] mc_lot 에는 같은 lot 이 여러 행 있고 order_seq 가 제각각이다.
---    DISTINCT 로 모두 쓰면 큰 order_seq 도 기준이 되어 `p.order_seq >= c.order_seq`
---    가 **현스텝을 잘라낸다**(RUN 중인 스텝이 통째로 빠진다).
---    lot 마다 MIN(order_seq) 하나만 기준으로 삼아야 현스텝부터 남는다.
+--    [이유] lot 조회 시점과 이 쿼리의 mc_lot 조회 시점이 달라 order_seq 가
+--    어긋난다. 그 상태로 `p.order_seq >= c.order_seq` 를 걸면 그 사이 진행된
+--    lot 의 현스텝이 잘려 나간다(RUN 중인 스텝이 통째로 빠진다).
+--    과거 스텝까지 다 받아 오는 대신, 현스텝 기준 자르기는 python 이 한다
+--    (build_f3.narrow_step_to_scope). 두 값이 같은 스냅샷에서 나오므로
+--    어긋나지 않는다.
 --------------------------------------------------------------------------------
 SELECT 
 'PFR1' AS LINE_ID, 
@@ -253,14 +254,10 @@ p.lot_id,
        p.ext_1st_vals,
        p.tkin_type_detail
 FROM   smicdc_p3nrd.mc_lot_step_path p,
-       (SELECT lot_id, MIN(order_seq) AS order_seq
+       (SELECT DISTINCT lot_id
         FROM   smicdc_p3nrd.mc_lot
-        WHERE  lot_status_seg IN ('Active', 'Hold')
-          AND  order_seq IS NOT NULL
-        GROUP  BY lot_id) c
+        WHERE  lot_status_seg IN ('Active', 'Hold')) c
 WHERE  p.lot_id = c.lot_id
-  AND  (p.order_seq >= c.order_seq
-        OR p.delay_step_type IN ('S', 'Y'))
 
 UNION ALL
 
@@ -283,14 +280,10 @@ SELECT
        p.ext_1st_vals,
        p.tkin_type_detail
 FROM   smicdc_nrdk.mc_lot_step_path p,
-       (SELECT lot_id, MIN(order_seq) AS order_seq
+       (SELECT DISTINCT lot_id
         FROM   smicdc_nrdk.mc_lot
-        WHERE  lot_status_seg IN ('Active', 'Hold')
-          AND  order_seq IS NOT NULL
-        GROUP  BY lot_id) c
+        WHERE  lot_status_seg IN ('Active', 'Hold')) c
 WHERE  p.lot_id = c.lot_id
-  AND  (p.order_seq >= c.order_seq
-        OR p.delay_step_type IN ('S', 'Y'))
 ;
 
 --------------------------------------------------------------------------------

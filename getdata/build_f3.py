@@ -278,14 +278,9 @@ SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level,
        p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id,
        p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
 FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT_STEP_PATH p
-JOIN   (SELECT lot_id, MIN(order_seq) AS order_seq
-        FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT
-        WHERE  lot_status_seg IN ('Active', 'Hold')
-          AND  order_seq IS NOT NULL
-        GROUP  BY lot_id) c
+JOIN   (SELECT DISTINCT lot_id FROM MOS_KH_SMI.SMICDC_NRDK_MC_LOT
+        WHERE lot_status_seg IN ('Active', 'Hold')) c
   ON   p.lot_id = c.lot_id
-WHERE  p.order_seq >= c.order_seq
-    OR p.delay_step_type IN ('S', 'Y')
 """
 
 pfr1_step_path_query = """
@@ -293,14 +288,9 @@ SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level,
        p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id,
        p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
 FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_PATH p
-JOIN   (SELECT lot_id, MIN(order_seq) AS order_seq
-        FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
-        WHERE  lot_status_seg IN ('Active', 'Hold')
-          AND  order_seq IS NOT NULL
-        GROUP  BY lot_id) c
+JOIN   (SELECT DISTINCT lot_id FROM MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
+        WHERE lot_status_seg IN ('Active', 'Hold')) c
   ON   p.lot_id = c.lot_id
-WHERE  p.order_seq >= c.order_seq
-    OR p.delay_step_type IN ('S', 'Y')
 """
 
 # =====================================================================
@@ -1392,6 +1382,11 @@ def attach_prod(df_lot, df_prod):
 # ---------------------------------------------------------------------------
 def narrow_step_to_scope(df_path, df_lot, line):
     """StepPath 원천에서 f3 가 실제로 필요로 하는 행만 남긴다.
+
+    원천 쿼리는 **order_seq 로 자르지 않는다.** lot 조회 시점과 StepPath 의
+    mc_lot 조회 시점이 달라 그 사이 진행된 lot 의 현스텝이 잘려 나가기
+    때문이다. 대신 과거 스텝까지 다 받아 여기서 자른다. 두 값이 같은
+    스냅샷(df_lot)에서 나오므로 어긋나지 않는다.
 
     남기는 행:
       1) 현스텝            : order_seq = 재공의 현재 order_seq
