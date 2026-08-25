@@ -1697,7 +1697,7 @@ def _diag_fab_join(m, st):
               flush=True)
 
 
-def fill_fab_eqp(s, t, line="PFR1"):
+def fill_fab_eqp(s, t, df_eqp=None, df_eqp_group=None, line="PFR1"):
     """FabPlan 행의 설비 그룹을 TIP 으로 채운다.
 
     StepPath 에는 eqp_group_id 가 들어 있지만 STEP 정의에는 없다.
@@ -1775,12 +1775,24 @@ def fill_fab_eqp(s, t, line="PFR1"):
     s = s.copy()
     got = my.mask(my.eq(""), ot)             # 자기 라인이 없으면 호환 설비
     s.loc[fab, "eqp_group_raw"] = got[fab].to_numpy()
-    if "eqp_id" in s.columns:
-        s.loc[fab, "eqp_id"] = ch[fab].mask(ch[fab].eq(""),
-                                            got[fab]).to_numpy()
     print(f"[FABPLAN] 설비그룹 채워짐 {int(got[fab].ne('').sum()):,}/{n:,}"
           f" (자기라인 {int(my[fab].ne('').sum()):,} · "
           f"호환 {int(ot[fab].ne('').sum()):,})", flush=True)
+
+    # 설비가 이제야 정해졌으므로 그것에 딸린 값을 다시 만든다.
+    #   AREA · batch_kind · eqpline · 설비 상태는 expand_with_equipment 가
+    #   설비 기준으로 채우는데, 그때는 이 값이 비어 있었다.
+    fab_rows = s[fab].copy()
+    if len(fab_rows) and df_eqp is not None:
+        keep = [c for c in fab_rows.columns
+                if c not in ("eqp_id", "batch_kind", "eqpline", "body_status",
+                             "eqp_status_change_time", "AREA")]
+        again = expand_with_equipment(fab_rows[keep], df_eqp, df_eqp_group,
+                                      line)
+        rest = s[~fab]
+        s = pd.concat([rest, again], ignore_index=True)
+        print(f"[FABPLAN] 설비 전개 후 {len(again):,}행 · "
+              f"AREA 채워짐 {int(again['AREA'].notna().sum()):,}", flush=True)
     return s.drop(columns=[c for c in ("_fab", "_rcp") if c in s.columns])
 
 
@@ -3002,7 +3014,7 @@ def main():
     #   TIP 은 s 로 선필터하므로 여기까지 와야 준비된다.
     if FABPLAN and "_fab" in s.columns and int(s["_fab"].sum()):
         with stage("FabPlan 설비그룹"):
-            s = fill_fab_eqp(s, t, "PFR1")
+            s = fill_fab_eqp(s, t, df_eqp, df_eqp_group, "PFR1")
 
     with stage("hold 전처리"):
         holds = build_hold(df_hold, set(_lower_cols(df_lot)["lot_id"].dropna()))
