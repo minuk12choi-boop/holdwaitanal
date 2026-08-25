@@ -289,11 +289,14 @@ def _fline_ok(r, want):
     return (not want) or (str(r.get("line") or "-") in want)
 
 
-def _plan_lot_ok(r, plans, lots):
-    """좌측 최상단 PLAN / LOT 필터. 세 API 가 같이 쓴다."""
+def _plan_lot_ok(r, plans, lots, flayers=()):
+    """좌측 최상단 PLAN / LOT / LAYER 필터. 세 API 가 같이 쓴다."""
     if plans and (str(r.get("proc_id") or "").strip() or UNCLASSIFIED) not in plans:
         return False
     if lots and str(r.get("lot_id") or "") not in lots:
+        return False
+    if flayers and (str(r.get("layer_id") or "").strip()
+                    or UNCLASSIFIED) not in flayers:
         return False
     return True
 
@@ -1747,6 +1750,7 @@ def api_summary(request):
     areas = [x for x in request.GET.get("area", "").split(",") if x]
     plans = [x for x in request.GET.get("plan", "").split(",") if x]
     lots = [x for x in request.GET.get("lots", "").split(",") if x]
+    flayers = [x for x in request.GET.get("flayer", "").split(",") if x]
     # 좌측에서 막대/조각을 고르면 원인 분석만 그 부분집합으로 다시 센다.
     # 같은 필드를 여러 개 고를 수 있으므로(Ctrl) 반드시 목록으로 받는다.
     def flist(name):
@@ -1784,7 +1788,9 @@ def api_summary(request):
                      or (r.get("AREA") or UNCLASSIFIED) in areas)
                 and (skip == "pl" or not plans
                      or (r.get("proc_id") or UNCLASSIFIED) in plans)
-                and (skip == "lt" or not lots or r.get("lot_id") in lots))
+                and (skip == "lt" or not lots or r.get("lot_id") in lots)
+                and (skip == "ly" or not flayers
+                     or (r.get("layer_id") or UNCLASSIFIED) in flayers))
 
     p1_opts = sorted({pv(r, "prod1") for r in rows if _keep(r, "p1")})
     p2_opts = sorted({pv(r, "prod2") for r in rows if _keep(r, "p2")})
@@ -1797,6 +1803,8 @@ def api_summary(request):
                       for r in rows if _keep(r, "pl")})
     lt_opts = sorted({r.get("lot_id") for r in rows
                       if r.get("lot_id") and _keep(r, "lt")})[:3000]
+    ly_opts = sorted({r.get("layer_id") or UNCLASSIFIED
+                      for r in rows if _keep(r, "ly")})
 
     rows = [r for r in rows if _keep(r)]
     if not rows:
@@ -1804,7 +1812,9 @@ def api_summary(request):
                              "prod1_options": p1_opts, "prod2_options": p2_opts,
                              "area_options": a_opts,
         "plan_options": pl_opts, "lot_options": lt_opts,
-                             "plan_options": pl_opts, "lot_options": lt_opts},
+        "layer_options": ly_opts,
+                             "plan_options": pl_opts, "lot_options": lt_opts,
+                             "layer_options": ly_opts},
                             json_dumps_params={"ensure_ascii": False})
 
     mv = _lot_move_map(line)
@@ -2085,6 +2095,7 @@ def api_summary(request):
         "prod1_options": p1_opts, "prod2_options": p2_opts,
         "area_options": a_opts,
         "plan_options": pl_opts, "lot_options": lt_opts,
+        "layer_options": ly_opts,
         "selected_prod1": prod1, "selected_prod2": prod2,
         "total": tot,
         "by_lot_type": [{"name": k, **by_type[k]}
@@ -2458,6 +2469,7 @@ def api_trend(request):
     areas = [x for x in request.GET.get("area", "").split(",") if x]
     plans = [x for x in request.GET.get("plan", "").split(",") if x]
     lots = [x for x in request.GET.get("lots", "").split(",") if x]
+    flayers = [x for x in request.GET.get("flayer", "").split(",") if x]
     bdate = request.GET.get("biz_date", "")
     drill = [x for x in request.GET.get("drill", "").split("|") if x]
     scope = request.GET.get("scope", "day")
@@ -2571,6 +2583,7 @@ def api_balance(request):
     prod1, prod2 = multi("prod1"), multi("prod2")
     areas = multi("area")
     plans, lots = multi("plan"), multi("lots")
+    flayers = multi("flayer")
     bdate = request.GET.get("biz_date", "")
     bshift = request.GET.get("shift", "")
     # 표와 같은 조건
@@ -2625,7 +2638,7 @@ def api_balance(request):
             continue
         if not _fprod_ok(r, f_prod_b):
             continue
-        if not _plan_lot_ok(r, plans, lots):
+        if not _plan_lot_ok(r, plans, lots, flayers):
             continue
         st = r.get("lot_status") or "-"
         if f_type and (r.get("lot_type") or "-") not in f_type:
@@ -3116,6 +3129,7 @@ def api_lots_live(request):
     areas = [x for x in request.GET.get("area", "").split(",") if x]
     plans = [x for x in request.GET.get("plan", "").split(",") if x]
     lots = [x for x in request.GET.get("lots", "").split(",") if x]
+    flayers = [x for x in request.GET.get("flayer", "").split(",") if x]
     # 화면에 보이는 컬럼만 실어 보낸다. 응답 크기가 절반 이하로 준다.
     want_cols = [x for x in request.GET.get("cols", "").split(",") if x]
     bdate = request.GET.get("biz_date", "")
@@ -3195,7 +3209,7 @@ def api_lots_live(request):
             continue
         if not _fprod_ok(r, f_prod_x):
             continue
-        if not _plan_lot_ok(r, plans, lots):
+        if not _plan_lot_ok(r, plans, lots, flayers):
             continue
         if or_causes:
             ids = set(_eqp_ids(r))

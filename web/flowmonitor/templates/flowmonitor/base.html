@@ -184,6 +184,8 @@
                       box-sizing:border-box; }
   .trtt > span:first-child { font-size:15px; font-weight:700; }
   .trtt .v { font-size:11px; color:var(--mut); font-weight:400; }
+  /* 히트맵 · 전체 보기는 한 덩어리로 붙여 둔다. */
+  .trbtns { display:inline-flex; gap:4px; margin-left:auto; }
   /* 카드 안에서만 굴린다. 메인 페이지는 길어지지 않는다. */
   .trbody { max-height:150px; overflow-y:auto; margin-top:4px; }
   .trsec { position:sticky; top:0; background:#fff; z-index:20;
@@ -206,7 +208,10 @@
   /* ── 추이 히트맵 ──────────────────────────────────────────────────── */
   .hmbox { width:min(1280px, 100%); }
   .hmtools { display:flex; align-items:center; gap:8px; }
-  .hmbody { max-height:70vh; overflow:auto; padding:10px 12px 16px; }
+  /* 위 여백을 두면 sticky 헤더 위쪽에 틈이 생겨 셀이 그 사이로 지나간다.
+     여백은 표 안쪽(첫 행 padding)으로 옮긴다. */
+  .hmbody { max-height:70vh; overflow:auto; padding:0 12px 16px; }
+  .hmbody .hmt { margin-top:0; }
   .hmt { border-collapse:separate; border-spacing:1px; font-size:10px; }
   /* 틀고정 층
        모서리(th.hk)  30   왼쪽·위가 겹치는 칸
@@ -244,6 +249,8 @@
             padding:12px 16px; border-bottom:1px solid var(--bd); }
   .updtop b { font-family:var(--f-title); font-size:16px; }
   .updbody { overflow-y:auto; padding:14px 18px 20px; }
+  /* 표를 담는 본문은 위 여백을 빼야 헤더 고정이 어긋나지 않는다. */
+  .updbody.trboxin { padding-top:0; }
   .updnote { font-size:12px; color:var(--mut); line-height:1.7; margin:0; }
   .updbody .legend { margin:6px 0 0; font-size:11px; }
   .lg-ok { color:var(--fg); font-weight:600; }
@@ -545,7 +552,8 @@
   .grid tr.tot td { font-weight:700; background:#F9FAFB;
                     border-top:2px solid var(--bd); }
 
-  .gridwrap { overflow:auto; border:1px solid var(--bd); border-radius:6px;
+  .gridwrap { overflow:auto; padding-top:0; border:1px solid var(--bd);
+              border-radius:6px;
               max-height:60vh; contain:paint; }
 
   /* ── 해상도 대응 ──────────────────────────────────────────────────────── */

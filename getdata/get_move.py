@@ -59,6 +59,58 @@ def _s(sr):
     return sr.astype("string").fillna("").str.strip()
 
 
+# f3 는 dest_line_id 로 라인을 다시 매긴다(KFR7 -> KFR4 등).
+#   MOVE 도 같은 규칙을 써야 화면 필터·추이 분석이 f3 와 맞물린다.
+#   이 값이 어긋나면 NRD(KFR4) 는 MOVE 가 하나도 없는 것처럼 보인다.
+DEST_LINE_MAP = {
+    "KFR7": {"KFR7A": "KFR7", "KFR7B": "KFR7",
+             "KFR7C": "KFR4", "KFR7D": "KFR4"},
+}
+
+
+def relabel_line(d):
+    """sys_line_id 를 f3 와 같은 표시 라인으로 바꾼다.
+
+    f3 는 lot 의 dest_line_id 로 라인을 다시 매긴다. MOVE 원천에는 그
+    컬럼이 없으므로 f3 가 이미 매겨 둔 결과를 lot 단위로 가져다 쓴다.
+    지난 lot 은 f3 에 없으니 남는데, 그건 원래 라인 그대로 둔다.
+    """
+    if "sys_line_id" not in d.columns:
+        return d
+    try:
+        conn = DB.connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT lot_id, MAX(`line`) FROM ("
+                    "  SELECT lot_id, `line` FROM f3_live "
+                    "  UNION ALL "
+                    "  SELECT lot_id, `line` FROM f3_history "
+                    ") t GROUP BY lot_id")
+                m = dict(cur.fetchall())
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[MOVE] 라인 재분류 건너뜀: {type(e).__name__}", flush=True)
+        return d
+
+    d = d.copy()
+    src = _s(d["sys_line_id"]).str.upper()
+    out = _s(d["lot_id"]).map(m).fillna(src)
+    # f3 에 없는 lot 은 dest 표기로도 한 번 시도한다.
+    dst = _s(d.get("cur_line_id", pd.Series("", index=d.index))).str.upper()
+    miss = out.eq(src)
+    for base, mp in DEST_LINE_MAP.items():
+        for k, v in mp.items():
+            out = out.mask(miss & src.eq(base) & dst.eq(k), v)
+
+    ch = (out != src).mean() * 100
+    d["sys_line_id"] = out
+    print(f"[MOVE] 라인 재분류 {ch:.1f}% -> {dict(out.value_counts())}",
+          flush=True)
+    return d
+
+
 def attach_prod2(d):
     """lot 에 제품(prod2) 을 붙인다.
 
@@ -322,6 +374,7 @@ def aggregate(df, ts_from, ts_to):
     d = mark_rework(d)
     d = attach_layer(d)
     d = attach_prod2(d)
+    d = relabel_line(d)
 
     rows, lot_rows, step_rows = [], [], []
     boundary = shift_start_at_or_before(ts_to)

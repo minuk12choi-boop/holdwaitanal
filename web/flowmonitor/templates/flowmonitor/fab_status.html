@@ -40,6 +40,10 @@
           <button onclick="toggleProd('dp4')" id="p4b">PLAN 전체 &#9662;</button>
           <div class="menu" id="p4m"></div>
         </div>
+        <div class="dd" id="dp6">
+          <button onclick="toggleProd('dp6')" id="p6b">LAYER 전체 &#9662;</button>
+          <div class="menu" id="p6m"></div>
+        </div>
         <div class="dd" id="dp5">
           <button onclick="toggleProd('dp5')" id="p5b">LOT 전체 &#9662;</button>
           <div class="menu" id="p5m"></div>
@@ -119,9 +123,11 @@
     <div class="cell" id="trend" style="display:none">
       <div class="cellttl trtt"><span>요약</span>
         <span class="v" id="trSub">분석 중…</span>
-        <button class="cardclr" onclick="openHeat()">히트맵</button>
-        <button class="cardclr" id="trAll" onclick="openTrendAll()"
-                style="display:none">전체 보기</button>
+        <span class="trbtns">
+          <button class="cardclr" onclick="openHeat()">히트맵</button>
+          <button class="cardclr" id="trAll" onclick="openTrendAll()"
+                  style="display:none">전체 보기</button>
+        </span>
       </div>
       <div class="trbody" id="trBody"></div>
     </div>
@@ -328,7 +334,7 @@ function onTypeCheck() {
   loadSummary();
 }
 
-let PROD1 = [], PROD2 = [], AREAS = [], PLANS = [], LOTS = [];
+let PROD1 = [], PROD2 = [], AREAS = [], PLANS = [], LOTS = [], LAYERS = [];
 const HAVE_DATES = new Set();      // 스냅샷이 있는 날짜
 let SNAP_DATE = "", SNAP_SHIFT = "";     // 빈 값이면 현재(f3_live)
 
@@ -486,7 +492,8 @@ function toggleProd(id) {
   if (!open) { el.classList.add("open"); }
 }
 
-const PROD_LABEL = { 1: "제품군", 2: "제품", 3: "AREA", 4: "PLAN", 5: "LOT" };
+const PROD_LABEL = { 1: "제품군", 2: "제품", 3: "AREA", 4: "PLAN", 5: "LOT",
+                     6: "LAYER" };
 
 // ALL 은 목록 맨 위의 전체 선택 스위치다.
 // 내부적으로는 "선택 없음 = 전체" 로 다루므로, ALL 이 켜지면 빈 배열로 둔다.
@@ -510,7 +517,8 @@ function prodPicked(which, isAll) {
   else if (which === 2) { PROD2 = eff; }
   else if (which === 3) { AREAS = eff; }
   else if (which === 4) { PLANS = eff; }
-  else { LOTS = eff; }
+  else if (which === 5) { LOTS = eff; }
+  else { LAYERS = eff; }
   if (sel.length === 0) {
     document.getElementById("p" + which + "b").innerHTML =
       `<span>${PROD_LABEL[which]} 선택 없음</span><span>&#9662;</span>`;
@@ -559,6 +567,7 @@ function renderProd(d) {
   fill(3, d.area_options, AREAS);
   fill(4, d.plan_options, PLANS);
   fill(5, d.lot_options, LOTS);
+  fill(6, d.layer_options, LAYERS);
 }
 
 function pickLine(line) {
@@ -567,7 +576,7 @@ function pickLine(line) {
     b.classList.toggle("on", b.dataset.line === line));
   document.getElementById("ddm").innerHTML = "";   // 라인마다 lot_type 이 다를 수 있다
   PROD1 = []; PROD2 = []; AREAS = [];              // 제품구분도 라인별로 다르다
-  PLANS = []; LOTS = [];
+  PLANS = []; LOTS = []; LAYERS = [];
   loadSummary();
 }
 
@@ -1294,6 +1303,7 @@ function loadBalance(show) {
     line: LINE, types: selectedTypes().join(","),
     prod1: PROD1.join(","), prod2: PROD2.join(","), area: AREAS.join(","),
     plan: PLANS.join(","), lots: LOTS.join(","),
+    flayer: LAYERS.join(","),
     biz_date: SNAP_DATE, shift: SNAP_SHIFT, by: (BAL_BY || "plan")
   }, dfFilter());
   delete base.layer_id;                 // LAYER 는 이 차트의 x축이라 뺀다
@@ -3010,54 +3020,56 @@ function setHeat(k, v) {
   loadHeat();
 }
 
-function heatPick(which) {
+// 히트맵 필터. 좌측 필터와 같은 규칙을 쓴다.
+//   ALL 을 켜면 전부, 끄면 전부 해제된다.
+//   '전부 해제' 는 전체가 아니므로 그동안은 조회하지 않는다.
+function heatPicked(which, isAll) {
   const id = which === "prod" ? "hmpm" : "hmlm";
-  const sel = [...document.querySelectorAll("#" + id + " input[type=checkbox]")]
-    .filter(x => x.checked && x.value).map(x => x.value);
-  const all = document.querySelectorAll(
-    "#" + id + " input[type=checkbox][value]").length;
-  HEAT[which] = (sel.length === all) ? [] : sel;
-  // ALL 체크 표시를 지금 상태에 맞춘다.
-  const box = document.querySelector(
-    "#" + id + " .dfall input[type=checkbox]");
-  if (box) { box.checked = !HEAT[which].length; }
+  const box = document.getElementById(id);
+  const all = box.querySelector("input[data-all]");
+
+  if (isAll) {
+    const on = all.checked;
+    box.querySelectorAll("input:not([data-all])")
+       .forEach(x => { x.checked = on; });
+  }
+  const opts = [...box.querySelectorAll("input:not([data-all])")];
+  const sel = opts.filter(x => x.checked).map(x => x.value);
+  if (all) { all.checked = (sel.length === opts.length && opts.length > 0); }
+
+  HEAT[which] = (sel.length === opts.length) ? [] : sel;
+
   const lb = which === "prod" ? "제품" : "PLAN";
   const btn = document.getElementById(which === "prod" ? "hmpb" : "hmlb");
-  btn.innerHTML = `${lb} ${HEAT[which].length ? HEAT[which].length + "개"
-    : "전체"} &#9662;`;
+  btn.innerHTML = `${sel.length === 0 ? lb + " 선택 없음"
+    : lb + " " + (HEAT[which].length ? HEAT[which].length + "개" : "전체")}`
+    + ` &#9662;`;
   btn.title = HEAT[which].length ? HEAT[which].join(", ") : `${lb} 전체`;
+
+  if (sel.length === 0) { return; }      // 고르면 그때 조회한다
   loadHeat();
 }
 
+// 메뉴를 그린다. 좌측 필터와 같은 모양 · 같은 규칙이다.
 function heatMenu(which, opts) {
   const id = which === "prod" ? "hmpm" : "hmlm";
   const btn = which === "prod" ? "hmpb" : "hmlb";
   const on = HEAT[which].length ? new Set(HEAT[which]) : new Set(opts);
   const isAll = !HEAT[which].length;
-  // ALL 을 끄면 전체 선택이 함께 풀린다. 그 뒤 원하는 것만 고른다.
   document.getElementById(id).innerHTML =
-    `<label class="dfall"><input type="checkbox"${isAll ? " checked" : ""}`
-    + ` onclick="heatAll('${which}', this.checked)"><b>ALL</b></label>`
+    `<label class="dfall"><input type="checkbox" data-all`
+    + `${isAll ? " checked" : ""}`
+    + ` onchange="heatPicked('${which}', true)">ALL</label>`
     + `<input class="ddq" type="text" placeholder="검색"`
     + ` oninput="heatSearch('${id}')" onclick="event.stopPropagation()">`
     + opts.map(o => `<label data-opt="${o}"><input type="checkbox"`
         + ` value="${o}"${on.has(o) ? " checked" : ""}`
-        + ` onclick="heatPick('${which}')">${o}</label>`).join("");
+        + ` onchange="heatPicked('${which}', false)">${o}</label>`).join("");
   const lb = which === "prod" ? "제품" : "PLAN";
   const sel = HEAT[which];
   const b = document.getElementById(btn);
   b.innerHTML = `${lb} ${sel.length ? sel.length + "개" : "전체"} &#9662;`;
   b.title = sel.length ? sel.join(", ") : `${lb} 전체`;
-}
-
-// ALL 을 켜면 전체, 끄면 아무것도 안 고른 상태가 된다.
-function heatAll(which, checked) {
-  const opts = ((HEAT.data && HEAT.data.options)
-    ? (which === "prod" ? HEAT.data.options.prod : HEAT.data.options.plan)
-    : []) || [];
-  HEAT[which] = checked ? [] : opts.slice(0, 1);
-  heatMenu(which, opts);
-  loadHeat();
 }
 
 function heatSearch(id) {
@@ -4346,6 +4358,8 @@ function openDrill(filt, label, src, keepView) {
                  prod1: PROD1.join(","), prod2: PROD2.join(","),
                  area: AREAS.join(","),
                  plan: PLANS.join(","), lots: LOTS.join(","),
+                 flayer: LAYERS.join(","),
+    flayer: LAYERS.join(","),
                  biz_date: SNAP_DATE, shift: SNAP_SHIFT,
                  src: src || "",
                  cols: keepView ? visibleKeys().join(",") : "" };
@@ -4414,6 +4428,7 @@ function loadSummary(keepFocus) {
         + "&area=" + encodeURIComponent(AREAS.join(","))
         + "&plan=" + encodeURIComponent(PLANS.join(","))
         + "&lots=" + encodeURIComponent(LOTS.join(","))
+        + "&flayer=" + encodeURIComponent(LAYERS.join(","))
         // 같은 필드를 여러 개 고를 수 있다. 조건 저장소를 그대로 보낸다.
         + "&x_prod=" + encodeURIComponent((DF_X.x_prod || []).join(","))
         + "&x_mod=" + encodeURIComponent((DF_X.x_mod || []).join(","))
