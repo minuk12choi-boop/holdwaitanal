@@ -1501,6 +1501,14 @@ def _hist_snapshots(line):
                 for r in cur.fetchall()]
 
 
+def _rules_sig(rules):
+    """기준정보 목록의 지문. 내용이 바뀌면 값이 바뀐다."""
+    try:
+        return hash(repr(rules))
+    except Exception:
+        return len(rules or ())
+
+
 _ROWS_CACHE = {}          # (스냅샷, 조건) -> rows. 같은 스냅샷이면 재사용한다.
 _CLS_CACHE = {}           # lot -> (대분류, 중분류, 소분류). 스냅샷 단위 캐시.
 
@@ -1846,7 +1854,10 @@ def api_summary(request):
     ht = _holdtype_rules()          # 기준정보 유형이 소분류를 대체한다
 
     # 원인 분류는 lot 마다 같은 결과다. 한 스냅샷 안에서 재사용한다.
-    ckey = (snap, id(rules), id(ht))
+    #   [주의] id() 를 키로 쓰면 안 된다. 객체가 해제되면 파이썬이 같은
+    #   주소를 다시 준다. 기준정보를 고쳐도 캐시가 안 비워질 수 있다.
+    #   내용으로 키를 만든다.
+    ckey = (snap, _rules_sig(rules), _rules_sig(ht))
     if _CLS_CACHE.get("key") != ckey:
         _CLS_CACHE.clear()
         _CLS_CACHE["key"] = ckey

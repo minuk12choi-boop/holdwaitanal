@@ -1195,6 +1195,7 @@ let BAL_DATA = null;
 // 펼칠 목록. 축마다 따로 담는다. 하나로 쓰면 제품에서 고른 값이
 // PLAN 메뉴에도 쓰여 아무것도 체크되지 않고 펼치기가 실패한다.
 //   null = 전부 · [] = 아직 안 고름
+let BAL_SEQ = 0;          // 늦게 온 응답이 최신을 덮지 않게
 let BAL_SEL = { prod: null, plan: null };
 let BAL_PICK = null;      // 화면 표기용(고른 것을 합친 목록)
 let BAL_BY = "";          // "" 면 접힘. prod / plan / prod,plan
@@ -1375,7 +1376,10 @@ function loadBalance(show) {
   const q = Object.entries(base)
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
     .map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
+  // 늦게 온 옛 응답이 최신을 덮지 않게 순번을 붙인다.
+  const bseq = ++BAL_SEQ;
   fetch("/api/balance/?" + q).then(r => r.json()).then(d => {
+    if (bseq !== BAL_SEQ) { return; }
     BAL_DATA = d;
     box.style.display = (d.layers || []).length ? "block" : "none";
     balSyncBtns();
@@ -3173,7 +3177,10 @@ function loadHeat() {
     + "&prod2=" + encodeURIComponent(HEAT.prod.join(","))
     + "&plan=" + encodeURIComponent(HEAT.plan.join(","))
     + "&biz_date=" + encodeURIComponent(SNAP_DATE || "");
+  // 토글을 연달아 누르면 응답이 뒤섞인다. 순번으로 막는다.
+  const hseq = ++HEAT_SEQ;
   fetch("/api/heatmap/?" + q).then(r => r.json()).then(d => {
+    if (hseq !== HEAT_SEQ) { return; }
     HEAT.data = d;
     MISS = new Set(d.missing || []);
     if (d.options) {
@@ -3333,6 +3340,7 @@ function fitHeat() {
 
 // 적재가 없는 날짜의 자리. 0매와 구분해 그린다.
 let MISS = new Set();
+let HEAT_SEQ = 0;         // 늦게 온 응답이 최신을 덮지 않게
 
 function heatMore(n) {
   const d = HEAT.data || {};
