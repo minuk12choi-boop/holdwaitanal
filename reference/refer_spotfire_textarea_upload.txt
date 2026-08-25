@@ -1,0 +1,85 @@
+<!--
+  S3 업로드 전용 텍스트 영역.
+  자동 실행기(refer_spotfire_textarea.txt)와 **다른 영역**에 둔다.
+  원천 재조회 없이 지금 문서의 데이터를 그대로 S3 로 올린다.
+
+  준비
+    1) Document Properties > Script > New...
+         Name     : UploadOnly
+         Language : IronPython 2.7
+       reference/spotfire_uploadonly.py 내용을 붙여넣는다.
+
+    2) 이 텍스트 영역에 Action Control 버튼을 넣는다.
+         Control type : Button
+         Display text : S3 업로드
+         Action       : Execute script -> UploadOnly
+
+    3) 삽입된 버튼의 id 를 아래 UP_BTN_ID 에 넣는다.
+       (HTML 보기에서 <SpotfireControl id="..." /> 를 그대로 복사)
+-->
+
+<div style="font-size:12px">
+  <b>S3 업로드 (재조회 없음)</b><br>
+  <span style="color:#6B7280;font-size:11px">
+    쿼리를 고쳐 이미 조회해 둔 상태에서 올리기만 할 때 씁니다.
+    새 컬럼을 받으려면 먼저 RefreshAll 을 한 번 돌려야 합니다.
+  </span>
+</div>
+
+<P><SpotfireControl id="UP_BTN_ID_HERE" /></P>
+<div id="uptick" style="color:#6B7280;font-size:11px"></div>
+
+<SCRIPT>
+(function () {
+  var UP_BTN_ID = "UP_BTN_ID_HERE";   // 위 버튼의 id 로 바꾼다
+  var MAX_WAIT  = 15 * 60 * 1000;     // 이만큼 지나면 멈춘 것으로 본다
+
+  // 이 영역만의 상태. 자동 실행기와 겹치지 않게 이름을 따로 쓴다.
+  var S = window.__MFMUP = window.__MFMUP || { busy: false, at: 0, iv: null };
+  if (S.iv) { clearInterval(S.iv); S.iv = null; }
+
+  function say(msg) {
+    var t = document.getElementById("uptick");
+    if (t) { t.innerText = msg; }
+  }
+
+  function now() { return new Date().toLocaleTimeString(); }
+
+  // runlog 는 "HH:MM:SS 완료 (테이블 N개)" 형태다.
+  // 문구만 보면 이전 회차 기록을 보고 끝났다고 착각한다.
+  // 앞의 시각 9글자까지 읽어 '값이 바뀌었는지' 로 판정한다.
+  function stamp() {
+    var log = document.body.innerText || "";
+    var i = log.indexOf("완료 (테이블");
+    return i >= 9 ? log.substr(i - 9, 9) : "";
+  }
+
+  var btn = document.getElementById(UP_BTN_ID);
+  if (!btn) { say("✕ 버튼을 찾지 못했습니다. UP_BTN_ID 를 확인하세요."); return; }
+
+  btn.addEventListener("click", function () {
+    if (S.busy && Date.now() - S.at < MAX_WAIT) {
+      say("· " + now() + " 이미 올리는 중입니다");
+      return;
+    }
+    S.busy = true;
+    S.at = Date.now();
+    var began = now();
+    var mark = stamp();
+    say("▶ " + began + " 업로드 시작…");
+
+    S.iv = setInterval(function () {
+      var cur = stamp();
+      if (cur && cur !== mark && Date.now() - S.at > 5000) {
+        S.busy = false; clearInterval(S.iv); S.iv = null;
+        say("▶ " + began + " 시작 · " + now() + " 완료");
+      } else if (Date.now() - S.at > MAX_WAIT) {
+        S.busy = false; clearInterval(S.iv); S.iv = null;
+        say("▶ " + began + " 시작 · 시간초과");
+      }
+    }, 3000);
+  });
+
+  say("대기 중입니다. 버튼을 누르면 지금 데이터를 S3 로 올립니다.");
+})();
+</SCRIPT>

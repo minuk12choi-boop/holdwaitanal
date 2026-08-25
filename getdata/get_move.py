@@ -36,6 +36,8 @@ import db_common as DB
 #   "s3"  : Spotfire 가 올린 PFR1_KFR7_MOVE 를 읽는다
 #   "bdq" : 기존 bigdataquery 로 Impala 조회
 SOURCE = "s3"
+# S3 parquet 이 담고 있다고 보는 최대 기간. 이보다 길면 Impala 로 간다.
+S3_MAX_DAYS = 7
 S3_TABLE = "PFR1_KFR7_MOVE"
 
 INIT_MONTHS = 3
@@ -300,11 +302,11 @@ def main():
     ap.add_argument("--from", dest="ts_from", type=dt.date.fromisoformat)
     ap.add_argument("--to", dest="ts_to", type=dt.date.fromisoformat)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--bdq", action="store_true",
+                    help="S3 대신 Impala 를 직접 조회한다")
     args = ap.parse_args()
 
-    if SOURCE == "bdq":
-        from bigdataquery import getData
-    else:
+    if SOURCE != "bdq":
         import s3_source
 
     conn = DB.connect()
@@ -315,8 +317,20 @@ def main():
 
     t_start = dt.datetime.now()
     t0 = perf_counter()
-    if SOURCE == "bdq":
-        df = getData(param=move_query(ts_from, ts_to), convert_type=True, verbose=True)
+    # S3 parquet 은 Spotfire 가 올린 **최근 구간만** 담고 있다.
+    #   초기 적재(--full)처럼 긴 기간이 필요하면 S3 로는 채울 수 없다.
+    #   그때는 Impala 를 직접 조회한다.
+    use_bdq = (SOURCE == "bdq") or args.bdq
+    if not use_bdq and (ts_to - ts_from).days > S3_MAX_DAYS:
+        print(f"[MOVE] 조회구간이 {S3_MAX_DAYS}일을 넘어 Impala 로 직접 "
+              f"조회합니다(S3 parquet 은 최근 구간만 담고 있습니다)",
+              flush=True)
+        use_bdq = True
+
+    if use_bdq:
+        from bigdataquery import getData
+        df = getData(param=move_query(ts_from, ts_to), convert_type=True,
+                     verbose=True)
     else:
         # S3 raw 는 Oracle 쿼리에서 이미 기간이 잘려 있다. 여기서는 조회 구간에
         # 맞춰 한 번 더 거른다(구간을 좁혀 돌릴 때 대비).
