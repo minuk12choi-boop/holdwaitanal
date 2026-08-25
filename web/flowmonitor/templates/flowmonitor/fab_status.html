@@ -346,17 +346,25 @@ function renderSnap(d) {
   const w = document.getElementById("datefw");
   if (w) { w.classList.toggle("on", !!SNAP_DATE); }
 
-  // 그 날짜에 실제로 적재된 shift 는 시각을 함께 보여준다.
+  // 어느 업무일을 보고 있는지. 안 골랐으면 최신 스냅샷의 업무일이다.
+  const curD = SNAP_DATE || (snaps.length ? snaps[0].biz_date : "");
+
+  // **그 업무일** 의 적재 시각만 쓴다. 날짜를 안 골랐다고 다른 날 것을
+  // 섞으면 SW(19:59) 처럼 엉뚱한 시각이 붙는다.
   const have = {};
-  snaps.filter(x => !SNAP_DATE || x.biz_date === SNAP_DATE)
+  snaps.filter(x => x.biz_date === curD)
        .forEach(x => { have[x.shift] = x.at; });
 
+  // 오늘(최신 스냅샷이 있는 날)이면 '최신' 을 고를 수 있다.
+  const isToday = !SNAP_DATE
+    || (snaps.length && SNAP_DATE === snaps[0].biz_date);
+
   const sm = document.getElementById("shm");
-  // 과거 날짜에는 '최신' 이 없다. 그 날은 SHIFT 세 개가 전부다.
-  sm.innerHTML = (SNAP_DATE ? "" :
-      `<label><input type="radio" name="snaps"`
-      + `${!SNAP_SHIFT ? " checked" : ""} onchange="pickSnapShift('')">`
-      + `최신${nowAt ? " (" + nowAt + ")" : ""}</label>`)
+  sm.innerHTML = (isToday
+      ? `<label><input type="radio" name="snaps"`
+        + `${!SNAP_SHIFT ? " checked" : ""} onchange="pickSnapShift('')">`
+        + `최신${nowAt ? " (" + nowAt + ")" : ""}</label>`
+      : "")
     + SHIFT_LIST.map(k => {
         // 적재된 것만 고를 수 있다. 오늘도 아직 안 온 SHIFT 는 막는다.
         //   (SHIFT_AT 은 '예정 시각' 이라 그것만 보고 열어 주면 안 된다)
@@ -369,7 +377,7 @@ function renderSnap(d) {
       }).join("");
   document.getElementById("shb").innerHTML =
     `<span>SHIFT ${SNAP_SHIFT
-      || (SNAP_DATE ? "-" : "최신" + (nowAt ? " " + nowAt : ""))}</span>`
+      || (isToday ? "최신" + (nowAt ? " " + nowAt : "") : "-")}</span>`
     + `<span>&#9662;</span>`;
   document.getElementById("shb").classList.toggle("on", !!SNAP_SHIFT);
 }
@@ -3074,6 +3082,25 @@ function stickDiag(tag) {
   });
 }
 
+// 칸을 누르면 그 조건으로 화면을 좁힌다.
+//   날짜와 LAYER 는 좌측 필터에 그대로 있다. STEP 축일 때는 LAYER 를
+//   못 정하므로 날짜만 건다.
+function heatPick(key, date) {
+  const isStep = HEAT.axis === "step";
+  closeHeat();
+  SNAP_DATE = date;
+  SNAP_SHIFT = "";
+  if (!isStep) { LAYERS = [key]; }
+  if (HEAT.prod.length) { PROD2 = HEAT.prod.slice(); }
+  if (HEAT.plan.length) { PLANS = HEAT.plan.slice(); }
+  loadSummary();
+  if (isStep) {
+    // STEP 은 좌측 필터에 없다. 무엇으로 좁혔는지 알려 준다.
+    const lb = document.getElementById("snapDateLb");
+    if (lb) { lb.title = `${date} · STEP ${key} (STEP 필터는 없어 날짜만 적용)`; }
+  }
+}
+
 function heatMore(n) {
   const d = HEAT.data || {};
   const tb = document.getElementById("hmTb");
@@ -3084,8 +3111,10 @@ function heatMore(n) {
   for (let i = HEAT.at; i < to; i++) {
     out += `<tr><td class="hk">${d.keys[i]}</td>`;
     out += d.rows[i].map((v, k) =>
-      `<td style="background:${heatColor(v, d.max)}"`
-      + ` title="${d.keys[i]} · ${d.dates[k]} · ${nf(v)}${unit}">`
+      `<td class="hcell" style="background:${heatColor(v, d.max)}"`
+      + ` onclick="heatPick('${d.keys[i]}','${d.dates[k]}')"`
+      + ` title="${d.keys[i]} · ${d.dates[k]} · ${nf(v)}${unit}`
+      + `\n누르면 이 조건으로 화면을 좁힙니다">`
       + `${v ? kfmt(v) : ""}</td>`).join("");
     out += `</tr>`;
   }
@@ -3632,13 +3661,14 @@ const NUM_COLS = new Set(["qty", "wt", "마지막이벤트경과_일", "스텝�
                           "마지막작업경과_일"]);
 
 function closeDrill() {
-  const btn = document.getElementById("clearAllBtn");
-  if (btn) { btn.style.display = "none"; }
+  // 버튼은 여기서 끄지 않는다. 좌측 필터만 걸려 있어도 보여야 하므로
+  // markActiveCards() 가 지금 상태를 보고 정한다.
   const b = document.getElementById("balpanel");
   if (b) { b.style.display = "none"; }
   DRILL_SRC = ""; DRILL_DATA = null; SORT_KEYS = [];
   HIDE_COLS = {}; DFILT = {}; DFILT_WT = null; dfLast = {}; FCACHE = null;
   COL_ORDER = null;
+  markActiveCards();
   document.getElementById("drill").innerHTML =
     `<div class="empty">좌측 <b>재공</b>·<b>status</b>·<b>W/T 분포</b>·
       <b>W/T 0 재공 분포</b> 또는 위 <b>원인 분석</b> 항목을 클릭하면
