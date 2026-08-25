@@ -208,36 +208,45 @@ def shape(line, today=None, prod=None, plan=None):
 #   MOVE 가 떨어진 구간에 그 시점 무슨 일이 있었는지 붙인다.
 #   f3_history 에는 스냅샷마다 상태 · 설비 · HOLD 가 이미 쌓여 있다.
 # ---------------------------------------------------------------------------
-def cause_at(line, since, today, prod=None, plan=None, layer=None):
-    """그 구간에서 잡힌 원인들. 스냅샷 단위로 시작 · 지속을 센다."""
+def cause_bulk(line, since, today, prod=None, plan=None):
+    """구간마다 따로 묻지 않고 **한 번에** 읽는다.
+
+    구간이 수십 개면 개별 조회는 그만큼 왕복이 생겨 1분 가까이 걸린다.
+    (제품, PLAN, LAYER) 로 미리 나눠 담아 두고 필요할 때 꺼내 쓴다.
+    """
     if not _table_ok("f3_history") or since is None:
-        return []
+        return {}
     w = ["`line` = %s", "biz_date >= %s", "biz_date <= %s",
          "`현스텝` = '현스텝'"]
     a = [line, since, today]
     if prod:
-        w.append("prod2 = %s")
-        a.append(prod)
+        w.append("prod2 IN (%s)" % ",".join(["%s"] * len(prod)))
+        a += list(prod)
     if plan:
-        w.append("proc_id = %s")
-        a.append(plan)
-    if layer:
-        w.append("layer_id = %s")
-        a.append(layer)
+        w.append("proc_id IN (%s)" % ",".join(["%s"] * len(plan)))
+        a += list(plan)
 
     rows = _rows(
-        "SELECT biz_date, shift, snapshot_at, lot_status, "
-        "       eqpgroup, eqpgroup_cham, AREA, down, tip, hold, hold_reason, "
-        "       `연속`, de_rank, step_seq, SUM(qty) AS q, COUNT(*) AS c "
+        "SELECT prod2, proc_id, layer_id, snapshot_at, lot_status, "
+        "       eqpgroup, eqpgroup_cham, AREA, down, tip, hold_reason, "
+        "       `연속`, step_seq, SUM(qty) AS q "
         "FROM   f3_history "
         f"WHERE  {' AND '.join(w)} "
-        "GROUP  BY biz_date, shift, snapshot_at, lot_status, eqpgroup, "
-        "          eqpgroup_cham, AREA, down, tip, hold, hold_reason, "
-        "          `연속`, de_rank, step_seq", a)
+        "GROUP  BY prod2, proc_id, layer_id, snapshot_at, lot_status, "
+        "          eqpgroup, eqpgroup_cham, AREA, down, tip, hold_reason, "
+        "          `연속`, step_seq", a)
 
-    # 원인별로 스냅샷을 모은다.
-    box = {}
+    out = {}
     for r in rows:
+        k = (r["prod2"] or "-", r["proc_id"] or "-", r["layer_id"])
+        out.setdefault(k, []).append(r)
+    return out
+
+
+def cause_of(rows):
+    """한 구간의 행들을 원인별로 접는다."""
+    box = {}
+    for r in rows or []:
         st = (r["lot_status"] or "").upper()
         eqp = (r["eqpgroup_cham"] or r["eqpgroup"] or "").strip()
         down = (r["down"] or "").strip()
@@ -337,11 +346,13 @@ def diagnose(line, today=None, prod=None, plan=None):
     """추이 분석 + 원인 결합. 문구 생성이 이 결과를 받는다."""
     today = today or dt.date.today()
     rows = shape(line, today, prod=prod, plan=plan)
-    for r in rows[:40]:                 # 원인 조회는 상위만. 나머지는 미상.
-        r["causes"] = cause_at(line, r["since"], today,
-                               r["prod2"], r["proc_id"], r["layer_id"])
-    for r in rows[40:]:
-        r["causes"] = []
+    # 원인은 **한 번에** 읽는다. 구간마다 묻으면 왕복이 그만큼 늘어난다.
+    sin = [r["since"] for r in rows if r["since"]]
+    bulk = cause_bulk(line, min(sin) if sin else None, today,
+                      prod=prod, plan=plan)
+    for r in rows:
+        k = (r["prod2"] or "-", r["proc_id"] or "-", r["layer_id"])
+        r["causes"] = cause_of(bulk.get(k))
     return group_findings(rows)
 
 

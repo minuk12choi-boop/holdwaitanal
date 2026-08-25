@@ -59,6 +59,42 @@ def _s(sr):
     return sr.astype("string").fillna("").str.strip()
 
 
+def attach_prod2(d):
+    """lot 에 제품(prod2) 을 붙인다.
+
+    MOVE 원천에는 제품 구분이 없다. f3_live / f3_history 에 이미 lot 별
+    제품이 들어 있으므로 그것을 가져다 쓴다. 없으면 '-' 로 둔다.
+    이 값이 없으면 히트맵 제품 필터에 '-' 만 뜨고 추이도 제품별로 못 가른다.
+    """
+    if "prod2" in d.columns and _s(d["prod2"]).ne("").any():
+        return d
+    try:
+        conn = DB.connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT lot_id, MAX(prod2) FROM ("
+                    "  SELECT lot_id, prod2 FROM f3_live "
+                    "   WHERE prod2 IS NOT NULL AND prod2 <> '' "
+                    "  UNION ALL "
+                    "  SELECT lot_id, prod2 FROM f3_history "
+                    "   WHERE prod2 IS NOT NULL AND prod2 <> '' "
+                    ") t GROUP BY lot_id")
+                m = dict(cur.fetchall())
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[MOVE] 제품 붙이기 건너뜀: {type(e).__name__}", flush=True)
+        d["prod2"] = "-"
+        return d
+
+    d = d.copy()
+    d["prod2"] = _s(d["lot_id"]).map(m).fillna("-")
+    got = d["prod2"].ne("-").mean() * 100
+    print(f"[MOVE] 제품 매칭 {got:.1f}% ({len(m):,} lot 사전)", flush=True)
+    return d
+
+
 def mark_rework(d):
     """REWORK 여부를 매긴다. 세 가지 중 하나면 REWORK 다.
 
@@ -215,6 +251,7 @@ def aggregate(df, ts_from, ts_to):
     d["move"] = pd.to_numeric(d["move"], errors="coerce").fillna(0)
     d = mark_rework(d)
     d = attach_layer(d)
+    d = attach_prod2(d)
 
     rows, lot_rows, step_rows = [], [], []
     boundary = shift_start_at_or_before(ts_to)

@@ -117,7 +117,7 @@
   <div class="maincol">
     <!-- 추이 요약: 어디서 언제부터 생산량이 줄었나 -->
     <div class="cell" id="trend" style="display:none">
-      <div class="cellttl trtt"><span>지금 무엇이 생산을 막고 있나</span>
+      <div class="cellttl trtt"><span>요약</span>
         <span class="v" id="trSub">분석 중…</span>
         <button class="cardclr" onclick="openHeat()">히트맵</button>
         <button class="cardclr" id="trAll" onclick="openTrendAll()"
@@ -495,9 +495,11 @@ function renderProd(d) {
           + ` onchange="prodPicked(${which}, false)">${o}</label>`).join("")
          || `<label style="color:var(--mut)">값 없음</label>`);
     const btn = document.getElementById("p" + which + "b");
+    // 고른 값을 그대로 적으면 글자가 끊긴다. 개수만 적고 전체는 툴팁으로.
     btn.innerHTML = `<span>${PROD_LABEL[which]} `
-      + (isAll ? "전체" : (cur.length <= 2 ? cur.join(",") : cur.length + "개"))
+      + (isAll ? "전체" : cur.length + "개")
       + `</span><span>&#9662;</span>`;
+    btn.title = isAll ? `${PROD_LABEL[which]} 전체` : cur.join(", ");
     btn.classList.toggle("on", !isAll);      // 필터가 걸려 있으면 라인처럼 강조
   };
   fill(1, d.prod1_options, PROD1);
@@ -2866,11 +2868,18 @@ function loadTrend() {
     + "&prod2=" + encodeURIComponent(PROD2.join(","))
     + "&plan=" + encodeURIComponent(PLANS.join(","))
     + "&biz_date=" + encodeURIComponent(SNAP_DATE || "");
+  // 이 조회는 오래 걸린다. 화면 전체를 덮지 않고 이 카드만 흐리게 한다.
+  box.classList.add("upd");
+  window.__noBusy = (window.__noBusy || 0) + 1;
   fetch("/api/trend/?" + q).then(r => r.json()).then(d => {
+    window.__noBusy = Math.max(0, window.__noBusy - 1);
+    box.classList.remove("upd");
     if (seq !== TREND_SEQ) { return; }          // 지난 요청은 버린다
     TREND = d;
     renderTrend();
   }).catch(() => {
+    window.__noBusy = Math.max(0, window.__noBusy - 1);
+    box.classList.remove("upd");
     if (seq !== TREND_SEQ) { return; }
     sub.textContent = "추이 데이터를 불러오지 못했습니다";
   });
@@ -2923,6 +2932,15 @@ function closeHeat(ev) {
 }
 
 function setHeat(k, v) {
+  // STEP 축은 수가 많아 PLAN 하나로 좁혀야 읽을 수 있다.
+  if (k === "axis" && v === "step" && HEAT.plan.length !== 1) {
+    const box = document.getElementById("hmBody");
+    box.innerHTML = `<div class="minittl">STEP 으로 보려면 PLAN 을 `
+      + `하나만 고르세요. 지금 `
+      + `${HEAT.plan.length ? HEAT.plan.length + "개" : "전체"} 선택 중입니다.`
+      + `</div>`;
+    return;
+  }
   HEAT[k] = v;
   ["move", "wip"].forEach(x =>
     document.getElementById("hm_" + x).className =
@@ -3029,7 +3047,8 @@ function heatMore(n) {
     out += `<tr><td class="hk">${d.keys[i]}</td>`;
     out += d.rows[i].map((v, k) =>
       `<td style="background:${heatColor(v, d.max)}"`
-      + ` title="${d.keys[i]} · ${d.dates[k]} · ${nf(v)}${unit}"></td>`).join("");
+      + ` title="${d.keys[i]} · ${d.dates[k]} · ${nf(v)}${unit}">`
+      + `${v ? kfmt(v) : ""}</td>`).join("");
     out += `</tr>`;
   }
   tb.insertAdjacentHTML("beforeend", out);

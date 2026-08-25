@@ -70,6 +70,16 @@
   .wip .top .rankbtn, .wip .top .dd > button { white-space:nowrap;
                                                font-size:10px;
                                                padding:2px 7px; }
+  /* 좌측 최상단 필터 다섯 개. 폭을 고르게 하고 글자를 줄여 안 끊기게 한다. */
+  .prodf { display:flex; gap:4px; }
+  .prodf > .dd { flex:1 1 0; min-width:0; }
+  .prodf > .dd > button { width:100%; font-size:10px; padding:2px 4px;
+                          white-space:nowrap; overflow:hidden;
+                          text-overflow:ellipsis; }
+  .prodf > .dd > button > span:first-child { overflow:hidden;
+                                             text-overflow:ellipsis; }
+  /* 선택지가 많으면 메뉴 안에서 굴린다. */
+  .dd .menu { max-height:300px; overflow-y:auto; }
   .wip .stack { display:flex; height:10px; border-radius:5px; overflow:hidden;
                 background:#F3F4F6; }
   .wip .stack i { display:block; height:100%; }
@@ -182,7 +192,9 @@
   .trno { flex:0 0 14px; color:var(--mut); font-weight:700; }
   .trtx { flex:1; min-width:0; }
   .trboxin .grid { width:100%; font-size:11px; }
-  .trboxin .grid th { background:#F7F8FA; text-align:left; padding:4px 6px; }
+  /* 스크롤해도 컬럼명이 위에 붙어 있게 한다. */
+  .trboxin .grid th { background:#F7F8FA; text-align:left; padding:4px 6px;
+                      position:sticky; top:0; z-index:2; }
   .trboxin .grid td { padding:3px 6px; border-top:1px solid var(--bd); }
   .trboxin .grid td.num { text-align:right; }
 
@@ -197,7 +209,9 @@
   .hmt th.hk, .hmt td.hk { position:sticky; left:0; background:#fff; z-index:3;
                            text-align:left; padding:2px 6px 2px 2px;
                            font-weight:700; color:var(--fg); }
-  .hmt td { width:16px; height:14px; border-radius:2px; }
+  /* 셀 안에 값을 k 단위로 적는다. */
+  .hmt td { min-width:34px; height:16px; border-radius:2px; text-align:center;
+            font-size:9px; color:#1F2937; padding:0 2px; }
 
   /* ── 업데이트 내역 ───────────────────────────────────────────────── */
   /* 업데이트 내역 버튼과 팝업 */
@@ -896,6 +910,8 @@
   const bar = () => document.getElementById("bar");
 
   function show() {
+    // 요약처럼 오래 걸리는 조회는 화면을 가리지 않는다(카드만 흐려진다).
+    if (window.__noBusy) { return; }
     // 첫 화면만 덮는다. 그 뒤에는 상단 바로만 알린다.
     if (!booted) {
       const b = el();
