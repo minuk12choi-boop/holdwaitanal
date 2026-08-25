@@ -710,16 +710,20 @@
   .prodf > .dd { flex:1; min-width:0; }
   .prodf > .dd > button { width:100%; }
   /* 캘린더 입력. 표기는 26-08-15 로 짧게 보여주고 실제 입력은 겹쳐 둔다. */
-  .datef { flex:1; min-width:0; position:relative; box-sizing:border-box;
-           padding:7px 10px; border:1px solid var(--bd); border-radius:6px;
-           background:#fff; font-family:var(--f-title); font-weight:700;
-           font-size:13px; color:var(--mut); cursor:pointer;
-           display:flex; align-items:center; }
-  .datef::after { content:"\1F4C5"; margin-left:auto; font-size:12px; }
-  /* 라벨 전체를 눌러도 바로 열리도록 입력을 위에 깔아 둔다. */
-  .datef > input { position:absolute; inset:0; opacity:0; width:100%;
-                   height:100%; border:0; cursor:pointer; z-index:1; }
-  .datef.on { background:var(--brand); border-color:var(--brand); color:#fff; }
+  /* 날짜는 목록에서 고른다. 적재된 날만 나오므로 빈 날을 누를 일이 없다. */
+  .datef { flex:1; min-width:0; position:relative; }
+  .datef > button { width:100%; box-sizing:border-box;
+                    padding:7px 10px; border:1px solid var(--bd);
+                    border-radius:6px; background:#fff;
+                    font-family:var(--f-title); font-weight:700;
+                    font-size:13px; color:var(--mut); cursor:pointer;
+                    display:flex; align-items:center; }
+  .datef > button::after { content:"\1F4C5"; margin-left:auto;
+                           font-size:12px; }
+  .datef.on > button { background:var(--brand); border-color:var(--brand);
+                       color:#fff; }
+  /* 고를 수 없는 SHIFT 는 흐리게. 눌러도 반응하지 않는다. */
+  .menu label.off { color:var(--mut); cursor:not-allowed; }
   .prodf .dd { flex:1; min-width:0; }
   .prodf .dd > button { width:100%; }
   /* ── 전환 효과 ─────────────────────────────────────────────────────────
