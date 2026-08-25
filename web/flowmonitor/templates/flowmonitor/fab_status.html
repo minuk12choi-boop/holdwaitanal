@@ -119,22 +119,10 @@
   </div>
 
   <div class="maincol">
-    <!-- 추이 요약: 어디서 언제부터 생산량이 줄었나 -->
-    <div class="cell" id="trend" style="display:none">
-      <div class="cellttl trtt"><span>요약</span>
-        <span class="v" id="trSub">분석 중…</span>
-        <span class="trbtns">
-          <button class="cardclr" onclick="openHeat()">히트맵</button>
-          <button class="cardclr" id="trAll" onclick="openTrendAll()"
-                  style="display:none">전체 보기</button>
-        </span>
-      </div>
-      <div class="trbody" id="trBody"></div>
-    </div>
-
     <!-- 라인 요약: 지금 무엇이 문제인가 -->
     <div class="cell" id="insight" style="display:none">
       <div class="cellttl instt"><span id="insTtl">지금 이 라인의 문제</span>
+        <button class="cardclr hmbtn" onclick="openHeat()">히트맵</button>
         <span class="v" id="insSub"></span>
 </div>
       <div class="insrow" id="insBody"></div>
@@ -216,17 +204,6 @@
           </div>
         </div>
         <div class="updbody hmbody" id="hmBody"></div>
-      </div>
-    </div>
-
-    <!-- 추이 전체 목록 -->
-    <div id="trmask" class="updmask" onclick="closeTrendAll(event)">
-      <div class="updbox" onclick="event.stopPropagation()">
-        <div class="updtop">
-          <b>MOVE 저하 전체 목록</b>
-          <button class="btn" onclick="closeTrendAll()">닫기</button>
-        </div>
-        <div class="updbody trboxin"></div>
       </div>
     </div>
 
@@ -2912,72 +2889,9 @@ function syncLeftHeight() {
    어디서 언제부터 얼마나 줄었는지 말한다.
    계산에 몇 초 걸릴 수 있어 따로 부르고, 그 자리에만 '분석 중' 을 둔다.
 --------------------------------------------------------------------- */
-let TREND = null;
-let TREND_SEQ = 0;
 
-const TR_GROUP = { "설비": "설비 이슈", "LOT": "LOT 제약", "미상": "원인 미상" };
 
-function loadTrend() {
-  const box = document.getElementById("trend");
-  const sub = document.getElementById("trSub");
-  if (!box) { return; }
-  box.style.display = "";
-  sub.textContent = "분석 중…";
-  document.getElementById("trBody").innerHTML = "";
-  document.getElementById("trAll").style.display = "none";
 
-  const seq = ++TREND_SEQ;
-  const q = "line=" + encodeURIComponent(LINE)
-    + "&prod2=" + encodeURIComponent(PROD2.join(","))
-    + "&plan=" + encodeURIComponent(PLANS.join(","))
-    + "&biz_date=" + encodeURIComponent(SNAP_DATE || "");
-  // 이 조회는 오래 걸린다. 화면 전체를 덮지 않고 이 카드만 흐리게 한다.
-  //   __noBusy 를 fetch **전에** 올려야 가림막이 켜지지 않는다.
-  box.classList.add("upd");
-  window.__noBusy = (window.__noBusy || 0) + 1;
-  const done = () => {
-    window.__noBusy = Math.max(0, window.__noBusy - 1);
-    box.classList.remove("upd");
-  };
-  fetch("/api/trend/?" + q).then(r => r.json()).then(d => {
-    done();
-    if (seq !== TREND_SEQ) { return; }          // 지난 요청은 버린다
-    TREND = d;
-    renderTrend();
-  }).catch(() => {
-    done();
-    if (seq !== TREND_SEQ) { return; }
-    sub.textContent = "추이 데이터를 불러오지 못했습니다";
-  });
-}
-
-function renderTrend() {
-  const d = TREND || {};
-  const sub = document.getElementById("trSub");
-  const body = document.getElementById("trBody");
-  if (!d.ready || !(d.items || []).length) {
-    sub.textContent = d.reason || "평소와 다른 구간이 없습니다";
-    body.innerHTML = "";
-    return;
-  }
-  sub.textContent = (d.rest_n
-    ? `이 밖에 ${d.rest_n}개 구간에서 MOVE 저하가 잡혔습니다. `
-      + `합계 ${nf(d.rest_gap)}매.`
-    : "");
-  document.getElementById("trAll").style.display = "";
-
-  // 구획 제목으로 나눈다. 제목은 스크롤해도 위에 붙어 있다.
-  const by = {};
-  (d.items || []).forEach(x => {
-    (by[x.group] = by[x.group] || []).push(x);
-  });
-  body.innerHTML = Object.keys(by).map(g =>
-    `<div class="trsec">${TR_GROUP[g] || g}</div>`
-    + by[g].map((x, i) => `<div class="trrow">`
-        + `<span class="trno">${i + 1}</span>`
-        + `<span class="trtx">${x.text}</span></div>`).join("")
-  ).join("");
-}
 
 /* 히트맵 ------------------------------------------------------------------
    가로 일자 · 세로 LAYER 또는 STEP · 값 MOVE(파랑) 또는 재공(빨강).
@@ -3122,11 +3036,38 @@ function renderHeat() {
   box.innerHTML = `<table class="hmt"><thead>${head}</thead>`
     + `<tbody id="hmTb"></tbody></table>`;
   heatMore(60);
+  requestAnimationFrame(() => stickDiag("첫 렌더"));
   box.onscroll = () => {
+    stickDiag("스크롤 " + Math.round(box.scrollTop));
     if (HEAT.at >= (d.keys || []).length) { return; }
     if (box.scrollTop + box.clientHeight < box.scrollHeight - 200) { return; }
     heatMore(60);
   };
+}
+
+// 틀고정 진단. ?debug=stick 으로 켠다.
+//   헤더와 본문 셀이 실제로 어디에 놓이는지 재서 겹침을 확인한다.
+function stickDiag(tag) {
+  if (location.search.indexOf("debug=stick") < 0) { return; }
+  const box = document.getElementById("hmBody");
+  const th = box && box.querySelector(".hmt thead th:nth-child(2)");
+  const td = box && box.querySelector(".hmt tbody tr td:nth-child(2)");
+  if (!th || !td) { return; }
+  const b = box.getBoundingClientRect();
+  const h = th.getBoundingClientRect();
+  const t = td.getBoundingClientRect();
+  const cs = getComputedStyle(box);
+  console.log(`[STICK] ${tag}`, {
+    "상자 위": Math.round(b.top),
+    "상자 padTop": cs.paddingTop,
+    "헤더 위": Math.round(h.top),
+    "헤더 아래": Math.round(h.bottom),
+    "첫 셀 위": Math.round(t.top),
+    "겹침(px)": Math.round(h.bottom - t.top),
+    "헤더 z": getComputedStyle(th).zIndex,
+    "셀 z": getComputedStyle(td).zIndex,
+    "헤더 배경": getComputedStyle(th).backgroundColor,
+  });
 }
 
 function heatMore(n) {
@@ -3148,31 +3089,7 @@ function heatMore(n) {
   HEAT.at = to;
 }
 
-function openTrendAll() {
-  const d = TREND || {};
-  const rows = (d.all || []);
-  const head = `<tr><th>구분</th><th>대상</th><th>감소율</th><th>매수</th>`
-    + `<th>시작</th><th>지속</th><th>원인</th></tr>`;
-  const body = rows.map(x => {
-    const t = [x.prod2, x.proc_id, x.layer_id ? "L" + x.layer_id : ""]
-      .filter(Boolean).join(" · ") || "-";
-    return `<tr><td>${TR_GROUP[x.group] || x.group}</td><td>${t}</td>`
-      + `<td class="num">${x.ratio === null ? "-" : x.ratio + "%"}</td>`
-      + `<td class="num">${nf(x.gap)}</td>`
-      + `<td>${x.since || "-"}</td>`
-      + `<td class="num">${x.run_days || 0}일</td>`
-      + `<td>${x.cause || "확인 필요"}</td></tr>`;
-  }).join("");
-  const m = document.getElementById("trmask");
-  m.querySelector(".trboxin").innerHTML =
-    `<table class="grid">${head}${body}</table>`;
-  m.classList.add("on");
-}
 
-function closeTrendAll(ev) {
-  if (ev && ev.target !== ev.currentTarget) { return; }
-  document.getElementById("trmask").classList.remove("on");
-}
 
 /* 라인 요약 카드 --------------------------------------------------------
    매수가 많이 쌓인 곳을 순서대로 놓고, 그것이 만든 W/T 저해를 잇는다.
@@ -4480,7 +4397,6 @@ function loadSummary(keepFocus) {
         if (window.__bootDone) { window.__bootDone(); }
         // 추이는 **가림막을 걷은 뒤에** 부른다. 먼저 부르면 그 조회가
         // 첫 화면 대기에 얹혀 '불러오는 중' 이 끝나지 않는다.
-        loadTrend();
       });
       if (location.search.indexOf("debug=layout") >= 0) {
         setTimeout(checkLayout, 800);      // 차트가 그려진 뒤에 잰다

@@ -586,9 +586,9 @@ UPDATES = [
         "date": "",
         "title": "MOVE 추이 진단",
         "items": [
-            {"t": "화면 위에 '지금 무엇이 생산을 막고 있나' 를 더했습니다. "
-                  "어디서 언제부터 얼마나 MOVE 가 줄었는지 문장으로 "
-                  "알려 줍니다."},
+            {"t": "문장으로 원인을 요약하던 카드는 판정이 충분히 정확하지 "
+                  "않아 걷어냈습니다. 히트맵으로 직접 확인합니다.",
+             "dropped": True, "superseded": "히트맵"},
             {"t": "비교 기간을 미리 정하지 않습니다. 전일 · 3 · 7 · 14 · 30 · "
                   "60일 평균과 함께 견줘 갑작스러운 문제인지 오래된 문제인지 "
                   "가립니다."},
@@ -599,7 +599,7 @@ UPDATES = [
             {"t": "원인이 잡히지 않으면 전산 이슈 점검을 안내합니다."},
             {"t": "상위 3건을 보여 주고, 전체 보기로 모든 구간을 확인할 수 "
                   "있습니다."},
-            {"t": "히트맵으로 최근 30일 흐름을 봅니다. 가로가 일자, 세로가 "
+            {"t": "히트맵으로 최근 흐름을 봅니다. 가로가 일자, 세로가 "
                   "LAYER 또는 STEP 이며 MOVE 와 재공을 토글로 바꿉니다."},
         ],
     },
@@ -2493,53 +2493,6 @@ def _shifts_started(biz_date, now=None):
     return [k for k, t in starts if t <= now]
 
 
-def api_trend(request):
-    """SHIFT / 날짜 추이. 막대=재공, 라인=원인 비율.
-
-    x 축은 **시계에 맞춰** 만든다. 적재가 안 된 구간도 자리를 비워 둔다.
-      scope=day   그 업무일에서 이미 시작된 SHIFT + 현재
-      scope=week  오늘까지 최근 7일(날짜)
-    """
-    line = request.GET.get("line") or DEFAULT_LINE
-    raw = request.GET.get("types")
-    types = ([t for t in raw.split(",") if t] if raw is not None
-             else list(DEFAULT_LOT_TYPES))
-    prod1 = [x for x in request.GET.get("prod1", "").split(",") if x]
-    prod2 = [x for x in request.GET.get("prod2", "").split(",") if x]
-    areas = [x for x in request.GET.get("area", "").split(",") if x]
-    plans = [x for x in request.GET.get("plan", "").split(",") if x]
-    lots = [x for x in request.GET.get("lots", "").split(",") if x]
-    flayers = [x for x in request.GET.get("flayer", "").split(",") if x]
-    bdate = request.GET.get("biz_date", "")
-    drill = [x for x in request.GET.get("drill", "").split("|") if x]
-    scope = request.GET.get("scope", "day")
-    wshift = request.GET.get("wshift", "GY")
-
-    rules, ht = _cause_rules(), _holdtype_rules()
-    today = _biz_today()
-
-    points = []
-    if scope == "week":
-        for k in range(6, -1, -1):
-            d = today - dt.timedelta(days=k)
-            points.append({"key": str(d), "label": str(d)[5:],
-                           "shift": wshift, "biz_date": str(d)})
-    else:
-        d = bdate or str(today)
-        for sh in _shifts_started(d):
-            at = dict(SHIFT_SEQ)[sh]
-            points.append({"key": sh, "label": f"{sh}\n{at}",
-                           "shift": sh, "biz_date": d})
-        if str(d) == str(today):        # 오늘이면 맨 끝에 현재
-            snap = _latest_snapshot()
-            at = snap.strftime("%H:%M") if hasattr(snap, "strftime") else ""
-            points.append({"key": "__now__", "label": f"현재\n{at}".rstrip(),
-                           "shift": None})
-
-    return _trend_points(points, line, types, prod1, prod2, drill,
-                         rules, ht, scope, wshift)
-
-
 def _trend_points(points, line, types, prod1, prod2, drill, rules, ht,
                   scope, wshift):
     """각 지점의 재공과 원인 비율을 센다. x축이 SHIFT 든 날짜든 같다."""
@@ -2983,53 +2936,6 @@ def _top(d):
         return None
     k = max(d, key=lambda x: d[x])
     return {"name": k, "qty": int(d[k])}
-
-
-def api_trend(request):
-    """MOVE 추이 요약. 계산에 몇 초 걸릴 수 있어 따로 부른다."""
-    from . import trend as TR
-
-    line = request.GET.get("line") or DEFAULT_LINE
-    prod = [x for x in request.GET.get("prod2", "").split(",") if x]
-    plan = [x for x in request.GET.get("plan", "").split(",") if x]
-    bdate = request.GET.get("biz_date", "")
-    try:
-        today = (dt.date.fromisoformat(bdate) if bdate else _biz_today())
-    except Exception:
-        today = _biz_today()
-
-    # 같은 스냅샷이면 같은 문장이 나오도록 씨앗을 고정한다.
-    snap = _latest_snapshot()
-    seed = int(snap.timestamp()) // 60 if hasattr(snap, "timestamp") else 0
-
-    try:
-        res = TR.summarize(line, today, prod=prod, plan=plan, seed=seed)
-    except Exception as e:
-        print(f"[TREND] 실패: {type(e).__name__}: {e}", flush=True)
-        return JsonResponse({"ready": False,
-                             "reason": "추이 데이터가 아직 없습니다"})
-
-    def _row(g):
-        ax = g["axes"]
-        return {
-            "group": g["group"], "a1": g["a1"], "a2": g["a2"],
-            "prod2": ax.get("prod2"), "proc_id": ax.get("proc_id"),
-            "layer_id": ax.get("layer_id"),
-            "ratio": (round(g["ratio"] * 100) if g["ratio"] else None),
-            "gap": g["gap"], "n": g["n"], "window": g["window"],
-            "since": (g["since"].isoformat() if g["since"] else None),
-            "run_days": g["run_days"], "rework": g["rework"],
-            "wip_ratio": (round(g["wip_ratio"], 1) if g["wip_ratio"] else None),
-            "cause": ((g["causes"] or [{}])[0].get("name") or ""),
-            "cause_kind": ((g["causes"] or [{}])[0].get("kind") or "미상"),
-        }
-
-    return JsonResponse({
-        "ready": True,
-        "items": res["items"],
-        "rest_n": res["rest_n"], "rest_gap": res["rest_gap"],
-        "all": [_row(g) for g in res["all"]],
-    }, json_dumps_params={"ensure_ascii": False})
 
 
 def api_heatmap(request):

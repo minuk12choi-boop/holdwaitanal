@@ -22,7 +22,6 @@ urlpatterns = [
     path("api/lots/", views.api_lots, name="api_lots"),
     path("api/lots-live/", views.api_lots_live, name="api_lots_live"),
     path("api/lot-steps/", views.api_lot_steps, name="api_lot_steps"),
-    path("api/trend/", views.api_trend, name="api_trend"),
     path("api/heatmap/", views.api_heatmap, name="api_heatmap"),
     path("api/balance/", views.api_balance, name="api_balance"),
     path("api/eqp-wait/", views.api_eqp_wait, name="api_eqp_wait"),

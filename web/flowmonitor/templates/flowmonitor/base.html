@@ -221,9 +221,16 @@
      배경을 반드시 채워야 아래 셀이 비쳐 보이지 않는다.
      border-spacing 이 있으면 그 틈으로 셀이 지나가므로 collapse 로 둔다. */
   .hmt { border-collapse:separate; border-spacing:0; }
+  /* 헤더 칸에 배경이 없으면 그 아래로 셀이 비쳐 보인다.
+     th 는 기본이 투명이므로 반드시 채운다. 위쪽 여백으로 셀이 지나가지
+     않도록 상자의 padding-top 은 0 이어야 한다(.hmbody 참고). */
+  .hmt thead { position:sticky; top:0; z-index:20; }
   .hmt th { position:sticky; top:0; z-index:20; background:#fff;
             color:var(--mut); font-weight:600; padding:3px;
             white-space:nowrap; box-shadow:inset 0 -1px 0 var(--bd); }
+  /* 헤더 위쪽을 흰색으로 덮어 스크롤된 셀이 보이지 않게 한다. */
+  .hmt thead::before { content:""; position:absolute; left:0; right:0;
+                       bottom:100%; height:24px; background:#fff; }
   .hmt td.hk { position:sticky; left:0; z-index:10; background:#fff;
                text-align:left; padding:2px 6px 2px 2px;
                font-weight:700; color:var(--fg);
@@ -415,6 +422,9 @@
   .scroll th, .scroll td { padding:4px 7px; white-space:nowrap;
                            text-align:left;
                            box-shadow:inset 0 -1px 0 var(--bd); }
+  .scroll thead { position:sticky; top:0; z-index:20; }
+  .scroll thead::before { content:""; position:absolute; left:0; right:0;
+                          bottom:100%; height:24px; background:#fff; }
   .scroll thead th { position:sticky; top:0; z-index:20;
                      background:#F3F4F6; color:var(--mut);
                      font-weight:600; z-index:1; }
@@ -535,9 +545,12 @@
   .grid thead th.sortable { cursor:pointer; user-select:none; }
   .grid thead th.sortable:hover { background:#E9EBEF; }
   .grid thead th .so { color:#DC143C; font-size:9px; margin-left:2px; }
+  .grid thead { position:sticky; top:0; z-index:20; }
   .grid thead th { text-align:center; background:#F3F4F6; color:var(--mut);
                    font-size:11px; font-weight:600;
                    position:sticky; top:0; z-index:20; }
+  .grid thead::before { content:""; position:absolute; left:0; right:0;
+                        bottom:100%; height:24px; background:#fff; }
   .grid tbody td { text-align:left; }
   .grid td.num, .grid th.num { text-align:right;
                                font-variant-numeric:tabular-nums; }

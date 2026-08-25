@@ -644,6 +644,34 @@ TRACE_DROP = (os.environ.get("TRACE_DROP", "").strip() not in ("", "0")
               or "--trace-drop" in sys.argv)
 
 
+def trace_lot(where, df, col="lot_id"):
+    """추적 대상 lot 이 이 단계에 몇 행 있는지 남긴다.
+
+    실행:  set TRACE_LOT=7DDWG17.1   또는  --trace-lot 7DDWG17.1
+    """
+    if not TRACE_LOT or df is None or not len(df):
+        return
+    try:
+        low = {str(c).lower(): c for c in df.columns}
+        c = low.get(col.lower())
+        if not c:
+            print(f"[TRACE] {where:22s} {col} 컬럼 없음", flush=True)
+            return
+        hit = df[df[c].astype("string").str.strip().eq(TRACE_LOT)]
+        msg = f"[TRACE] {where:22s} {len(hit):>6,} 행"
+        if len(hit):
+            show = [k for k in ("line", "sys_line_id", "cur_line_id",
+                                "dest_line_id", "lot_type", "status",
+                                "order_seq", "step_seq", "proc_id", "현스텝")
+                    if k in hit.columns]
+            if show:
+                msg += "   " + " | ".join(
+                    f"{k}={hit.iloc[0][k]}" for k in show[:6])
+        print(msg, flush=True)
+    except Exception as e:
+        print(f"[TRACE] {where}: {type(e).__name__}", flush=True)
+
+
 def dump_dropped(df_lot, df_f3, path=None, base=None):
     """원천에는 있는데 최종 f3 에 없는 lot 을 전부 뽑아 엑셀로 남긴다.
 
