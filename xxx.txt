@@ -1,12 +1,24 @@
-Could not perform action 'UploadOnly'.
+from System import DateTime
 
-Could not execute script 'UploadOnly': unexpected token '<'
 
-   at Spotfire.Dxp.Application.Scripting.ScriptService.Execute(ScriptDefinition script, Dictionary`2 scope, InternalLibraryManager internalLibraryManager, NotificationService notificationService)
-   at Spotfire.Dxp.Application.Scripting.ScriptManager.<>c__DisplayClass8_0.<ExecuteScript>b__0()
-   at Spotfire.Dxp.Framework.Commands.CommandHistory.Transaction(Executor executor, Boolean visible, Boolean sticky, Guid stickyGuid, Boolean isHighlight)
-   at Spotfire.Dxp.Framework.Commands.CommandHistory.Transaction(String displayName, Executor executor)
-   at Spotfire.Dxp.Application.Scripting.ManagedScript.Execute(Dictionary`2 environment)
-   at Spotfire.Dxp.Application.HtmlTextAreaControls.ActionControl.ModifyCore(Object value)
-   at Spotfire.Dxp.Application.Visuals.HtmlTextArea.InteractWithControl(String id, Action`1 interaction)
+def log(msg):
+    Document.Properties["runlog"] = DateTime.Now.ToString("HH:mm:ss") + "  " + msg
+
+
+log("업로드만 실행 (원천 재조회 없음)")
+
+n = 0
+for f in Document.Data.DataFunctions:
+    try:
+        f.Execute()
+        n += 1
+    except:
+        pass
+
+log("완료 (테이블 %d개)" % n)
+
+
+
+
+
 
