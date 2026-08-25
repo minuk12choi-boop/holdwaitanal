@@ -1,14 +1,102 @@
-netsh interface ipv4 show excludedportrange protocol=tcp
+PS C:\Users\minuk12.choi> netsh interface ipv4 show excludedportrange protocol=tcp
+
+프로토콜 tcp 포트 제외 범위
+
+시작 포트    끝 포트
+----------    --------
+       443         443
+      8000        8000
+      8002        8002
+      8003        8003
+      8004        8004
+      8005        8005
+      8006        8006
+      8007        8007
+      8008        8008
+      8009        8009
+      8010        8010
+      8011        8011
+      8012        8012
+      8013        8013
+      8014        8014
+      8015        8015
+      8016        8016
+      8017        8017
+      8018        8018
+      8019        8019
+      8020        8020
+      8021        8021
+      8022        8022
+      8023        8023
+      8024        8024
+      8025        8025
+      8026        8026
+      8027        8027
+      8028        8028
+      8029        8029
+      8030        8030
+
+* - 관리 포트 제외입니다.
+
+PS C:\Users\minuk12.choi> net stop winnat
+Windows NAT Driver 서비스는 시작되지 않았습니다.
+
+NET HELPMSG 3521을(를) 입력하면 도움말을 더 볼 수 있습니다.
+
+PS C:\Users\minuk12.choi> netsh int ipv4 add excludedportrange protocol=tcp startport=8020 numberofports=1
+다른 프로세스가 파일을 사용 중이기 때문에 프로세스가 액세스 할 수 없습니다.
+
+
+PS C:\Users\minuk12.choi> net stop winnat netsh int ipv4 add excludedportrange protocol=tcp startport=8020 numberofports=1
+이 명령에 대한 구문:
+
+NET STOP
+service
+
+PS C:\Users\minuk12.choi> net start winnat
+
+Windows NAT Driver 서비스가 잘 시작되었습니다.
 
 
 
-cd D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web
-$env:DJANGO_ALLOWED_HOSTS="*"
-waitress-serve --listen=0.0.0.0:8025 config.wsgi:application
-
-
-
-
-net stop winnat
-netsh int ipv4 add excludedportrange protocol=tcp startport=8020 numberofports=1
-net start winnat
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web> waitress-serve --listen=0.0.0.0:8020 config.wsgi:application
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\Scripts\waitress-serve.exe\__main__.py", line 7, in <module>
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\runner.py", line 246, in run
+    _serve(app, **kw)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\__init__.py", line 13, in serve
+    server = _server(app, **kw)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\server.py", line 78, in create_server
+    last_serv = TcpWSGIServer(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\server.py", line 243, in __init__
+    self.bind_server_socket()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\server.py", line 364, in bind_server_socket
+    self.bind(sockaddr)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\wasyncore.py", line 374, in bind
+    return self.socket.bind(addr)
+PermissionError: [WinError 10013] 액세스 권한에 의해 숨겨진 소켓에 액세스를 시도했습니다
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web> waitress-serve --listen=0.0.0.0:8025 config.wsgi:application
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\Scripts\waitress-serve.exe\__main__.py", line 7, in <module>
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\runner.py", line 246, in run
+    _serve(app, **kw)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\__init__.py", line 13, in serve
+    server = _server(app, **kw)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\server.py", line 78, in create_server
+    last_serv = TcpWSGIServer(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\server.py", line 243, in __init__
+    self.bind_server_socket()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\server.py", line 364, in bind_server_socket
+    self.bind(sockaddr)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\wasyncore.py", line 374, in bind
+    return self.socket.bind(addr)
+PermissionError: [WinError 10013] 액세스 권한에 의해 숨겨진 소켓에 액세스를 시도했습니다
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web> 
