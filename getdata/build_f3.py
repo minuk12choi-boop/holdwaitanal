@@ -1510,12 +1510,11 @@ def _fab_str(sr):
 def _fab_step_table(df_step):
     """STEP 원천을 공정별 순번이 붙은 표로 만든다."""
     keep = ["processid", "stepseq", "stepseq_type", "areaname", "eqptype",
-            "eqpgroup", "eqpids", "layerid", "category", "descript",
-            "recipeid", "delaytime", "skiprule"]
+            "layerid", "category", "descript", "recipeid", "delaytime",
+            "skiprule"]
     st = _lower_cols(df_step)
     miss = [c for c in keep if c not in st.columns]
     if miss:
-        # 설비 경로(eqpgroup/eqpids)가 없으면 화면에서 설비가 통째로 빈다.
         print(f"[FABPLAN] STEP 원천에 없는 컬럼 {miss}", flush=True)
     for c in keep:
         if c not in st.columns:
@@ -1698,6 +1697,93 @@ def _diag_fab_join(m, st):
               flush=True)
 
 
+def fill_fab_eqp(s, t, line="PFR1"):
+    """FabPlan 행의 설비 그룹을 TIP 으로 채운다.
+
+    StepPath 에는 eqp_group_id 가 들어 있지만 STEP 정의에는 없다.
+    대신 **그 스텝을 돌릴 수 있는 설비를 TIP 에서 찾아** lot·스텝 단위로
+    묶는다. 개념은 lotplan 과 같고 재료만 다르다.
+
+      조인   proc_id = process · step_seq = step · recipe = ppid
+      묶기   (lot_id, step_seq) 로 이어 붙인다
+               eqpline = 이 라인 -> 자기 설비
+               그 밖             -> 호환 설비
+    """
+    if "_fab" not in s.columns:
+        return s
+    fab = s["_fab"].fillna(0).astype(int).eq(1)
+    n = int(fab.sum())
+    if not n or t is None or not len(t):
+        print("[FABPLAN] TIP 이 없어 설비 그룹을 만들 수 없다", flush=True)
+        return s
+
+    B = _lower_cols(t)
+    need = ["process", "step", "ppid", "eqpid", "eqpcham", "eqpline"]
+    miss = [c for c in need if c not in B.columns]
+    if miss:
+        print(f"[FABPLAN] TIP 에 없는 컬럼 {miss}", flush=True)
+        return s
+    B = B[need].copy()
+    for c in ("process", "step", "ppid"):
+        B[c] = _fab_str(B[c])
+    B = B[B["process"].ne("") & B["step"].ne("")].drop_duplicates()
+
+    A = s.loc[fab, ["lot_id", "proc_id", "step_seq", "_rcp"]].copy()
+    A["_i"] = A.index
+    for c in ("lot_id", "proc_id", "step_seq", "_rcp"):
+        A[c] = _fab_str(A[c])
+
+    j2 = A.merge(B, left_on=["proc_id", "step_seq", "_rcp"],
+                 right_on=["process", "step", "ppid"], how="inner")
+    print(f"[FABPLAN] TIP 매칭 {len(j2):,}행 (대상 {n:,} · TIP {len(B):,})",
+          flush=True)
+    if j2.empty:
+        print(f"[FABPLAN]   lot 쪽 예 "
+              f"{A[['proc_id', 'step_seq', '_rcp']].head(3).values.tolist()}",
+              flush=True)
+        print(f"[FABPLAN]   TIP 쪽 예 "
+              f"{B[['process', 'step', 'ppid']].head(3).values.tolist()}",
+              flush=True)
+        return s
+
+    eid = _fab_str(j2["eqpid"])
+    ech = _fab_str(j2["eqpcham"])
+    j2["_ch"] = ech.mask(ech.eq(""), eid)
+    j2["_mine"] = _fab_str(j2["eqpline"]).str.upper().eq(str(line).upper())
+
+    def _cat(v):
+        seen, out = set(), []
+        for x in v:
+            x = str(x or "").strip()
+            if x in ("", "-") or x in seen:
+                continue
+            seen.add(x)
+            out.append(x)
+        return ", ".join(out)
+
+    key = ["lot_id", "step_seq"]
+    g_my = j2[j2["_mine"]].groupby(key)["eqpid"].apply(_cat)
+    g_ot = j2[~j2["_mine"]].groupby(key)["eqpid"].apply(_cat)
+    g_ch = j2[j2["_mine"]].groupby(key)["_ch"].apply(_cat)
+
+    idx = pd.MultiIndex.from_arrays(
+        [_fab_str(s["lot_id"]).to_numpy(), _fab_str(s["step_seq"]).to_numpy()])
+    my = pd.Series(idx.map(g_my), index=s.index).fillna("")
+    ot = pd.Series(idx.map(g_ot), index=s.index).fillna("")
+    ch = pd.Series(idx.map(g_ch), index=s.index).fillna("")
+
+    s = s.copy()
+    got = my.mask(my.eq(""), ot)             # 자기 라인이 없으면 호환 설비
+    s.loc[fab, "eqp_group_raw"] = got[fab].to_numpy()
+    if "eqp_id" in s.columns:
+        s.loc[fab, "eqp_id"] = ch[fab].mask(ch[fab].eq(""),
+                                            got[fab]).to_numpy()
+    print(f"[FABPLAN] 설비그룹 채워짐 {int(got[fab].ne('').sum()):,}/{n:,}"
+          f" (자기라인 {int(my[fab].ne('').sum()):,} · "
+          f"호환 {int(ot[fab].ne('').sum()):,})", flush=True)
+    return s.drop(columns=[c for c in ("_fab", "_rcp") if c in s.columns])
+
+
 def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
                   df_lot, line="PFR1"):
     """FabPlan lot 의 스텝 경로를 narrow_step_to_scope 와 같은 모양으로 만든다."""
@@ -1793,6 +1879,13 @@ def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
                      & rows["SKIP"].ne("O"))
     rows = _fab_continuous(rows)
 
+    # 유효 recipe. 사전지정 > PEMS > STEP 순. TIP 조인 키로도 쓴다.
+    rows["recipe_id_eff"] = np.where(
+        _fab_str(rows["_pre_ppid"]).ne(""), _fab_str(rows["_pre_ppid"]),
+        np.where(_fab_str(rows.get("pems_ppid", pd.Series("", index=rows.index))).ne(""),
+                 _fab_str(rows.get("pems_ppid", pd.Series("", index=rows.index))),
+                 _fab_str(rows["recipeid"])))
+
     # --- 6) 현스텝 ~ 연속끝만 남긴다 ----------------------------------------
     #   행마다 rows.at[...] 로 읽으면 25만 행에서 십수 초가 걸린다.
     #   SKIP 이 아닌 행만 모아 배열로 판정한다.
@@ -1840,21 +1933,10 @@ def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
     out["recipe_id"] = np.where(pre.ne(""), pre,
                                 np.where(pem.ne(""), pem, rec))
 
-    # 설비 : 사전지정이 있으면 그 설비만, PEMS 지정이 있으면 그 목록만.
-    #   기본은 STEP 의 EQPGROUP 이고, 비어 있으면 EQPIDS 를 쓴다.
-    grp = _fab_str(out.get("eqpgroup", pd.Series("", index=out.index)))
-    grp = grp.mask(grp.eq(""), _fab_str(
-        out.get("eqpids", pd.Series("", index=out.index))))
-    lim = _fab_str(out["_pre_eqp"])
-    pe = _fab_str(out.get("pems_chamberids", pd.Series("", index=out.index)))
-    pe = pe.mask(pe.eq(""), _fab_str(
-        out.get("pems_eqpids", pd.Series("", index=out.index))))
-    eqp_raw = np.where(lim.ne(""), lim, np.where(pe.ne(""), pe, grp))
-    _got = int((pd.Series(eqp_raw).astype("string").fillna("").str.strip()
-                != "").sum())
-    print(f"[FABPLAN] 설비그룹 채워짐 {_got:,}/{len(out):,}"
-          f" (STEP {int(grp.ne('').sum()):,} · PEMS {int(pe.ne('').sum()):,}"
-          f" · 사전지정 {int(lim.ne('').sum()):,})", flush=True)
+    # 설비는 여기서 정하지 않는다. TIP 이 준비된 뒤 fill_fab_eqp() 가 채운다.
+    #   STEP 정의에는 설비 그룹이 없어 '그 스텝을 돌릴 수 있는 설비' 를
+    #   TIP 에서 찾아 모아야 한다.
+    eqp_raw = pd.Series("", index=out.index)
 
     return pd.DataFrame({
         "line": line,
@@ -1870,7 +1952,9 @@ def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
         "step_seq": out["stepseq"].to_numpy(),
         "step_desc": out["descript"].to_numpy(),
         "eqp_type": out["eqptype"].to_numpy(),
-        "eqp_group_raw": eqp_raw,
+        "eqp_group_raw": eqp_raw.to_numpy(),
+        "_fab": 1,                       # FabPlan 행 표시(설비는 뒤에서 채움)
+        "_rcp": out["recipe_id"].to_numpy(),
         "recipe_id": out["recipe_id"].to_numpy(),
         # FabPlan 은 현스텝을 여기서 정한다(SQL 의 step_seq 비교로는
         # SKIP 으로 밀린 경우를 못 맞춘다).
@@ -2893,9 +2977,11 @@ def main():
             print(f"[FABPLAN] 건너뜀: {type(e).__name__}: {e}", flush=True)
 
     s = pd.concat(s_parts, ignore_index=True)
-    # FabPlan 만 fab_cur 를 채운다. 다른 라인은 없으므로 만들어 둔다.
-    if "fab_cur" not in s.columns:
-        s["fab_cur"] = None
+    # FabPlan 만 fab_cur · _fab 를 채운다. 다른 라인은 없으므로 만들어 둔다.
+    for c, v in (("fab_cur", None), ("_fab", 0), ("_rcp", "")):
+        if c not in s.columns:
+            s[c] = v
+    s["_fab"] = s["_fab"].fillna(0)
     print(f"[ROWS] s = {len(s):,}", flush=True)
     trace_lot("s(스텝 전체)", s)
 
@@ -2911,6 +2997,12 @@ def main():
         del tip_f
     t = pd.concat(t_parts, ignore_index=True)
     print(f"[ROWS] t = {len(t):,}", flush=True)
+
+    # FabPlan 의 설비 그룹은 TIP 이 있어야 만들 수 있다(STEP 정의에는 없다).
+    #   TIP 은 s 로 선필터하므로 여기까지 와야 준비된다.
+    if FABPLAN and "_fab" in s.columns and int(s["_fab"].sum()):
+        with stage("FabPlan 설비그룹"):
+            s = fill_fab_eqp(s, t, "PFR1")
 
     with stage("hold 전처리"):
         holds = build_hold(df_hold, set(_lower_cols(df_lot)["lot_id"].dropna()))

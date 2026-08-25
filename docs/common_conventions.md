@@ -922,6 +922,25 @@ FabPlan lot 은 정의상 order_seq 가 비어 있다.
 [ROWS]    FabPlan scope(step) = N
 ```
 
+### FabPlan 설비 그룹
+
+StepPath 에는 `eqp_group_id` 가 있지만 **STEP 정의에는 없다.**
+`STEP.EQPGROUP` 을 그대로 쓰면 안 된다. 그 값은 공정 정의상의 그룹이지
+그 lot 이 실제로 갈 수 있는 설비가 아니다.
+
+TIP(trackinprevent) 에서 **그 스텝을 돌릴 수 있는 설비를 찾아** 묶는다.
+
+```
+조인   proc_id = process · step_seq = step · recipe_id_eff = ppid
+recipe recipe_id_eff = 사전지정 > PEMS > STEP 의 값
+묶기   (lot_id, step_seq) 로 이어 붙인다
+         eqpline = 그 라인 -> 자기 설비 (EQPGROUP)
+         그 밖             -> 호환 설비
+```
+
+TIP 은 `s`(스텝 목록)로 선필터하므로 **`fabplan_scope` 시점에는 없다.**
+`fill_fab_eqp()` 가 TIP 을 만든 뒤에 채운다.
+
 ### 라인 색
 
 어느 차트에서 보든 같은 라인은 같은 색이다.
