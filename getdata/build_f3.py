@@ -2766,7 +2766,7 @@ def main():
     #   StepPath 로는 스텝이 붙지 않아 공정 정의를 직접 훑는다.
     if FABPLAN:
         try:
-            # 원천이 하나라도 비면 여기서 끝난다. 먼저 밝힌다.
+            # 원천이 하나라도 비면 여기서 끝난다. 무엇이 없는지 먼저 밝힌다.
             fab = {k: fetch(k, None) for k in
                    ("fab_step", "fab_pems", "fab_sel", "fab_skiprule",
                     "fab_engr")}

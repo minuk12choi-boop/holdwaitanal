@@ -52,6 +52,17 @@ TABLES = [
     "PFR1_KFR7_SSPS_PROD_NAME",
 ]
 
+# FabPlan 원천. 아직 안 올라온 환경도 있어 **필수 목록과 분리**한다.
+#   TABLES 에 넣으면 이 다섯이 없을 때 매 회차가 미완결로 판정돼
+#   build_f3 가 통째로 건너뛴다.
+FAB_TABLES = [
+    "PFR1_FABPLAN_STEP",
+    "PFR1_FABPLAN_NEWEINECNSPEC",
+    "PFR1_FABPLAN_SELECTCONNECTSPEC",
+    "PFR1_FABPLAN_SKIPRULE",
+    "PFR1_ENGR_LOT_PPID",
+]
+
 # Spotfire 쪽 FMT 와 맞춘다. parquet 권장(pkl 대비 약 6% 크기).
 EXT = "parquet"
 # Oracle 이 대문자로 주는 컬럼명을 소문자로 통일한다(기존 전처리가 소문자 기준).
