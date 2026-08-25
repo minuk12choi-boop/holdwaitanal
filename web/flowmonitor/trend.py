@@ -558,6 +558,7 @@ def heatmap(line, today=None, days=7, axis="layer", metric="move",
             return {"ready": False, "reason": "재공 이력이 아직 없습니다"}
         w = [f"{lcol} = %s", "biz_date >= %s", "biz_date <= %s"]
         a = [line, since, today]
+        lwhere, lval = f"{lcol} = %s", line
         if prod:
             w.append("prod2 IN (%s)" % ",".join(["%s"] * len(prod)))
             a += list(prod)
@@ -577,6 +578,7 @@ def heatmap(line, today=None, days=7, axis="layer", metric="move",
             return {"ready": False, "reason": "MOVE 이력이 아직 없습니다"}
         w = ["sys_line_id = %s", "biz_date >= %s", "biz_date <= %s"]
         a = [move_line(line), since, today]
+        lwhere, lval = "sys_line_id = %s", move_line(line)
         if prod:
             w.append("prod2 IN (%s)" % ",".join(["%s"] * len(prod)))
             a += list(prod)
@@ -601,11 +603,24 @@ def heatmap(line, today=None, days=7, axis="layer", metric="move",
 
     keys = sorted(grid)
     mx = max((max(v) for v in grid.values()), default=0)
+
+    # 그 날짜에 적재가 아예 없으면 '0매' 가 아니라 '자료 없음' 이다.
+    #   둘을 같은 빈칸으로 그리면 판단을 그르친다.
+    have = set()
+    for r in _rows(f"SELECT DISTINCT biz_date FROM {tbl} "
+                   f"WHERE {lwhere} AND biz_date>=%s AND biz_date<=%s",
+                   [lval, since, today]):
+        d = r["biz_date"]
+        have.add(d.isoformat() if hasattr(d, "isoformat") else str(d)[:10])
+    missing = [i for i, d in enumerate(dates) if d not in have]
+
     return {
         "ready": True, "axis": axis, "metric": metric,
         "dates": dates, "keys": keys,
         "rows": [grid[k] for k in keys],
         "max": mx,
+        # 적재 자체가 없는 날짜의 자리(인덱스). 화면에서 따로 표시한다.
+        "missing": missing,
     }
 
 

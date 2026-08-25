@@ -3175,6 +3175,7 @@ function loadHeat() {
     + "&biz_date=" + encodeURIComponent(SNAP_DATE || "");
   fetch("/api/heatmap/?" + q).then(r => r.json()).then(d => {
     HEAT.data = d;
+    MISS = new Set(d.missing || []);
     if (d.options) {
       // 목록을 다시 그려도 열려 있던 메뉴는 그대로 열어 둔다.
       //   (고르는 도중 목록이 좁혀지면서 메뉴가 닫히면 쓰기 불편하다)
@@ -3250,7 +3251,12 @@ function renderHeat() {
     + d.dates.map(x => `<th>${x.slice(5)}</th>`).join("") + `</tr>`;
   HEAT.at = 0;
   box.innerHTML = `<table class="hmt"><thead>${head}</thead>`
-    + `<tbody id="hmTb"></tbody></table>`;
+    + `<tbody id="hmTb"></tbody></table>`
+    + (MISS.size
+       ? `<div class="hmnote"><i class="nodbox"></i>`
+         + `빗금 ${MISS.size}일은 그날 적재가 없어 자료가 없는 것입니다. `
+         + `흰 칸은 실제 0 입니다.</div>`
+       : "");
   heatMore(60);
   requestAnimationFrame(() => { fitHeat(); stickDiag("첫 렌더"); });
   box.onscroll = () => {
@@ -3325,6 +3331,9 @@ function fitHeat() {
   box.style.width = Math.min(Math.max(w, 320), cap) + "px";
 }
 
+// 적재가 없는 날짜의 자리. 0매와 구분해 그린다.
+let MISS = new Set();
+
 function heatMore(n) {
   const d = HEAT.data || {};
   const tb = document.getElementById("hmTb");
@@ -3334,12 +3343,18 @@ function heatMore(n) {
   let out = "";
   for (let i = HEAT.at; i < to; i++) {
     out += `<tr><td class="hk">${d.keys[i]}</td>`;
-    out += d.rows[i].map((v, k) =>
-      `<td class="hcell" style="background:${heatColor(v, d.max)}"`
-      + ` onclick="heatPick('${d.keys[i]}','${d.dates[k]}')"`
-      + ` title="${d.keys[i]} · ${d.dates[k]} · ${nf(v)}${unit}`
-      + `\n누르면 이 조건으로 화면을 좁힙니다">`
-      + `${v ? kfmt(v) : ""}</td>`).join("");
+    out += d.rows[i].map((v, k) => {
+      // 그 날 적재가 없으면 '0매' 가 아니라 '자료 없음' 이다. 빗금으로 나눈다.
+      const gone = MISS.has(k);
+      return `<td class="hcell${gone ? " nod" : ""}"`
+        + ` style="background:${gone ? "" : heatColor(v, d.max)}"`
+        + ` onclick="heatPick('${d.keys[i]}','${d.dates[k]}')"`
+        + ` title="${d.keys[i]} · ${d.dates[k]} · `
+        + `${gone ? "자료 없음(그날 적재가 없습니다)"
+                  : nf(v) + unit}`
+        + `\n누르면 이 조건으로 화면을 좁힙니다">`
+        + `${gone ? "" : (v ? kfmt(v) : "")}</td>`;
+    }).join("");
     out += `</tr>`;
   }
   tb.insertAdjacentHTML("beforeend", out);

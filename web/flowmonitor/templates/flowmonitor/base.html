@@ -255,6 +255,16 @@
   /* 셀 안에 값을 k 단위로 적는다. */
   .hmt td { min-width:34px; height:16px; border-radius:2px; text-align:center;
             font-size:9px; color:#1F2937; padding:0 2px; }
+  .hmnote { font-size:10px; color:var(--mut); margin-top:8px;
+            display:flex; align-items:center; gap:5px; }
+  .hmnote .nodbox { width:11px; height:11px; border-radius:2px;
+                    display:inline-block; flex:0 0 auto;
+                    background:repeating-linear-gradient(45deg,
+                      #F3F4F6 0 3px, #E5E7EB 3px 6px); }
+  /* 그날 적재가 없는 칸. 0매(흰 칸)와 눈으로 구분되게 빗금을 둔다. */
+  .hmt td.nod { background:repeating-linear-gradient(45deg,
+                  #F3F4F6 0 3px, #E5E7EB 3px 6px) !important;
+                color:transparent; }
   /* 칸을 누르면 그 조건으로 좁힌다. 그 칸만 손가락 커서다. */
   .updbox .hmt td.hcell { cursor:pointer; }
   .hmt td.hcell:hover { outline:2px solid var(--brand); outline-offset:-2px; }
