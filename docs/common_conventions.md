@@ -978,6 +978,36 @@ TIP 조인은 **left** 로 한다. 설비를 못 찾은 스텝도 남겨야 한�
 자기 라인과 호환 라인 설비를 **함께** 담되 순서는 자기 라인이 앞이다.
 `line_rank`(0=자기 · 1=호환)를 f1_base 까지 넘겨 STRING_AGG 정렬에 쓴다.
 
+### 데이터 점검 도구
+
+값은 사내 자료라 밖으로 낼 수 없다. 그래도 **모양**은 낼 수 있다.
+아래 두 도구는 값을 하나도 출력하지 않는다. 결과를 그대로 공유해도 된다.
+
+**고치기 전에 먼저 돌린다.** 코드만 읽고 추측하면 조인이 왜 안 붙는지
+알 수 없다.
+
+```
+python getdata/inspect.py f3_live
+python getdata/inspect.py f3_live --cols order_seq,proc_id,step_seq
+python getdata/inspect.py f3_live --key line,lot_id,order_seq
+python getdata/inspect.py f3_move_step --group sys_line_id
+```
+
+컬럼마다 NULL 비율 · 빈값 비율 · 고유값 수 · 길이 · 형태(숫자/영문/섞임) ·
+앞뒤 공백 · 대소문자 섞임을 낸다. `--key` 는 그 조합이 행을 유일하게
+가르는지, NULL 이 섞여 조인이 깨질지 알려 준다.
+
+```
+python getdata/joincheck.py A B lot_id
+python getdata/joincheck.py A B --left proc_id,step_seq --right process,step
+```
+
+조인이 몇 % 붙는지 미리 재고, 안 붙으면 **무엇을 맞추면 붙는지** 짚는다.
+
+```
+--fix upper,lstrip0   75.0% (+75.0%p)  -> 대소문자가 다르다 + 앞자리 0 유무가 다르다
+```
+
 ### 라인 색
 
 어느 차트에서 보든 같은 라인은 같은 색이다.
