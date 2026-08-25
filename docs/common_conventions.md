@@ -851,6 +851,25 @@ proc_id 없음 · step_seq 없음 · StepPath 에서 스텝을 못 찾음
 
 한 lot 만 쫓으려면 `TRACE_LOT` 이나 `--trace-lot <LOT>` 을 쓴다.
 
+### 틀고정 규칙
+
+`position:sticky` 헤더를 쓰는 표는 **`border-collapse:collapse` 를 쓰면
+안 된다.** 본문 셀이 헤더 위로 지나가고 테두리도 사라진다.
+
+```
+border-collapse:separate + border-spacing:0
+테두리는 box-shadow:inset 으로 그린다
+```
+
+층은 이렇게 둔다. 배경을 반드시 채워야 아래 셀이 비치지 않는다.
+
+```
+30  모서리(위·왼쪽이 겹치는 칸)
+20  위 헤더
+10  왼쪽 고정 열
+ 0  본문
+```
+
 ### 라인 색
 
 어느 차트에서 보든 같은 라인은 같은 색이다.

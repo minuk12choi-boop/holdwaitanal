@@ -186,7 +186,7 @@
   .trtt .v { font-size:11px; color:var(--mut); font-weight:400; }
   /* 카드 안에서만 굴린다. 메인 페이지는 길어지지 않는다. */
   .trbody { max-height:150px; overflow-y:auto; margin-top:4px; }
-  .trsec { position:sticky; top:0; background:#fff; z-index:2;
+  .trsec { position:sticky; top:0; background:#fff; z-index:20;
            font-size:10px; font-weight:700; color:var(--brand);
            border-bottom:1px solid #EEF0F3; padding:3px 0 2px;
            margin-top:4px; }
@@ -196,8 +196,10 @@
   .trtx { flex:1; min-width:0; }
   .trboxin .grid { width:100%; font-size:11px; }
   /* 스크롤해도 컬럼명이 위에 붙어 있게 한다. */
+  .trboxin .grid { border-collapse:separate; border-spacing:0; }
   .trboxin .grid th { background:#F7F8FA; text-align:left; padding:4px 6px;
-                      position:sticky; top:0; z-index:2; }
+                      position:sticky; top:0; z-index:20;
+                      box-shadow:inset 0 -1px 0 var(--bd); }
   .trboxin .grid td { padding:3px 6px; border-top:1px solid var(--bd); }
   .trboxin .grid td.num { text-align:right; }
 
@@ -206,12 +208,24 @@
   .hmtools { display:flex; align-items:center; gap:8px; }
   .hmbody { max-height:70vh; overflow:auto; padding:10px 12px 16px; }
   .hmt { border-collapse:separate; border-spacing:1px; font-size:10px; }
-  .hmt th { position:sticky; top:0; background:#fff; z-index:2;
-            color:var(--mut); font-weight:600; padding:2px 3px;
-            white-space:nowrap; }
-  .hmt th.hk, .hmt td.hk { position:sticky; left:0; background:#fff; z-index:3;
-                           text-align:left; padding:2px 6px 2px 2px;
-                           font-weight:700; color:var(--fg); }
+  /* 틀고정 층
+       모서리(th.hk)  30   왼쪽·위가 겹치는 칸
+       위 날짜(th)    20
+       왼쪽 이름(td.hk) 10
+       본문 셀          0
+     배경을 반드시 채워야 아래 셀이 비쳐 보이지 않는다.
+     border-spacing 이 있으면 그 틈으로 셀이 지나가므로 collapse 로 둔다. */
+  .hmt { border-collapse:separate; border-spacing:0; }
+  .hmt th { position:sticky; top:0; z-index:20; background:#fff;
+            color:var(--mut); font-weight:600; padding:3px;
+            white-space:nowrap; box-shadow:inset 0 -1px 0 var(--bd); }
+  .hmt td.hk { position:sticky; left:0; z-index:10; background:#fff;
+               text-align:left; padding:2px 6px 2px 2px;
+               font-weight:700; color:var(--fg);
+               box-shadow:inset -1px 0 0 var(--bd); }
+  .hmt th.hk { position:sticky; left:0; top:0; z-index:30; background:#fff;
+               text-align:left;
+               box-shadow:inset -1px 0 0 var(--bd), inset 0 -1px 0 var(--bd); }
   /* 셀 안에 값을 k 단위로 적는다. */
   .hmt td { min-width:34px; height:16px; border-radius:2px; text-align:center;
             font-size:9px; color:#1F2937; padding:0 2px; }
@@ -388,10 +402,14 @@
   .bar button { border:1px solid var(--bd); background:#fff; border-radius:4px;
                 font-size:12px; padding:4px 10px; cursor:pointer; }
   .scroll { max-height:560px; overflow:auto; }
-  .scroll table { border-collapse:collapse; font-size:11px; width:100%; }
-  .scroll th, .scroll td { padding:4px 7px; border-bottom:1px solid var(--bd);
-                           white-space:nowrap; text-align:left; }
-  .scroll thead th { position:sticky; top:0; background:#F3F4F6; color:var(--mut);
+  /* sticky 헤더를 쓰므로 collapse 를 피한다(본문이 헤더 위로 지나간다). */
+  .scroll table { border-collapse:separate; border-spacing:0;
+                  font-size:11px; width:100%; }
+  .scroll th, .scroll td { padding:4px 7px; white-space:nowrap;
+                           text-align:left;
+                           box-shadow:inset 0 -1px 0 var(--bd); }
+  .scroll thead th { position:sticky; top:0; z-index:20;
+                     background:#F3F4F6; color:var(--mut);
                      font-weight:600; z-index:1; }
   .scroll td.num { text-align:right; font-variant-numeric:tabular-nums; }
 
@@ -491,17 +509,28 @@
      - 헤더 가운데 정렬
      - 내용 길이에 맞춰 폭을 잡되 최대 폭을 두고, 넘치면 셀 안에서 가로 스크롤
      ------------------------------------------------------------------- */
-  .grid { border-collapse:collapse; width:auto; font-size:12px;
-          table-layout:auto; }
+  /* border-collapse:collapse 는 sticky 헤더와 함께 쓰면 테두리가 사라지고
+     본문 셀이 헤더 위로 지나간다. separate 로 두고 테두리는 box-shadow 로
+     그린다. */
+  .grid { border-collapse:separate; border-spacing:0; width:auto;
+          font-size:12px; table-layout:auto; }
   /* 컬럼이 많은 표는 카드 폭을 넘기지 않고 래퍼 안에서만 가로 스크롤한다. */
   .farcol .gridwrap { width:100%; max-width:100%; overflow-x:auto; }
-  .grid th, .grid td { border:1px solid var(--bd); padding:5px 8px;
-                       white-space:nowrap; vertical-align:middle; }
+  .grid th, .grid td { padding:5px 8px; white-space:nowrap;
+                       vertical-align:middle;
+                       box-shadow:inset -1px -1px 0 var(--bd); }
+  .grid tr > *:first-child { box-shadow:inset 1px -1px 0 var(--bd),
+                             inset -1px 0 0 var(--bd); }
+  .grid thead tr:first-child > * { box-shadow:inset -1px -1px 0 var(--bd),
+                                   inset 0 1px 0 var(--bd); }
+  .grid thead tr:first-child > *:first-child {
+      box-shadow:inset 1px 1px 0 var(--bd), inset -1px -1px 0 var(--bd); }
   .grid thead th.sortable { cursor:pointer; user-select:none; }
   .grid thead th.sortable:hover { background:#E9EBEF; }
   .grid thead th .so { color:#DC143C; font-size:9px; margin-left:2px; }
-  .grid thead th { text-align:center; z-index:2; background:#F3F4F6; color:var(--mut);
-                   font-size:11px; font-weight:600; position:sticky; top:0; z-index:1; }
+  .grid thead th { text-align:center; background:#F3F4F6; color:var(--mut);
+                   font-size:11px; font-weight:600;
+                   position:sticky; top:0; z-index:20; }
   .grid tbody td { text-align:left; }
   .grid td.num, .grid th.num { text-align:right;
                                font-variant-numeric:tabular-nums; }
@@ -806,7 +835,7 @@
                         position:relative; z-index:2; }
   .wpnum { font-size:9px; color:var(--mut); margin-top:2px; text-align:right; }
   .wpmore { font-size:9px; color:var(--mut); margin-bottom:4px;
-            position:sticky; top:0; background:#fff; }
+            position:sticky; top:0; z-index:20; background:#fff; }
   .balrow + .balrow { border-top:1px solid var(--bd); padding-top:4px;
                       margin-top:4px; }
   /* PLAN 선택 팝업이 아래 카드에 가리지 않게 */

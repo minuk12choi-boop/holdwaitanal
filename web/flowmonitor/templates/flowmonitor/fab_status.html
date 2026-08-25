@@ -2961,6 +2961,15 @@ function heatPick(which) {
   const all = document.querySelectorAll(
     "#" + id + " input[type=checkbox][value]").length;
   HEAT[which] = (sel.length === all) ? [] : sel;
+  // ALL 체크 표시를 지금 상태에 맞춘다.
+  const box = document.querySelector(
+    "#" + id + " .dfall input[type=checkbox]");
+  if (box) { box.checked = !HEAT[which].length; }
+  const lb = which === "prod" ? "제품" : "PLAN";
+  const btn = document.getElementById(which === "prod" ? "hmpb" : "hmlb");
+  btn.innerHTML = `${lb} ${HEAT[which].length ? HEAT[which].length + "개"
+    : "전체"} &#9662;`;
+  btn.title = HEAT[which].length ? HEAT[which].join(", ") : `${lb} 전체`;
   loadHeat();
 }
 
@@ -2968,15 +2977,31 @@ function heatMenu(which, opts) {
   const id = which === "prod" ? "hmpm" : "hmlm";
   const btn = which === "prod" ? "hmpb" : "hmlb";
   const on = HEAT[which].length ? new Set(HEAT[which]) : new Set(opts);
+  const isAll = !HEAT[which].length;
+  // ALL 을 끄면 전체 선택이 함께 풀린다. 그 뒤 원하는 것만 고른다.
   document.getElementById(id).innerHTML =
-    `<input class="ddq" type="text" placeholder="검색"`
+    `<label class="dfall"><input type="checkbox"${isAll ? " checked" : ""}`
+    + ` onclick="heatAll('${which}', this.checked)"><b>ALL</b></label>`
+    + `<input class="ddq" type="text" placeholder="검색"`
     + ` oninput="heatSearch('${id}')" onclick="event.stopPropagation()">`
     + opts.map(o => `<label data-opt="${o}"><input type="checkbox"`
         + ` value="${o}"${on.has(o) ? " checked" : ""}`
         + ` onclick="heatPick('${which}')">${o}</label>`).join("");
   const lb = which === "prod" ? "제품" : "PLAN";
-  document.getElementById(btn).innerHTML =
-    `${lb} ${HEAT[which].length ? HEAT[which].length + "개" : "전체"} &#9662;`;
+  const sel = HEAT[which];
+  const b = document.getElementById(btn);
+  b.innerHTML = `${lb} ${sel.length ? sel.length + "개" : "전체"} &#9662;`;
+  b.title = sel.length ? sel.join(", ") : `${lb} 전체`;
+}
+
+// ALL 을 켜면 전체, 끄면 아무것도 안 고른 상태가 된다.
+function heatAll(which, checked) {
+  const opts = ((HEAT.data && HEAT.data.options)
+    ? (which === "prod" ? HEAT.data.options.prod : HEAT.data.options.plan)
+    : []) || [];
+  HEAT[which] = checked ? [] : opts.slice(0, 1);
+  heatMenu(which, opts);
+  loadHeat();
 }
 
 function heatSearch(id) {
