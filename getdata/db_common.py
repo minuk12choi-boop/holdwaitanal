@@ -608,7 +608,19 @@ def promote_to_history(conn, columns, now=None):
     bounds = shift_boundaries(now)
     if not bounds:
         return None
+
+    # 직전 SHIFT 만 보면, 파이프라인이 몇 시간 멈춘 사이 지나간 SHIFT 는
+    # 영영 이력이 비게 된다. 아직 안 채워진 것이 있으면 그것부터 메운다.
+    #   f3_live 는 최근 몇 개만 남으므로 메울 수 있는 것만 메운다.
     boundary, _ = bounds[0]
+    with conn.cursor() as cur:
+        for b, _nm in reversed(bounds):        # 오래된 것부터 본다
+            _bd, _sh = snapshot_shift(b)
+            cur.execute("SELECT 1 FROM f3_history_meta "
+                        "WHERE biz_date=%s AND shift=%s", (_bd, _sh))
+            if not cur.fetchone():
+                boundary = b                   # 아직 없는 가장 오래된 SHIFT
+                break
     bd, shift = snapshot_shift(boundary)
 
     with conn.cursor() as cur:
@@ -652,7 +664,16 @@ def _purge_history(cur, bd):
 
     쌓아 두기만 하면 조회가 느려지고 디스크가 찬다. 지운 뒤에는
     메타도 함께 정리해 목록에 빈 날짜가 남지 않게 한다.
+
+    [안전장치] 기준일은 **오늘을 넘지 않는다.**
+      적재 데이터에 미래 날짜가 섞이면 cut 도 미래로 가서 멀쩡한 이력을
+      지운다. 되돌릴 수 없으므로 오늘로 묶는다.
     """
+    today = biz_date(dt.datetime.now())
+    if bd > today:
+        print(f"[PURGE] 업무일이 미래({bd})라 오늘({today}) 기준으로 본다",
+              flush=True)
+        bd = today
     cut = bd - dt.timedelta(days=HISTORY_KEEP_DAYS)
     cur.execute("DELETE FROM f3_history WHERE biz_date < %s", (cut,))
     n = cur.rowcount

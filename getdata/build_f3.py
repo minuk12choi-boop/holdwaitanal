@@ -1475,12 +1475,20 @@ def save_ssps_rules(df_prod):
                       KEY ix_ssps (line_id, lot_type, id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """)
+                # DELETE 뒤 INSERT 다. 중간에 실패하면 규칙이 통째로
+                # 사라지므로 반드시 되돌린다.
                 cur.execute("DELETE FROM f3_std_ssps")
                 cur.executemany(
                     "INSERT INTO f3_std_ssps "
                     "(line_id, lot_type, id, prod1, prod2, dept) "
                     "VALUES (%s, %s, %s, %s, %s, %s)", rows)
             conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise
         finally:
             conn.close()
     except Exception as e:
