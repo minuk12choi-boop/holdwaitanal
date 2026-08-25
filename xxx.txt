@@ -1,1 +1,31 @@
-netsh http show servicestate view=requestq | Select-String -Context 25,3 "8020"
+PS C:\Users\minuk12.choi> netsh http show servicestate view=requestq | Select-String -Context 25,3 "8020"
+
+      최대 요청: 1000
+      연결된 활성 프로세스 수: 1
+      프로세스:
+          ID: 155452, 이미지: C:\Program Files (x86)\TIBCO\Spotfire\12.0.4\Spotfire.Dxp.exe
+      URL 그룹:
+      URL 그룹 ID: FB00000820000324
+          상태: Active
+          요청 큐 이름: 요청 큐에 이름을 지정하지 않았습니다.
+          속성:
+              최대 대역폭: 상속됨
+              최대 연결 수: 상속됨
+              시간 제한:
+                  시간 제한 값이 상속되었습니다.
+              등록된 URL 수: 28
+              등록된 URL:
+                  HTTP://LOCALHOST:8030/
+                  HTTP://LOCALHOST:8029/
+                  HTTP://LOCALHOST:8028/
+                  HTTP://LOCALHOST:8027/
+                  HTTP://LOCALHOST:8026/
+                  HTTP://LOCALHOST:8025/
+                  HTTP://LOCALHOST:8024/
+                  HTTP://LOCALHOST:8023/
+                  HTTP://LOCALHOST:8022/
+                  HTTP://LOCALHOST:8021/
+>                 HTTP://LOCALHOST:8020/
+                  HTTP://LOCALHOST:8019/
+                  HTTP://LOCALHOST:8018/
+                  HTTP://LOCALHOST:8017/
