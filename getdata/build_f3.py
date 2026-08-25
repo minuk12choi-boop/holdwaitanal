@@ -1191,21 +1191,32 @@ HOLDTYPE_ORDER = (("HOLD", "hold", "hold_reason"),
 
 def holdtype_rules():
     """f3_std_holdtype 규칙. 구체적인 것 먼저, 같으면 저장 순서."""
-    rows = _std_table("f3_std_holdtype",
-                      ["id", "line", "type", "condition1", "condition2",
-                       "condition3", "type_name"])
+    base = ["id", "line", "type", "condition1", "condition2",
+            "condition3", "type_name"]
+    # sort_no 는 나중에 생긴 컬럼이다. 없으면 그것만 빼고 읽는다.
+    rows = _std_table("f3_std_holdtype", ["sort_no"] + base)
+    if not rows:
+        rows = _std_table("f3_std_holdtype", base)
     out = []
     for r in rows:
-        out.append({"id": r["id"], "line": r["line"],
+        out.append({"id": r["id"],
+                    # /master/ 에서 사용자가 정한 순서. 이것이 우선이다.
+                    "sort": (r.get("sort_no") if r.get("sort_no") is not None
+                             else 10 ** 9),
+                    "line": r["line"],
                     "type": (r["type"] or "ALL").upper(),
-                    "c": [x for x in (r["condition1"], r["condition2"],
-                                      r["condition3"]) if x],
+                    # 조건은 대소문자를 가리지 않는다. 미리 대문자로 둔다.
+                    "c": [str(x).strip().upper()
+                          for x in (r["condition1"], r["condition2"],
+                                    r["condition3"]) if x],
                     "name": r["type_name"]})
 
+    # 화면에서 정한 순서를 그대로 따른다. 번호가 같거나 없으면
+    # 구체적인 규칙(조건이 많은 것)을 먼저 본다.
     def spec(r):
         return len(r["c"]) + (1 if r["line"] else 0) + (0 if r["type"] == "ALL" else 1)
 
-    return sorted(out, key=lambda r: (-spec(r), r["id"]))
+    return sorted(out, key=lambda r: (r["sort"], -spec(r), r["id"]))
 
 
 def holdtype_of(row, rules):
@@ -1214,7 +1225,8 @@ def holdtype_of(row, rules):
     for kind, flag, reason in HOLDTYPE_ORDER:
         if not row.get(flag):
             continue
-        text = str(row.get(reason) or "")
+        # 대소문자를 가리지 않는다. 사유는 소문자로 오기도 한다.
+        text = str(row.get(reason) or "").upper()
         if not text:
             continue
         for rule in rules:
