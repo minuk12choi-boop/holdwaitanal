@@ -1,2 +1,6 @@
-netsh int ipv4 add excludedportrange protocol=tcp startport=8020 numberofports=1 store=persistent
-netsh int ipv6 add excludedportrange protocol=tcp startport=8020 numberofports=1 store=persistent
+PS C:\Users\minuk12.choi> netstat -ano | findstr :8020
+PS C:\Users\minuk12.choi> netsh int ipv4 add excludedportrange protocol=tcp startport=8020 numberofports=1 store=persistent
+확인됨
+
+PS C:\Users\minuk12.choi> netsh int ipv6 add excludedportrange protocol=tcp startport=8020 numberofports=1 store=persistent
+다른 프로세스가 파일을 사용 중이기 때문에 프로세스가 액세스 할 수 없습니다.
