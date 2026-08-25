@@ -505,7 +505,7 @@ function prodPicked(which, isAll) {
   else if (which === 4) { PLANS = eff; }
   else if (which === 5) { LOTS = eff; }
   else { LAYERS = eff; }
-  markActiveCards();              // 해제 버튼 표시를 지금 상태에 맞춘다
+  syncClearBtn();                 // 해제 버튼 표시를 지금 상태에 맞춘다
   if (sel.length === 0) {
     document.getElementById("p" + which + "b").innerHTML =
       `<span>${PROD_LABEL[which]} 선택 없음</span><span>&#9662;</span>`;
@@ -555,6 +555,8 @@ function renderProd(d) {
   fill(4, d.plan_options, PLANS);
   fill(5, d.lot_options, LOTS);
   fill(6, d.layer_options, LAYERS);
+  // 목록을 다시 그린 뒤에도 해제 버튼은 지금 상태를 따라야 한다.
+  syncClearBtn();
 }
 
 function pickLine(line) {
@@ -3941,17 +3943,22 @@ function syncCardClear() {
   });
 }
 
-function markActiveCards() {
+// 조건이 하나라도 걸려 있으면 헤더의 해제 버튼을 보인다.
+//   좌측 필터 · 차트 조건 · 원인 · 요약카드 조건을 모두 센다.
+//   markActiveCards 안에 두면 그 뒤 코드가 실패할 때 함께 묻힌다.
+function syncClearBtn() {
   const btn = document.getElementById("clearAllBtn");
-  if (btn) {
-    // 좌측 필터도 '걸린 조건' 이다. 그것만 걸려 있어도 해제 버튼을 보인다.
-    const left = PROD1.length || PROD2.length || AREAS.length
-      || PLANS.length || LOTS.length || LAYERS.length;
-    const any = Object.keys(DF).length || DF_CAUSE
-      || Object.keys(DF_X).length || left;
-    btn.style.display = any ? "" : "none";
-    btn.textContent = "조건 ALL 해제";
-  }
+  if (!btn) { return; }
+  const left = PROD1.length || PROD2.length || AREAS.length
+    || PLANS.length || LOTS.length || LAYERS.length;
+  const any = Object.keys(DF).length || DF_CAUSE
+    || Object.keys(DF_X).length || left;
+  btn.style.display = any ? "inline-block" : "none";
+  btn.textContent = "조건 ALL 해제";
+}
+
+function markActiveCards() {
+  syncClearBtn();
   const on = {
     wipcard: (DF.type || []).length,
     stcard: (DF.status || []).length,
