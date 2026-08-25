@@ -887,6 +887,23 @@ lot 단위로 f3 를 뒤져 맞추면 지난 lot 은 못 찾아 절반만 옮겨
 재공(`f3_wip_step`)과 원인(`f3_history`)은 f3 기준(`line`)이라
 매핑하지 않는다.
 
+### step_skip_yn 과 lot_type
+
+`step_skip_yn` 은 **'Y' 만 건너뛴다.** NULL 은 남긴다.
+
+```
+Oracle 의 step_skip_yn <> 'Y' 는 NULL 을 제외한다(NULL <> 'Y' 는 UNKNOWN).
+그대로 옮기면 RUN 중인 현스텝이 사라진다. 그 값은 비어 있기 때문이다.
+현스텝이 없으면 그 lot 이 화면에서 통째로 빠진다.
+```
+
+재공으로 보는 종류는 `LOT_TYPES` 하나로 관리한다. SQL 의
+`lot_type IN (...)` 과 항상 같아야 한다.
+
+```
+PP · PG · EG · EE
+```
+
 ### 라인 색
 
 어느 차트에서 보든 같은 라인은 같은 색이다.

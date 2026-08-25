@@ -207,7 +207,7 @@ LEFT JOIN   co
   ON        m1.line   = co.line
  AND        m1.lot_id = co.lot_id
 WHERE       m1.line = m1.sys_line_id
-  AND       m1.lot_type IN ('PP', 'PG', 'EG')
+  AND       m1.lot_type IN ('PP', 'PG', 'EG', 'EE')
   AND       m1.cur_line_id NOT IN ('CHTV')
 """
 
@@ -216,7 +216,7 @@ WHERE       m1.line = m1.sys_line_id
 # 비교 대상조차 되지 못한다.
 lot_query_raw = lot_query.replace(
     """WHERE       m1.line = m1.sys_line_id
-  AND       m1.lot_type IN ('PP', 'PG', 'EG')
+  AND       m1.lot_type IN ('PP', 'PG', 'EG', 'EE')
   AND       m1.cur_line_id NOT IN ('CHTV')""", "")
 
 # ── TrackInPrevent (Tip) : 실제 사용 컬럼만 조회 ─────────────────────────
@@ -623,6 +623,9 @@ LINES = ("KFR7", "PFR1")
 #   KFR7 + dest_line_id IN ('KFR7A','KFR7B') -> KFR7 (NRD-K)
 #   KFR7 + dest_line_id IN ('KFR7C','KFR7D') -> KFR4 (NRD)
 # 그 외 dest_line_id 는 기존 분류를 그대로 둔다.
+# 화면에 올릴 재공 종류. SQL 의 lot_type IN (...) 과 같은 목록이어야 한다.
+LOT_TYPES = ("PP", "PG", "EG", "EE")
+
 DEST_LINE_MAP = {
     "KFR7": {"KFR7A": "KFR7", "KFR7B": "KFR7",
              "KFR7C": "KFR4", "KFR7D": "KFR4"},
@@ -711,7 +714,7 @@ def dump_dropped(df_lot, df_f3, path=None, base=None):
         # SQL 조건에 먼저 걸리는 것부터 본다.
         if sysl and line != sysl:
             return f"라인 불일치(line={line} sys={sysl})"
-        if lt and lt not in ("PP", "PG", "EG"):
+        if lt and lt not in LOT_TYPES:
             return f"lot_type 제외({lt})"
         if cur == "CHTV":
             return "cur_line_id = CHTV"
@@ -792,8 +795,10 @@ def relabel_lines(f3, df_lot):
     return out
 
 # Oracle `step_skip_yn <> 'Y'` 는 NULL 행을 제외한다(NULL <> 'Y' 는 UNKNOWN).
-# 재현 구현들은 NULL 을 포함해 왔다. 원본과 맞추려면 True 로 둔다.
-EXCLUDE_NULL_STEP_SKIP_YN = True
+#   그런데 **지금 RUN 중인 현스텝은 이 값이 비어 있다.** NULL 을 버리면
+#   현스텝이 통째로 사라져 그 lot 이 화면에서 빠진다.
+#   'Y' 인 것만 건너뛰고 나머지는 남긴다.
+EXCLUDE_NULL_STEP_SKIP_YN = False
 
 # batch_kind 는 EQP 단위 값이라 한 설비그룹에 batch/비batch 설비가 섞이면
 # 같은 lot·step 이 여러 행으로 갈라진다. eqpline 과 동일하게 step 단위로 합친다.
@@ -1410,9 +1415,14 @@ def narrow_step_to_scope(df_path, df_lot, line):
     sy["de_rank"] = sy.groupby(["lot_id", "order_seq"], dropna=False)["de_rank"].transform("max")
     de = sy[["lot_id", "order_seq", "de_rank"]].drop_duplicates()
 
-    # --- step_skip_yn 필터 (Oracle NULL 의미 반영) ---
+    # --- step_skip_yn 필터 ---
+    #   'Y' 만 건너뛴다. NULL 은 남긴다(RUN 중인 현스텝이 여기 해당한다).
     skip = path["step_skip_yn"]
     keep = skip.ne("Y") & (skip.notna() if EXCLUDE_NULL_STEP_SKIP_YN else True)
+    if TRACE_DROP:
+        vc = skip.fillna("(비어있음)").value_counts().to_dict()
+        print(f"[SKIP] {line} step_skip_yn 분포 {vc} · "
+              f"{len(path):,} -> {int(keep.sum()):,}행", flush=True)
     path = path[keep]
 
     # --- 현스텝 확정 ---
