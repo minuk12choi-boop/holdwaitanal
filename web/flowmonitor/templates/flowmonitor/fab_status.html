@@ -577,6 +577,7 @@ function renderProd(d) {
 }
 
 function pickLine(line) {
+  if (line === LINE) { return; }
   LINE = line;
   document.querySelectorAll("#lineseg button").forEach(b =>
     b.classList.toggle("on", b.dataset.line === line));
@@ -584,6 +585,14 @@ function pickLine(line) {
   PROD1 = []; PROD2 = []; AREAS = [];              // 제품구분도 라인별로 다르다
   PLANS = []; LOTS = []; LAYERS = [];
   heatReset();                                     // 라인이 바뀌면 히트맵도
+
+  // 드릴다운 조건도 라인마다 다르다. 남겨 두면 앞 라인의 설비·원인이
+  // 그대로 걸려 빈 표가 나오거나 엉뚱한 결과가 보인다.
+  dfReset();
+  DRILL_KEY = { i: -1, node: null, list: [] };
+  czAskClose();
+  closeDrill();
+  syncFromDF();
   loadSummary();
 }
 

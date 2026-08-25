@@ -424,11 +424,27 @@ def prefilter_tip(df_tip, s_scope):
     """
     t = _lower_cols(df_tip)
     mask = np.ones(len(t), dtype=bool)
-    for col, scol in (("process", "proc_id"), ("step", "step_seq"),
-                      ("ppid", "recipe_id"), ("eqpid", "eqp_id")):
+
+    # FabPlan 은 이 시점에 eqp_id 가 비어 있다. 설비를 TIP 에서 찾아야
+    # 하는데, 그 TIP 을 s.eqp_id 로 걸러 버리면 쓸 설비가 미리 잘린다.
+    #   FabPlan 행이 있으면 eqpid 조건은 걸지 않는다.
+    fab = ("_fab" in s_scope.columns
+           and int(pd.to_numeric(s_scope["_fab"], errors="coerce")
+                   .fillna(0).sum()) > 0)
+    pairs = [("process", "proc_id"), ("step", "step_seq"),
+             ("ppid", "recipe_id")]
+    if not fab:
+        pairs.append(("eqpid", "eqp_id"))
+
+    for col, scol in pairs:
+        if scol not in s_scope.columns:
+            continue
         allowed = pd.Index(pd.unique(s_scope[scol].dropna()))
         v = t[col]
         mask &= (v.isna() | v.isin(["-", ""]) | v.isin(allowed)).to_numpy()
+    if fab:
+        print("[FILTER] FabPlan 이 있어 eqpid 조건은 걸지 않는다"
+              " (설비를 TIP 에서 찾아야 한다)", flush=True)
     return t[mask]
 
 
@@ -753,7 +769,8 @@ def dump_dropped(df_lot, df_f3, path=None, base=None):
         with pd.ExcelWriter(path, engine="openpyxl") as w:
             out.to_excel(w, sheet_name="빠진 lot", index=False)
             (out.groupby("탈락사유").size().rename("건수").reset_index()
-                .sort_values("건수", ascending=False)
+                .sort_values(["건수", "탈락사유"], ascending=[False, True],
+                             kind="mergesort")
                 .to_excel(w, sheet_name="사유별 집계", index=False))
     except Exception as e:
         path = path.replace(".xlsx", ".csv")
@@ -2961,7 +2978,10 @@ def main():
                 m = _lower_cols(df_mws)[["line", "lot_id", "fa_object4"]].copy()
                 m["fa_object4"] = m["fa_object4"].replace("", pd.NA)
                 m["_has"] = m["fa_object4"].notna()
-                m = (m.sort_values("_has", ascending=False)
+                # 안정 정렬로 고정한다. 같은 lot 에 값이 여럿이면
+                # 실행마다 다른 값이 뽑혀 결과가 흔들린다.
+                m = (m.sort_values(["_has", "fa_object4"], ascending=[False, True],
+                                   kind="mergesort")
                        .drop_duplicates(subset=["line", "lot_id"], keep="first")
                        .drop(columns="_has"))
                 before = len(df_lot)
