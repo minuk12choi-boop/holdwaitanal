@@ -1030,13 +1030,14 @@
   };
 
   // 첫 화면: 본문을 감춘 채 덮어 두고, 첫 조회까지 끝나면 함께 보인다.
-  document.documentElement.classList.add("booting");
+  //   이 스크립트는 </body> 직전에 있어 DOMContentLoaded 가 이미 지났을 수
+  //   있다. 이벤트에 기대지 말고 그 자리에서 바로 붙인다.
   mark("스크립트 실행");
-  document.addEventListener("DOMContentLoaded", () => {
-    document.body.classList.add("booting");
-    document.documentElement.classList.remove("booting");
-    mark("DOMContentLoaded");
-  });
+  function markBooting() {
+    if (document.body) { document.body.classList.add("booting"); }
+    else { requestAnimationFrame(markBooting); }
+  }
+  markBooting();
   show();
 
   // 첫 화면은 **그리기가 끝났다고 알려 올 때** 걷는다.
@@ -1046,6 +1047,9 @@
     if (booted) { mark("boot 무시(이미 걷음)", why); return; }
     booted = true;
     mark("boot 실행", why);
+    // 한 프레임 기다렸다 걷는다. 다만 그 사이 무슨 일이 생겨도
+    // 본문은 반드시 보이게 지금 바로 한 번 벗긴다.
+    document.body.classList.remove("booting");
     requestAnimationFrame(() => {
       document.body.classList.remove("booting");
       hide();
