@@ -201,7 +201,7 @@ LEFT JOIN  wip w    ON w.lot_id = l.lot_id
 WHERE      l.last_event_date = l.max_event_date
   AND      l.lot_status_seg IN ('Active', 'Hold')
   AND      l.line = l.sys_line_id
-  AND      l.lot_type IN ('PP', 'PG', 'EG')
+  AND      l.lot_type IN ('PP', 'PG', 'EG', 'EE')
   AND      l.cur_line_id NOT IN ('CHTV')
   AND      (l.line = 'KFR7' OR l.order_seq IS NOT NULL)
 ;
@@ -229,6 +229,11 @@ FROM   smicdc_nrdk.materialworkstatus
 -- 3) PFR1_KFR7_STEP_PATH: smicdc_p3nrd.mc_lot_step_path, smicdc_nrdk.mc_lot_step_path *호출시간: 62초
 --    현재 Impala 버전과 동일하게 mc_lot(Active/Hold) 조인으로 행을 줄인다.
 --    delay_step_type S/Y 는 de_rank 누적 계산에 필요해 위치와 무관하게 남긴다.
+--
+--    [주의] mc_lot 에는 같은 lot 이 여러 행 있고 order_seq 가 제각각이다.
+--    DISTINCT 로 모두 쓰면 큰 order_seq 도 기준이 되어 `p.order_seq >= c.order_seq`
+--    가 **현스텝을 잘라낸다**(RUN 중인 스텝이 통째로 빠진다).
+--    lot 마다 MIN(order_seq) 하나만 기준으로 삼아야 현스텝부터 남는다.
 --------------------------------------------------------------------------------
 SELECT 
 'PFR1' AS LINE_ID, 
@@ -248,9 +253,11 @@ p.lot_id,
        p.ext_1st_vals,
        p.tkin_type_detail
 FROM   smicdc_p3nrd.mc_lot_step_path p,
-       (SELECT DISTINCT lot_id, order_seq
+       (SELECT lot_id, MIN(order_seq) AS order_seq
         FROM   smicdc_p3nrd.mc_lot
-        WHERE  lot_status_seg IN ('Active', 'Hold')) c
+        WHERE  lot_status_seg IN ('Active', 'Hold')
+          AND  order_seq IS NOT NULL
+        GROUP  BY lot_id) c
 WHERE  p.lot_id = c.lot_id
   AND  (p.order_seq >= c.order_seq
         OR p.delay_step_type IN ('S', 'Y'))
@@ -276,9 +283,11 @@ SELECT
        p.ext_1st_vals,
        p.tkin_type_detail
 FROM   smicdc_nrdk.mc_lot_step_path p,
-       (SELECT DISTINCT lot_id, order_seq
+       (SELECT lot_id, MIN(order_seq) AS order_seq
         FROM   smicdc_nrdk.mc_lot
-        WHERE  lot_status_seg IN ('Active', 'Hold')) c
+        WHERE  lot_status_seg IN ('Active', 'Hold')
+          AND  order_seq IS NOT NULL
+        GROUP  BY lot_id) c
 WHERE  p.lot_id = c.lot_id
   AND  (p.order_seq >= c.order_seq
         OR p.delay_step_type IN ('S', 'Y'))

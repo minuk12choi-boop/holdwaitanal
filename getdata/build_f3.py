@@ -278,8 +278,11 @@ SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level,
        p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id,
        p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
 FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT_STEP_PATH p
-JOIN   (SELECT lot_id, order_seq FROM MOS_KH_SMI.SMICDC_NRDK_MC_LOT
-        WHERE lot_status_seg IN ('Active', 'Hold')) c
+JOIN   (SELECT lot_id, MIN(order_seq) AS order_seq
+        FROM   MOS_KH_SMI.SMICDC_NRDK_MC_LOT
+        WHERE  lot_status_seg IN ('Active', 'Hold')
+          AND  order_seq IS NOT NULL
+        GROUP  BY lot_id) c
   ON   p.lot_id = c.lot_id
 WHERE  p.order_seq >= c.order_seq
     OR p.delay_step_type IN ('S', 'Y')
@@ -290,8 +293,11 @@ SELECT p.lot_id, p.order_seq, p.proc_id, p.step_seq, p.step_desc, p.step_level,
        p.step_skip_yn, p.delay_step_type, p.delay_time_mins, p.layer_id,
        p.eqp_type, p.eqp_group_id, p.recipe_id, p.ext_1st_vals, p.tkin_type_detail
 FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT_STEP_PATH p
-JOIN   (SELECT lot_id, order_seq FROM MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
-        WHERE lot_status_seg IN ('Active', 'Hold')) c
+JOIN   (SELECT lot_id, MIN(order_seq) AS order_seq
+        FROM   MOS_KH_SMI.SMICDC_P3NRD_MC_LOT
+        WHERE  lot_status_seg IN ('Active', 'Hold')
+          AND  order_seq IS NOT NULL
+        GROUP  BY lot_id) c
   ON   p.lot_id = c.lot_id
 WHERE  p.order_seq >= c.order_seq
     OR p.delay_step_type IN ('S', 'Y')
