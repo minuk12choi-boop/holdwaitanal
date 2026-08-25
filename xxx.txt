@@ -1,28 +1,23 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python getdata/get_move.py --full
-[MOVE] 조회구간 2026-04-30 22:00 ~ 2026-08-25 09:45
-[MOVE] 조회구간이 7일을 넘어 Impala 로 직접 조회합니다(S3 parquet 은 최근 구간만 담고 있습니다)
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web> waitress-serve --listen=0.0.0.0:8020 config.wsgi:application
+Traceback (most recent call last):
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\Scripts\waitress-serve.exe\__main__.py", line 7, in <module>
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\runner.py", line 246, in run
+    _serve(app, **kw)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\__init__.py", line 13, in serve
+    server = _server(app, **kw)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\server.py", line 78, in create_server
+    last_serv = TcpWSGIServer(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\server.py", line 243, in __init__
+    self.bind_server_socket()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\server.py", line 364, in bind_server_socket
+    self.bind(sockaddr)
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\wasyncore.py", line 374, in bind
+    return self.socket.bind(addr)
+PermissionError: [WinError 10013] 액세스 권한에 의해 숨겨진 소켓에 액세스를 시도했습니다
 
-Query Executed Successfully...
->> Execution Time: 28.910 sec
-==================================================
-    Rows    :  1553640
-    Columns :  18
-    Size    :  1.38+ GB
-==================================================
-[MOVE] 원천 1,553,640행 34.9s
-[MOVE] shift 집계 699행 / 일 집계 234행 / lot 단위 370,173행 / 스텝 단위 811,023행
-[MOVE] REWORK 1,591,155매 (7.3%)
-  biz_date sys_line_id  move_qty  lot_cnt
-2026-08-23        KFR7    174358     2371
-2026-08-23        PFR1    150729     2016
-2026-08-24        KFR7    169624     2847
-2026-08-24        PFR1    145753     2327
-2026-08-25        KFR7     71033     1500
-2026-08-25        PFR1     59535     1156
-[MOVE] 적재 완료: 350개 (업무일,shift) 교체
-        2026-08-23 SW
-        2026-08-24 DAY
-        2026-08-24 GY
-        2026-08-24 SW
-        2026-08-25 DAY
-        2026-08-25 GY
+Bad Request - Invalid Hostname
+HTTP Error 400. The request hostname is invalid.
