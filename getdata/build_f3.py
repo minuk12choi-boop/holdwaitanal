@@ -671,6 +671,14 @@ def trace_lot(where, df, col="lot_id"):
         print(f"[TRACE] {where}: {type(e).__name__}", flush=True)
 
 
+def _has_seq(r):
+    """order_seq 가 있는가. 없으면 FabPlan lot 이다."""
+    v = r.get("order_seq")
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return False
+    return str(v).strip() not in ("", "nan", "None", "<NA>")
+
+
 def dump_dropped(df_lot, df_f3, path=None, base=None):
     """원천에는 있는데 최종 f3 에 없는 lot 을 전부 뽑아 엑셀로 남긴다.
 
@@ -721,6 +729,10 @@ def dump_dropped(df_lot, df_f3, path=None, base=None):
         # 여기까지 통과했는데 없다면 조인 단계에서 빠진 것이다.
         if used is not None and lot not in used:
             return "원천 조회 단계에서 제외"
+        # FabPlan lot 은 StepPath 에 없는 것이 정상이다. 공정 정의를 직접
+        # 훑는 경로(fabplan_scope)를 타므로 그쪽에서 못 붙은 것이다.
+        if str(r.get("line") or "").upper() == "PFR1" and not _has_seq(r):
+            return "FabPlan - 공정 정의에서 스텝을 못 찾음"
         return "StepPath 에서 스텝을 못 찾음"
 
     out["탈락사유"] = out.apply(_why, axis=1)
@@ -1645,6 +1657,37 @@ def _fab_skip(df):
     return df
 
 
+def _diag_fab_join(m, st):
+    """FabPlan 이 STEP 과 안 붙을 때 어디가 어긋났는지 보여 준다.
+
+    PLAN 은 맞는데 STEPSEQ 가 안 맞는지, PLAN 부터 없는지가 갈린다.
+    """
+    lp = set(m["proc_id"])
+    sp = set(st["processid"])
+    both = lp & sp
+    print(f"[FABPLAN]   PLAN  lot {len(lp)} · STEP {len(sp)} · 겹침 {len(both)}",
+          flush=True)
+    if not both:
+        print(f"[FABPLAN]   lot PLAN 예시  {sorted(lp)[:5]}", flush=True)
+        print(f"[FABPLAN]   STEP PLAN 예시 {sorted(sp)[:5]}", flush=True)
+        return
+    # PLAN 은 겹친다. 그럼 STEPSEQ 표기를 본다.
+    p0 = sorted(both)[0]
+    ls = sorted(m[m["proc_id"].eq(p0)]["step_seq"])[:5]
+    ss = sorted(st[st["processid"].eq(p0)]["stepseq"])[:5]
+    print(f"[FABPLAN]   PLAN {p0} 의 STEPSEQ", flush=True)
+    print(f"[FABPLAN]     lot  {ls}", flush=True)
+    print(f"[FABPLAN]     STEP {ss}", flush=True)
+    miss = m.merge(st[["processid", "stepseq"]],
+                   left_on=["proc_id", "step_seq"],
+                   right_on=["processid", "stepseq"], how="left")
+    miss = miss[miss["stepseq"].isna()]
+    if len(miss):
+        print(f"[FABPLAN]   못 붙은 lot {len(miss):,} 예시 "
+              f"{miss[['lot_id', 'proc_id', 'step_seq']].head(3).values.tolist()}",
+              flush=True)
+
+
 def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
                   df_lot, line="PFR1"):
     """FabPlan lot 의 스텝 경로를 narrow_step_to_scope 와 같은 모양으로 만든다."""
@@ -1686,14 +1729,11 @@ def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
     cur = m.merge(st[["processid", "stepseq", "_ord"]],
                   left_on=["proc_id", "step_seq"],
                   right_on=["processid", "stepseq"], how="inner")
-    print(f"[FABPLAN] STEP 에서 현스텝 찾음 {len(cur):,} "
+    print(f"[FABPLAN] STEP 에서 현스텝 찾음 {len(cur):,} / 대상 {len(m):,} "
           f"(STEP 원천 {len(st):,}행)", flush=True)
+    if len(cur) < len(m):
+        _diag_fab_join(m, st)
     if cur.empty:
-        # 못 찾으면 여기서 끝난다. PLAN·STEPSEQ 표기가 다른지 본다.
-        print(f"[FABPLAN] lot 쪽 예시 {m[['proc_id','step_seq']].head(3).values.tolist()}",
-              flush=True)
-        print(f"[FABPLAN] STEP 쪽 예시 {st[['processid','stepseq']].head(3).values.tolist()}",
-              flush=True)
         return pd.DataFrame()
     cur = cur[["lot_id", "proc_id", "step_seq", "hot_lot_level", "_ord"]]
     cur = cur.rename(columns={"_ord": "_cur_ord"})
