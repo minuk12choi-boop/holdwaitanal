@@ -618,6 +618,8 @@ UPDATES = [
                   "않습니다. SHIFT 도 실제로 적재된 것만 고를 수 있습니다."},
             {"t": "HOLD 사유 아래에 누가 걸었는지(User · System)를 한 겹 "
                   "더 보여 줍니다. 둘이 섞여 있을 때만 나뉩니다."},
+            {"t": "드릴다운 표의 제약원인에도 User Hold(사유) · "
+                  "SYS Hold(사유) 로 적습니다."},
             {"t": "기준정보에 제품구분 카드를 더했습니다. lot_id 의 글자와 "
                   "PLAN 으로 제품명을 정하며, 여기서 정해지지 않은 것만 "
                   "기존 SSPS 제품명을 씁니다."},
@@ -1392,6 +1394,11 @@ def _hold_kind(r):
     return "User Hold" if (u[:1].isdigit()) else "System Hold"
 
 
+def _hold_label(r):
+    """표의 제약원인에 쓸 이름. 칸이 좁아 System 은 SYS 로 줄인다."""
+    return "User Hold" if _hold_kind(r) == "User Hold" else "SYS Hold"
+
+
 def holdtype_of(r, rules):
     """기준정보로 세부 유형을 찾는다. 못 찾으면 None."""
     if not rules:
@@ -1542,7 +1549,10 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
     have_l = {c.lower() for c in have}
 
     want = [c for c, _ in LOT_DETAIL_COLS if c not in ("lot_id", "wt", "cause")]
-    for c in ("recipe_id", "step_seq", "step_desc", "lot_type"):
+    # 표에 보이지 않지만 계산에 필요한 컬럼.
+    #   cause_detail 이 없으면 제약원인이 'User Hold' 까지만 나오고
+    #   괄호 안 사유가 빠진다.
+    for c in ("recipe_id", "step_seq", "step_desc", "lot_type", "cause_detail"):
         if c not in want:
             want.append(c)
 
@@ -3216,7 +3226,9 @@ def api_lots_live(request):
                 continue
         rec = dict(r)
         rec["wt"] = round(wt, 2)
-        cause = " / ".join(x for x in (b2, m2) if x)
+        # HOLD 는 누가 걸었는지까지 밝힌다. User Hold(사유) / SYS Hold(사유)
+        head = _hold_label(r) if b2 == "Hold" else b2
+        cause = " / ".join(x for x in (head, m2) if x)
         detail = r.get("cause_detail") or holdtype_of(r, ht)
         rec["cause"] = f"{cause}({detail})" if (cause and detail) else cause
         row = {c: rec.get(c) for c in send_keys}
