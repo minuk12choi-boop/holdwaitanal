@@ -964,6 +964,14 @@ recipe recipe_id_eff = 사전지정 > PEMS > STEP 의 값
 TIP 은 `s`(스텝 목록)로 선필터하므로 **`fabplan_scope` 시점에는 없다.**
 `fill_fab_eqp()` 가 TIP 을 만든 뒤에 채운다.
 
+**설비 하나당 한 행으로 펼쳐야 한다.** lotplan 은 그룹명을 설비 목록으로
+펼쳐 놓고, SQL 이 `(line, lot_id, order_seq)` 로 다시 이어 붙여 EQPGROUP 을
+만든다. FabPlan 도 같은 모양이어야 한다. 이어 붙인 문자열을 그대로 넣으면
+설비 목록으로 펼쳐지지 않아 **EQPGROUP 이 한 대만 나온다.**
+
+`expand_with_equipment()` 는 '그룹명 -> 설비' 로 펼치는 함수라
+FabPlan 에는 쓰면 안 된다(이미 설비 단위다). 설비 속성만 붙인다.
+
 ### 라인 색
 
 어느 차트에서 보든 같은 라인은 같은 색이다.

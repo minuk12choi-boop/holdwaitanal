@@ -810,6 +810,24 @@ def _check_fab(f3, df_lot):
     print(f"[CHECK]   현스텝 있는 lot {cur['lot_id'].nunique():,}"
           f" / FabPlan lot {len(fab):,}", flush=True)
 
+    # EQPGROUP 이 한 대만 나오는지, 여러 대가 이어 붙는지 본다.
+    #   lotplan 과 견줘 크게 낮으면 설비 전개가 덜 된 것이다.
+    def _ncnt(d):
+        if "eqpgroup" not in d.columns or not len(d):
+            return None
+        v = d["eqpgroup"].astype("string").fillna("").str.strip()
+        v = v[v.ne("")]
+        if not len(v):
+            return None
+        k = v.str.count(",") + 1
+        return k.mean(), int((k == 1).mean() * 100), int(k.max())
+
+    for nm, d in (("FabPlan", a), ("lotplan", b)):
+        r = _ncnt(d)
+        if r:
+            print(f"[CHECK]   {nm} EQPGROUP 설비 수 평균 {r[0]:.1f}대 · "
+                  f"1대뿐 {r[1]}% · 최대 {r[2]}대", flush=True)
+
 
 def relabel_lines(f3, df_lot):
     """완성된 f3 의 line 만 dest_line_id 기준으로 다시 매긴다.
@@ -1743,43 +1761,49 @@ def _diag_fab_join(m, st):
 
 
 def fill_fab_eqp(s, t, df_eqp=None, df_eqp_group=None, line="PFR1"):
-    """FabPlan 행의 설비 그룹을 TIP 으로 채운다.
+    """FabPlan 행에 설비를 붙인다. **설비 하나당 한 행**으로 펼친다.
 
-    StepPath 에는 eqp_group_id 가 들어 있지만 STEP 정의에는 없다.
-    대신 **그 스텝을 돌릴 수 있는 설비를 TIP 에서 찾아** lot·스텝 단위로
-    묶는다. 개념은 lotplan 과 같고 재료만 다르다.
+    lotplan 은 StepPath 의 eqp_group_id(그룹명) 를 설비 목록으로 펼쳐
+    설비마다 한 행을 만든다. 그 뒤 SQL 이 (line, lot_id, order_seq) 로
+    다시 이어 붙여 EQPGROUP 을 만든다.
+
+    FabPlan 은 그룹명이 없다. TIP 에서 찾은 설비로 **직접 그 펼친 모양**을
+    만들어야 한다. 이어 붙인 문자열을 그대로 넣으면 설비 목록으로 펼쳐지지
+    않아 EQPGROUP 이 한 대만 나온다.
 
       조인   proc_id = process · step_seq = step · recipe = ppid
-      묶기   (lot_id, step_seq) 로 이어 붙인다
-               eqpline = 이 라인 -> 자기 설비
-               그 밖             -> 호환 설비
+      결과   설비 n 대면 n 행. eqp_id 를 채운다.
     """
     if "_fab" not in s.columns:
         return s
     fab = s["_fab"].fillna(0).astype(int).eq(1)
     n = int(fab.sum())
-    if not n or t is None or not len(t):
-        print("[FABPLAN] TIP 이 없어 설비 그룹을 만들 수 없다", flush=True)
-        return s
+    if not n:
+        return s.drop(columns=[c for c in ("_fab", "_rcp") if c in s.columns])
+    if t is None or not len(t):
+        print("[FABPLAN] TIP 이 없어 설비를 붙일 수 없다", flush=True)
+        return s.drop(columns=[c for c in ("_fab", "_rcp") if c in s.columns])
 
     B = _lower_cols(t)
     need = ["process", "step", "ppid", "eqpid", "eqpcham", "eqpline"]
     miss = [c for c in need if c not in B.columns]
     if miss:
         print(f"[FABPLAN] TIP 에 없는 컬럼 {miss}", flush=True)
-        return s
+        return s.drop(columns=[c for c in ("_fab", "_rcp") if c in s.columns])
     B = B[need].copy()
-    for c in ("process", "step", "ppid"):
+    for c in ("process", "step", "ppid", "eqpid"):
         B[c] = _fab_str(B[c])
-    B = B[B["process"].ne("") & B["step"].ne("")].drop_duplicates()
+    B = B[B["process"].ne("") & B["step"].ne("") & B["eqpid"].ne("")]
+    B = B.drop_duplicates()
 
-    A = s.loc[fab, ["lot_id", "proc_id", "step_seq", "_rcp"]].copy()
+    A = s[fab].copy()
     A["_i"] = A.index
-    for c in ("lot_id", "proc_id", "step_seq", "_rcp"):
+    for c in ("proc_id", "step_seq", "_rcp"):
         A[c] = _fab_str(A[c])
 
-    j2 = A.merge(B, left_on=["proc_id", "step_seq", "_rcp"],
-                 right_on=["process", "step", "ppid"], how="inner")
+    j2 = A[["_i", "proc_id", "step_seq", "_rcp"]].merge(
+        B, left_on=["proc_id", "step_seq", "_rcp"],
+        right_on=["process", "step", "ppid"], how="inner")
     print(f"[FABPLAN] TIP 매칭 {len(j2):,}행 (대상 {n:,} · TIP {len(B):,})",
           flush=True)
     if j2.empty:
@@ -1789,56 +1813,51 @@ def fill_fab_eqp(s, t, df_eqp=None, df_eqp_group=None, line="PFR1"):
         print(f"[FABPLAN]   TIP 쪽 예 "
               f"{B[['process', 'step', 'ppid']].head(3).values.tolist()}",
               flush=True)
-        return s
+        return s.drop(columns=[c for c in ("_fab", "_rcp") if c in s.columns])
 
-    eid = _fab_str(j2["eqpid"])
-    ech = _fab_str(j2["eqpcham"])
-    j2["_ch"] = ech.mask(ech.eq(""), eid)
-    j2["_mine"] = _fab_str(j2["eqpline"]).str.upper().eq(str(line).upper())
+    # 자기 라인 설비를 먼저 쓴다. 하나도 없으면 호환 설비로 간다.
+    mine = _fab_str(j2["eqpline"]).str.upper().eq(str(line).upper())
+    has_mine = set(j2.loc[mine, "_i"])
+    j2 = j2[mine | ~j2["_i"].isin(has_mine)]
 
-    def _cat(v):
-        seen, out = set(), []
-        for x in v:
-            x = str(x or "").strip()
-            if x in ("", "-") or x in seen:
-                continue
-            seen.add(x)
-            out.append(x)
-        return ", ".join(out)
+    # 설비 하나당 한 행. lotplan 의 '설비그룹 전개' 와 같은 모양이 된다.
+    cnt = j2.groupby("_i").size()
+    grown = A.drop(columns=["_i"]).loc[j2["_i"]].copy()
+    grown.index = range(len(grown))
+    grown["eqp_id"] = j2["eqpid"].to_numpy()
+    grown["eqp_group_raw"] = j2["eqpid"].to_numpy()   # AREA 는 첫 글자로 본다
+    if "eqpcham" in grown.columns:
+        grown["eqpcham"] = _fab_str(j2["eqpcham"]).to_numpy()
 
-    key = ["lot_id", "step_seq"]
-    g_my = j2[j2["_mine"]].groupby(key)["eqpid"].apply(_cat)
-    g_ot = j2[~j2["_mine"]].groupby(key)["eqpid"].apply(_cat)
-    g_ch = j2[j2["_mine"]].groupby(key)["_ch"].apply(_cat)
+    dist = cnt.value_counts().sort_index()
+    top = {int(k): int(v) for k, v in list(dist.items())[:5]}
+    print(f"[FABPLAN] 설비 전개 {n:,} -> {len(grown):,}행 "
+          f"(설비 못 찾은 스텝 {n - len(cnt):,})", flush=True)
+    print(f"[FABPLAN]   스텝당 설비 수 분포 {top}"
+          f"{' ...' if len(dist) > 5 else ''} · 평균 "
+          f"{cnt.mean():.1f}대", flush=True)
 
-    idx = pd.MultiIndex.from_arrays(
-        [_fab_str(s["lot_id"]).to_numpy(), _fab_str(s["step_seq"]).to_numpy()])
-    my = pd.Series(idx.map(g_my), index=s.index).fillna("")
-    ot = pd.Series(idx.map(g_ot), index=s.index).fillna("")
-    ch = pd.Series(idx.map(g_ch), index=s.index).fillna("")
+    # 설비가 정해졌으니 그에 딸린 값을 붙인다.
+    #   expand_with_equipment 는 '그룹명 -> 설비' 로 다시 펼치므로 쓰면 안 된다
+    #   (여기는 이미 설비 단위다). 설비 속성만 가져온다.
+    if df_eqp is not None:
+        e = _build_equipment(df_eqp, line)
+        e = _drop_null_keys(
+            e[["eqp_id", "batch_kind", "eqpline", "eqp_status",
+               "eqp_status_change_time"]].drop_duplicates(), ["eqp_id"])
+        drop = ["batch_kind", "eqpline", "body_status",
+                "eqp_status_change_time", "AREA"]
+        grown = grown[[c for c in grown.columns if c not in drop]]
+        grown = grown.merge(e, on="eqp_id", how="left")
+        grown = grown.rename(columns={"eqp_status": "body_status"})
+        # AREA 는 설비 첫 글자로 정한다(lotplan 과 같은 규칙).
+        grown["AREA"] = area_of(grown["eqp_group_raw"])
+        print(f"[FABPLAN]   설비 속성 매칭 "
+              f"{int(grown['batch_kind'].notna().sum()):,}/{len(grown):,} · "
+              f"AREA {int(grown['AREA'].notna().sum()):,}", flush=True)
 
-    s = s.copy()
-    got = my.mask(my.eq(""), ot)             # 자기 라인이 없으면 호환 설비
-    s.loc[fab, "eqp_group_raw"] = got[fab].to_numpy()
-    print(f"[FABPLAN] 설비그룹 채워짐 {int(got[fab].ne('').sum()):,}/{n:,}"
-          f" (자기라인 {int(my[fab].ne('').sum()):,} · "
-          f"호환 {int(ot[fab].ne('').sum()):,})", flush=True)
-
-    # 설비가 이제야 정해졌으므로 그것에 딸린 값을 다시 만든다.
-    #   AREA · batch_kind · eqpline · 설비 상태는 expand_with_equipment 가
-    #   설비 기준으로 채우는데, 그때는 이 값이 비어 있었다.
-    fab_rows = s[fab].copy()
-    if len(fab_rows) and df_eqp is not None:
-        keep = [c for c in fab_rows.columns
-                if c not in ("eqp_id", "batch_kind", "eqpline", "body_status",
-                             "eqp_status_change_time", "AREA")]
-        again = expand_with_equipment(fab_rows[keep], df_eqp, df_eqp_group,
-                                      line)
-        rest = s[~fab]
-        s = pd.concat([rest, again], ignore_index=True)
-        print(f"[FABPLAN] 설비 전개 후 {len(again):,}행 · "
-              f"AREA 채워짐 {int(again['AREA'].notna().sum()):,}", flush=True)
-    return s.drop(columns=[c for c in ("_fab", "_rcp") if c in s.columns])
+    out = pd.concat([s[~fab], grown], ignore_index=True)
+    return out.drop(columns=[c for c in ("_fab", "_rcp") if c in out.columns])
 
 
 def fabplan_scope(df_step, df_pems, df_sel, df_skiprule, df_engr,
