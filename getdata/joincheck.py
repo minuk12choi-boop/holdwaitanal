@@ -137,7 +137,7 @@ def main():
                 best.append((p2, combo))
     if not best:
         print("    맞춰서 붙는 조합을 못 찾았다. 키 자체가 다를 수 있다.")
-        print("    inspect.py 로 양쪽 컬럼의 길이·형태를 견줘 보세요.")
+        print("    dbshape.py 로 양쪽 컬럼의 길이·형태를 견줘 보세요.")
     else:
         best.sort(key=lambda x: (-x[0], len(x[1])))
         seen = set()

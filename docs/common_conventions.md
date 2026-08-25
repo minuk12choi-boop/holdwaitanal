@@ -987,11 +987,14 @@ TIP 조인은 **left** 로 한다. 설비를 못 찾은 스텝도 남겨야 한�
 알 수 없다.
 
 ```
-python getdata/inspect.py f3_live
-python getdata/inspect.py f3_live --cols order_seq,proc_id,step_seq
-python getdata/inspect.py f3_live --key line,lot_id,order_seq
-python getdata/inspect.py f3_move_step --group sys_line_id
+python getdata/dbshape.py f3_live
+python getdata/dbshape.py f3_live --cols order_seq,proc_id,step_seq
+python getdata/dbshape.py f3_live --key line,lot_id,order_seq
+python getdata/dbshape.py f3_move_step --group sys_line_id
 ```
+
+**파일명은 표준 모듈과 겹치면 안 된다.** `inspect.py` 로 두면 파이썬
+표준 `inspect` 를 가려 같은 폴더의 다른 스크립트에서 numpy 가 깨진다.
 
 컬럼마다 NULL 비율 · 빈값 비율 · 고유값 수 · 길이 · 형태(숫자/영문/섞임) ·
 앞뒤 공백 · 대소문자 섞임을 낸다. `--key` 는 그 조합이 행을 유일하게

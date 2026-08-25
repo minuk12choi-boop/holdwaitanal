@@ -1,14 +1,18 @@
 """데이터 '모양' 점검기. 값은 내보내지 않는다.
 
+[파일명 주의] inspect.py 로 두면 **파이썬 표준 모듈 inspect 를 가린다.**
+같은 폴더에서 다른 스크립트를 돌릴 때 numpy·pandas 가 통째로 깨진다.
+표준 모듈과 겹치는 이름(inspect, types, json, code ...)은 쓰지 않는다.
+
 값 자체는 사내 자료라 밖으로 낼 수 없다. 그래도 **모양**은 낼 수 있다.
 NULL 비율 · 고유값 수 · 길이 · 표기 형태 같은 것은 값이 아니다.
 이 출력만 있으면 조인이 왜 안 붙는지, 어느 컬럼이 비는지 판단할 수 있다.
 
 실행
-    python getdata/inspect.py f3_live
-    python getdata/inspect.py f3_live --cols order_seq,proc_id,step_seq
-    python getdata/inspect.py f3_move_step --group sys_line_id
-    python getdata/inspect.py f3_live --key line,lot_id,order_seq
+    python getdata/dbshape.py f3_live
+    python getdata/dbshape.py f3_live --cols order_seq,proc_id,step_seq
+    python getdata/dbshape.py f3_move_step --group sys_line_id
+    python getdata/dbshape.py f3_live --key line,lot_id,order_seq
 
 내보내는 것 / 내보내지 않는 것
     낸다     행 수 · NULL 비율 · 고유값 수 · 길이 최소/최대 · 표기 형태

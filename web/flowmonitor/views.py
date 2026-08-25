@@ -2700,9 +2700,9 @@ def api_balance(request):
                 if subs_want and not any(x in s2 for x in subs_want):
                     continue
 
-        lay = str(r.get("layer_id") or "").strip()
-        if not lay:
-            continue
+        # LAYER 가 없어도 버리지 않는다. 조용히 빼면 요약 합계와 어긋난다.
+        #   (다른 화면은 UNCLASSIFIED 로 묶는다. 여기만 달라선 안 된다)
+        lay = str(r.get("layer_id") or "").strip() or UNCLASSIFIED
         layers.add(lay)
         # 모듈은 (PLAN, LAYER) 로 정해진다. LAYER 하나만 보고 담으면
         #   다른 PLAN 의 모듈이 먼저 들어와 엉뚱한 이름이 붙는다.

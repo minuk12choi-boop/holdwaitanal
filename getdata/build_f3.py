@@ -1514,8 +1514,21 @@ def narrow_step_to_scope(df_path, df_lot, line):
     path = path[keep]
 
     # --- 현스텝 확정 ---
+    #   현스텝이 SKIP 이면 위에서 이미 걸러져 여기 없다. 그때는 그 뒤
+    #   첫 비SKIP 스텝을 현스텝으로 삼는다(FabPlan 과 같은 규칙).
+    #   그러지 않으면 그 lot 이 화면에서 통째로 사라진다.
     cur = path.merge(m.rename(columns={"order_seq": "_cur"}), on="lot_id", how="inner")
-    cur = cur[cur["order_seq"].eq(cur["_cur"])].drop(columns=["_cur"])
+    exact = cur[cur["order_seq"].eq(cur["_cur"])]
+    miss = set(m["lot_id"]) - set(exact["lot_id"])
+    if miss:
+        nxt = (cur[cur["lot_id"].isin(miss) & cur["order_seq"].gt(cur["_cur"])]
+               .sort_values(["lot_id", "order_seq"], kind="mergesort")
+               .drop_duplicates("lot_id", keep="first"))
+        if len(nxt):
+            print(f"[STEP] {line} 현스텝이 SKIP 이라 다음 스텝으로 옮긴 lot "
+                  f"{len(nxt):,}", flush=True)
+        exact = pd.concat([exact, nxt], ignore_index=True)
+    cur = exact.drop(columns=["_cur"])
     cur = cur.merge(de, on=["lot_id", "order_seq"], how="left")
 
     cur_rank = cur.loc[cur["de_rank"].notna(), ["lot_id", "de_rank"]].drop_duplicates()
