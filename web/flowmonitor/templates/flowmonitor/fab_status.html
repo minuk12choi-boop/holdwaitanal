@@ -1148,7 +1148,11 @@ function renderArea() {
 let BAL_UNIT = "qty";
 let BAL_OPEN = false;
 let BAL_DATA = null;
-let BAL_PICK = null;      // 펼칠 목록. null 이면 전부
+// 펼칠 목록. 축마다 따로 담는다. 하나로 쓰면 제품에서 고른 값이
+// PLAN 메뉴에도 쓰여 아무것도 체크되지 않고 펼치기가 실패한다.
+//   null = 전부 · [] = 아직 안 고름
+let BAL_SEL = { prod: null, plan: null };
+let BAL_PICK = null;      // 화면 표기용(고른 것을 합친 목록)
 let BAL_BY = "";          // "" 면 접힘. prod / plan / prod,plan
 let BAL_OPEN_ID = null;   // 받아온 뒤 열어 둘 메뉴
 let BAL_LABEL = "";       // 어떤 드릴다운에서 왔는지
@@ -1200,6 +1204,7 @@ function balBy(which, on, openId) {
   if (on) { set.add(which); } else { set.delete(which); }
   BAL_BY = ["prod", "plan"].filter(x => set.has(x)).join(",");
   // 축을 켰다고 바로 펼치지 않는다. 목록에서 고르면 그때 나뉜다.
+  BAL_SEL = { prod: null, plan: null };
   BAL_PICK = [];
   BAL_OPEN = false;
   BAL_OPEN_ID = openId || null;
@@ -1217,7 +1222,8 @@ function renderBalMenu(which) {
   const plans = (only && only.length) ? only : list.map(p => p.name);
   const mainOf = {};
   list.forEach(p => { mainOf[p.name] = !!p.main; });
-  const on = BAL_PICK ? new Set(BAL_PICK) : new Set(plans);
+  const cur = BAL_SEL[which];
+  const on = cur ? new Set(cur) : new Set(plans);
   const mid = (which === "prod") ? "Prod" : "Plan";
 
   document.getElementById("balmenu" + mid).innerHTML =
@@ -1227,7 +1233,7 @@ function renderBalMenu(which) {
     + `<input class="ddq" id="balq${mid}" type="text" placeholder="검색"`
     + ` oninput="balSearch('${mid}')" onclick="event.stopPropagation()">`
     + `<label class="dfall"><input type="checkbox"`
-    + `${BAL_PICK === null ? " checked" : ""} onclick="balAll(event,'${mid}')">`
+    + `${cur === null ? " checked" : ""} onclick="balAll(event,'${mid}')">`
     + `<b>ALL</b></label>`
     + plans.map(p => `<label data-opt="${p}"><input type="checkbox" value="${p}"`
         + `${on.has(p) ? " checked" : ""} onclick="balPick('${mid}')">`
@@ -1252,9 +1258,17 @@ function balAll(ev, mid) {
 }
 
 function balPick(mid) {
+  const which = (mid === "Prod") ? "prod" : "plan";
   const boxes = [...document.querySelectorAll("#balmenu" + mid + " input[value]")];
   const sel = boxes.filter(x => x.checked).map(x => x.value);
-  BAL_PICK = (sel.length === boxes.length) ? null : sel;
+  BAL_SEL[which] = (sel.length === boxes.length) ? null : sel;
+  // 표기용. 켜져 있는 축에서 고른 것만 모은다.
+  const picked = ["prod", "plan"]
+    .filter(k => BAL_BY.indexOf(k) >= 0 && BAL_SEL[k])
+    .flatMap(k => BAL_SEL[k]);
+  const anyPick = ["prod", "plan"]
+    .some(k => BAL_BY.indexOf(k) >= 0 && BAL_SEL[k]);
+  BAL_PICK = anyPick ? picked : null;
   // 하나도 안 고르면 합산 한 줄로 돌아간다. 축(BAL_BY)은 그대로 둔다.
   BAL_OPEN = (BAL_PICK === null) || BAL_PICK.length > 0;
   balSyncBtns();
@@ -1267,7 +1281,9 @@ function balSyncBtns() {
     const b = document.getElementById(id);
     if (!b) { return; }
     const on = by.has(key);
-    b.innerHTML = `${name} ${on ? (BAL_PICK ? BAL_PICK.length + "개" : "전체")
+    // 개수는 그 축에서 고른 것만 센다(다른 축 것을 섞으면 어긋난다).
+    const cur = BAL_SEL[key];
+    b.innerHTML = `${name} ${on ? (cur ? cur.length + "개" : "전체")
                               : "펼치기"}<span class="cv">${on ? "▲" : "▼"}</span>`;
     b.classList.toggle("on", on);
   };
@@ -1280,6 +1296,7 @@ function balSyncBtns() {
 // 펼치기 자체를 해제한다.
 function balCollapse() {
   BAL_OPEN = false; BAL_PICK = null; BAL_BY = "";
+  BAL_SEL = { prod: null, plan: null };
   balSyncBtns();
   document.querySelectorAll(".dd.open").forEach(d => d.classList.remove("open"));
   drawBalance();
@@ -1293,7 +1310,10 @@ function loadBalance(show) {
     prod1: PROD1.join(","), prod2: PROD2.join(","), area: AREAS.join(","),
     plan: PLANS.join(","), lots: LOTS.join(","),
     flayer: LAYERS.join(","),
-    biz_date: SNAP_DATE, shift: SNAP_SHIFT, by: (BAL_BY || "plan")
+    biz_date: SNAP_DATE, shift: SNAP_SHIFT, by: (BAL_BY || "plan"),
+    // 지금 고른 값을 알려 상대 축 목록이 그에 맞게 좁혀지도록 한다.
+    sel_prod: (BAL_SEL.prod || []).join(","),
+    sel_plan: (BAL_SEL.plan || []).join(",")
   }, dfFilter());
   delete base.layer_id;                 // LAYER 는 이 차트의 x축이라 뺀다
   const q = Object.entries(base)
@@ -1326,9 +1346,21 @@ function drawBalance() {
   let rows = BAL_OPEN ? (d.plans || [])
                       : [{ name: "전체", qty: (d.total || {}).qty,
                            lots: (d.total || {}).lots }];
-  if (BAL_OPEN && BAL_PICK && BAL_PICK.length) {
-    const on = new Set(BAL_PICK);
-    rows = rows.filter(r => on.has(r.name));
+  if (BAL_OPEN) {
+    // 행 이름은 켠 축을 '>' 로 이은 것이다.
+    //   두 축이면 '제품>PLAN', 한 축이면 그 값 하나.
+    //   서버가 내려준 순서(by)를 그대로 따라야 자리가 맞는다.
+    const ax = String(d.by || BAL_BY).split(",").filter(Boolean);
+    ax.forEach((k, i) => {
+      const pick = BAL_SEL[k];
+      if (!pick || !pick.length) { return; }
+      const on = new Set(pick);
+      rows = rows.filter(r => {
+        const parts = String(r.name).split(">");
+        // 축이 하나뿐이면 이름 전체가 그 값이다.
+        return on.has(parts.length > 1 ? parts[i] : parts[0]);
+      });
+    });
   }
 
   if (!rows.length) {
@@ -1610,7 +1642,10 @@ function dfResetBelow(lv, keepCz) {
   if (lv < 5 && !keepCz) {
     CZ_WIDE = null; CZ_STACK = []; CZ_SEL = { i: -1, path: [] };
   }
-  if (lv < 6) { BAL_BY = ""; BAL_OPEN = false; BAL_PICK = null; }
+  if (lv < 6) {
+    BAL_BY = ""; BAL_OPEN = false; BAL_PICK = null;
+    BAL_SEL = { prod: null, plan: null };
+  }
 }
 
 // 같은 계층의 다른 차트 조건을 지운다.

@@ -2630,6 +2630,9 @@ def api_balance(request):
     xf = _xfilters(request)
     f_area_b = [x for x in request.GET.get("f_area", "").split(",") if x]
     f_prod_b = [x for x in request.GET.get("f_prod", "").split(",") if x]
+    # LOT BALANCE 에서 지금 고른 값. 상대 축 목록을 좁히는 데 쓴다.
+    sel_prod = [x for x in request.GET.get("sel_prod", "").split(",") if x]
+    sel_plan = [x for x in request.GET.get("sel_plan", "").split(",") if x]
     # 히트맵을 STEP 축으로 보다가 칸을 누르면 여기로 온다.
     #   좌측에는 STEP 필터가 없어 이 API 에서만 받는다.
     f_step = [x for x in request.GET.get("step_seq", "").split(",") if x]
@@ -2699,8 +2702,14 @@ def api_balance(request):
         if "prod" in by:
             grp_lay.setdefault(str(r.get("prod2") or "-"), set()).add(lay)
         grp_of[key] = str(r.get("prod2") or "-")
-        prod_seen.add(str(r.get("prod2") or "-"))
-        plan_seen.add(str(r.get("proc_id") or "-"))
+        # 목록은 **상대 축에서 고른 것** 을 반영해 좁힌다.
+        #   제품을 고르면 그 제품의 PLAN 만 남는다(반대도 같다).
+        _p2 = str(r.get("prod2") or "-")
+        _pl = str(r.get("proc_id") or "-")
+        if not sel_plan or _pl in sel_plan:
+            prod_seen.add(_p2)
+        if not sel_prod or _p2 in sel_prod:
+            plan_seen.add(_pl)
 
     main = _main_plans(line) if by == ["plan"] else {}
     # 지금 조건에서 실제로 있는 제품·PLAN 만 목록에 올린다.
