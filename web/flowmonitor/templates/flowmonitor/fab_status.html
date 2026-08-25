@@ -359,12 +359,9 @@ function renderSnap(d) {
       drawCal();
     }
   }
-  if (el) {
-    const ds = snaps.map(x => x.biz_date).sort();
-    if (ds.length) { el.min = ds[0]; el.max = ds[ds.length - 1]; }
-    const w = document.getElementById("datefw");
-    if (w) { w.classList.toggle("on", !!SNAP_DATE); }
-  }
+  // 날짜를 고른 상태면 버튼을 강조한다(달력이 min/max 를 쓰던 자리).
+  const w = document.getElementById("datefw");
+  if (w) { w.classList.toggle("on", !!SNAP_DATE); }
 
   // 그 날짜에 실제로 적재된 shift 는 시각을 함께 보여준다.
   const have = {};
