@@ -211,6 +211,14 @@ WHERE       m1.line = m1.sys_line_id
   AND       m1.cur_line_id NOT IN ('CHTV')
 """
 
+# 진단용. 위 세 조건을 빼고 통째로 받는다. 그래야 '어디서 빠졌는지' 를
+# 셀 수 있다. 조건을 SQL 에 두면 걸러진 lot 은 애초에 오지 않아
+# 비교 대상조차 되지 못한다.
+lot_query_raw = lot_query.replace(
+    """WHERE       m1.line = m1.sys_line_id
+  AND       m1.lot_type IN ('PP', 'PG', 'EG')
+  AND       m1.cur_line_id NOT IN ('CHTV')""", "")
+
 # ── TrackInPrevent (Tip) : 실제 사용 컬럼만 조회 ─────────────────────────
 kfr7_tip_query = """
 SELECT process, step, ppid, eqpid, chamberid, {LOT_TYPE_COL}
@@ -636,48 +644,60 @@ TRACE_DROP = (os.environ.get("TRACE_DROP", "").strip() not in ("", "0")
               or "--trace-drop" in sys.argv)
 
 
-def dump_dropped(df_lot, df_f3, path=None):
-    """어느 단계에서 빠졌는지 lot 별로 적어 엑셀로 남긴다.
+def dump_dropped(df_lot, df_f3, path=None, base=None):
+    """원천에는 있는데 최종 f3 에 없는 lot 을 전부 뽑아 엑셀로 남긴다.
 
-    한 lot 만 쫓으면 개별 사정은 알 수 있어도 전체 규모를 모른다.
-    빠진 것을 모두 모아 사유를 붙이면 무엇을 고쳐야 할지 바로 보인다.
+    df_lot  거르지 않은 원천(진단 모드) 또는 실제 사용분
+    base    실제로 파이프라인에 들어간 lot. 이것과 비교해 SQL 단계에서
+            걸러진 것과 그 뒤에서 빠진 것을 나눈다.
     """
     m = _lower_cols(df_lot).copy()
     if "lot_id" not in m.columns:
         print("[DROP] lot_id 없음", flush=True)
         return None
-
-    keep = set(_lower_cols(df_f3)["lot_id"].astype("string")) if len(df_f3) \
-        else set()
     m["lot_id"] = m["lot_id"].astype("string")
-    out = m[~m["lot_id"].isin(keep)].copy()
+
+    keep = set()
+    if df_f3 is not None and len(df_f3):
+        keep = set(_lower_cols(df_f3)["lot_id"].astype("string"))
+    used = None
+    if base is not None and len(base):
+        used = set(_lower_cols(base)["lot_id"].astype("string"))
+
+    out = m[~m["lot_id"].isin(keep)].drop_duplicates(subset=["lot_id"]).copy()
+    print(f"[DROP] 원천 {m['lot_id'].nunique():,} · f3 {len(keep):,} · "
+          f"빠짐 {len(out):,}", flush=True)
     if out.empty:
-        print("[DROP] 빠진 lot 없음", flush=True)
         return None
 
-    # 사유를 붙인다. 위에서부터 먼저 걸리는 것을 쓴다.
     def _why(r):
+        lot = r.get("lot_id")
         line = str(r.get("line") or "")
         sysl = str(r.get("sys_line_id") or "")
         cur = str(r.get("cur_line_id") or "")
         lt = str(r.get("lot_type") or "")
+        # SQL 조건에 먼저 걸리는 것부터 본다.
         if sysl and line != sysl:
-            return "line <> sys_line_id"
-        if lt not in ("PP", "PG", "EG"):
-            return f"lot_type 제외({lt or '-'})"
+            return f"라인 불일치(line={line} sys={sysl})"
+        if lt and lt not in ("PP", "PG", "EG"):
+            return f"lot_type 제외({lt})"
         if cur == "CHTV":
             return "cur_line_id = CHTV"
-        if pd.isna(r.get("proc_id")) or str(r.get("proc_id") or "") == "":
+        if not str(r.get("proc_id") or "").strip():
             return "proc_id 없음"
-        if pd.isna(r.get("step_seq")) or str(r.get("step_seq") or "") == "":
+        if not str(r.get("step_seq") or "").strip():
             return "step_seq 없음"
+        # 여기까지 통과했는데 없다면 조인 단계에서 빠진 것이다.
+        if used is not None and lot not in used:
+            return "원천 조회 단계에서 제외"
         return "StepPath 에서 스텝을 못 찾음"
 
     out["탈락사유"] = out.apply(_why, axis=1)
 
     cols = [c for c in ("line", "sys_line_id", "cur_line_id", "dest_line_id",
-                        "lot_id", "lot_type", "status", "proc_id", "step_seq",
-                        "order_seq", "prod2", "탈락사유") if c in out.columns]
+                        "origin_line_id", "lot_id", "lot_type", "status",
+                        "proc_id", "step_seq", "order_seq", "prod2", "qty",
+                        "탈락사유") if c in out.columns]
     out = out[cols].sort_values(["탈락사유", "lot_id"], kind="mergesort")
 
     if path is None:
@@ -697,36 +717,10 @@ def dump_dropped(df_lot, df_f3, path=None):
         out.to_csv(path, index=False, encoding="utf-8-sig")
         print(f"[DROP] 엑셀 실패({type(e).__name__}) - CSV 로 저장", flush=True)
 
-    print(f"[DROP] 원천 {len(m):,} 중 {len(out):,} 빠짐 -> {path}", flush=True)
+    print(f"[DROP] -> {path}", flush=True)
     for why, n in out["탈락사유"].value_counts().items():
-        print(f"[DROP]   {why:28s} {n:>6,}", flush=True)
+        print(f"[DROP]   {why:34s} {n:>6,}", flush=True)
     return path
-
-
-def trace_lot(where, df, col="lot_id"):
-    """추적 대상 lot 이 이 단계에 몇 행 있는지 남긴다."""
-    if not TRACE_LOT or df is None:
-        return
-    try:
-        if col not in df.columns:
-            low = {c.lower(): c for c in df.columns}
-            col = low.get(col.lower(), "")
-            if not col:
-                print(f"[TRACE] {where:22s} {col or 'lot_id'} 컬럼 없음", flush=True)
-                return
-        hit = df[df[col].astype("string").str.strip().eq(TRACE_LOT)]
-        msg = f"[TRACE] {where:22s} {len(hit):>6,} 행"
-        if len(hit):
-            show = [c for c in ("line", "dest_line_id", "sys_line_id",
-                                "cur_line_id", "lot_type", "status",
-                                "order_seq", "step_seq", "proc_id", "현스텝")
-                    if c in hit.columns]
-            if show:
-                msg += "   " + " | ".join(
-                    f"{c}={hit.iloc[0][c]}" for c in show[:6])
-        print(msg, flush=True)
-    except Exception as e:
-        print(f"[TRACE] {where}: {type(e).__name__}", flush=True)
 
 
 def relabel_lines(f3, df_lot):
@@ -2609,6 +2603,11 @@ def main():
     stamp = f"{run_at:%Y%m%d_%H%M%S}"
 
     with timer("소형 원천 조회"):
+        # 진단 모드에서는 거르지 않은 원천도 함께 받아 둔다.
+        #   S3 는 이미 걸러 적재하므로 그때는 있는 것으로만 비교한다.
+        df_lot_raw = None
+        if TRACE_DROP and SOURCE == "bdq":
+            df_lot_raw = fetch("lot_raw", lot_query_raw, keep_sample=False)
         df_lot = fetch("lot", lot_query)
         # dest_line_id 보정: bdq 경로나 옛 쿼리에는 이 컬럼이 없다.
         # f3 출력 컬럼이라 없으면 SQL 이 깨지므로 빈 값으로 채워 둔다.
@@ -2783,7 +2782,8 @@ def main():
     trace_lot("f3 생성 직후", df_f3)
     if TRACE_DROP:
         with stage("빠진 lot 정리"):
-            dump_dropped(df_lot, df_f3)
+            dump_dropped(df_lot_raw if df_lot_raw is not None else df_lot,
+                         df_f3, base=df_lot)
 
     # 조인·집계는 원천 라인으로 끝내고, 라벨만 마지막에 바꾼다.
     if SOURCE != "bdq":

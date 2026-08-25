@@ -829,11 +829,12 @@ summarize()  상위 3 + 나머지 규모
 원천에는 있는데 최종 f3 에 없는 lot 을 **전부** 뽑아 엑셀로 남긴다.
 
 ```
-set TRACE_DROP=1
-python getdata/build_f3.py
-   또는
 python getdata/build_f3.py --trace-drop
 ```
+
+**BDQ 모드일 때만** 거르지 않은 원천(`lot_query_raw`)을 함께 받아
+SQL 단계에서 걸러진 lot 까지 센다. S3 모드는 이미 걸러 적재하므로
+`f3_live` 에 들어온 것 중 빠진 것만 나온다.
 
 `getdata/out/dropped_lots_*.xlsx` 에 두 장이 생긴다.
 
