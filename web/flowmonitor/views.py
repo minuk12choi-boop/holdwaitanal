@@ -2278,7 +2278,40 @@ def _prod2_options():
         return [r[0] for r in cur.fetchall()]
 
 
+# 기준정보 표는 배치가 만든다. 배치를 아직 안 돌렸으면 없어서 저장이
+# 통째로 실패한다(입력한 값이 그대로 날아간다). 여기서 미리 만들어 둔다.
+STD_DDL = {
+    "f3_std_product": [
+        ("lot_char1", "VARCHAR(4) NULL"), ("lot_char2", "VARCHAR(4) NULL"),
+        ("lot_char3", "VARCHAR(4) NULL"), ("lot_char4", "VARCHAR(4) NULL"),
+        ("lot_char5", "VARCHAR(4) NULL"), ("proc_id", "VARCHAR(32) NULL"),
+        ("product_name", "VARCHAR(64) NULL"),
+        ("updated_at", "DATETIME NULL"),
+    ],
+}
+
+
+def _ensure_std(table):
+    """없으면 만든다. 있으면 아무 일도 하지 않는다.
+
+    DB 방언을 타지 않게 최소한의 문법만 쓴다(MySQL · SQLite 공통).
+    """
+    spec = STD_DDL.get(table)
+    if not spec:
+        return
+    if _table_exists(table):
+        return
+    body = ", ".join(f"`{k}` {t}" for k, t in spec)
+    try:
+        with connection.cursor() as cur:
+            cur.execute(f"CREATE TABLE IF NOT EXISTS `{table}` ({body})")
+        print(f"[STD] {table} 생성", flush=True)
+    except Exception as e:
+        print(f"[STD] {table} 생성 실패: {type(e).__name__}: {e}", flush=True)
+
+
 def _std_rows(table, cols):
+    _ensure_std(table)
     if not _table_exists(table):
         return []
     names = ", ".join(f"`{c['k']}`" for c in cols)
@@ -2323,6 +2356,8 @@ def _std_save(card, payload):
     # 적용 순서가 있는 표는 **화면에 보이는 순서 그대로** 번호를 매긴다.
     # 사용자가 끌어 올린 순서가 곧 우선순위다. 자동으로 다시 섞지 않는다.
     has_sort = "sort_no" in _columns_of(card["table"])
+
+    _ensure_std(card["table"])
 
     ph = ", ".join(["%s"] * len(cols))
     names = ", ".join(f"`{k}`" for k in cols)

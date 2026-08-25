@@ -667,6 +667,10 @@ def dump_dropped(df_lot, df_f3, path=None, base=None):
     out = m[~m["lot_id"].isin(keep)].drop_duplicates(subset=["lot_id"]).copy()
     print(f"[DROP] 원천 {m['lot_id'].nunique():,} · f3 {len(keep):,} · "
           f"빠짐 {len(out):,}", flush=True)
+    if used is not None:
+        gone = len(set(m["lot_id"]) - used)
+        print(f"[DROP]   조회 단계에서 {gone:,} · 그 뒤 단계에서 "
+              f"{len(out) - gone:,}", flush=True)
     if out.empty:
         return None
 
@@ -2603,12 +2607,14 @@ def main():
     stamp = f"{run_at:%Y%m%d_%H%M%S}"
 
     with timer("소형 원천 조회"):
-        # 진단 모드에서는 거르지 않은 원천도 함께 받아 둔다.
-        #   S3 는 이미 걸러 적재하므로 그때는 있는 것으로만 비교한다.
+        # 진단 모드에서는 거르지 않은 원천도 함께 받아 둔다(BDQ 만 가능).
         df_lot_raw = None
         if TRACE_DROP and SOURCE == "bdq":
             df_lot_raw = fetch("lot_raw", lot_query_raw, keep_sample=False)
         df_lot = fetch("lot", lot_query)
+        # 원천 그대로의 사본. 뒤 단계에서 줄어든 것을 재려면 이게 있어야 한다.
+        #   (조인·필터를 거친 df_lot 과 비교하면 이미 사라진 뒤라 못 잡는다)
+        df_lot_src = _lower_cols(df_lot).copy() if TRACE_DROP else None
         # dest_line_id 보정: bdq 경로나 옛 쿼리에는 이 컬럼이 없다.
         # f3 출력 컬럼이라 없으면 SQL 이 깨지므로 빈 값으로 채워 둔다.
         df_lot = _lower_cols(df_lot)
@@ -2782,8 +2788,8 @@ def main():
     trace_lot("f3 생성 직후", df_f3)
     if TRACE_DROP:
         with stage("빠진 lot 정리"):
-            dump_dropped(df_lot_raw if df_lot_raw is not None else df_lot,
-                         df_f3, base=df_lot)
+            dump_dropped(df_lot_raw if df_lot_raw is not None
+                         else df_lot_src, df_f3, base=df_lot)
 
     # 조인·집계는 원천 라인으로 끝내고, 라벨만 마지막에 바꾼다.
     if SOURCE != "bdq":
