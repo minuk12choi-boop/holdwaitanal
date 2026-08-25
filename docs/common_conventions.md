@@ -904,6 +904,24 @@ Oracle 의 step_skip_yn <> 'Y' 는 NULL 을 제외한다(NULL <> 'Y' 는 UNKNOWN
 PP · PG · EG · EE
 ```
 
+### FabPlan lot 이 안 보일 때
+
+가장 흔한 원인은 **원천 쿼리가 그 lot 을 걸러 버리는 것**이다.
+
+```
+LOT 쿼리에 order_seq IS NOT NULL 조건이 있으면 안 된다.
+FabPlan lot 은 정의상 order_seq 가 비어 있다.
+```
+
+확인은 로그로 한다.
+
+```
+[FABPLAN] PFR1 lot N 중 order_seq 없음 M     M 이 0 이면 원천에서 걸린 것
+[FABPLAN] 대상 lot M
+[FABPLAN] STEP 에서 현스텝 찾음 K            K 가 0 이면 PLAN·STEPSEQ 표기 불일치
+[ROWS]    FabPlan scope(step) = N
+```
+
 ### 라인 색
 
 어느 차트에서 보든 같은 라인은 같은 색이다.

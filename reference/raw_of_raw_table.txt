@@ -97,7 +97,7 @@ raw_of_raw_table.txt
 --    [원본과 동일하게 유지한 것]
 --      - max_event_date 는 lot_status_seg 필터 '이전' 값으로 계산한다.
 --        (Active/Hold 가 아닌 행이 더 최신이면 그 lot 은 빠지는 동작을 보존)
---      - order_seq IS NOT NULL 은 PFR1 에만 걸린다.
+--      - order_seq 가 비어 있어도 받는다. PFR1 에서 그 lot 이 FabPlan 이다.
 --      - line = sys_line_id, lot_type IN ('PP','PG','EG'),
 --        cur_line_id NOT IN ('CHTV')
 --
@@ -203,7 +203,8 @@ WHERE      l.last_event_date = l.max_event_date
   AND      l.line = l.sys_line_id
   AND      l.lot_type IN ('PP', 'PG', 'EG', 'EE')
   AND      l.cur_line_id NOT IN ('CHTV')
-  AND      (l.line = 'KFR7' OR l.order_seq IS NOT NULL)
+  -- FabPlan lot 은 order_seq 가 비어 있다. 그것으로 FabPlan 을 가려내므로
+  -- 여기서 거르면 안 된다(거르면 그 lot 이 화면에 아예 안 나온다).
 ;
 
 

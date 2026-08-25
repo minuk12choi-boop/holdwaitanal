@@ -122,8 +122,8 @@ m1 AS (
       ON        m.object_id = g.parent_object_id
     LEFT JOIN   MOS_KH_SMI.SMICDC_P3NRD_MATERIALWORKSTATUS w
       ON        m.lot_id = w.lotid
+    -- order_seq 가 비어 있어도 받는다. PFR1 에서 그 lot 이 FabPlan 이다.
     WHERE       m.lot_status_seg IN ('Active', 'Hold')
-      AND       m.order_seq IS NOT NULL
 
     UNION ALL
 
@@ -2766,6 +2766,7 @@ def main():
     #   StepPath 로는 스텝이 붙지 않아 공정 정의를 직접 훑는다.
     if FABPLAN:
         try:
+            # 원천이 하나라도 비면 여기서 끝난다. 먼저 밝힌다.
             fab = {k: fetch(k, None) for k in
                    ("fab_step", "fab_pems", "fab_sel", "fab_skiprule",
                     "fab_engr")}
@@ -2784,6 +2785,9 @@ def main():
                                        fab["fab_engr"], df_lot, "PFR1")
             del fab
             print(f"[ROWS] FabPlan scope(step) = {len(fscope):,}", flush=True)
+            if not len(fscope):
+                print("[FABPLAN] 결과 0행. 위 [FABPLAN] 줄에서 어느 단계까지 "
+                      "갔는지 확인한다.", flush=True)
             if len(fscope):
                 with stage("FabPlan 설비그룹전개"):
                     s_parts.append(expand_with_equipment(
