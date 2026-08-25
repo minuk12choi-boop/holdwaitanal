@@ -1,12 +1,26 @@
-netstat -anob | Select-String -Pattern ":8020" -Context 0,1
+PS C:\Users\minuk12.choi> netstat -anob | Select-String -Pattern ":8020" -Context 0,1
+
+>   TCP    0.0.0.0:8020           0.0.0.0:0              LISTENING       4
+   소유권 정보를 가져올 수 없습니다.
+>   TCP    [::]:8020              [::]:0                 LISTENING       4
+   소유권 정보를 가져올 수 없습니다.
 
 
-netsh http show servicestate view=requestq | Select-String -Context 3,3 "8020"
+PS C:\Users\minuk12.choi> netsh http show servicestate view=requestq | Select-String -Context 3,3 "8020"
+
+                  HTTP://LOCALHOST:8023/
+                  HTTP://LOCALHOST:8022/
+                  HTTP://LOCALHOST:8021/
+>                 HTTP://LOCALHOST:8020/
+                  HTTP://LOCALHOST:8019/
+                  HTTP://LOCALHOST:8018/
+                  HTTP://LOCALHOST:8017/
 
 
+PS C:\Users\minuk12.choi>
+>> netsh http show urlacl | Select-String 8020
+PS C:\Users\minuk12.choi> netsh http show urlacl | Select-String 8020
+PS C:\Users\minuk12.choi> netsh http delete urlacl url=http://+:8020/
 
-netsh http show urlacl | Select-String 8020
-
-
-
-netsh http delete urlacl url=http://+:8020/
+URL 예약을 삭제하지 못했습니다. 오류: 2
+지정된 파일을 찾을 수 없습니다.
