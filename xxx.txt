@@ -1,1 +1,6 @@
-Get-NetTCPConnection -LocalPort 8020 | Format-List LocalAddress,OwningProcess,State
+PS C:\Users\minuk12.choi> Get-NetTCPConnection -LocalPort 8020 | Format-List LocalAddress,OwningProcess,State
+
+
+LocalAddress  : ::
+OwningProcess : 4
+State         : Listen
