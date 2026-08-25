@@ -1801,9 +1801,12 @@ def fill_fab_eqp(s, t, df_eqp=None, df_eqp_group=None, line="PFR1"):
     for c in ("proc_id", "step_seq", "_rcp"):
         A[c] = _fab_str(A[c])
 
+    # left 로 붙인다. 설비를 못 찾은 스텝도 남겨야 한다.
+    #   inner 로 하면 그 스텝이 사라지고, 현스텝이 거기 걸린 lot 은
+    #   화면에서 통째로 빠진다.
     j2 = A[["_i", "proc_id", "step_seq", "_rcp"]].merge(
         B, left_on=["proc_id", "step_seq", "_rcp"],
-        right_on=["process", "step", "ppid"], how="inner")
+        right_on=["process", "step", "ppid"], how="left")
     print(f"[FABPLAN] TIP 매칭 {len(j2):,}행 (대상 {n:,} · TIP {len(B):,})",
           flush=True)
     if j2.empty:
@@ -1815,27 +1818,33 @@ def fill_fab_eqp(s, t, df_eqp=None, df_eqp_group=None, line="PFR1"):
               flush=True)
         return s.drop(columns=[c for c in ("_fab", "_rcp") if c in s.columns])
 
-    # 자기 라인 설비를 먼저 쓴다. 하나도 없으면 호환 설비로 간다.
-    mine = _fab_str(j2["eqpline"]).str.upper().eq(str(line).upper())
-    has_mine = set(j2.loc[mine, "_i"])
-    j2 = j2[mine | ~j2["_i"].isin(has_mine)]
+    # 자기 라인과 호환 라인을 **함께** 담는다. 순서만 자기 라인이 앞이다.
+    j2["_mine"] = _fab_str(j2["eqpline"]).str.upper().eq(str(line).upper())
+    # 설비를 못 찾은 행은 정렬에 끼지 않도록 자기 라인(0)으로 둔다.
+    j2["_ord2"] = np.where(j2["_mine"] | _fab_str(j2["eqpid"]).eq(""), 0, 1)
 
     # 설비 하나당 한 행. lotplan 의 '설비그룹 전개' 와 같은 모양이 된다.
-    cnt = j2.groupby("_i").size()
     grown = A.drop(columns=["_i"]).loc[j2["_i"]].copy()
     grown.index = range(len(grown))
-    grown["eqp_id"] = j2["eqpid"].to_numpy()
-    grown["eqp_group_raw"] = j2["eqpid"].to_numpy()   # AREA 는 첫 글자로 본다
+    eid = _fab_str(j2["eqpid"])
+    grown["eqp_id"] = eid.mask(eid.eq(""), pd.NA).to_numpy()
+    # AREA 는 설비 첫 글자로 본다. 설비를 못 찾았으면 비워 둔다.
+    grown["eqp_group_raw"] = grown["eqp_id"].to_numpy()
+    grown["_ord2"] = j2["_ord2"].to_numpy()
     if "eqpcham" in grown.columns:
         grown["eqpcham"] = _fab_str(j2["eqpcham"]).to_numpy()
 
+    hit = j2[eid.ne("")]
+    cnt = hit.groupby("_i").size()
     dist = cnt.value_counts().sort_index()
     top = {int(k): int(v) for k, v in list(dist.items())[:5]}
     print(f"[FABPLAN] 설비 전개 {n:,} -> {len(grown):,}행 "
-          f"(설비 못 찾은 스텝 {n - len(cnt):,})", flush=True)
+          f"(설비 못 찾은 스텝 {n - len(cnt):,} - 그래도 남긴다)", flush=True)
     print(f"[FABPLAN]   스텝당 설비 수 분포 {top}"
           f"{' ...' if len(dist) > 5 else ''} · 평균 "
-          f"{cnt.mean():.1f}대", flush=True)
+          f"{cnt.mean() if len(cnt) else 0:.1f}대 · "
+          f"자기라인 {int(j2['_mine'].sum()):,} · "
+          f"호환 {int((~j2['_mine'] & eid.ne('')).sum()):,}", flush=True)
 
     # 설비가 정해졌으니 그에 딸린 값을 붙인다.
     #   expand_with_equipment 는 '그룹명 -> 설비' 로 다시 펼치므로 쓰면 안 된다
@@ -1857,6 +1866,7 @@ def fill_fab_eqp(s, t, df_eqp=None, df_eqp_group=None, line="PFR1"):
               f"AREA {int(grown['AREA'].notna().sum()):,}", flush=True)
 
     out = pd.concat([s[~fab], grown], ignore_index=True)
+    out["_ord2"] = out["_ord2"].fillna(0)
     return out.drop(columns=[c for c in ("_fab", "_rcp") if c in out.columns])
 
 
@@ -2248,6 +2258,7 @@ def build_f3(con):
             s.layer_id, s.step_level, s.ein, s.step_seq, s.step_desc,
             s.eqp_type, s.recipe_id, s.eqp_group_raw, s.eqp_id, s.batch_kind, s.eqpline,
             s.body_status, s.eqp_status_change_time AS s_eqp_status_change_time,
+            COALESCE(s._ord2, 0) AS line_rank,   -- 0=자기 라인 · 1=호환
             -- FabPlan 은 fab_cur 에 이미 표시돼 있다(SKIP 으로 밀린 현스텝을
             -- step_seq 비교로는 못 맞춘다). 그 외는 order_seq 로 가린다.
             CASE
@@ -2370,15 +2381,26 @@ def build_f3(con):
     """)
 
     con.execute("""
+        -- 자기 라인 설비를 앞에, 호환 라인을 뒤에 잇는다(line_rank 순).
+        --   DISTINCT 와 ORDER BY 를 함께 쓰면 정렬 기준을 못 바꾸므로
+        --   먼저 중복을 없앤 뒤 정렬해 잇는다.
         CREATE OR REPLACE TABLE f1_groups AS
+        WITH d AS (
+            SELECT line, lot_id, order_seq, eqpid, eqpcham_final,
+                   CAST(batch_kind AS VARCHAR) AS bk,
+                   MIN(COALESCE(line_rank, 0)) AS rk
+            FROM   f1_base
+            GROUP  BY line, lot_id, order_seq, eqpid, eqpcham_final,
+                      CAST(batch_kind AS VARCHAR)
+        )
         SELECT line, lot_id, order_seq,
-               STRING_AGG(DISTINCT eqpid, ', ' ORDER BY eqpid)
+               STRING_AGG(eqpid, ', ' ORDER BY rk, eqpid)
                    FILTER (WHERE eqpid IS NOT NULL) AS eqpgroup,
-               STRING_AGG(DISTINCT eqpcham_final, ', ' ORDER BY eqpcham_final)
+               STRING_AGG(eqpcham_final, ', ' ORDER BY rk, eqpcham_final)
                    FILTER (WHERE eqpcham_final IS NOT NULL) AS eqpgroup_cham_raw,
-               STRING_AGG(DISTINCT CAST(batch_kind AS VARCHAR), ', ' ORDER BY CAST(batch_kind AS VARCHAR))
-                   FILTER (WHERE batch_kind IS NOT NULL) AS batch_kind_agg
-        FROM f1_base GROUP BY line, lot_id, order_seq
+               STRING_AGG(DISTINCT bk, ', ' ORDER BY bk)
+                   FILTER (WHERE bk IS NOT NULL) AS batch_kind_agg
+        FROM d GROUP BY line, lot_id, order_seq
     """)
 
     con.execute("""
@@ -3059,10 +3081,11 @@ def main():
 
     s = pd.concat(s_parts, ignore_index=True)
     # FabPlan 만 fab_cur · _fab 를 채운다. 다른 라인은 없으므로 만들어 둔다.
-    for c, v in (("fab_cur", None), ("_fab", 0), ("_rcp", "")):
+    for c, v in (("fab_cur", None), ("_fab", 0), ("_rcp", ""), ("_ord2", 0)):
         if c not in s.columns:
             s[c] = v
     s["_fab"] = s["_fab"].fillna(0)
+    s["_ord2"] = s["_ord2"].fillna(0)
     print(f"[ROWS] s = {len(s):,}", flush=True)
     trace_lot("s(스텝 전체)", s)
 
