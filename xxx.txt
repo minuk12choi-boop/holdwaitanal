@@ -1,23 +1,3 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\web> waitress-serve --listen=0.0.0.0:8020 config.wsgi:application
-Traceback (most recent call last):
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\runpy.py", line 196, in _run_module_as_main
-    return _run_code(code, main_globals, None,
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\runpy.py", line 86, in _run_code
-    exec(code, run_globals)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\Scripts\waitress-serve.exe\__main__.py", line 7, in <module>
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\runner.py", line 246, in run
-    _serve(app, **kw)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\__init__.py", line 13, in serve
-    server = _server(app, **kw)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\server.py", line 78, in create_server
-    last_serv = TcpWSGIServer(
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\server.py", line 243, in __init__
-    self.bind_server_socket()
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\server.py", line 364, in bind_server_socket
-    self.bind(sockaddr)
-  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\waitress\wasyncore.py", line 374, in bind
-    return self.socket.bind(addr)
-PermissionError: [WinError 10013] 액세스 권한에 의해 숨겨진 소켓에 액세스를 시도했습니다
-
-Bad Request - Invalid Hostname
-HTTP Error 400. The request hostname is invalid.
+Get-NetTCPConnection -LocalPort 8020 -ErrorAction SilentlyContinue |
+  Select-Object -Expand OwningProcess -Unique |
+  ForEach-Object { Stop-Process -Id $_ -Force }
