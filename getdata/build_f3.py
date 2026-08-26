@@ -2515,8 +2515,18 @@ def build_f3(con):
             SELECT line, lot_id, order_seq,
                    STRING_AGG(DISTINCT CAST(batch_kind AS VARCHAR), ', '
                               ORDER BY CAST(batch_kind AS VARCHAR))
-                       AS batch_kind_agg
+                       AS batch_kind_agg,
+                   -- AREA 는 설비마다 다를 수 있다(한 스텝에 설비가 여럿).
+                   --   대표 하나를 골라야 (lot, order_seq) 가 한 행이 된다.
+                   --   자기 라인 · 이름순으로 가장 앞서는 것을 쓴다.
+                   MIN(CAST(AREA AS VARCHAR)) AS area_one
             FROM   f1_base WHERE batch_kind IS NOT NULL
+            GROUP  BY line, lot_id, order_seq
+        ),
+        da AS (               -- batch_kind 가 없는 행도 AREA 는 있다
+            SELECT line, lot_id, order_seq,
+                   MIN(CAST(AREA AS VARCHAR)) AS area_any
+            FROM   f1_base WHERE AREA IS NOT NULL
             GROUP  BY line, lot_id, order_seq
         ),
         ge AS (
@@ -2533,13 +2543,18 @@ def build_f3(con):
         SELECT COALESCE(ge.line, gc.line, db.line)             AS line,
                COALESCE(ge.lot_id, gc.lot_id, db.lot_id)       AS lot_id,
                COALESCE(ge.order_seq, gc.order_seq, db.order_seq) AS order_seq,
-               ge.eqpgroup, gc.eqpgroup_cham_raw, db.batch_kind_agg
+               ge.eqpgroup, gc.eqpgroup_cham_raw, db.batch_kind_agg,
+               COALESCE(db.area_one, da.area_any) AS area_one
         FROM ge
         FULL JOIN gc ON ge.line = gc.line AND ge.lot_id = gc.lot_id
                     AND ge.order_seq = gc.order_seq
         FULL JOIN db ON COALESCE(ge.line, gc.line) = db.line
                     AND COALESCE(ge.lot_id, gc.lot_id) = db.lot_id
                     AND COALESCE(ge.order_seq, gc.order_seq) = db.order_seq
+        FULL JOIN da ON COALESCE(ge.line, gc.line, db.line) = da.line
+                    AND COALESCE(ge.lot_id, gc.lot_id, db.lot_id) = da.lot_id
+                    AND COALESCE(ge.order_seq, gc.order_seq,
+                                 db.order_seq) = da.order_seq
     """)
 
     con.execute("""
@@ -2608,13 +2623,16 @@ def build_f3(con):
     con.execute(f"""
         CREATE OR REPLACE TABLE f1 AS
         SELECT
-            fsb.* EXCLUDE (status),
+            fsb.* EXCLUDE (status, AREA),
             {elapsed_days_num('fsb.start_date')}       AS "투입경과_일",
             {elapsed_days_num('fsb.last_event_date')}  AS "마지막이벤트경과_일",
             {elapsed_days_num('fsb.step_arrive_date')} AS "스텝도착경과_일",
             {elapsed_days_num('fsb.last_tkout_date')}   AS "마지막작업경과_일",
             fc.current_de_rank, fc.current_continuous,
             fg.eqpgroup, fg.batch_kind_agg,
+            -- AREA 는 설비마다 다를 수 있다(한 스텝에 설비 여럿).
+            --   대표 하나로 묶어야 (lot, order_seq) 가 한 행이 된다.
+            COALESCE(fg.area_one, fsb.AREA) AS AREA,
             COALESCE(NULLIF(TRIM(CAST(fg.eqpgroup_cham_raw AS VARCHAR)), ''), fg.eqpgroup)
                 AS eqpgroup_cham,
             CASE
