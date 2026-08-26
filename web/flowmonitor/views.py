@@ -1748,6 +1748,10 @@ def holdtype_trace(lot_id, line=None):
                         "상태": r.get("lot_status"),
                         "본_사유컬럼": reason,
                         "사유_글자수": len(text),
+                        # 앞 낱말 몇 개만 보여 준다. 조건이 사유 형식과
+                        # 맞는지 보려면 시작 부분을 알아야 한다.
+                        "사유_앞부분": text[:40],
+                        "사유_토막수": len(text.split("!@!")),
                         "적재된_값": r.get("cause_detail"),
                         "판정": rule["name"],
                         "아깝게_놓친_규칙": _near_miss(steps),
