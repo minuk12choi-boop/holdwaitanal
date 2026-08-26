@@ -1415,32 +1415,44 @@ def _hold_label(r):
 
 
 def holdtype_of(r, rules):
-    """기준정보로 세부 유형을 찾는다. 못 찾으면 None."""
+    """기준정보로 세부 유형을 찾는다. 못 찾으면 None.
+
+    **순서(sort_no)가 절대 기준이다.** 규칙을 위에서부터 훑고, 처음
+    맞는 것을 쓴다.
+
+    [주의] 예전에는 HOLD -> FTP -> 예약제외 를 바깥 루프로 돌았다.
+    그러면 순서와 무관하게 HOLD 계열이 먼저 이겨, 위에 둔 예약제외
+    규칙이 아래쪽 HOLD 규칙에게 계속 뺏겼다.
+    """
     if not rules:
         return None
     line = str(r.get("line") or "")
+
+    # 이 lot 에서 볼 수 있는 사유들. 규칙마다 제 type 에 맞는 것만 본다.
+    texts = {}
     for kind, flag, reason in HOLDTYPE_ORDER:
         if not r.get(flag):
             continue
-        text = str(r.get(reason) or "").upper()   # 대소문자 무시
-        if not text:
+        t = str(r.get(reason) or "").upper()
+        if t:
+            texts[kind] = t
+    if not texts:
+        return None
+
+    for rule in rules:                      # 순서가 절대 기준
+        if rule["line"] and rule["line"] != line:
             continue
-        for rule in rules:
-            if rule["line"] and rule["line"] != line:
-                continue
-            if rule["type"] not in ("ALL", kind):
-                continue
-            # 조건이 하나도 없는 규칙은 건너뛴다.
-            #   all([]) 은 참이라 그런 규칙이 모든 사유를 잡아 버린다.
-            #   그것이 위에 있으면 아래 규칙은 영영 걸리지 않는다.
-            if not rule["c"]:
-                continue
-            if all(c in text for c in rule["c"]):
+        if not rule["c"]:                   # 조건 없는 규칙은 건너뛴다
+            continue
+        want = rule["type"]
+        kinds = texts.keys() if want == "ALL" else (
+            [want] if want in texts else [])
+        for kind in kinds:
+            if all(c in texts[kind] for c in rule["c"]):
                 return rule["name"]
     return None
 
-
-def holdtype_diag(line=None, limit_rule=40):
+def holdtype_diag(line=None, limit_rule=400, focus=None):
     """HOLD 유형이 왜 그렇게 판정됐는지 본다. **값은 내보내지 않는다.**
 
     규칙마다 몇 건이 걸렸는지, 어떤 규칙이 앞 규칙에 가려졌는지 센다.
@@ -1513,6 +1525,60 @@ def holdtype_diag(line=None, limit_rule=40):
             lost[i]["qty"] += q
             lost[i]["by"][win] = lost[i]["by"].get(win, 0) + 1
 
+    # 특정 유형(예: FLOW 금지)으로 판정된 lot 을 따로 파고든다.
+    #   그 lot 들에서 각 조건이 실제로 사유에 들어 있는지 센다.
+    #   조건이 하나도 안 걸리면 순서 문제가 아니라 **글자가 다른 것**이다.
+    focus_out = None
+    if focus:
+        tgt = [r for r in recs
+               if (r.get("cause_detail") or holdtype_of(r, rules)) == focus]
+        cand = []
+        for i, rule in enumerate(rules):
+            if rule["name"] == focus or not rule["c"]:
+                continue
+            per = []
+            both = 0
+            for c in rule["c"]:
+                n = 0
+                for r in tgt:
+                    for kind, flag, reason in HOLDTYPE_ORDER:
+                        if r.get(flag) and c in str(r.get(reason) or "").upper():
+                            n += 1
+                            break
+                per.append({"조건": c, "포함_lot": n})
+            for r in tgt:
+                for kind, flag, reason in HOLDTYPE_ORDER:
+                    if not r.get(flag):
+                        continue
+                    t = str(r.get(reason) or "").upper()
+                    if t and all(c in t for c in rule["c"]):
+                        both += 1
+                        break
+            if any(x["포함_lot"] for x in per):
+                cand.append({"순위": i + 1, "이름": rule["name"],
+                             "type": rule["type"], "line": rule["line"] or "(전체)",
+                             "조건별": per, "모두만족_lot": both})
+        cand.sort(key=lambda x: -x["모두만족_lot"])
+        focus_out = {"대상": focus, "대상_lot": len(tgt),
+                     "후보규칙": cand[:20],
+                     "안내": ("모두만족_lot 이 0 이면 그 규칙은 이 lot 들을 "
+                            "잡을 수 없습니다. 조건 글자를 사유와 맞춰 보세요. "
+                            "0 이 아닌데 안 잡혔다면 순서를 위로 올리세요.")}
+
+    # 최종 판정 이름별 집계
+    by_name = {}
+    for r in recs:
+        if not r.get("hold") and not r.get("ftp") and not r.get("exception"):
+            continue
+        nm = r.get("cause_detail") or holdtype_of(r, rules) or "(미분류)"
+        try:
+            q = int(float(r.get("qty") or 0))
+        except (TypeError, ValueError):
+            q = 0
+        d = by_name.setdefault(nm, {"lots": 0, "qty": 0})
+        d["lots"] += 1
+        d["qty"] += q
+
     out = []
     for i, rule in enumerate(rules[:limit_rule]):
         by = sorted(lost[i]["by"].items(), key=lambda x: -x[1])[:3]
@@ -1557,6 +1623,10 @@ def holdtype_diag(line=None, limit_rule=40):
             "미분류_lot": none_hit["lots"], "미분류_매": none_hit["qty"],
             # 화면이 쓰는 cause_detail 과 지금 기준정보 판정이 같은가
             "적재값_일치_lot": same,
+            "이름별": [{"이름": k, "lot": v["lots"], "매": v["qty"]}
+                     for k, v in sorted(by_name.items(),
+                                        key=lambda x: -x[1]["qty"])[:25]],
+            "파고들기": focus_out,
             "적재값_불일치": [{"바뀜": k, "lot": v["lots"], "매": v["qty"]}
                           for k, v in diff],
             "안내": ("적재값_불일치 가 있으면 화면은 옛 규칙을 보고 있습니다. "
@@ -1565,9 +1635,15 @@ def holdtype_diag(line=None, limit_rule=40):
 
 
 def api_holdtype_diag(request):
-    """HOLD 유형 판정 진단. /api/holdtype-diag/?line=PFR1"""
-    return JsonResponse(holdtype_diag(request.GET.get("line") or None),
-                        json_dumps_params={"ensure_ascii": False})
+    """HOLD 유형 판정 진단.
+
+        /api/holdtype-diag/?line=PFR1
+        /api/holdtype-diag/?line=PFR1&focus=FLOW 금지   <- 왜 안 쪼개지나
+    """
+    return JsonResponse(
+        holdtype_diag(request.GET.get("line") or None,
+                      focus=request.GET.get("focus") or None),
+        json_dumps_params={"ensure_ascii": False})
 
 
 def _sub_name(r, ht, kind, reason_col, rules, cat):

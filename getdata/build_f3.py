@@ -1241,28 +1241,43 @@ def holdtype_rules():
     return sorted(out, key=lambda r: (r["sort"], -spec(r), r["id"]))
 
 
-def holdtype_of(row, rules):
-    """한 행의 세부 유형. 못 찾으면 None."""
-    line = str(row.get("line") or "")
+def holdtype_of(r, rules):
+    """기준정보로 세부 유형을 찾는다. 못 찾으면 None.
+
+    **순서(sort_no)가 절대 기준이다.** 규칙을 위에서부터 훑고, 처음
+    맞는 것을 쓴다.
+
+    [주의] 예전에는 HOLD -> FTP -> 예약제외 를 바깥 루프로 돌았다.
+    그러면 순서와 무관하게 HOLD 계열이 먼저 이겨, 위에 둔 예약제외
+    규칙이 아래쪽 HOLD 규칙에게 계속 뺏겼다.
+    """
+    if not rules:
+        return None
+    line = str(r.get("line") or "")
+
+    # 이 lot 에서 볼 수 있는 사유들. 규칙마다 제 type 에 맞는 것만 본다.
+    texts = {}
     for kind, flag, reason in HOLDTYPE_ORDER:
-        if not row.get(flag):
+        if not r.get(flag):
             continue
-        # 대소문자를 가리지 않는다. 사유는 소문자로 오기도 한다.
-        text = str(row.get(reason) or "").upper()
-        if not text:
+        t = str(r.get(reason) or "").upper()
+        if t:
+            texts[kind] = t
+    if not texts:
+        return None
+
+    for rule in rules:                      # 순서가 절대 기준
+        if rule["line"] and rule["line"] != line:
             continue
-        for rule in rules:
-            if rule["line"] and rule["line"] != line:
-                continue
-            if rule["type"] not in ("ALL", kind):
-                continue
-            # 조건이 없는 규칙은 건너뛴다(all([]) 이 참이라 다 잡는다).
-            if not rule["c"]:
-                continue
-            if all(c in text for c in rule["c"]):
+        if not rule["c"]:                   # 조건 없는 규칙은 건너뛴다
+            continue
+        want = rule["type"]
+        kinds = texts.keys() if want == "ALL" else (
+            [want] if want in texts else [])
+        for kind in kinds:
+            if all(c in texts[kind] for c in rule["c"]):
                 return rule["name"]
     return None
-
 
 def attach_holdtype(f3):
     """기준정보로 cause_detail(세부 원인 유형)을 채운다."""
