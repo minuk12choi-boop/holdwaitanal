@@ -491,7 +491,22 @@ function pickSnapDate(v) {
   loadSummary();
 }
 
-function pickSnapShift(v) { SNAP_SHIFT = v; loadSummary(); }
+// SHIFT 를 고르면 날짜도 함께 정한다.
+//   서버는 (날짜 + SHIFT) 가 다 있어야 과거 이력을 본다. 날짜가 비면
+//   SHIFT 만 골라도 최신(f3_live) 이 그대로 나온다.
+function pickSnapShift(v) {
+  const snaps = (DATA && DATA.snapshots) || [];
+  const newest = snaps.length ? snaps[0].biz_date : "";
+  SNAP_SHIFT = v;
+  if (v && !SNAP_DATE) {
+    // 오늘 화면에서 과거 SHIFT 를 고른 경우. 보고 있는 업무일을 채운다.
+    SNAP_DATE = newest || (DATA && DATA.biz_date) || "";
+  } else if (!v && SNAP_DATE === newest) {
+    // '최신' 으로 돌아가면 날짜 표시도 함께 푼다.
+    SNAP_DATE = "";
+  }
+  loadSummary();
+}
 
 function toggleProd(id) {
   const el = document.getElementById(id);
