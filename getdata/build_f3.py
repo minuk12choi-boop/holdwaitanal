@@ -788,6 +788,41 @@ def dump_dropped(df_lot, df_f3, path=None, base=None):
     return path
 
 
+def _check_status(df_lot, f3):
+    """상태(HOLD 등)가 원천에서 f3 까지 오면서 줄었는지 본다.
+
+    원천 lot 의 상태와 f3 의 lot_status 를 lot 단위로 견준다.
+    HOLD 가 갑자기 줄면 여기서 드러난다.
+    """
+    if f3 is None or not len(f3):
+        return
+    m = _lower_cols(df_lot)
+    f = _lower_cols(f3)
+    if "status" not in m.columns or "lot_status" not in f.columns:
+        return
+
+    src = (m[["lot_id", "status"]].dropna(subset=["lot_id"])
+           .drop_duplicates(subset=["lot_id"]))
+    got = (f[["lot_id", "lot_status", "qty"]]
+           .drop_duplicates(subset=["lot_id"]))
+    j = src.merge(got, on="lot_id", how="left")
+
+    a = src["status"].value_counts()
+    b = got["lot_status"].value_counts()
+    print("[STATUS] 원천 -> f3  (lot 수)", flush=True)
+    for k in sorted(set(a.index) | set(b.index)):
+        x, y = int(a.get(k, 0)), int(b.get(k, 0))
+        mark = "  <-- 크게 줄었다" if x and y < x * 0.7 else ""
+        print(f"[STATUS]   {str(k):16s} {x:>7,} -> {y:>7,}{mark}", flush=True)
+
+    # 원천은 HOLD 인데 f3 에서 달라진 lot
+    ch = j[j["status"].eq("HOLD") & j["lot_status"].ne("HOLD")]
+    if len(ch):
+        top = ch["lot_status"].fillna("(f3 에 없음)").value_counts().head(5)
+        print(f"[STATUS] 원천 HOLD 인데 f3 에서 바뀐 lot {len(ch):,} "
+              f"-> {dict(top)}", flush=True)
+
+
 def _check_fab(f3, df_lot):
     """FabPlan 결과가 lotplan 과 같은 수준으로 채워졌는지 본다.
 
@@ -3311,7 +3346,13 @@ def main():
     #   TIP 은 s 로 선필터하므로 여기까지 와야 준비된다.
     if FABPLAN and "_fab" in s.columns and int(s["_fab"].sum()):
         with stage("FabPlan 설비그룹"):
+            _cur0 = int(s["fab_cur"].notna().sum())
             s = fill_fab_eqp(s, t, df_eqp, df_eqp_group, "PFR1")
+            _cur1 = int(s["fab_cur"].notna().sum()) if "fab_cur" in s.columns else 0
+            # 현스텝 표시가 설비 수만큼 늘면 뒤 집계가 흔들린다.
+            print(f"[FABPLAN] 현스텝 표시 {_cur0:,} -> {_cur1:,}"
+                  + ("  <-- 늘었다(설비마다 복제됨)" if _cur1 > _cur0 else ""),
+                  flush=True)
 
     with stage("hold 전처리"):
         holds = build_hold(df_hold, set(_lower_cols(df_lot)["lot_id"].dropna()))
@@ -3346,6 +3387,7 @@ def main():
     n_tip = int(df_f3["tip"].notna().sum())
     print(f"[TIP] f3 tip 값 있는 행 = {n_tip:,} / {len(df_f3):,}", flush=True)
     print(f"[ROWS] f3 = {len(df_f3):,}  (lot {df_f3['lot_id'].nunique():,}개)", flush=True)
+    _check_status(df_lot, df_f3)
     if FABPLAN:
         _check_fab(df_f3, df_lot)
 
