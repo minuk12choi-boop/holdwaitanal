@@ -1238,7 +1238,12 @@ def holdtype_rules():
     def spec(r):
         return len(r["c"]) + (1 if r["line"] else 0) + (0 if r["type"] == "ALL" else 1)
 
-    return sorted(out, key=lambda r: (r["sort"], -spec(r), r["id"]))
+    # 포괄 규칙(FLOW 금지)은 언제나 맨 마지막. 웹과 같은 규칙이어야 한다.
+    def _last(r):
+        return 1 if "".join(str(r["name"] or "").split()).upper() \
+            in ("FLOW금지",) else 0
+
+    return sorted(out, key=lambda r: (_last(r), r["sort"], -spec(r), r["id"]))
 
 
 def match_holdtype(r, rules, kind, reason_col):

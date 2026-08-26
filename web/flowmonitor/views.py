@@ -1364,6 +1364,15 @@ def _wt_range_key(wt):
     return "5+"
 
 
+# 언제나 맨 마지막에 보는 포괄 규칙. 공백을 지우고 대문자로 견준다.
+CATCH_ALL_NAMES = {"FLOW금지"}
+
+
+def _norm_name(v):
+    """이름 비교용. 공백을 지우고 대문자로."""
+    return "".join(str(v or "").split()).upper()
+
+
 def _holdtype_rules():
     """f3_std_holdtype 규칙. 없으면 빈 목록.
 
@@ -1392,8 +1401,13 @@ def _holdtype_rules():
             + (0 if r["type"] == "ALL" else 1)
 
     # sort_no 가 있으면 그것만 본다. 없는 행은 맨 뒤로.
+    #   단, 포괄 규칙(FLOW 금지)은 **언제나 맨 마지막**이다. 조건이 H000
+    #   하나뿐이라 세분화 규칙과 늘 함께 걸린다. 위에 있으면 세분화가
+    #   전부 묻힌다. 표기가 'FLOW 금지' / 'FLOW금지' 두 가지라 공백을
+    #   지우고 견준다.
     BIG = 10 ** 9
     return sorted(rows, key=lambda r: (
+        1 if _norm_name(r["name"]) in CATCH_ALL_NAMES else 0,
         r["sort_no"] if r["sort_no"] is not None else BIG, -spec(r), r["id"]))
 
 
@@ -1684,6 +1698,73 @@ def holdtype_diag(line=None, limit_rule=400, focus=None):
             "안내": ("적재값_불일치 가 있으면 화면은 옛 규칙을 보고 있습니다. "
                    "/master/ 에서 '지금 반영' 또는 '과거까지' 를 누르세요."),
             "규칙별": out}
+
+
+def holdtype_trace(lot_id, line=None):
+    """한 lot 이 왜 그 유형으로 판정됐는지 **단계별로** 보여 준다.
+
+    값은 사유 원문을 빼고 낸다(조건이 들어 있는지 여부만).
+    """
+    rules = _holdtype_rules()
+    snap = _latest_snapshot()
+    if not snap:
+        return {"ok": False, "reason": "f3_live 가 비어 있습니다"}
+    w = ["snapshot_at=%s", "lot_id=%s"]
+    a = [snap, lot_id]
+    if line:
+        w.append("`line`=%s")
+        a.append(line)
+    with connection.cursor() as cur:
+        cur.execute(
+            "SELECT `line`, lot_id, lot_status, hold, hold_reason,"
+            " ftp, ftp_reason, exception, exception_reason, cause_detail"
+            f" FROM f3_live WHERE {' AND '.join(w)} LIMIT 1", a)
+        row = cur.fetchone()
+        if not row:
+            return {"ok": False, "reason": f"{lot_id} 을 찾지 못했습니다"}
+        r = dict(zip([d[0] for d in cur.description], row))
+
+    kinds = _lot_kinds(r)
+    steps = []
+    for kind, flag, reason in kinds:
+        text = str(r.get(reason) or "").upper()
+        for i, rule in enumerate(rules):
+            if rule["line"] and rule["line"] != str(r.get("line") or ""):
+                continue
+            if rule["type"] not in ("ALL", kind):
+                continue
+            if not rule["c"]:
+                continue
+            per = [{"조건": c, "들어있나": (c in text)} for c in rule["c"]]
+            ok = all(x["들어있나"] for x in per)
+            if ok or any(x["들어있나"] for x in per):
+                steps.append({"순번": i + 1, "이름": rule["name"],
+                              "type": rule["type"], "kind": kind,
+                              "조건": per, "전부맞음": ok})
+            if ok:
+                return {"ok": True, "lot": lot_id, "line": r.get("line"),
+                        "상태": r.get("lot_status"),
+                        "본_사유컬럼": reason,
+                        "사유_글자수": len(text),
+                        "적재된_값": r.get("cause_detail"),
+                        "판정": rule["name"],
+                        "훑은_규칙": steps[-25:],
+                        "안내": "훑은_규칙 의 마지막이 이긴 규칙입니다."}
+    return {"ok": True, "lot": lot_id, "line": r.get("line"),
+            "상태": r.get("lot_status"),
+            "본_사유컬럼": [k[2] for k in kinds],
+            "적재된_값": r.get("cause_detail"),
+            "판정": None, "훑은_규칙": steps[-25:],
+            "안내": "맞는 규칙이 없습니다."}
+
+
+def api_holdtype_trace(request):
+    """한 lot 의 판정 과정. /api/holdtype-trace/?lot=XXXX"""
+    lot = request.GET.get("lot") or ""
+    if not lot:
+        return JsonResponse({"ok": False, "reason": "lot 을 주세요"})
+    return JsonResponse(holdtype_trace(lot, request.GET.get("line") or None),
+                        json_dumps_params={"ensure_ascii": False})
 
 
 def api_holdtype_diag(request):
