@@ -2495,7 +2495,7 @@ def _apply_standards():
         if not snap:
             return 0, 0
         cur.execute(
-            "SELECT lot_id, `line`, lot_type, proc_id, step_seq, layer_id,"
+            "SELECT id, lot_id, `line`, lot_type, proc_id, step_seq, layer_id,"
             " hold, hold_reason, ftp, ftp_reason,"
             " exception, exception_reason, cause_detail,"
             " module1, module2, prod2"
@@ -2510,21 +2510,33 @@ def _apply_standards():
 
 
 def _write_back(cur, table, snap, changes, have):
-    """바뀐 값만 되쓴다. 컬럼별로 묶어 한 번에 보낸다."""
+    """바뀐 값만 되쓴다.
+
+    **id(PRIMARY KEY) 로 갱신한다.** lot_id + COALESCE(step_seq) 로 찾으면
+    함수가 컬럼을 감싸 인덱스를 못 쓰고, 행마다 전체 스캔이 된다.
+    2만 행에 컬럼 넷이면 8만 번 스캔이라 몇 분씩 걸렸다.
+
+    같은 값으로 바뀌는 행이 많으므로 **값별로 묶어 IN** 으로 보낸다.
+    UPDATE 횟수가 행 수가 아니라 '서로 다른 값의 수' 로 줄어든다.
+    """
     total = 0
     by_col = {}
     for r, diff in changes:
+        rid = r.get("id")
+        if rid is None:
+            continue
         for k, v in diff.items():
             if k in have:
-                by_col.setdefault(k, []).append(
-                    (v, snap, r["lot_id"], r.get("step_seq")))
-    for col, rows in by_col.items():
-        # step_seq 까지 맞춰야 한 lot 의 여러 스텝을 따로 고칠 수 있다.
-        cur.executemany(
-            f"UPDATE {table} SET `{col}`=%s "
-            f"WHERE snapshot_at=%s AND lot_id=%s "
-            f"AND COALESCE(step_seq,'')=COALESCE(%s,'')", rows)
-        total += len(rows)
+                by_col.setdefault(k, {}).setdefault(v, []).append(rid)
+
+    for col, by_val in by_col.items():
+        for v, ids in by_val.items():
+            for i in range(0, len(ids), 1000):      # 너무 긴 IN 은 나눈다
+                chunk = ids[i:i + 1000]
+                ph = ",".join(["%s"] * len(chunk))
+                cur.execute(f"UPDATE {table} SET `{col}`=%s "
+                            f"WHERE id IN ({ph})", [v] + chunk)
+                total += len(chunk)
     return total
 
 
@@ -2712,8 +2724,8 @@ def _apply_standards_history(days=90, progress=None):
         done = changed = rows = 0
         for snap in snaps:
             cur.execute(
-                "SELECT lot_id, `line`, lot_type, proc_id, step_seq, layer_id,"
-                " hold, hold_reason, ftp, ftp_reason,"
+                "SELECT id, lot_id, `line`, lot_type, proc_id, step_seq,"
+                " layer_id, hold, hold_reason, ftp, ftp_reason,"
                 " exception, exception_reason, cause_detail,"
                 " module1, module2, prod2"
                 " FROM f3_history WHERE snapshot_at=%s", [snap])
