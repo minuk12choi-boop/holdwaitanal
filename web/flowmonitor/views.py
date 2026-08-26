@@ -2769,14 +2769,14 @@ def _apply_standards():
         hit = rows = 0
         for snap in snaps:
             cur.execute(
-                "SELECT id, lot_id, `line`, lot_type, proc_id, step_seq,"
-                " layer_id, hold, hold_reason, ftp, ftp_reason,"
+                "SELECT id, lot_id, `line`, lot_status, lot_type, proc_id,"
+                " step_seq, layer_id, hold, hold_reason, ftp, ftp_reason,"
                 " exception, exception_reason, cause_detail,"
                 " module1, module2, prod2"
                 " FROM f3_live WHERE snapshot_at=%s", [snap])
             names = [d[0] for d in cur.description]
             recs = [dict(zip(names, r)) for r in cur.fetchall()]
-            _write_back(cur, "f3_live", snap,
+            _write_back(cur, "f3_live",
                         _restate(recs, ht, mods, prods, ssps), have)
             if ht:
                 hit += sum(1 for r in recs if holdtype_of(r, ht))
@@ -2784,7 +2784,7 @@ def _apply_standards():
     return hit, rows
 
 
-def _write_back(cur, table, snap, changes, have):
+def _write_back(cur, table, changes, have):
     """바뀐 값만 되쓴다.
 
     **id(PRIMARY KEY) 로 갱신한다.** lot_id + COALESCE(step_seq) 로 찾으면
@@ -3002,28 +3002,34 @@ def _apply_standards_history(days=90, progress=None):
     have = set(_columns_of("f3_history"))
     since = _biz_today() - dt.timedelta(days=max(1, int(days)))
     with connection.cursor() as cur:
-        cur.execute("SELECT DISTINCT snapshot_at FROM f3_history "
-                    "WHERE biz_date >= %s ORDER BY snapshot_at", [since])
-        snaps = [r[0] for r in cur.fetchall()]
+        # (biz_date, shift) 로 끊는다. f3_history 에는 snapshot_at 인덱스가
+        # 없어 그것으로 조회하면 스냅샷마다 전 테이블을 훑는다.
+        #   ix_hist_key (biz_date, shift) 를 타야 몇 분이 몇 초가 된다.
+        cur.execute("SELECT DISTINCT biz_date, shift FROM f3_history "
+                    "WHERE biz_date >= %s ORDER BY biz_date, shift", [since])
+        snaps = list(cur.fetchall())
 
         done = changed = rows = 0
-        for snap in snaps:
+        for bd, sh in snaps:
             cur.execute(
-                "SELECT id, lot_id, `line`, lot_type, proc_id, step_seq,"
-                " layer_id, hold, hold_reason, ftp, ftp_reason,"
+                "SELECT id, lot_id, `line`, lot_status, lot_type, proc_id,"
+                " step_seq, layer_id, hold, hold_reason, ftp, ftp_reason,"
                 " exception, exception_reason, cause_detail,"
                 " module1, module2, prod2"
-                " FROM f3_history WHERE snapshot_at=%s", [snap])
+                " FROM f3_history WHERE biz_date=%s AND shift=%s", [bd, sh])
             names = [d[0] for d in cur.description]
             recs = [dict(zip(names, r)) for r in cur.fetchall()]
             rows += len(recs)
             # 스냅샷 단위로 묶는다. 전체를 한 트랜잭션에 넣으면 1년치에서
             # 잠금이 오래 걸리고, 실패 시 전부 되돌아가 재시도가 비싸다.
             with transaction.atomic():
-                changed += _write_back(cur, "f3_history", snap,
+                changed += _write_back(cur, "f3_history",
                                        _restate(recs, ht, mods, prods, ssps),
                                        have)
             done += 1
+            if done % 20 == 0 or done == len(snaps):
+                print(f"[STD] 과거 반영 {done}/{len(snaps)} "
+                      f"({rows:,}행 · {changed:,}건 고침)", flush=True)
             if progress and done % 20 == 0:
                 progress(done, len(snaps))
 
