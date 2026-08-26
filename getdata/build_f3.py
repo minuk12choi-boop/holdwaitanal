@@ -663,6 +663,10 @@ for _i, _a in enumerate(sys.argv):
 TRACE_DROP = (os.environ.get("TRACE_DROP", "").strip() not in ("", "0")
               or "--trace-drop" in sys.argv)
 
+# 상태(HOLD/WAIT 등)가 단계마다 어떻게 변하는지 센다. 기본으로 켠다.
+#   값이 아니라 개수만 내므로 남겨 두어도 부담이 없다.
+TRACE_STATUS = os.environ.get("TRACE_STATUS", "1").strip() not in ("", "0")
+
 
 def trace_lot(where, df, col="lot_id"):
     """추적 대상 lot 이 이 단계에 몇 행 있는지 남긴다.
@@ -2698,6 +2702,42 @@ def build_f3(con):
         FROM f1_status_base WHERE step_status = 'WAIT(진행불가)'
         GROUP BY line, lot_id, de_rank
     """)
+
+    # 상태가 어느 단계에서 바뀌는지 센다. lot_status 는
+    #   원천 status -> step_status(현스텝) -> current_step_status -> lot_status
+    # 순으로 정해진다. 어디서 줄어드는지 알아야 원인을 짚을 수 있다.
+    if TRACE_STATUS:
+        for nm, sql in (
+            ("1. 원천 m.status (lot)",
+             "SELECT status AS s, COUNT(DISTINCT lot_id) n FROM m GROUP BY status"),
+            ("2. 현스텝 행의 status",
+             "SELECT status AS s, COUNT(DISTINCT lot_id) n FROM ms_joined "
+             "WHERE \"현스텝\"='현스텝' GROUP BY status"),
+            ("3. step_status(현스텝)",
+             "SELECT step_status AS s, COUNT(DISTINCT lot_id) n "
+             "FROM f1_status_base WHERE \"현스텝\"='현스텝' GROUP BY step_status"),
+            ("4. current_step_status",
+             "SELECT current_step_status AS s, COUNT(DISTINCT lot_id) n "
+             "FROM f1_current GROUP BY current_step_status"),
+        ):
+            try:
+                rows = con.execute(sql).fetchall()
+                got = {str(a): int(b) for a, b in rows}
+                print(f"[STATUS] {nm}: {got}", flush=True)
+            except Exception as e:
+                print(f"[STATUS] {nm}: 조회 실패 {type(e).__name__}", flush=True)
+
+        # 현스텝 행이 아예 없는 lot -> 상태가 통째로 사라진다
+        try:
+            n = con.execute(
+                "SELECT COUNT(*) FROM (SELECT lot_id FROM ms_joined "
+                "GROUP BY lot_id HAVING SUM(CASE WHEN \"현스텝\"='현스텝' "
+                "THEN 1 ELSE 0 END)=0)").fetchone()[0]
+            if n:
+                print(f"[STATUS] 현스텝 행이 없는 lot {n:,} "
+                      f"-> 이 lot 은 상태를 못 정한다", flush=True)
+        except Exception:
+            pass
 
     con.execute(f"""
         CREATE OR REPLACE TABLE f1 AS
