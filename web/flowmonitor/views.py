@@ -1378,8 +1378,13 @@ def _holdtype_rules():
     with connection.cursor() as cur:
         cur.execute(f"SELECT id, line, type, condition1, condition2, condition3,"
                     f" type_name, {col} AS sort_no FROM f3_std_holdtype")
-        rows = [{"id": r[0], "line": r[1], "type": (r[2] or "ALL").upper(),
-                 "c": [str(x).upper() for x in (r[3], r[4], r[5]) if x],
+        # 조건은 앞뒤 공백을 지우고 대문자로 둔다. 공백이 남으면
+        # ' EIN HOLD ' 처럼 되어 사유에 있어도 안 걸린다.
+        rows = [{"id": r[0], "line": (r[1] or "").strip(),
+                 "type": (r[2] or "ALL").strip().upper(),
+                 "c": [str(x).strip().upper()
+                       for x in (r[3], r[4], r[5])
+                       if x is not None and str(x).strip()],
                  "name": r[6], "sort_no": r[7]} for r in cur.fetchall()]
 
     def spec(r):
@@ -1424,6 +1429,11 @@ def holdtype_of(r, rules):
             if rule["line"] and rule["line"] != line:
                 continue
             if rule["type"] not in ("ALL", kind):
+                continue
+            # 조건이 하나도 없는 규칙은 건너뛴다.
+            #   all([]) 은 참이라 그런 규칙이 모든 사유를 잡아 버린다.
+            #   그것이 위에 있으면 아래 규칙은 영영 걸리지 않는다.
+            if not rule["c"]:
                 continue
             if all(c in text for c in rule["c"]):
                 return rule["name"]

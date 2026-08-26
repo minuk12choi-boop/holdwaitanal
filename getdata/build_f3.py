@@ -1256,6 +1256,9 @@ def holdtype_of(row, rules):
                 continue
             if rule["type"] not in ("ALL", kind):
                 continue
+            # 조건이 없는 규칙은 건너뛴다(all([]) 이 참이라 다 잡는다).
+            if not rule["c"]:
+                continue
             if all(c in text for c in rule["c"]):
                 return rule["name"]
     return None
