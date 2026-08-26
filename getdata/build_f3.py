@@ -1241,48 +1241,64 @@ def holdtype_rules():
     return sorted(out, key=lambda r: (r["sort"], -spec(r), r["id"]))
 
 
+def match_holdtype(r, rules, kind, reason_col):
+    """정해진 종류·사유 컬럼 하나로 유형을 고른다.
+
+        line     비어 있으면 와일드카드, 있으면 일치
+        type     ALL 이면 와일드카드, 있으면 kind 와 일치
+        조건1~3   비어 있으면 무시, 있으면 사유에 들어 있어야 한다(AND)
+        순서      sort_no 가 절대 기준. 처음 맞는 것을 쓴다.
+    """
+    text = str(r.get(reason_col) or "").upper()
+    if not text or not rules:
+        return None
+    line = str(r.get("line") or "")
+    for rule in rules:
+        if rule["line"] and rule["line"] != line:
+            continue
+        if rule["type"] not in ("ALL", kind):
+            continue
+        if not rule["c"]:              # 조건이 하나도 없으면 건너뛴다
+            continue
+        if all(c in text for c in rule["c"]):
+            return rule["name"]
+    return None
+
+
 def holdtype_of(r, rules):
     """기준정보로 세부 유형을 찾는다. 못 찾으면 None.
 
-    **순서(sort_no)가 절대 기준이다.** 규칙을 위에서부터 훑고, 처음
-    맞는 것을 쓴다.
-
-    [주의] 예전에는 HOLD -> FTP -> 예약제외 를 바깥 루프로 돌았다.
-    그러면 순서와 무관하게 HOLD 계열이 먼저 이겨, 위에 둔 예약제외
-    규칙이 아래쪽 HOLD 규칙에게 계속 뺏겼다.
+    종류를 **먼저** 정하고, 그 종류의 사유 컬럼 하나만 본다.
+        상태가 HOLD 면            -> HOLD · hold_reason
+        아니면 WAIT성 진행불가 중  -> FTP · ftp_reason
+                                     -> 예약제외 · exception_reason
+    종류가 정해진 뒤에 유형을 나누므로, 규칙 순서가 종류를 바꾸지 않는다.
     """
     if not rules:
         return None
-    line = str(r.get("line") or "")
-
-    # 이 lot 에서 볼 수 있는 사유들. 규칙마다 제 type 에 맞는 것만 본다.
-    #   HOLD -> hold_reason · FTP -> ftp_reason · 예약제외 -> exception_reason
-    #
-    #   [주의] flag(hold/ftp/exception)는 **경과일 숫자**다. 방금 걸린 건은
-    #   0 이라 거짓으로 취급돼 그 lot 이 규칙을 통째로 못 탔다.
-    #   사유 글자가 있으면 그 상태인 것이므로 사유 유무로 판정한다.
-    texts = {}
-    for kind, flag, reason in HOLDTYPE_ORDER:
-        if r.get(flag) is None and not r.get(reason):
-            continue
-        t = str(r.get(reason) or "").upper()
-        if t:
-            texts[kind] = t
-    if not texts:
-        return None
-
-    for rule in rules:                      # 순서가 절대 기준
-        if rule["line"] and rule["line"] != line:
-            continue
-        if not rule["c"]:                   # 조건 없는 규칙은 건너뛴다
-            continue
-        want = rule["type"]
-        kinds = texts.keys() if want == "ALL" else (
-            [want] if want in texts else [])
-        for kind in kinds:
-            if all(c in texts[kind] for c in rule["c"]):
-                return rule["name"]
+    for kind, flag, reason in _lot_kinds(r):
+        got = match_holdtype(r, rules, kind, reason)
+        if got:
+            return got
     return None
+
+
+def _lot_kinds(r):
+    """그 lot 이 속한 종류. 상태와 사유로 정한다(규칙과 무관).
+
+    [주의] hold/ftp/exception 컬럼은 **경과일 숫자**다. 방금 걸린 건은
+    0 이라 거짓이 되어 통째로 빠졌다. 사유 글자가 있으면 그 상태로 본다.
+    """
+    st = str(r.get("lot_status") or "").upper()
+    out = []
+    if st == "HOLD" or r.get("hold") is not None or r.get("hold_reason"):
+        out.append(("HOLD", "hold", "hold_reason"))
+    # WAIT성 진행불가. FTP 를 먼저 보고 그 다음이 예약제외다.
+    if r.get("ftp") is not None or r.get("ftp_reason"):
+        out.append(("FTP", "ftp", "ftp_reason"))
+    if r.get("exception") is not None or r.get("exception_reason"):
+        out.append(("예약제외", "exception", "exception_reason"))
+    return out
 
 def attach_holdtype(f3):
     """기준정보로 cause_detail(세부 원인 유형)을 채운다."""
