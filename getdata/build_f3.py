@@ -2495,23 +2495,51 @@ def build_f3(con):
         -- 자기 라인 설비를 앞에, 호환 라인을 뒤에 잇는다(line_rank 순).
         --   DISTINCT 와 ORDER BY 를 함께 쓰면 정렬 기준을 못 바꾸므로
         --   먼저 중복을 없앤 뒤 정렬해 잇는다.
+        -- 설비와 챔버는 **따로** 중복을 없앤다. 한 서브쿼리에서 둘을 함께
+        -- 묶으면 챔버가 여럿인 설비가 그 수만큼 되풀이된다.
+        --   TAHDC01-A/B/D  ->  eqpgroup 이 TAHDC01,TAHDC01,TAHDC01 이 된다.
         CREATE OR REPLACE TABLE f1_groups AS
-        WITH d AS (
-            SELECT line, lot_id, order_seq, eqpid, eqpcham_final,
-                   CAST(batch_kind AS VARCHAR) AS bk,
+        WITH de AS (          -- 설비 단위
+            SELECT line, lot_id, order_seq, eqpid,
                    MIN(COALESCE(line_rank, 0)) AS rk
-            FROM   f1_base
-            GROUP  BY line, lot_id, order_seq, eqpid, eqpcham_final,
-                      CAST(batch_kind AS VARCHAR)
+            FROM   f1_base WHERE eqpid IS NOT NULL
+            GROUP  BY line, lot_id, order_seq, eqpid
+        ),
+        dc AS (               -- 챔버 단위
+            SELECT line, lot_id, order_seq, eqpcham_final,
+                   MIN(COALESCE(line_rank, 0)) AS rk
+            FROM   f1_base WHERE eqpcham_final IS NOT NULL
+            GROUP  BY line, lot_id, order_seq, eqpcham_final
+        ),
+        db AS (               -- batch 종류
+            SELECT line, lot_id, order_seq,
+                   STRING_AGG(DISTINCT CAST(batch_kind AS VARCHAR), ', '
+                              ORDER BY CAST(batch_kind AS VARCHAR))
+                       AS batch_kind_agg
+            FROM   f1_base WHERE batch_kind IS NOT NULL
+            GROUP  BY line, lot_id, order_seq
+        ),
+        ge AS (
+            SELECT line, lot_id, order_seq,
+                   STRING_AGG(eqpid, ', ' ORDER BY rk, eqpid) AS eqpgroup
+            FROM de GROUP BY line, lot_id, order_seq
+        ),
+        gc AS (
+            SELECT line, lot_id, order_seq,
+                   STRING_AGG(eqpcham_final, ', ' ORDER BY rk, eqpcham_final)
+                       AS eqpgroup_cham_raw
+            FROM dc GROUP BY line, lot_id, order_seq
         )
-        SELECT line, lot_id, order_seq,
-               STRING_AGG(eqpid, ', ' ORDER BY rk, eqpid)
-                   FILTER (WHERE eqpid IS NOT NULL) AS eqpgroup,
-               STRING_AGG(eqpcham_final, ', ' ORDER BY rk, eqpcham_final)
-                   FILTER (WHERE eqpcham_final IS NOT NULL) AS eqpgroup_cham_raw,
-               STRING_AGG(DISTINCT bk, ', ' ORDER BY bk)
-                   FILTER (WHERE bk IS NOT NULL) AS batch_kind_agg
-        FROM d GROUP BY line, lot_id, order_seq
+        SELECT COALESCE(ge.line, gc.line, db.line)             AS line,
+               COALESCE(ge.lot_id, gc.lot_id, db.lot_id)       AS lot_id,
+               COALESCE(ge.order_seq, gc.order_seq, db.order_seq) AS order_seq,
+               ge.eqpgroup, gc.eqpgroup_cham_raw, db.batch_kind_agg
+        FROM ge
+        FULL JOIN gc ON ge.line = gc.line AND ge.lot_id = gc.lot_id
+                    AND ge.order_seq = gc.order_seq
+        FULL JOIN db ON COALESCE(ge.line, gc.line) = db.line
+                    AND COALESCE(ge.lot_id, gc.lot_id) = db.lot_id
+                    AND COALESCE(ge.order_seq, gc.order_seq) = db.order_seq
     """)
 
     con.execute("""
