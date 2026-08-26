@@ -1440,6 +1440,136 @@ def holdtype_of(r, rules):
     return None
 
 
+def holdtype_diag(line=None, limit_rule=40):
+    """HOLD 유형이 왜 그렇게 판정됐는지 본다. **값은 내보내지 않는다.**
+
+    규칙마다 몇 건이 걸렸는지, 어떤 규칙이 앞 규칙에 가려졌는지 센다.
+    기준정보와 사유는 사내 자료라 밖으로 낼 수 없지만, 건수와 순서는
+    낼 수 있다. 이것만으로 세분화가 왜 안 먹는지 알 수 있다.
+    """
+    rules = _holdtype_rules()
+    if not rules:
+        return {"ok": False, "reason": "HOLD 유형 기준정보가 비어 있습니다"}
+
+    snap = _latest_snapshot()
+    if not snap:
+        return {"ok": False, "reason": "f3_live 가 비어 있습니다"}
+
+    w = ["snapshot_at=%s"]
+    a = [snap]
+    if line:
+        w.append("`line`=%s")
+        a.append(line)
+    with connection.cursor() as cur:
+        cur.execute(
+            "SELECT `line`, lot_id, qty, hold, hold_reason, ftp, ftp_reason,"
+            " exception, exception_reason, cause_detail"
+            f" FROM f3_live WHERE {' AND '.join(w)}", a)
+        names = [d[0] for d in cur.description]
+        recs = [dict(zip(names, r)) for r in cur.fetchall()]
+
+    # 규칙마다: 이겨서 적용된 건수 / 조건은 맞는데 앞 규칙에 진 건수
+    won = {i: {"lots": 0, "qty": 0} for i in range(len(rules))}
+    lost = {i: {"lots": 0, "qty": 0, "by": {}} for i in range(len(rules))}
+    none_hit = {"lots": 0, "qty": 0}
+    total = {"lots": 0, "qty": 0}
+
+    for r in recs:
+        if not r.get("hold") and not r.get("ftp") and not r.get("exception"):
+            continue
+        try:
+            q = int(float(r.get("qty") or 0))
+        except (TypeError, ValueError):
+            q = 0
+        total["lots"] += 1
+        total["qty"] += q
+
+        rline = str(r.get("line") or "")
+        hits = []                       # 조건이 맞는 규칙 전부(순서대로)
+        for kind, flag, reason in HOLDTYPE_ORDER:
+            if not r.get(flag):
+                continue
+            text = str(r.get(reason) or "").upper()
+            if not text:
+                continue
+            for i, rule in enumerate(rules):
+                if rule["line"] and rule["line"] != rline:
+                    continue
+                if rule["type"] not in ("ALL", kind):
+                    continue
+                if not rule["c"]:
+                    continue
+                if all(c in text for c in rule["c"]):
+                    hits.append(i)
+        if not hits:
+            none_hit["lots"] += 1
+            none_hit["qty"] += q
+            continue
+        win = hits[0]                   # rules 는 이미 우선순위 순
+        won[win]["lots"] += 1
+        won[win]["qty"] += q
+        for i in hits[1:]:
+            lost[i]["lots"] += 1
+            lost[i]["qty"] += q
+            lost[i]["by"][win] = lost[i]["by"].get(win, 0) + 1
+
+    out = []
+    for i, rule in enumerate(rules[:limit_rule]):
+        by = sorted(lost[i]["by"].items(), key=lambda x: -x[1])[:3]
+        out.append({
+            "순위": i + 1,
+            "sort_no": rule["sort_no"],
+            "이름": rule["name"],
+            "조건수": len(rule["c"]),
+            "line": rule["line"] or "(전체)",
+            "type": rule["type"],
+            "적용_lot": won[i]["lots"], "적용_매": won[i]["qty"],
+            "가려짐_lot": lost[i]["lots"], "가려짐_매": lost[i]["qty"],
+            "가린규칙": [{"순위": j + 1, "이름": rules[j]["name"], "건수": n}
+                       for j, n in by],
+        })
+    # 화면(원인 분석 차트 · 드릴다운 표)이 쓰는 값과 같은지 본다.
+    #   차트는 cause_detail 을 우선 쓰므로, 적재된 값이 옛 규칙이면
+    #   기준정보를 고쳐도 화면이 그대로다. 그 차이를 여기서 드러낸다.
+    stale = {}
+    same = 0
+    for r in recs:
+        if not r.get("hold") and not r.get("ftp") and not r.get("exception"):
+            continue
+        now = holdtype_of(r, rules)            # 지금 기준정보로 다시 낸 값
+        pre = r.get("cause_detail")            # 화면이 실제로 쓰는 값
+        try:
+            q = int(float(r.get("qty") or 0))
+        except (TypeError, ValueError):
+            q = 0
+        if (pre or None) == (now or None):
+            same += 1
+            continue
+        k = f"{pre or '(없음)'} -> {now or '(없음)'}"
+        d = stale.setdefault(k, {"lots": 0, "qty": 0})
+        d["lots"] += 1
+        d["qty"] += q
+
+    diff = sorted(stale.items(), key=lambda x: -x[1]["qty"])[:15]
+    return {"ok": True, "snapshot_at": _fmt_snap(snap), "line": line or "전체",
+            "규칙수": len(rules), "HOLD계열_lot": total["lots"],
+            "HOLD계열_매": total["qty"],
+            "미분류_lot": none_hit["lots"], "미분류_매": none_hit["qty"],
+            # 화면이 쓰는 cause_detail 과 지금 기준정보 판정이 같은가
+            "적재값_일치_lot": same,
+            "적재값_불일치": [{"바뀜": k, "lot": v["lots"], "매": v["qty"]}
+                          for k, v in diff],
+            "안내": ("적재값_불일치 가 있으면 화면은 옛 규칙을 보고 있습니다. "
+                   "/master/ 에서 '지금 반영' 또는 '과거까지' 를 누르세요."),
+            "규칙별": out}
+
+
+def api_holdtype_diag(request):
+    """HOLD 유형 판정 진단. /api/holdtype-diag/?line=PFR1"""
+    return JsonResponse(holdtype_diag(request.GET.get("line") or None),
+                        json_dumps_params={"ensure_ascii": False})
+
+
 def _sub_name(r, ht, kind, reason_col, rules, cat):
     """소분류 이름.
 
@@ -1450,15 +1580,11 @@ def _sub_name(r, ht, kind, reason_col, rules, cat):
     if pre:
         return pre
     if ht:
-        text = str(r.get(reason_col) or "")
-        line = str(r.get("line") or "")
-        for rule in ht:
-            if rule["line"] and rule["line"] != line:
-                continue
-            if rule["type"] not in ("ALL", kind):
-                continue
-            if text and all(c in text for c in rule["c"]):
-                return rule["name"]
+        # 판정은 holdtype_of 한 곳에서만 한다. 여기에 같은 로직을 또 쓰면
+        # 한쪽만 고쳐 화면과 적재 결과가 어긋난다(실제로 그랬다).
+        got = holdtype_of(r, ht)
+        if got:
+            return got
     return _classify(r.get(reason_col), rules.get(cat, []))
 
 
