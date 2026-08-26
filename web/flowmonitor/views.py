@@ -1737,9 +1737,11 @@ def holdtype_trace(lot_id, line=None):
                 continue
             per = [{"조건": c, "들어있나": (c in text)} for c in rule["c"]]
             ok = all(x["들어있나"] for x in per)
-            if ok or any(x["들어있나"] for x in per):
+            hit = sum(1 for x in per if x["들어있나"])
+            if hit:
                 steps.append({"순번": i + 1, "이름": rule["name"],
                               "type": rule["type"], "kind": kind,
+                              "맞은조건수": hit, "전체조건수": len(per),
                               "조건": per, "전부맞음": ok})
             if ok:
                 return {"ok": True, "lot": lot_id, "line": r.get("line"),
@@ -1748,14 +1750,27 @@ def holdtype_trace(lot_id, line=None):
                         "사유_글자수": len(text),
                         "적재된_값": r.get("cause_detail"),
                         "판정": rule["name"],
-                        "훑은_규칙": steps[-25:],
-                        "안내": "훑은_규칙 의 마지막이 이긴 규칙입니다."}
+                        "아깝게_놓친_규칙": _near_miss(steps),
+                        "안내": "아깝게_놓친_규칙 은 조건 일부만 맞은 것들입니다. "
+                              "'들어있나: false' 인 낱말이 사유에 없는 것입니다."}
     return {"ok": True, "lot": lot_id, "line": r.get("line"),
             "상태": r.get("lot_status"),
             "본_사유컬럼": [k[2] for k in kinds],
             "적재된_값": r.get("cause_detail"),
-            "판정": None, "훑은_규칙": steps[-25:],
+            "판정": None,
+            "아깝게_놓친_규칙": _near_miss(steps),
             "안내": "맞는 규칙이 없습니다."}
+
+
+def _near_miss(steps):
+    """조건이 많이 맞은 것부터 보여 준다.
+
+    앞에서부터 25개만 자르면 정작 아깝게 놓친 규칙이 잘려 안 보인다.
+    '몇 개가 맞았나' 로 줄을 세워야 무엇을 고치면 되는지 드러난다.
+    """
+    return sorted(steps, key=lambda x: (-x["맞은조건수"],
+                                        x["맞은조건수"] - x["전체조건수"],
+                                        x["순번"]))[:20]
 
 
 def api_holdtype_trace(request):
