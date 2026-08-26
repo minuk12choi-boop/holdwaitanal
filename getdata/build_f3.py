@@ -1680,6 +1680,7 @@ def narrow_step_to_scope(df_path, df_lot, line):
         vc = skip.fillna("(비어있음)").value_counts().to_dict()
         print(f"[SKIP] {line} step_skip_yn 분포 {vc} · "
               f"{len(path):,} -> {int(keep.sum()):,}행", flush=True)
+    _raw_path = path                     # SKIP 필터 이전(진단용)
     path = path[keep]
 
     # --- 현스텝 확정 ---
@@ -1689,6 +1690,28 @@ def narrow_step_to_scope(df_path, df_lot, line):
     cur = path.merge(m.rename(columns={"order_seq": "_cur"}), on="lot_id", how="inner")
     exact = cur[cur["order_seq"].eq(cur["_cur"])]
     miss = set(m["lot_id"]) - set(exact["lot_id"])
+
+    # 현스텝을 못 찾는 일은 원래 없어야 한다. 있으면 어디서 깨졌는지 센다.
+    #   raw     : SKIP 필터 이전의 경로(그 lot 이 원천에 아예 있었는가)
+    #   in_path : 경로는 있는데 그 order_seq 만 없는가
+    if miss and TRACE_STATUS:
+        no_path = {x for x in miss if x not in set(cur["lot_id"])}
+        raw_has = set(_raw_path["lot_id"]) if _raw_path is not None else set()
+        cut_by_skip = {x for x in (miss - no_path)}
+        gone = {x for x in no_path if x in raw_has}
+        print(f"[STEP] {line} 현스텝 못 찾음 {len(miss):,} lot", flush=True)
+        print(f"[STEP]   경로 자체가 없음 {len(no_path):,} "
+              f"(그중 SKIP 이전에는 있었던 것 {len(gone):,})", flush=True)
+        print(f"[STEP]   경로는 있는데 그 order_seq 가 없음 "
+              f"{len(cut_by_skip):,}", flush=True)
+        if cut_by_skip:
+            _x = sorted(cut_by_skip)[:3]
+            _s = m[m["lot_id"].isin(_x)][["lot_id", "order_seq"]]
+            _p = (cur[cur["lot_id"].isin(_x)]
+                  .groupby("lot_id")["order_seq"].agg(["min", "max", "count"]))
+            print(f"[STEP]   예: lot 의 order_seq {_s.values.tolist()}", flush=True)
+            print(f"[STEP]       경로의 order_seq 범위 "
+                  f"{_p.reset_index().values.tolist()}", flush=True)
     if miss:
         nxt = (cur[cur["lot_id"].isin(miss) & cur["order_seq"].gt(cur["_cur"])]
                .sort_values(["lot_id", "order_seq"], kind="mergesort")
