@@ -1559,7 +1559,38 @@ def holdtype_diag(line=None, limit_rule=400, focus=None):
                              "type": rule["type"], "line": rule["line"] or "(전체)",
                              "조건별": per, "모두만족_lot": both})
         cand.sort(key=lambda x: -x["모두만족_lot"])
+
+        # 사유가 어떻게 생겼는지 본다. **값은 내보내지 않는다.**
+        #   조건이 안 맞는 이유가 '글자가 다른 것' 인지 '텍스트 자체가
+        #   없는 것' 인지 가른다.
+        import re as _re
+        seg_n, lens, has_kr, tail_empty = {}, [], 0, 0
+        for r in tgt:
+            for kind, flag, reason in HOLDTYPE_ORDER:
+                if not r.get(flag):
+                    continue
+                t = str(r.get(reason) or "")
+                if not t:
+                    continue
+                parts = t.split("!@!")
+                seg_n[len(parts)] = seg_n.get(len(parts), 0) + 1
+                lens.append(len(t))
+                # 마지막 칸(보통 담당자가 적는 자리)이 비었는가
+                if not parts[-1].strip():
+                    tail_empty += 1
+                if _re.search(r"[가-힣]", t):
+                    has_kr += 1
+                break
+        shape = {
+            "구분자(!@!) 로 나눈 칸 수 분포": dict(sorted(seg_n.items())),
+            "글자수 최소/평균/최대": [min(lens), round(sum(lens) / len(lens)),
+                                max(lens)] if lens else [],
+            "한글이 들어 있는 lot": has_kr,
+            "마지막 칸이 빈 lot": tail_empty,
+        }
+
         focus_out = {"대상": focus, "대상_lot": len(tgt),
+                     "사유_모양": shape,
                      "후보규칙": cand[:20],
                      "안내": ("모두만족_lot 이 0 이면 그 규칙은 이 lot 들을 "
                             "잡을 수 없습니다. 조건 글자를 사유와 맞춰 보세요. "
