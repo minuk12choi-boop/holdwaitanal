@@ -1655,9 +1655,13 @@ def narrow_step_to_scope(df_path, df_lot, line):
     path["order_seq"] = pd.to_numeric(path["order_seq"], errors="coerce")
 
     m = _lower_cols(df_lot)
-    m = m[m["line"].eq(line)][["lot_id", "order_seq"]].copy()
+    # 현스텝은 lot 테이블의 step_seq 다. order_seq 는 보조로만 쓴다.
+    #   두 테이블의 조회 시점이 달라 그 사이 lot 이 진행하면 order_seq 가
+    #   어긋난다. step_seq 는 그런 일이 없다.
+    m = m[m["line"].eq(line)][["lot_id", "order_seq", "step_seq"]].copy()
     m["order_seq"] = pd.to_numeric(m["order_seq"], errors="coerce")
-    m = m.dropna(subset=["order_seq"]).drop_duplicates()
+    m["step_seq"] = m["step_seq"].astype("string").str.strip().str.upper()
+    m = m.dropna(subset=["order_seq"]).drop_duplicates(subset=["lot_id"])
 
     lot_ids = set(m["lot_id"].dropna())
     path = path[path["lot_id"].isin(lot_ids)]
@@ -1686,8 +1690,20 @@ def narrow_step_to_scope(df_path, df_lot, line):
     #   현스텝이 SKIP 이면 위에서 이미 걸러져 여기 없다. 그때는 그 뒤
     #   첫 비SKIP 스텝을 현스텝으로 삼는다(FabPlan 과 같은 규칙).
     #   그러지 않으면 그 lot 이 화면에서 통째로 사라진다.
-    cur = path.merge(m.rename(columns={"order_seq": "_cur"}), on="lot_id", how="inner")
-    exact = cur[cur["order_seq"].eq(cur["_cur"])]
+    cur = path.merge(
+        m.rename(columns={"order_seq": "_cur", "step_seq": "_cur_step"}),
+        on="lot_id", how="inner")
+    # 1) step_seq 로 맞춘다(시점 차이에 흔들리지 않는다)
+    _ps = cur["step_seq"].astype("string").str.strip().str.upper()
+    exact = cur[_ps.eq(cur["_cur_step"])]
+    # 2) 그래도 못 찾은 lot 만 order_seq 로 한 번 더 본다
+    left = set(m["lot_id"]) - set(exact["lot_id"])
+    if left:
+        by_ord = cur[cur["lot_id"].isin(left) & cur["order_seq"].eq(cur["_cur"])]
+        if len(by_ord):
+            print(f"[STEP] {line} step_seq 로 못 찾아 order_seq 로 맞춘 lot "
+                  f"{by_ord['lot_id'].nunique():,}", flush=True)
+        exact = pd.concat([exact, by_ord], ignore_index=True)
     miss = set(m["lot_id"]) - set(exact["lot_id"])
     if miss:
         nxt = (cur[cur["lot_id"].isin(miss) & cur["order_seq"].gt(cur["_cur"])]
@@ -1697,7 +1713,7 @@ def narrow_step_to_scope(df_path, df_lot, line):
             print(f"[STEP] {line} 현스텝이 SKIP 이라 다음 스텝으로 옮긴 lot "
                   f"{len(nxt):,}", flush=True)
         exact = pd.concat([exact, nxt], ignore_index=True)
-    cur = exact.drop(columns=["_cur"])
+    cur = exact.drop(columns=["_cur", "_cur_step"])
     cur = cur.merge(de, on=["lot_id", "order_seq"], how="left")
 
     cur_rank = cur.loc[cur["de_rank"].notna(), ["lot_id", "de_rank"]].drop_duplicates()
