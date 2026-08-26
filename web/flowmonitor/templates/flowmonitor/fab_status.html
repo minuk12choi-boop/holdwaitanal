@@ -341,8 +341,10 @@ const SHIFT_LIST = ["GY", "SW", "DAY"];
 
 function renderSnap(d) {
   const snaps = d.snapshots || [];
-  // 아래 목록과 버튼 라벨 양쪽에서 쓴다. 선언이 뒤에 있으면 TDZ 오류가 난다.
-  const nowAt = (d.snapshot_at || "").slice(11, 16);
+  // '최신' 은 **가장 최근 스냅샷(f3_live)** 의 시각이다.
+  //   d.snapshot_at 은 지금 조회한 것이라, GY 를 고르면 GY 시각이 되어
+  //   '최신 (21:47)' 처럼 엉뚱하게 뜬다.
+  const nowAt = (d.latest_at || d.snapshot_at || "").slice(11, 16);
   const lb = document.getElementById("snapDateLb");
   if (lb) {
     // 비워 두면 '최신' 이지만, 그래도 어느 날짜인지는 보여야 한다.
@@ -472,14 +474,17 @@ function pickSnapDate(v) {
   if (v && HAVE_DATES.size && !HAVE_DATES.has(v)) { return; }
   document.getElementById("datefw").classList.remove("open");
   SNAP_DATE = v;
-  // 과거 날짜를 고르면 '최신' 이 없으므로 기본 SHIFT(GY) 로 맞춘다.
-  //   그 날 GY 가 없으면 있는 것 중 첫 번째를 쓴다.
-  if (!v) {
+  // 오늘(= 최신 스냅샷이 있는 날)이면 '최신' 을 그대로 둔다.
+  //   날짜만 눌렀을 뿐인데 GY 로 바뀌면 화면이 과거로 돌아간다.
+  const snaps = (DATA && DATA.snapshots) || [];
+  const newest = snaps.length ? snaps[0].biz_date : "";
+  if (!v || v === newest) {
     SNAP_SHIFT = "";
   } else {
+    // 과거 날짜는 '최신' 이 없으므로 기본 SHIFT(GY) 로 맞춘다.
+    //   그 날 GY 가 없으면 있는 것 중 첫 번째를 쓴다.
     const have = {};
-    (DATA.snapshots || []).filter(x => x.biz_date === v)
-      .forEach(x => { have[x.shift] = 1; });
+    snaps.filter(x => x.biz_date === v).forEach(x => { have[x.shift] = 1; });
     SNAP_SHIFT = have[DEFAULT_SHIFT] ? DEFAULT_SHIFT
       : (SHIFT_LIST.find(k => have[k]) || DEFAULT_SHIFT);
   }

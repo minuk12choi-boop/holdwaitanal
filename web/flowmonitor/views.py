@@ -2145,6 +2145,9 @@ def api_summary(request):
         "snapshot_at": (snap.strftime("%Y-%m-%d %H:%M")
                         if hasattr(snap, "strftime") else str(snap)),
         "types": all_types, "selected_types": types,
+        # 화면의 '최신' 라벨에 쓴다. snapshot_at 은 지금 조회한 것이라
+        # 과거 SHIFT 를 고르면 그 시각이 되어 '최신' 이 엉뚱해진다.
+        "latest_at": _fmt_snap(_latest_snapshot()),
         "snapshots": _hist_snapshots(line),
         "biz_date": bdate, "shift": bshift,
         "prod1_options": p1_opts, "prod2_options": p2_opts,
@@ -2497,26 +2500,33 @@ def _apply_standards():
         # 화면이 통째로 비어 버리므로 손대지 않는다.
         print("[STD] 모듈 기준정보가 비어 있어 모듈은 건드리지 않는다",
               flush=True)
-    # 여러 컬럼을 나눠 쓴다. 중간에 실패하면 반쪽만 바뀐 상태가 된다.
+    # f3_live 에 남아 있는 **모든 스냅샷**을 고친다.
+    #   최신 하나만 고치면, 화면에서 직전 스냅샷을 골랐을 때 옛 규칙이
+    #   그대로 보인다. 기준정보를 바꾸는 목적은 모든 데이터를 지금 기준에
+    #   맞추는 것이므로 남아 있는 것은 전부 맞춘다(보통 2개뿐이다).
     with transaction.atomic(), connection.cursor() as cur:
-        cur.execute("SELECT MAX(snapshot_at) FROM f3_live")
-        row = cur.fetchone()
-        snap = row[0] if row else None
-        if not snap:
+        cur.execute("SELECT DISTINCT snapshot_at FROM f3_live "
+                    "ORDER BY snapshot_at")
+        snaps = [r[0] for r in cur.fetchall()]
+        if not snaps:
             return 0, 0
-        cur.execute(
-            "SELECT id, lot_id, `line`, lot_type, proc_id, step_seq, layer_id,"
-            " hold, hold_reason, ftp, ftp_reason,"
-            " exception, exception_reason, cause_detail,"
-            " module1, module2, prod2"
-            " FROM f3_live WHERE snapshot_at=%s", [snap])
-        names = [d[0] for d in cur.description]
-        recs = [dict(zip(names, r)) for r in cur.fetchall()]
 
-        n = _write_back(cur, "f3_live", snap,
+        hit = rows = 0
+        for snap in snaps:
+            cur.execute(
+                "SELECT id, lot_id, `line`, lot_type, proc_id, step_seq,"
+                " layer_id, hold, hold_reason, ftp, ftp_reason,"
+                " exception, exception_reason, cause_detail,"
+                " module1, module2, prod2"
+                " FROM f3_live WHERE snapshot_at=%s", [snap])
+            names = [d[0] for d in cur.description]
+            recs = [dict(zip(names, r)) for r in cur.fetchall()]
+            _write_back(cur, "f3_live", snap,
                         _restate(recs, ht, mods, prods, ssps), have)
-        hit = sum(1 for r in recs if holdtype_of(r, ht)) if ht else 0
-    return hit, len(recs)
+            if ht:
+                hit += sum(1 for r in recs if holdtype_of(r, ht))
+            rows += len(recs)
+    return hit, rows
 
 
 def _write_back(cur, table, snap, changes, have):
@@ -2707,16 +2717,26 @@ def ssps_of(row, rules):
 
 
 def _apply_standards_history(days=90, progress=None):
-    """기준정보를 **과거 스냅샷(f3_history)** 에도 다시 반영한다.
+    """기준정보를 **지금 화면과 과거 이력 모두** 에 다시 반영한다.
 
-    '바로 반영' 은 지금 화면(f3_live)만 고친다. 규칙을 바꾸면 과거 조회
-    결과는 옛 규칙 그대로라 앞뒤가 안 맞는다. 이 함수가 그것을 맞춘다.
+    현재만 맞추고 과거를 두면 앞뒤가 안 맞는다. 반대도 마찬가지다.
+    그래서 f3_live 를 먼저 맞추고 이어서 f3_history 를 훑는다.
 
     스냅샷이 많아 한 번에 읽으면 메모리가 버티지 못한다. 스냅샷 단위로
     끊어 처리하고, 값이 바뀐 행만 갱신한다.
     """
+    # 먼저 지금 화면부터 맞춘다. 과거만 바뀌고 현재가 옛 규칙이면
+    # 오늘 조회와 어제 조회가 서로 다른 기준이 된다.
+    live_hit, live_rows = 0, 0
+    try:
+        live_hit, live_rows = _apply_standards()
+    except Exception as e:
+        print(f"[STD] f3_live 반영 실패: {type(e).__name__}: {e}", flush=True)
+
     if not _table_exists("f3_history"):
-        return {"ok": False, "reason": "과거 이력이 없습니다"}
+        return {"ok": True, "snapshots": 0, "rows": live_rows,
+                "changed": 0, "days": int(days),
+                "live_rows": live_rows, "note": "과거 이력이 아직 없습니다"}
     ht = _holdtype_rules()
     mods = _module_rules()
     prods = _product_rules()
@@ -2753,7 +2773,7 @@ def _apply_standards_history(days=90, progress=None):
                 progress(done, len(snaps))
 
     return {"ok": True, "snapshots": len(snaps), "rows": rows,
-            "changed": changed, "days": int(days)}
+            "changed": changed, "days": int(days), "live_rows": live_rows}
 
 
 @csrf_exempt
@@ -2782,10 +2802,13 @@ def standards(request):
             days = 90
         r = _apply_standards_history(days)
         if r.get("ok"):
-            msg = (f"과거 {r['days']}일에도 반영했습니다. "
-                   f"스냅샷 {r['snapshots']:,}개 · 전체 {r['rows']:,}행 중 "
+            msg = (f"지금 화면({r.get('live_rows', 0):,}행)과 과거 "
+                   f"{r['days']}일에 반영했습니다. "
+                   f"스냅샷 {r['snapshots']:,}개 · {r['rows']:,}행 중 "
                    f"{r['changed']:,}건 고쳤습니다"
                    f"(HOLD 유형 · 모듈 · 제품구분)")
+            if r.get("note"):
+                msg += f". {r['note']}"
         else:
             msg = f"과거 반영을 하지 못했습니다: {r.get('reason')}"
     elif request.method == "POST":
