@@ -1429,9 +1429,14 @@ def holdtype_of(r, rules):
     line = str(r.get("line") or "")
 
     # 이 lot 에서 볼 수 있는 사유들. 규칙마다 제 type 에 맞는 것만 본다.
+    #   HOLD -> hold_reason · FTP -> ftp_reason · 예약제외 -> exception_reason
+    #
+    #   [주의] flag(hold/ftp/exception)는 **경과일 숫자**다. 방금 걸린 건은
+    #   0 이라 거짓으로 취급돼 그 lot 이 규칙을 통째로 못 탔다.
+    #   사유 글자가 있으면 그 상태인 것이므로 사유 유무로 판정한다.
     texts = {}
     for kind, flag, reason in HOLDTYPE_ORDER:
-        if not r.get(flag):
+        if r.get(flag) is None and not r.get(reason):
             continue
         t = str(r.get(reason) or "").upper()
         if t:
