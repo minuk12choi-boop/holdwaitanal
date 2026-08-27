@@ -626,6 +626,9 @@ UPDATES = [
             {"t": "'지금 반영' 과 '과거까지' 모두 HOLD 유형 · 모듈 · "
                   "제품구분을 함께 다시 냅니다. 모듈은 스텝마다 따로 "
                   "판정하므로 한 LOT 안에서도 구간별로 달라집니다."},
+            {"t": "드릴다운 표에 LOT 오른쪽으로 초HOT · GRADE 를 더했습니다. "
+                  "초HOT 은 초HOT 기준설정(LINE · GRADE · CONDITION)으로 "
+                  "LOT_INFORM 을 보고 정합니다."},
             {"t": "제품구분 규칙을 지우면 SSPS 제품명으로 돌아갑니다. "
                   "배치가 SSPS 규칙을 f3_std_ssps 에 남겨 두어 화면에서도 "
                   "같은 판정을 합니다."},
@@ -1130,7 +1133,10 @@ LOT_DETAIL_COLS = [
     ("line", "LINE"), ("전산라인", "전산라인"),
     ("dest_line_id", "DEST_LINE"), ("fa_object4", "FA_OBJECT4"),
     ("prod1", "제품군"), ("prod2", "제품"), ("dept", "DEPT"),
-    ("lot_id", "LOT"), ("lot_type", "TYPE"), ("qty", "QTY"), ("wt", "W/T"),
+    # LOT 오른쪽에 초HOT · GRADE 를 둔다.
+    #   초HOT 은 f3_std_hot 기준으로 lot_inform 을 보고 그 자리에서 낸다.
+    ("lot_id", "LOT"), ("hot", "초HOT"), ("grade", "GRADE"),
+    ("lot_type", "TYPE"), ("qty", "QTY"), ("wt", "W/T"),
     ("lot_status", "상태"), ("proc_id", "PROC"),
     ("module1", "모듈1"), ("module2", "모듈2"),
     ("layer_id", "LAYER"), ("AREA", "AREA"),
@@ -1147,7 +1153,9 @@ LOT_DETAIL_COLS = [
 
 # 드릴다운 종류별 기본 컬럼과 순서.
 # 여기 없는 컬럼은 체크가 꺼진 채로 시작하고, 다시 켜면 볼 수 있다.
-_BASE = ["prod1", "prod2", "lot_id", "lot_type", "qty", "wt", "proc_id",
+# 모든 드릴다운 유형에 공통으로 나오는 컬럼. LOT 오른쪽에 초HOT · GRADE.
+_BASE = ["prod1", "prod2", "lot_id", "hot", "grade",
+         "lot_type", "qty", "wt", "proc_id",
          "module1", "module2", "layer_id", "AREA", "step_seq", "step_desc",
          "eqpgroup", "eqpgroup_cham", "recipe_id"]
 _ELAPSED = ["마지막이벤트경과_일", "스텝도착경과_일", "마지막작업경과_일"]
@@ -1935,7 +1943,8 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
     # 표에 보이지 않지만 계산에 필요한 컬럼.
     #   cause_detail 이 없으면 제약원인이 'User Hold' 까지만 나오고
     #   괄호 안 사유가 빠진다.
-    for c in ("recipe_id", "step_seq", "step_desc", "lot_type", "cause_detail"):
+    for c in ("recipe_id", "step_seq", "step_desc", "lot_type", "cause_detail",
+              "grade", "lot_inform"):
         if c not in want:
             want.append(c)
 
@@ -2989,6 +2998,61 @@ def module_of(row, rules):
     return m1, m2
 
 
+def _hot_rules():
+    """초HOT 기준. line · grade 는 일치(비면 와일드카드), 조건은 AND."""
+    if not _table_exists("f3_std_hot"):
+        return []
+    cols = ["line", "grade", "condition_1", "condition_2", "condition_3",
+            "type_name"]
+    with connection.cursor() as cur:
+        cur.execute(f"SELECT {', '.join(cols)} FROM f3_std_hot")
+        rows = cur.fetchall()
+    out = []
+    for r in rows:
+        nm = str(r[5] or "").strip()
+        if not nm:
+            continue
+        out.append({
+            "line": str(r[0] or "").strip(),
+            "grade": str(r[1] or "").strip().upper(),
+            # 빈 조건은 아예 담지 않는다(찾지 않는다).
+            "c": [str(x).strip().upper()
+                  for x in (r[2], r[3], r[4])
+                  if x is not None and str(x).strip()],
+            "name": nm,
+        })
+
+    # 구체적인 것(조건이 많은 것)이 먼저 걸리게 한다.
+    def spec(x):
+        return len(x["c"]) + (1 if x["line"] else 0) + (1 if x["grade"] else 0)
+    out.sort(key=lambda x: -spec(x))
+    return out
+
+
+def hot_of(r, rules):
+    """그 lot 의 초HOT 유형. 못 찾으면 None.
+
+        line     비면 와일드카드, 있으면 일치
+        grade    비면 와일드카드, 있으면 일치
+        조건1~3   비면 무시, 있으면 lot_inform 에 들어 있어야 한다(AND)
+    """
+    if not rules:
+        return None
+    info = str(r.get("lot_inform") or "").upper()
+    line = str(r.get("line") or "").strip()
+    grade = str(r.get("grade") or "").strip().upper()
+    for x in rules:
+        if x["line"] and x["line"] != line:
+            continue
+        if x["grade"] and x["grade"] != grade:
+            continue
+        if x["c"]:
+            if not info or not all(c in info for c in x["c"]):
+                continue
+        return x["name"]
+    return None
+
+
 def _product_rules():
     """제품구분 기준정보. 조건이 적은 것부터(뒤에 오는 것이 이긴다)."""
     _ensure_std("f3_std_product")
@@ -3361,6 +3425,7 @@ def api_balance(request):
     # 히트맵을 STEP 축으로 보다가 칸을 누르면 여기로 온다.
     #   좌측에는 STEP 필터가 없어 이 API 에서만 받는다.
     f_step = [x for x in request.GET.get("step_seq", "").split(",") if x]
+    hot = _hot_rules()
     for r in rows:
         if prod1 and (r.get("prod1") or UNCLASSIFIED) not in prod1:
             continue
@@ -3883,6 +3948,7 @@ def api_lots_live(request):
     # 히트맵을 STEP 축으로 보다가 칸을 누르면 여기로 온다.
     #   좌측에는 STEP 필터가 없어 이 API 에서만 받는다.
     f_step = [x for x in request.GET.get("step_seq", "").split(",") if x]
+    hot = _hot_rules()
     p1_sql = prod1 if prod1 and UNCLASSIFIED not in prod1 else None
     p2_sql = prod2 if prod2 and UNCLASSIFIED not in prod2 else None
     rows, snap = _summary_rows(line, types, {
@@ -3962,6 +4028,8 @@ def api_lots_live(request):
         cause = " / ".join(x for x in (head, m2) if x)
         detail = r.get("cause_detail") or holdtype_of(r, ht)
         rec["cause"] = f"{cause}({detail})" if (cause and detail) else cause
+        # 초HOT 은 기준정보로 그 자리에서 낸다(적재 컬럼이 아니다).
+        rec["hot"] = hot_of(r, hot)
         row = {c: rec.get(c) for c in send_keys}
         row["_steps"] = int(r.get("_steps") or 1)
         out.append(row)
