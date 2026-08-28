@@ -90,4 +90,6 @@ done, bad, total = run_functions()
 if bad:
     log("실패 %d/%d - %s" % (len(bad), total, " | ".join(bad)[:300]))
 else:
-    log("완료 (테이블 %d개 · 함수 %d개)" % (n, done))
+    # [주의] 텍스트영역 자동 실행기가 "완료 (테이블" 을 찾아 끝난 줄 안다.
+    #   이 문구를 바꾸면 매크로가 영영 기다린다.
+    log("완료 (테이블 %d개, 함수 %d개)" % (n, done))
