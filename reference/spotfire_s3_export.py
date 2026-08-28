@@ -112,6 +112,24 @@ USE_BOTO3 = True
 #
 #   매니페스트는 회차마다 병합되므로 어느 함수가 먼저 끝나든 상관없다.
 #   ALL_TABLES 개가 모두 채워졌을 때만 완결로 본다.
+# [메모리 부족으로 함수가 죽을 때]
+#   Spotfire 는 스크립트를 돌리기 **전에** 등록된 입력을 전부 메모리로
+#   읽는다. TIP(1,000만행) + STEP_PATH(700만행) 을 한 함수에 같이 두면
+#   그 단계에서 죽는다.
+#
+#     numpy.core._exceptions._ArrayMemoryError: Unable to allocate ...
+#     File "data_function.py", line 343, in _read_inputs
+#
+#   이때는 **데이터 함수를 나눠 등록한다.** 아래 TABLE_NAMES 만 바꾼
+#   사본을 만들고, 각 함수에는 그 표들만 Input Parameter 로 등록한다.
+#
+#     s3drive_tip    ["PFR1_KFR7_TIP"]
+#     s3drive_path   ["PFR1_KFR7_STEP_PATH"]
+#     s3drive_rest   나머지 12개
+#
+#   매니페스트는 아래에서 기존 것을 읽어 병합하므로, 나눠 돌려도
+#   마지막 함수가 14개 전부를 담은 완결 표시를 남긴다.
+#   ALL_TABLES 는 그대로 14 로 둔다.
 TABLE_NAMES = [
     "PFR1_KFR7_LOT",
     "PFR1_KFR7_MATERIALWORKSTATUS",
