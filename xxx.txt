@@ -1,2 +1,3 @@
-Get-ChildItem "$env:LOCALAPPDATA\Spotfire" -Recurse -Filter *.log |
-  Sort-Object LastWriteTime -Descending | Select-Object -First 5 FullName, LastWriteTime
+PS C:\Users\minuk12.choi> Get-ChildItem "$env:LOCALAPPDATA\Spotfire" -Recurse -Filter *.log |
+>>   Sort-Object LastWriteTime -Descending | Select-Object -First 5 FullName, LastWriteTime
+PS C:\Users\minuk12.choi>
