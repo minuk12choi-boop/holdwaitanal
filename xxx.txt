@@ -1,6 +1,4 @@
-새로운 git pull 버전 전에 force local로 바꾸고 했음에도 불구하고 아래 에러는  떴고(force server로 설정해둔 탓은 아님)
-
-Could not execute function call 's3drive' (2)
+Could not execute function call 's3drive_path'
 
 Error from Remote Service: Internal Server Error (500) - 
 
@@ -9,52 +7,11 @@ Error from Remote Service: Internal Server Error (500) -
    at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
 
 
-git pull 버전 후엔 아래처럼 뜬다.
+Could not execute function call 's3drive_tip' (2)
 
-Could not execute function call 's3drive'
+Error from Remote Service: Internal Server Error (500) - 
 
-
-Error executing Python script:
-
-numpy.core._exceptions._ArrayMemoryError: Unable to allocate 766. MiB for an array with shape (10, 10043419) and data type object
-
-Traceback (most recent call last):
-  File "data_function.py", line 289, in evaluate
-    self._read_inputs(result)
-  File "data_function.py", line 343, in _read_inputs
-    input_.read(self.globals, self.debug)
-  File "data_function.py", line 97, in read
-    dataframe = sbdf.import_data(self.file)
-  File "sbdf.py", line 85, in import_data
-    dataframe = pd.concat(columns, axis=1)
-  File "_decorators.py", line 331, in wrapper
-    return func(*args, **kwargs)
-  File "concat.py", line 381, in concat
-    return op.get_result()
-  File "concat.py", line 592, in get_result
-    df = cons(data, index=index, copy=self.copy)
-  File "frame.py", line 664, in __init__
-    mgr = dict_to_mgr(data, index, columns, dtype=dtype, copy=copy, typ=manager)
-  File "construction.py", line 493, in dict_to_mgr
-    return arrays_to_mgr(arrays, columns, index, dtype=dtype, typ=typ, consolidate=copy)
-  File "construction.py", line 154, in arrays_to_mgr
-    return create_block_manager_from_column_arrays(
-  File "managers.py", line 2204, in create_block_manager_from_column_arrays
-    mgr._consolidate_inplace()
-  File "managers.py", line 1871, in _consolidate_inplace
-    self.blocks = _consolidate(self.blocks)
-  File "managers.py", line 2329, in _consolidate
-    merged_blocks, _ = _merge_blocks(
-  File "managers.py", line 2381, in _merge_blocks
-    new_values = np.vstack([b.values for b in blocks])  # type: ignore[misc]
-  File "<__array_function__ internals>", line 200, in vstack
-  File "shape_base.py", line 296, in vstack
-    return _nx.concatenate(arrs, 0, dtype=dtype, casting=casting)
-  File "<__array_function__ internals>", line 200, in concatenate
-
-
-
-   at Spotfire.Dxp.Data.DataFunctions.Executors.LocalPythonFunctionClient.<RunFunction>d__8.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.Executors.RemoteServiceClient.RunFunction(DataFunctionInvocation invocation)
    at Spotfire.Dxp.Data.DataFunctions.Executors.PythonScriptExecutor.<ExecuteFunction>d__11.MoveNext()
    at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
 
