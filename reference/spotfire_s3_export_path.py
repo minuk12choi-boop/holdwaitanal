@@ -290,6 +290,9 @@ try:
 
     # 기존 매니페스트를 읽어 병합한다. 함수를 여러 개로 나눠도
     # 마지막에 도는 함수가 8개 전부를 담은 매니페스트를 남기게 된다.
+    # 세 함수가 같은 _manifest.json 을 나눠 쓴다. 방금 올린 것만 갈아 끼우고
+    # 나머지는 그대로 둔다. **쓰기 직전에 다시 읽어** 그 사이 다른 함수가
+    # 올린 것을 잃지 않게 한다.
     prev = {}
     try:
         obj = client.get_object(Bucket=bucket, Key="%s_manifest.json" % prefix)
@@ -300,9 +303,12 @@ try:
     except Exception:
         prev = {}
 
+    now_s = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     tables = dict(prev)
     for r in ok:
-        tables[r[0]] = {"rows": int(r[2]), "cols": int(r[3]), "query_time": r[4]}
+        # uploaded_at 이 있어야 어느 표가 낡았는지 읽는 쪽에서 가린다.
+        tables[r[0]] = {"rows": int(r[2]), "cols": int(r[3]),
+                        "query_time": r[4], "uploaded_at": now_s}
 
     qts = sorted({v.get("query_time") for v in tables.values() if v.get("query_time")})
     manifest = {

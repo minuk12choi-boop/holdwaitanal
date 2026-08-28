@@ -3074,6 +3074,22 @@ def main():
 
         # 함수를 나눠 올리면 매니페스트가 회차 중간에도 존재한다.
         # 9개가 모두 채워지기 전에는 처리하지 않는다.
+        # 개수만 보면 안 된다. 함수를 셋으로 나눠 돌리므로, 하나가 실패해도
+        # 앞 회차 항목이 남아 개수는 채워진다. 표별 업로드 시각으로 가린다.
+        try:
+            age = s3_source.manifest_age(man)
+            if age.get("stale"):
+                top = ", ".join(f"{n} {m}분 전" for n, m in age["stale"][:5])
+                print(f"[STALE] 오래된 표 {len(age['stale'])}개: {top}", flush=True)
+                print("[STALE]   그 표의 Spotfire 데이터 함수가 실패했는지 "
+                      "확인하세요.", flush=True)
+            if age.get("unknown"):
+                print(f"[STALE] 업로드 시각이 없는 표 {len(age['unknown'])}개 "
+                      f"(옛 형식). Spotfire 스크립트를 새로 붙여넣으세요.",
+                      flush=True)
+        except Exception as e:
+            print(f"[STALE] 확인 생략: {type(e).__name__}", flush=True)
+
         have = set((man.get("tables") or {}).keys())
         missing = [t for t in s3_source.TABLES if t not in have]
         if missing and "--force" not in sys.argv:

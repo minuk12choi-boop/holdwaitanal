@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import datetime as dt
 import os
 import pickle
 from time import perf_counter
@@ -139,6 +140,37 @@ def read_manifest():
         return json.loads(obj["Body"].read().decode("utf-8"))
     except Exception:
         return None
+
+
+def manifest_age(m=None, max_min=90):
+    """매니페스트가 얼마나 낡았는지 본다. 표마다 따로 센다.
+
+    Spotfire 쪽은 데이터 함수를 셋(tip · path · rest)으로 나눠 돌린다.
+    하나가 실패해도 매니페스트에는 앞 회차 항목이 그대로 남아 ok 수가
+    채워져 보인다. 표별 uploaded_at 으로 그것을 가린다.
+    """
+    m = m if m is not None else read_manifest()
+    if not m:
+        return {"ok": False, "reason": "매니페스트가 없습니다"}
+    now = dt.datetime.now()
+    stale, unknown = [], []
+    for name, v in (m.get("tables") or {}).items():
+        at = str((v or {}).get("uploaded_at") or "")
+        if not at:
+            unknown.append(name)            # 옛 형식(시각 없음)
+            continue
+        try:
+            t = dt.datetime.strptime(at, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            unknown.append(name)
+            continue
+        mins = (now - t).total_seconds() / 60.0
+        if mins > max_min:
+            stale.append((name, round(mins)))
+    stale.sort(key=lambda x: -x[1])
+    return {"ok": not stale, "stale": stale, "unknown": unknown,
+            "total": len(m.get("tables") or {}),
+            "expected": m.get("total")}
 
 
 def read_table(name, bucket=None, prefix=None):
