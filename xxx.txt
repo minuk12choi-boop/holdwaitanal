@@ -1,8 +1,2 @@
-Get-CimInstance Win32_Service |
-  Where-Object { $_.Name -like "*Nodemanager*" -or $_.DisplayName -like "*Node Manager*" } |
-  Select-Object Name, DisplayName, PathName | Format-List
-
-
-
-$nm = "C:\Program Files\TIBCO\Spotfire Node Manager"
-Get-ChildItem "$nm\nm\services" -Directory | Select-Object Name
+Get-ChildItem "$env:LOCALAPPDATA\Spotfire" -Recurse -Filter *.log |
+  Sort-Object LastWriteTime -Descending | Select-Object -First 5 FullName, LastWriteTime
