@@ -188,15 +188,45 @@ def to_buffer(df, fmt):
 # ---------------------------------------------------------------------------
 # 진행 로그. Spotfire 가 print 를 보여주지 않아 파일로 남긴다.
 # 함수가 도는지, 어디서 멈추는지 확인하는 유일한 수단이다.
+#
+# [주의] Run location 이 Force Server 면 이 코드는 **서버에서** 돈다.
+#   아래 PC 경로는 서버에 없어 아무것도 안 남는다. 그래서 못 쓰면
+#   임시 폴더로 물러난다. 서버에서 돌 때도 흔적이 남는다.
 TRACE_FILE = r"D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\logs\spotfire_export.log"
 
 
+def _trace_path():
+    import os
+    import tempfile
+    for cand in (TRACE_FILE,
+                 os.path.join(tempfile.gettempdir(), "spotfire_export.log")):
+        try:
+            d = os.path.dirname(cand)
+            if d:
+                os.makedirs(d, exist_ok=True)
+            with open(cand, "a", encoding="utf-8"):
+                pass
+            return cand
+        except Exception:
+            continue
+    return None
+
+
+_TRACE_PATH = _trace_path()
+
+
 def trace(msg):
+    if not _TRACE_PATH:
+        return
     try:
-        import os
-        os.makedirs(os.path.dirname(TRACE_FILE), exist_ok=True)
-        with open(TRACE_FILE, "a", encoding="utf-8") as f:
-            f.write("%s  %s\n" % (dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), msg))
+        import socket
+        who = socket.gethostname()
+    except Exception:
+        who = "?"
+    try:
+        with open(_TRACE_PATH, "a", encoding="utf-8") as f:
+            f.write("%s  [%s]  %s\n"
+                    % (dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), who, msg))
     except Exception:
         pass
 
