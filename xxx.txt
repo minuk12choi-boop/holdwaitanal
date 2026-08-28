@@ -1,161 +1,28 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python getdata/build_f3.py --force
-[TIMER] 소형 원천 조회 start
-[QUERY] lot 조회 시작 2026-08-26 17:19:10
-[QUERY] lot rows=12,990 cols=23 0.1s
-[QUERY] materialworkstatus 조회 시작 2026-08-26 17:19:10
-[QUERY] materialworkstatus rows=156,901 cols=4 0.1s
-[STAGE] fa_object4 결합 시작
-[JOIN] fa_object4 12,902/12,990 lot 매칭
-[STAGE] fa_object4 결합 0.1s
-[QUERY] ssps_prod_name 조회 시작 2026-08-26 17:19:10
-[QUERY] ssps_prod_name rows=1,158 cols=7 0.0s
-[STD] f3_std_ssps 1,158건 저장
-[STAGE] 제품구분 결합 시작
-[JOIN] 제품구분 10,811/12,990 lot 매칭
-[JOIN] 기준정보 제품구분 적용 2,792행
-[STAGE] 제품구분 결합 0.1s
-[QUERY] equipment 조회 시작 2026-08-26 17:19:11
-[QUERY] equipment rows=19,482 cols=8 0.0s
-[CACHE] eqp_group 재사용 (eqp_group_20260826.csv) rows=12,897
-[QUERY] hold 조회 시작 2026-08-26 17:19:11
-[QUERY] hold rows=7,052 cols=10 0.0s
-[TIMER] 소형 원천 조회 elapsed=0.643s
-[QUERY] KFR7_step_path 조회 시작 2026-08-26 17:19:11
-[QUERY] KFR7_step_path 라인분리(line_id) 7,108,962 -> 6,652,467
-[QUERY] KFR7_step_path rows=6,652,467 cols=17 8.4s
-[STAGE] KFR7 범위축약 시작
-[STEP] KFR7 현스텝 못 찾음 1 lot
-[STEP]   경로 자체가 없음 0 (그중 SKIP 이전에는 있었던 것 0)
-[STEP]   경로는 있는데 그 order_seq 가 없음 1
-[STEP]   예: lot 의 order_seq [['B8H645.BM', 5161999999.5]]
-[STEP]       경로의 order_seq 범위 [['B8H645.BM', 5171000000.0, 5424000000.0, 254]]
-[STEP] KFR7 현스텝이 SKIP 이라 다음 스텝으로 옮긴 lot 1
-[STAGE] KFR7 범위축약 6.0s
-[ROWS] KFR7 scope(step) = 13,512
-[STAGE] KFR7 설비그룹전개 시작
-[STAGE] KFR7 설비그룹전개 0.1s
-[QUERY] PFR1_step_path 조회 시작 2026-08-26 17:19:25
-[QUERY] PFR1_step_path <- 캐시(PFR1_KFR7_STEP_PATH)
-[QUERY] PFR1_step_path 라인분리(line_id) 7,108,962 -> 456,495
-[QUERY] PFR1_step_path rows=456,495 cols=17 1.0s
-[STAGE] PFR1 범위축약 시작
-[STEP] PFR1 현스텝 못 찾음 2 lot
-[STEP]   경로 자체가 없음 2 (그중 SKIP 이전에는 있었던 것 1)
-[STEP]   경로는 있는데 그 order_seq 가 없음 0
-[STAGE] PFR1 범위축약 0.5s
-[ROWS] PFR1 scope(step) = 2,869
-[STAGE] PFR1 설비그룹전개 시작
-[STAGE] PFR1 설비그룹전개 0.0s
-[QUERY] fab_step 조회 시작 2026-08-26 17:19:27
-[QUERY] fab_step rows=188,416 cols=12 0.4s
-[QUERY] fab_pems 조회 시작 2026-08-26 17:19:27
-[QUERY] fab_pems rows=35,377 cols=15 0.1s
-[QUERY] fab_sel 조회 시작 2026-08-26 17:19:27
-[QUERY] fab_sel rows=656 cols=4 0.0s
-[QUERY] fab_skiprule 조회 시작 2026-08-26 17:19:27
-[QUERY] fab_skiprule rows=86 cols=4 0.0s
-[QUERY] fab_engr 조회 시작 2026-08-26 17:19:27
-[QUERY] fab_engr rows=153,859 cols=8 0.1s
-[FABPLAN] fab_step        188,416행  ['query_time', 'processid', 'stepseq', 'stepseq_type', 'areaname', 'eqptype']
-[FABPLAN] fab_pems         35,377행  ['query_time', 'pems_type', 'einecnno', 'processid', 'connecttype', 'stepseq']
-[FABPLAN] fab_sel             656행  ['query_time', 'firsteinecnno', 'nexteinecnno', 'selecteinecnno']
-[FABPLAN] fab_skiprule         86행  ['query_time', 'skiprule', 'lotid_ld', 'descript']
-[FABPLAN] fab_engr        153,859행  ['query_time', 'lotid', 'processid', 'stepseq', 'eqpid', 'newppid']
-[FABPLAN] PFR1 lot 4,505 중 order_seq 없음 2,782
-[STAGE] FabPlan 범위축약 시작
-[FABPLAN] 대상 lot 2,782
-[FABPLAN] STEP 에서 현스텝 찾음 2,782 / 대상 2,782 (STEP 원천 188,416행)
-[STAGE] FabPlan 범위축약 16.3s
-[ROWS] FabPlan scope(step) = 3,346
-[STAGE] FabPlan 설비그룹전개 시작
-[STAGE] FabPlan 설비그룹전개 0.0s
-D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py:3385: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
-  s = pd.concat(s_parts, ignore_index=True)
-[ROWS] s = 48,250
-[QUERY] KFR7_tip 조회 시작 2026-08-26 17:19:44
-[QUERY] KFR7_tip 라인분리(line_id) 10,018,787 -> 7,012,510
-[QUERY] KFR7_tip rows=7,012,510 cols=12 7.1s
-[STAGE] KFR7 tip 선필터 시작
-[STAGE] KFR7 tip 선필터 1.7s
-[FILTER] KFR7 tip 7,012,510 -> 130,915
-[STAGE] KFR7 tip 전처리 시작
-[STAGE] KFR7 tip 전처리 0.7s
-[QUERY] PFR1_tip 조회 시작 2026-08-26 17:19:54
-[QUERY] PFR1_tip <- 캐시(PFR1_KFR7_TIP)
-[QUERY] PFR1_tip 라인분리(line_id) 10,018,787 -> 3,006,277
-[QUERY] PFR1_tip rows=3,006,277 cols=12 1.5s
-[STAGE] PFR1 tip 선필터 시작
-[FILTER] FabPlan 이 있어 eqpid 조건은 걸지 않는다 (설비를 TIP 에서 찾아야 한다)
-[STAGE] PFR1 tip 선필터 0.6s
-[FILTER] PFR1 tip 3,006,277 -> 46,404
-[STAGE] PFR1 tip 전처리 시작
-[STAGE] PFR1 tip 전처리 0.3s
-[ROWS] t = 138,457
-[STAGE] FabPlan 설비그룹 시작
-[FABPLAN] TIP 매칭 20,479행 (대상 3,346 · TIP 137,310)
-[FABPLAN] 설비 전개 3,346 -> 20,479행 (설비 못 찾은 스텝 53 - 그래도 남긴다)
-[FABPLAN]   스텝당 설비 수 분포 {1: 518, 2: 1160, 3: 556, 4: 198, 5: 23} ... · 평균 6.2대 · 자기라인 18,172 · 호환 2,254
-[FABPLAN]   설비 속성 매칭 20,424/20,479 · AREA 20,423
-D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py:2085: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
-  out = pd.concat([s[~fab], grown], ignore_index=True)
-[FABPLAN] 현스텝 표시 2,782 -> 15,405  <-- 늘었다(설비마다 복제됨)
-[STAGE] FabPlan 설비그룹 0.5s
-[STAGE] hold 전처리 시작
-[HOLD] 최신 version_desc=20260826-140000 적용: 7,052 -> 7,052행
-[HOLD] 재공 lot 한정: 7,052 -> 6,744행
-[STAGE] hold 전처리 0.0s
-[ROWS] h1 = 4,879
-[ROWS] h2 = 990
-[ROWS] h3 = 326
-[STAGE] f3 생성 시작
-[TIP] wc_mask=01 rules=137,368 wildcard=['lot_type']
-[TIP] wc_mask=03 rules=2 wildcard=['lot_type', 'process']
-[TIP] wc_mask=05 rules=148 wildcard=['lot_type', 'step']
-[TIP] wc_mask=07 rules=598 wildcard=['lot_type', 'process', 'step']
-[TIP] wc_mask=09 rules=2 wildcard=['lot_type', 'ppid']
-[TIP] wc_mask=13 rules=339 wildcard=['lot_type', 'step', 'ppid']
-[TIP] 매칭 후보 = 149,565행
-[STATUS] 1. 원천 m.status (lot): {'HOLD': 4672, 'RUN': 976, 'WAIT': 7342}
-[STATUS] 2. 현스텝 행의 status: {'WAIT': 7337, 'HOLD': 4665, 'RUN': 976}
-[STATUS] 3. step_status(현스텝): {'HOLD': 4665, 'RUN': 975, 'WAIT(진행불가)': 3344, 'WAIT': 3994}
-[STATUS] 4. current_step_status: {'WAIT': 3994, 'None': 12, 'HOLD': 4665, 'RUN': 975, 'WAIT(진행불가)': 3344}
-[STATUS] 현스텝 행이 없는 lot 12 -> 이 lot 은 상태를 못 정한다
-[STAGE] f3 생성 3.7s
-[STAGE] 라인 재분류(dest_line_id) 시작
-[LINE] dest_line_id 로 재분류 6,303행  KFR4:6,303
-[STAGE] 라인 재분류(dest_line_id) 0.3s
-[STAGE] 모듈 결합(기준정보) 시작
-[STD] module 5,899/19,639행 매칭 (규칙 135건)
-[STAGE] 모듈 결합(기준정보) 8.4s
-[STAGE] HOLD 유형 결합(기준정보) 시작
-[STD] holdtype 2,891/19,639행 매칭 (규칙 212건)
-[STAGE] HOLD 유형 결합(기준정보) 0.3s
-[TIP] f3 tip 값 있는 행 = 2,700 / 19,639
-[ROWS] f3 = 19,639  (lot 12,978개)
-[STATUS] 원천 -> f3  (lot 수)
-[STATUS]   HOLD               4,672 ->   4,665
-[STATUS]   RUN                  976 ->     975
-[STATUS]   WAIT               7,342 ->   3,850  <-- 크게 줄었다
-[STATUS]   WAIT(진행불가)             0 ->   3,488
-[STATUS] 원천 HOLD 인데 f3 에서 바뀐 lot 7 -> {'(f3 에 없음)': np.int64(7)}
-[CHECK] FabPlan 3,260행 · lotplan(PFR1) 2,869행 채움 비율
-[CHECK]   eqpgroup         FabPlan  98.4%  lotplan 100.0%
-[CHECK]   eqpgroup_cham    FabPlan  98.4%  lotplan 100.0%
-[CHECK]   area             FabPlan  98.3%  lotplan  79.7%
-[CHECK]   layer_id         FabPlan 100.0%  lotplan 100.0%
-[CHECK]   recipe_id        FabPlan  99.9%  lotplan 100.0%
-[CHECK]   step_desc        FabPlan 100.0%  lotplan 100.0%
-[CHECK]   eqp_type         FabPlan 100.0%  lotplan 100.0%
-[CHECK]   lot_status       FabPlan 100.0%  lotplan 100.0%
-[CHECK]   prod2            FabPlan  99.1%  lotplan  70.6%
-[CHECK]   module1          FabPlan   0.0%  lotplan   5.1%
-[CHECK]   현스텝 있는 lot 2,782 / FabPlan lot 2,782
-[CHECK]   FabPlan EQPGROUP 설비 수 평균 2.8대 · 1대뿐 43% · 최대 37대
-[CHECK]   lotplan EQPGROUP 설비 수 평균 2.6대 · 1대뿐 69% · 최대 31대
-[DUP] lot/step 중복 없음
-[MIX] f3 사용 설비그룹 1,643개 중 batch/single 혼재 2개 (equipment 미매칭 설비 2건)
-[TIMER] DB 적재 start
-[DB] f3_live 갱신 snapshot_at=2026-08-26 17:19:10 rows=19,639
-[DB] f3_wip_step 7,305행 (snapshot=2026-08-26 17:19:10)
-[DB] f3_history 갱신 없음 (이미 더 가까운 스냅샷이 적재돼 있음)
-[TIMER] DB 적재 elapsed=2.875s
+Could not execute function call 's3drive'
+
+Error from Remote Service: Internal Server Error (500) - 
+
+   at Spotfire.Dxp.Data.DataFunctions.Executors.RemoteServiceClient.RunFunction(DataFunctionInvocation invocation)
+   at Spotfire.Dxp.Data.DataFunctions.Executors.PythonScriptExecutor.<ExecuteFunction>d__11.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
+
+
+
+
+
+table	status	rows	cols	query_time	serialize_sec	upload_sec	detail	start	end	elapsed_sec	script_total_sec
+PFR1_KFR7_LOT	OK	13090	23	2026-08-27 13:00	0.16	0.14	0.9 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_LOT.parquet	2026-08-27 오후 1:16:06	2026-08-27 오후 1:16:07	0.29	37.09
+PFR1_KFR7_MOVE	OK	66687	19	2026-08-27 13:00	0.27	0.45	3.5 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MOVE.parquet	2026-08-27 오후 1:16:39	2026-08-27 오후 1:16:40	0.71	37.09
+PFR1_KFR7_HOLD	OK	7214	10	2026-08-27 13:00	0.02	0.05	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_HOLD.parquet	2026-08-27 오후 1:16:39	2026-08-27 오후 1:16:39	0.07	37.09
+PFR1_KFR7_EQP_GROUP	OK	13137	4	2026-08-27 13:01	0.02	0.03	0.1 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQP_GROUP.parquet	2026-08-27 오후 1:16:39	2026-08-27 오후 1:16:39	0.05	37.09
+PFR1_KFR7_STEP_PATH	OK	7133336	17	2026-08-27 13:01	13.96	1.98	99.0 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_STEP_PATH.parquet	2026-08-27 오후 1:16:07	2026-08-27 오후 1:16:23	15.94	37.09
+PFR1_KFR7_TIP	OK	10029985	12	2026-08-27 13:04	15	1.04	69.6 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_TIP.parquet	2026-08-27 오후 1:16:23	2026-08-27 오후 1:16:39	16.04	37.09
+PFR1_KFR7_MATERIALWORKSTATUS	OK	156967	4	2026-08-27 13:05	0.1	0.08	0.9 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MATERIALWORKSTATUS.parquet	2026-08-27 오후 1:16:07	2026-08-27 오후 1:16:07	0.18	37.09
+PFR1_KFR7_EQUIPMENT	OK	19489	8	2026-08-27 13:05	0.1	0.04	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQUIPMENT.parquet	2026-08-27 오후 1:16:39	2026-08-27 오후 1:16:39	0.14	37.09
+PFR1_KFR7_SSPS_PROD_NAME	OK	1158	7	2026-08-27 13:05	0.01	0.03	0.0 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_SSPS_PROD_NAME.parquet	2026-08-27 오후 1:16:40	2026-08-27 오후 1:16:40	0.04	37.09
+PFR1_FABPLAN_STEP	OK	188491	12	2026-08-27 13:05	0.35	0.23	3.4 MB  s3://RND_FABMODELING/multi_report/PFR1_FABPLAN_STEP.parquet	2026-08-27 오후 1:16:40	2026-08-27 오후 1:16:41	0.58	37.09
+PFR1_FABPLAN_SKIPRULE	OK	86	4	2026-08-27 13:05	0	0.02	0.0 MB  s3://RND_FABMODELING/multi_report/PFR1_FABPLAN_SKIPRULE.parquet	2026-08-27 오후 1:16:41	2026-08-27 오후 1:16:41	0.02	37.09
+PFR1_FABPLAN_NEWEINECNSPEC	OK	35717	15	2026-08-27 13:06	0.09	0.1	0.8 MB  s3://RND_FABMODELING/multi_report/PFR1_FABPLAN_NEWEINECNSPEC.parquet	2026-08-27 오후 1:16:41	2026-08-27 오후 1:16:41	0.19	37.09
+PFR1_FABPLAN_SELECTCONNECTSPEC	OK	656	4	2026-08-27 13:06	0	0.02	0.0 MB  s3://RND_FABMODELING/multi_report/PFR1_FABPLAN_SELECTCONNECTSPEC.parquet	2026-08-27 오후 1:16:41	2026-08-27 오후 1:16:41	0.02	37.09
+PFR1_ENGR_LOT_PPID	OK	154455	8	2026-08-27 13:06	0.24	0.18	2.0 MB  s3://RND_FABMODELING/multi_report/PFR1_ENGR_LOT_PPID.parquet	2026-08-27 오후 1:16:41	2026-08-27 오후 1:16:42	0.42	37.09
+_manifest.json	OK	14	0	2026-08-27 13:06	0	0	완결 표시. 읽는 쪽은 이 파일로 최신 여부를 판단한다.	2026-08-27 오후 1:16:05	2026-08-27 오후 1:16:42	37.09	37.09
