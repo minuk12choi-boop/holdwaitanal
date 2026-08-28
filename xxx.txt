@@ -1,28 +1,8 @@
-Could not execute function call 's3drive'
-
-Error from Remote Service: Internal Server Error (500) - 
-
-   at Spotfire.Dxp.Data.DataFunctions.Executors.RemoteServiceClient.RunFunction(DataFunctionInvocation invocation)
-   at Spotfire.Dxp.Data.DataFunctions.Executors.PythonScriptExecutor.<ExecuteFunction>d__11.MoveNext()
-   at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
+Get-CimInstance Win32_Service |
+  Where-Object { $_.Name -like "*Nodemanager*" -or $_.DisplayName -like "*Node Manager*" } |
+  Select-Object Name, DisplayName, PathName | Format-List
 
 
 
-
-
-table	status	rows	cols	query_time	serialize_sec	upload_sec	detail	start	end	elapsed_sec	script_total_sec
-PFR1_KFR7_LOT	OK	13090	23	2026-08-27 13:00	0.16	0.14	0.9 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_LOT.parquet	2026-08-27 오후 1:16:06	2026-08-27 오후 1:16:07	0.29	37.09
-PFR1_KFR7_MOVE	OK	66687	19	2026-08-27 13:00	0.27	0.45	3.5 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MOVE.parquet	2026-08-27 오후 1:16:39	2026-08-27 오후 1:16:40	0.71	37.09
-PFR1_KFR7_HOLD	OK	7214	10	2026-08-27 13:00	0.02	0.05	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_HOLD.parquet	2026-08-27 오후 1:16:39	2026-08-27 오후 1:16:39	0.07	37.09
-PFR1_KFR7_EQP_GROUP	OK	13137	4	2026-08-27 13:01	0.02	0.03	0.1 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQP_GROUP.parquet	2026-08-27 오후 1:16:39	2026-08-27 오후 1:16:39	0.05	37.09
-PFR1_KFR7_STEP_PATH	OK	7133336	17	2026-08-27 13:01	13.96	1.98	99.0 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_STEP_PATH.parquet	2026-08-27 오후 1:16:07	2026-08-27 오후 1:16:23	15.94	37.09
-PFR1_KFR7_TIP	OK	10029985	12	2026-08-27 13:04	15	1.04	69.6 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_TIP.parquet	2026-08-27 오후 1:16:23	2026-08-27 오후 1:16:39	16.04	37.09
-PFR1_KFR7_MATERIALWORKSTATUS	OK	156967	4	2026-08-27 13:05	0.1	0.08	0.9 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_MATERIALWORKSTATUS.parquet	2026-08-27 오후 1:16:07	2026-08-27 오후 1:16:07	0.18	37.09
-PFR1_KFR7_EQUIPMENT	OK	19489	8	2026-08-27 13:05	0.1	0.04	0.3 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_EQUIPMENT.parquet	2026-08-27 오후 1:16:39	2026-08-27 오후 1:16:39	0.14	37.09
-PFR1_KFR7_SSPS_PROD_NAME	OK	1158	7	2026-08-27 13:05	0.01	0.03	0.0 MB  s3://RND_FABMODELING/multi_report/PFR1_KFR7_SSPS_PROD_NAME.parquet	2026-08-27 오후 1:16:40	2026-08-27 오후 1:16:40	0.04	37.09
-PFR1_FABPLAN_STEP	OK	188491	12	2026-08-27 13:05	0.35	0.23	3.4 MB  s3://RND_FABMODELING/multi_report/PFR1_FABPLAN_STEP.parquet	2026-08-27 오후 1:16:40	2026-08-27 오후 1:16:41	0.58	37.09
-PFR1_FABPLAN_SKIPRULE	OK	86	4	2026-08-27 13:05	0	0.02	0.0 MB  s3://RND_FABMODELING/multi_report/PFR1_FABPLAN_SKIPRULE.parquet	2026-08-27 오후 1:16:41	2026-08-27 오후 1:16:41	0.02	37.09
-PFR1_FABPLAN_NEWEINECNSPEC	OK	35717	15	2026-08-27 13:06	0.09	0.1	0.8 MB  s3://RND_FABMODELING/multi_report/PFR1_FABPLAN_NEWEINECNSPEC.parquet	2026-08-27 오후 1:16:41	2026-08-27 오후 1:16:41	0.19	37.09
-PFR1_FABPLAN_SELECTCONNECTSPEC	OK	656	4	2026-08-27 13:06	0	0.02	0.0 MB  s3://RND_FABMODELING/multi_report/PFR1_FABPLAN_SELECTCONNECTSPEC.parquet	2026-08-27 오후 1:16:41	2026-08-27 오후 1:16:41	0.02	37.09
-PFR1_ENGR_LOT_PPID	OK	154455	8	2026-08-27 13:06	0.24	0.18	2.0 MB  s3://RND_FABMODELING/multi_report/PFR1_ENGR_LOT_PPID.parquet	2026-08-27 오후 1:16:41	2026-08-27 오후 1:16:42	0.42	37.09
-_manifest.json	OK	14	0	2026-08-27 13:06	0	0	완결 표시. 읽는 쪽은 이 파일로 최신 여부를 판단한다.	2026-08-27 오후 1:16:05	2026-08-27 오후 1:16:42	37.09	37.09
+$nm = "C:\Program Files\TIBCO\Spotfire Node Manager"
+Get-ChildItem "$nm\nm\services" -Directory | Select-Object Name
