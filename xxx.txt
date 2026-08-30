@@ -1,134 +1,23 @@
 PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python getdata/build_f3.py --force
 [TIMER] 소형 원천 조회 start
-[QUERY] lot 조회 시작 2026-08-30 10:30:04
-[QUERY] lot rows=13,032 cols=23 0.2s
-[QUERY] materialworkstatus 조회 시작 2026-08-30 10:30:05
-[QUERY] materialworkstatus rows=158,288 cols=4 0.1s
+[QUERY] lot 조회 시작 2026-08-30 11:24:30
+[QUERY] lot rows=0 cols=1 0.1s
+[QUERY] materialworkstatus 조회 시작 2026-08-30 11:24:30
+[QUERY] materialworkstatus rows=158,300 cols=4 0.2s
 [STAGE] fa_object4 결합 시작
-[JOIN] fa_object4 12,945/13,032 lot 매칭
-[STAGE] fa_object4 결합 0.1s
-[QUERY] ssps_prod_name 조회 시작 2026-08-30 10:30:05
-[QUERY] ssps_prod_name rows=1,159 cols=7 0.0s
-[STD] f3_std_ssps 1,159건 저장
-[STAGE] 제품구분 결합 시작
-[JOIN] 제품구분 10,790/13,032 lot 매칭
-[JOIN] 기준정보 제품구분 적용 2,801행
-[STAGE] 제품구분 결합 0.1s
-[STAGE] CATEGORY 결합 시작
-[QUERY] category 조회 시작 2026-08-30 10:30:05
-[QUERY] category rows=3,596 cols=4 0.1s
-[CATEGORY] 이력 3,596행 -> lot 2,405개 · 재공 775/13,032 매칭
-[STAGE] CATEGORY 결합 0.1s
-[QUERY] equipment 조회 시작 2026-08-30 10:30:05
-[QUERY] equipment rows=19,504 cols=8 0.1s
-[CACHE] eqp_group 재사용 (eqp_group_20260830.csv) rows=12,904
-[QUERY] hold 조회 시작 2026-08-30 10:30:05
-[QUERY] hold rows=8,310 cols=10 0.1s
-[TIMER] 소형 원천 조회 elapsed=0.840s
-[QUERY] KFR7_step_path 조회 시작 2026-08-30 10:30:05
-[QUERY] KFR7_step_path 라인분리(line_id) 7,252,493 -> 6,805,950
-[QUERY] KFR7_step_path rows=6,805,950 cols=17 9.2s
-[STAGE] KFR7 범위축약 시작
-[STAGE] KFR7 범위축약 6.0s
-[ROWS] KFR7 scope(step) = 14,215
-[STAGE] KFR7 설비그룹전개 시작
-[STAGE] KFR7 설비그룹전개 0.1s
-[QUERY] PFR1_step_path 조회 시작 2026-08-30 10:30:21
-[QUERY] PFR1_step_path <- 캐시(PFR1_KFR7_STEP_PATH)
-[QUERY] PFR1_step_path 라인분리(line_id) 7,252,493 -> 446,543
-[QUERY] PFR1_step_path rows=446,543 cols=17 1.0s
-[STAGE] PFR1 범위축약 시작
-[STEP] PFR1 현스텝 못 찾음 1 lot
-[STEP]   경로 자체가 없음 1 (그중 SKIP 이전에는 있었던 것 1)
-[STEP]   경로는 있는데 그 order_seq 가 없음 0
-[STAGE] PFR1 범위축약 0.4s
-[ROWS] PFR1 scope(step) = 3,093
-[STAGE] PFR1 설비그룹전개 시작
-[STAGE] PFR1 설비그룹전개 0.0s
-[QUERY] fab_step 조회 시작 2026-08-30 10:30:22
-[QUERY] fab_step rows=188,847 cols=12 0.4s
-[QUERY] fab_pems 조회 시작 2026-08-30 10:30:23
-[QUERY] fab_pems rows=35,432 cols=15 0.1s
-[QUERY] fab_sel 조회 시작 2026-08-30 10:30:23
-[QUERY] fab_sel rows=667 cols=4 0.1s
-[QUERY] fab_skiprule 조회 시작 2026-08-30 10:30:23
-[QUERY] fab_skiprule rows=86 cols=4 0.0s
-[QUERY] fab_engr 조회 시작 2026-08-30 10:30:23
-[QUERY] fab_engr rows=155,923 cols=8 0.2s
-[FABPLAN] fab_step        188,847행  ['query_time', 'processid', 'stepseq', 'stepseq_type', 'areaname', 'eqptype']
-[FABPLAN] fab_pems         35,432행  ['query_time', 'pems_type', 'einecnno', 'processid', 'connecttype', 'stepseq']
-[FABPLAN] fab_sel             667행  ['query_time', 'firsteinecnno', 'nexteinecnno', 'selecteinecnno']
-[FABPLAN] fab_skiprule         86행  ['query_time', 'skiprule', 'lotid_ld', 'descript']
-[FABPLAN] fab_engr        155,923행  ['query_time', 'lotid', 'processid', 'stepseq', 'eqpid', 'newppid']
-[FABPLAN] PFR1 lot 4,465 중 order_seq 없음 2,757
-[STAGE] FabPlan 범위축약 시작
-[FABPLAN] 대상 lot 2,757
-[FABPLAN] STEP 에서 현스텝 찾음 2,757 / 대상 2,757 (STEP 원천 188,847행)
-[STAGE] FabPlan 범위축약 16.7s
-[ROWS] FabPlan scope(step) = 3,259
-[STAGE] FabPlan 설비그룹전개 시작
-[STAGE] FabPlan 설비그룹전개 0.0s
-D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py:3455: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
-  s = pd.concat(s_parts, ignore_index=True)
-[ROWS] s = 51,110
-[QUERY] KFR7_tip 조회 시작 2026-08-30 10:30:40
-[QUERY] KFR7_tip 라인분리(line_id) 10,062,377 -> 7,044,431
-[QUERY] KFR7_tip rows=7,044,431 cols=12 7.8s
-[STAGE] KFR7 tip 선필터 시작
-[STAGE] KFR7 tip 선필터 1.9s
-[FILTER] KFR7 tip 7,044,431 -> 112,564
-[STAGE] KFR7 tip 전처리 시작
-[STAGE] KFR7 tip 전처리 0.6s
-[QUERY] PFR1_tip 조회 시작 2026-08-30 10:30:50
-[QUERY] PFR1_tip <- 캐시(PFR1_KFR7_TIP)
-[QUERY] PFR1_tip 라인분리(line_id) 10,062,377 -> 3,017,946
-[QUERY] PFR1_tip rows=3,017,946 cols=12 1.5s
-[STAGE] PFR1 tip 선필터 시작
-[FILTER] FabPlan 이 있어 eqpid 조건은 걸지 않는다 (설비를 TIP 에서 찾아야 한다)
-[STAGE] PFR1 tip 선필터 0.6s
-[FILTER] PFR1 tip 3,017,946 -> 44,255
-[STAGE] PFR1 tip 전처리 시작
-[STAGE] PFR1 tip 전처리 0.3s
-[ROWS] t = 123,395
-[STAGE] FabPlan 설비그룹 시작
-[FABPLAN] TIP 매칭 20,466행 (대상 3,259 · TIP 122,407)
-[FABPLAN] 설비 전개 3,259 -> 20,466행 (설비 못 찾은 스텝 60 - 그래도 남긴다)
-[FABPLAN]   스텝당 설비 수 분포 {1: 476, 2: 1193, 3: 446, 4: 289, 5: 50} ... · 평균 6.4대 · 자기라인 18,387 · 호환 2,019
-[FABPLAN]   설비 속성 매칭 20,405/20,466 · AREA 20,403
-D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py:2129: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
-  out = pd.concat([s[~fab], grown], ignore_index=True)
-[FABPLAN] 현스텝 표시 2,757 -> 14,838  <-- 늘었다(설비마다 복제됨)
-[STAGE] FabPlan 설비그룹 0.5s
-[STAGE] hold 전처리 시작
-[HOLD] 최신 version_desc=20260830-060000 적용: 8,310 -> 8,310행
-[HOLD] 재공 lot 한정: 8,310 -> 7,982행
-[STAGE] hold 전처리 0.0s
-[ROWS] h1 = 5,796
-[ROWS] h2 = 1,187
-[ROWS] h3 = 373
-[STAGE] f3 생성 시작
-[TIP] wc_mask=01 rules=122,455 wildcard=['lot_type']
-[TIP] wc_mask=03 rules=1 wildcard=['lot_type', 'process']
-[TIP] wc_mask=05 rules=143 wildcard=['lot_type', 'step']
-[TIP] wc_mask=07 rules=587 wildcard=['lot_type', 'process', 'step']
-[TIP] wc_mask=09 rules=2 wildcard=['lot_type', 'ppid']
-[TIP] wc_mask=13 rules=207 wildcard=['lot_type', 'step', 'ppid']
-[TIP] 매칭 후보 = 162,389행
-[STATUS] 1. 원천 m.status (lot): {'HOLD': 5573, 'RUN': 828, 'WAIT': 6631}
-[STATUS] 2. 현스텝 행의 status: {'RUN': 828, 'HOLD': 5566, 'WAIT': 6627}
-[STATUS] 3. step_status(현스텝): {'HOLD': 5566, 'RUN': 827, 'WAIT': 3288, 'WAIT(진행불가)': 3340}
-[STATUS] 4. current_step_status: {'None': 11, 'HOLD': 5566, 'RUN': 827, 'WAIT': 3288, 'WAIT(진행불가)': 3340}
-[STATUS] 현스텝 행이 없는 lot 11 -> 이 lot 은 상태를 못 정한다
 Traceback (most recent call last):
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py", line 3613, in <module>
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py", line 3644, in <module>
     main()
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py", line 3503, in main
-    df_f3, tip_match, eqpgroup_trace = build_f3(con)
-  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py", line 2897, in build_f3
-    con.execute(f"""
-_duckdb.BinderException: Binder Error: Table "f" does not have a column named "category"
-
-Candidate bindings: : "AREA"
-
-LINE 7:             f.lot_id, f.carr_id, f.grade, f.category, f.lot_type, f.lot_level,
-                                      
+  File "D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py", line 3330, in main
+    df_lot = _lower_cols(df_lot).merge(m, on=["line", "lot_id"], how="left")
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\core\frame.py", line 10832, in merge
+    return merge(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\core\reshape\merge.py", line 170, in merge
+    op = _MergeOperation(
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\core\reshape\merge.py", line 794, in __init__
+    ) = self._get_merge_keys()
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\core\reshape\merge.py", line 1310, in _get_merge_keys
+    left_keys.append(left._get_label_or_level_values(lk))
+  File "C:\Users\minuk12.choi\AppData\Local\aipforge\lib\site-packages\pandas\core\generic.py", line 1911, in _get_label_or_level_values
+    raise KeyError(key)
+KeyError: 'line'
