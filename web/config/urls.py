@@ -27,6 +27,7 @@ urlpatterns = [
          name="api_holdtype_diag"),
     path("api/holdtype-trace/", views.api_holdtype_trace,
          name="api_holdtype_trace"),
+    path("api/hot-trace/", views.api_hot_trace, name="api_hot_trace"),
     path("api/balance/", views.api_balance, name="api_balance"),
     path("api/eqp-wait/", views.api_eqp_wait, name="api_eqp_wait"),
     path("api/debug-layout/", views.api_debug_layout, name="api_debug_layout"),

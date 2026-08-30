@@ -1794,6 +1794,77 @@ def api_holdtype_trace(request):
                         json_dumps_params={"ensure_ascii": False})
 
 
+def hot_trace(lot_id, line=None):
+    """한 lot 의 초HOT 이 왜 그 값인지 본다.
+
+    /master/ 초HOT 기준설정이 최우선이고, 없으면 CATEGORY 를 쓴다.
+    어느 쪽에서도 안 잡히면 어느 조건이 어긋났는지 보여 준다.
+    """
+    rules = _hot_rules()
+    snap = _latest_snapshot()
+    if not snap:
+        return {"ok": False, "reason": "f3_live 가 비어 있습니다"}
+    w = ["snapshot_at=%s", "lot_id=%s"]
+    a = [snap, lot_id]
+    if line:
+        w.append("`line`=%s")
+        a.append(line)
+    with connection.cursor() as cur:
+        have = set(_columns_of("f3_live"))
+        cols = [c for c in ("line", "lot_id", "grade", "lot_inform",
+                            "category") if c in have]
+        cur.execute(f"SELECT {', '.join('`%s`' % c for c in cols)}"
+                    f" FROM f3_live WHERE {' AND '.join(w)} LIMIT 1", a)
+        row = cur.fetchone()
+        if not row:
+            return {"ok": False, "reason": f"{lot_id} 을 찾지 못했습니다",
+                    "가진_컬럼": sorted(have & {"grade", "lot_inform",
+                                             "category"})}
+        r = dict(zip(cols, row))
+
+    info = str(r.get("lot_inform") or "").upper()
+    steps = []
+    for i, x in enumerate(rules):
+        why = []
+        if x["line"] and x["line"] != str(r.get("line") or "").strip():
+            why.append("line 불일치")
+        if x["grade"] and x["grade"] != str(r.get("grade") or "").strip().upper():
+            why.append("grade 불일치")
+        miss = [c for c in x["c"] if c not in info]
+        if miss:
+            why.append("조건 없음: " + ", ".join(miss))
+        steps.append({"순번": i + 1, "이름": x["name"],
+                      "line": x["line"] or "(전체)",
+                      "grade": x["grade"] or "(전체)",
+                      "조건": x["c"], "맞음": not why,
+                      "어긋남": why})
+        if not why:
+            break
+
+    std = hot_of(r, rules)
+    cat = r.get("category") or None
+    return {"ok": True, "lot": lot_id, "line": r.get("line"),
+            "grade": r.get("grade"),
+            "lot_inform_글자수": len(info),
+            "lot_inform_앞부분": info[:40],
+            "category": cat,
+            "기준정보_판정": std,
+            "최종_초HOT": std or cat,
+            "규칙수": len(rules),
+            "훑은_규칙": steps[-15:],
+            "안내": ("기준정보_판정 이 비고 category 도 비면 초HOT 이 빈다. "
+                   "훑은_규칙 의 '어긋남' 을 보세요.")}
+
+
+def api_hot_trace(request):
+    """초HOT 판정 과정. /api/hot-trace/?lot=1EA006.1"""
+    lot = request.GET.get("lot") or ""
+    if not lot:
+        return JsonResponse({"ok": False, "reason": "lot 을 주세요"})
+    return JsonResponse(hot_trace(lot, request.GET.get("line") or None),
+                        json_dumps_params={"ensure_ascii": False})
+
+
 def api_holdtype_diag(request):
     """HOLD 유형 판정 진단.
 
