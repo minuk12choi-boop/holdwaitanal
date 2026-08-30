@@ -612,9 +612,10 @@ function pickLine(line, ev) {
   } else {
     next = [line];
   }
-  const joined = next.join(",");
-  if (joined === LINE) { return; }
-  LINE = joined;
+  // [주의] 같은 값이라고 여기서 되돌아가면 안 된다.
+  //   페이지 마지막에서 pickLine(LINE) 으로 첫 조회를 시작하는데,
+  //   그때 값이 같아 조기 반환하면 화면이 통째로 비어 버린다.
+  LINE = next.join(",");
   const on = new Set(next);
   document.querySelectorAll("#lineseg button").forEach(b =>
     b.classList.toggle("on", on.has(b.dataset.line)));
