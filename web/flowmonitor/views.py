@@ -1896,6 +1896,18 @@ _ROWS_CACHE = {}          # (스냅샷, 조건) -> rows. 같은 스냅샷이면 
 _CLS_CACHE = {}           # lot -> (대분류, 중분류, 소분류). 스냅샷 단위 캐시.
 
 
+def _line_list(line):
+    """라인 인자를 목록으로. 쉼표로 여러 개를 받는다.
+
+    화면에서 라인을 복수 선택할 수 있다. 한 개만 와도 목록으로 다룬다.
+    """
+    if isinstance(line, (list, tuple, set)):
+        out = [str(x).strip() for x in line if str(x).strip()]
+    else:
+        out = [x.strip() for x in str(line or "").split(",") if x.strip()]
+    return out or [DEFAULT_LINE]
+
+
 def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
     """현재 스냅샷의 lot 단위 원자료.
 
@@ -1961,12 +1973,15 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
         else:
             sel.append(f"MIN(`{c}`) AS `{c}`")
 
+    # 라인은 여러 개를 고를 수 있다. 쉼표로 오면 IN 으로 건다.
+    lines = _line_list(line)
+    lph = ",".join(["%s"] * len(lines))
     if hist:
-        where = "biz_date = %s AND shift = %s AND `line` = %s"
-        params = [biz_date, shift, line]
+        where = f"biz_date = %s AND shift = %s AND `line` IN ({lph})"
+        params = [biz_date, shift] + lines
     else:
-        where = "snapshot_at = %s AND `line` = %s"
-        params = [snap, line]
+        where = f"snapshot_at = %s AND `line` IN ({lph})"
+        params = [snap] + lines
     cond = ""
     if types:
         cond = " AND lot_type IN (%s)" % ",".join(["%s"] * len(types))

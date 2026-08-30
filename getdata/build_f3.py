@@ -1607,7 +1607,9 @@ def attach_category(df_lot, df_cat):
         return out
 
     c = c[list(need)].copy()
-    c["lot_id"] = c["lot_id"].astype("string").str.strip()
+    # lot_id 표기를 맞춘다. 원천마다 대소문자·공백이 달라 그대로 두면
+    # 눈으로는 같은 lot 인데 조인이 안 붙는다.
+    c["lot_id"] = c["lot_id"].astype("string").str.strip().str.upper()
     c["reason_code"] = c["reason_code"].astype("string").str.strip()
     c = c.dropna(subset=["lot_id"])
     c = c[c["reason_code"].notna() & c["reason_code"].ne("")]
@@ -1618,15 +1620,37 @@ def attach_category(df_lot, df_cat):
     c = (c.sort_values(["lot_id", "_d"], kind="mergesort",
                        na_position="first")
            .drop_duplicates(subset=["lot_id"], keep="last"))
+    out["_key"] = out["lot_id"].astype("string").str.strip().str.upper()
     out = out.merge(c[["lot_id", "reason_code"]]
-                    .rename(columns={"reason_code": "_cat"}),
-                    on="lot_id", how="left")
+                    .rename(columns={"lot_id": "_key",
+                                     "reason_code": "_cat"}),
+                    on="_key", how="left")
+    out = out.drop(columns=["_key"])
     out["category"] = out["_cat"]
     out = out.drop(columns=["_cat"])
 
     got = int(out["category"].notna().sum())
     print(f"[CATEGORY] 이력 {before:,}행 -> lot {len(c):,}개 · "
           f"재공 {got:,}/{len(out):,} 매칭", flush=True)
+
+    # 왜 안 붙었는지 모양으로 본다(값은 내지 않는다).
+    #   대개 lot_id 표기가 다르다. 대소문자 · 앞뒤 공백 · 접미사.
+    miss = out.loc[out["category"].isna(), "lot_id"].astype("string")
+    have = c["lot_id"].astype("string")
+    if len(miss) and len(have):
+        hs = set(have)
+        up = sum(1 for x in miss if x is not None
+                 and x.upper() in {y.upper() for y in hs})
+        st = sum(1 for x in miss if x is not None and x.strip() in hs)
+        base = sum(1 for x in miss if x is not None
+                   and x.split(".")[0] in {y.split(".")[0] for y in hs})
+        print(f"[CATEGORY]   미매칭 {len(miss):,} 중 "
+              f"대소문자만 다름 {up:,} · 공백만 다름 {st:,} · "
+              f"점 앞부분은 같음 {base:,}", flush=True)
+        # 길이 분포로 접미사 유무를 가린다.
+        print(f"[CATEGORY]   lot_id 길이 재공 {miss.str.len().min()}~"
+              f"{miss.str.len().max()} · 이력 {have.str.len().min()}~"
+              f"{have.str.len().max()}", flush=True)
     return out
 
 

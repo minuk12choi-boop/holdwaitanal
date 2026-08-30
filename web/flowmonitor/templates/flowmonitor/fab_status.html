@@ -20,7 +20,8 @@
         {% for l in lines %}
           <button data-line="{{ l.line }}" {% if not l.ready %}disabled
             title="아직 적재된 데이터가 없습니다"{% endif %}
-            onclick="pickLine('{{ l.line }}')">{{ l.label }}</button>
+            title="Ctrl 을 누르고 고르면 여러 라인을 함께 봅니다"
+            onclick="pickLine('{{ l.line }}', event)">{{ l.label }}</button>
         {% endfor %}
       </div>
       <div class="prodf pgrid">
@@ -596,10 +597,24 @@ function renderProd(d) {
   syncClearBtn();
 }
 
-function pickLine(line) {
-  LINE = line;
+// LINE 은 쉼표로 이은 목록이다. Ctrl 로 여러 라인을 함께 볼 수 있다.
+function pickLine(line, ev) {
+  const add = ev && (ev.ctrlKey || ev.metaKey);
+  const cur = String(LINE || "").split(",").filter(Boolean);
+  let next;
+  if (add) {
+    next = cur.indexOf(line) >= 0 ? cur.filter(x => x !== line)
+                                  : cur.concat([line]);
+    if (!next.length) { next = [line]; }   // 하나는 남긴다
+  } else {
+    next = [line];
+  }
+  const joined = next.join(",");
+  if (joined === LINE) { return; }
+  LINE = joined;
+  const on = new Set(next);
   document.querySelectorAll("#lineseg button").forEach(b =>
-    b.classList.toggle("on", b.dataset.line === line));
+    b.classList.toggle("on", on.has(b.dataset.line)));
   document.getElementById("ddm").innerHTML = "";   // 라인마다 lot_type 이 다를 수 있다
   PROD1 = []; PROD2 = []; AREAS = [];              // 제품구분도 라인별로 다르다
   PLANS = []; LOTS = []; LAYERS = [];
