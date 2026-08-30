@@ -3301,6 +3301,28 @@ def main():
         if TRACE_DROP and SOURCE == "bdq":
             df_lot_raw = fetch("lot_raw", lot_query_raw, keep_sample=False)
         df_lot = fetch("lot", lot_query)
+
+        # 재공 원천이 비면 그 뒤 조인이 KeyError 로 터져 원인을 못 찾는다.
+        #   여기서 멈추고 무엇이 잘못됐는지 밝힌다.
+        _lc = _lower_cols(df_lot) if df_lot is not None else None
+        _need = ("line", "lot_id")
+        if _lc is None or not len(_lc) or any(c not in _lc.columns for c in _need):
+            have = list(_lc.columns)[:8] if _lc is not None else []
+            print("=" * 70, flush=True)
+            print(f"[ERROR] 재공 원천(lot)이 비었습니다. "
+                  f"{0 if _lc is None else len(_lc):,}행 · 컬럼 {have}",
+                  flush=True)
+            print("[ERROR] 확인할 것", flush=True)
+            print("[ERROR]   1) Spotfire 의 PFR1_KFR7_LOT 표에 행이 있는가",
+                  flush=True)
+            print("[ERROR]   2) s3drive_rest 가 그 표를 OK 로 올렸는가"
+                  " (upload_log_rest 확인)", flush=True)
+            print("[ERROR]   3) S3 의 PFR1_KFR7_LOT.parquet 크기와 시각",
+                  flush=True)
+            print("=" * 70, flush=True)
+            FAILED.append("재공 원천 없음")
+            return
+
         # 원천 그대로의 사본. 뒤 단계에서 줄어든 것을 재려면 이게 있어야 한다.
         #   (조인·필터를 거친 df_lot 과 비교하면 이미 사라진 뒤라 못 잡는다)
         df_lot_src = _lower_cols(df_lot).copy() if TRACE_DROP else None
