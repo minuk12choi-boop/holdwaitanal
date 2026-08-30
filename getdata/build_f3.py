@@ -2510,7 +2510,8 @@ def build_f3(con):
         SELECT
             ROW_NUMBER() OVER () AS ms_row_id,
             m.lot_inform, m.line, m.cur_line_id, m.sys_line_id, m.origin_line_id,
-            m.lot_id, m.carr_id, m.grade, m.lot_type, m.lot_level, m.cur_qty,
+            m.lot_id, m.carr_id, m.grade, m.category,
+            m.lot_type, m.lot_level, m.cur_qty,
             m.bay_name, m.sendfab,
             m.start_date, m.last_event_date, m.step_arrive_date, m.last_tkout_date,
             m.fa_object4, m.prod1, m.prod2, m.dept, m.dest_line_id,
@@ -3493,7 +3494,13 @@ def main():
         print(f"[ROWS] {k} = {len(v):,}", flush=True)
 
     con = duckdb.connect()
-    con.register("m", _lower_cols(df_lot))
+    _m = _lower_cols(df_lot)
+    if "category" not in _m.columns:
+        # CATEGORY 원천이 없는 환경. 아래 SQL 이 이 컬럼을 참조하므로
+        # 비어 있더라도 자리를 만들어 둔다.
+        _m = _m.copy()
+        _m["category"] = pd.NA
+    con.register("m", _m)
     con.register("s", s)
     con.register("t", t)
     for k, v in holds.items():

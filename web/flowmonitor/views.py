@@ -2362,14 +2362,17 @@ def api_summary(request):
             _bucket(by_wt, wk, q)
             _bucket(wt_line.setdefault(wk, {}),
                     str(r.get("line") or "-"), q)
-        if base and ok_st and ok_ty and ok_wt and ok_w0 and ok_pr:
+        # 누적막대는 **자기 축(status)을 조건에서 뺀다.**
+        #   ok_st 를 걸면 status 를 고르는 순간 그 조각만 남아 막대가
+        #   사라진다. 선택은 테두리로만 보이고 그래프는 유지돼야 한다.
+        if base and ok_ty and ok_wt and ok_w0 and ok_pr:
             _bucket(by_area.setdefault(ar, {}), st, q)
             _bucket(area_ln.setdefault(ar, {}).setdefault(st, {}),
                     str(r.get("line") or "-"), q)
             if ok_ar:
                 _bucket(by_line.setdefault(
                     str(r.get("line") or "-"), {}), st, q)
-        if base and ok_st and ok_ty and ok_wt and ok_ar and ok_pr and wt <= 0:
+        if base and ok_ty and ok_wt and ok_ar and ok_pr and wt <= 0:
             _bucket(by_wt0, b0, q)
             if b0:
                 _bucket(wt0_st.setdefault(b0, {}), st, q)
