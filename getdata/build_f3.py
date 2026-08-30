@@ -1021,7 +1021,7 @@ HOLD_ITEM_TYPES = {
 
 SUMMARY_OUTPUT_COLUMNS = [
     "lot_inform", "line", "현재위치", "전산라인", "투입라인", "lot_id", "carr_id",
-    "grade", "lot_type", "lot_level", "qty", "bay", "sendfab",
+    "grade", "category", "lot_type", "lot_level", "qty", "bay", "sendfab",
     "투입경과_일", "마지막이벤트경과_일", "스텝도착경과_일", "마지막작업경과_일",
     "lot_status", "step_status", "proc_id", "de_rank", "연속", "AREA", "layer_id",
     "현스텝", "order_seq", "step_seq", "step_desc", "recipe_id", "eqp_type",

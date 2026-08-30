@@ -4180,9 +4180,12 @@ def api_lots_live(request):
         cause = " / ".join(x for x in (head, m2) if x)
         detail = r.get("cause_detail") or holdtype_of(r, ht)
         rec["cause"] = f"{cause}({detail})" if (cause and detail) else cause
-        # 초HOT. /master/ 기준정보가 **최우선**이고, 거기서 안 잡히면
-        #   CATEGORY 이력(가장 최근 요청의 reason_code)을 쓴다.
-        rec["hot"] = hot_of(r, hot) or (r.get("category") or None)
+        # 초HOT.
+        #   CATEGORY 를 먼저 깔고, /master/ 기준정보가 잡히면 덮어쓴다.
+        #   (한쪽만 보는 구조보다 어디서 왔는지가 분명하다)
+        _hot = str(r.get("category") or "").strip() or None
+        _std = hot_of(r, hot)
+        rec["hot"] = _std or _hot
         row = {c: rec.get(c) for c in send_keys}
         row["_steps"] = int(r.get("_steps") or 1)
         out.append(row)
