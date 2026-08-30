@@ -1859,6 +1859,44 @@ def hot_trace(lot_id, line=None):
                    "훑은_규칙 의 '어긋남' 을 보세요.")}
 
 
+def api_col_diag(request):
+    """컬럼 실태 진단. /api/col-diag/?cols=prod1,category,grade
+
+    값이 실제로 어떻게 들어 있는지 본다. 기본값(NRD)이 안 걸리거나
+    초HOT 이 비는 원인이 대개 '값이 예상과 다름' 이다.
+    """
+    want = [c for c in (request.GET.get("cols")
+                        or "prod1,category,grade,lot_inform").split(",")
+            if c.strip()]
+    snap = _latest_snapshot()
+    if not snap:
+        return JsonResponse({"ok": False, "reason": "f3_live 가 비어 있습니다"})
+    have = set(_columns_of("f3_live"))
+    out = {}
+    with connection.cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM f3_live WHERE snapshot_at=%s", [snap])
+        total = cur.fetchone()[0]
+        for c in want:
+            c = c.strip()
+            if c not in have:
+                out[c] = {"있음": False}
+                continue
+            cur.execute(f"SELECT COUNT(*) FROM f3_live "
+                        f"WHERE snapshot_at=%s AND `{c}` IS NOT NULL "
+                        f"AND `{c}` <> ''", [snap])
+            filled = cur.fetchone()[0]
+            cur.execute(f"SELECT `{c}`, COUNT(*) c2 FROM f3_live "
+                        f"WHERE snapshot_at=%s GROUP BY `{c}` "
+                        f"ORDER BY c2 DESC LIMIT 12", [snap])
+            top = [{"값": (r[0] if r[0] is not None else "(NULL)"),
+                    "행": int(r[1])} for r in cur.fetchall()]
+            out[c] = {"있음": True, "채움": filled, "전체": total,
+                      "상위값": top}
+    return JsonResponse({"ok": True, "snapshot_at": _fmt_snap(snap),
+                         "기본_제품군_설정": DEFAULT_PROD1, "컬럼": out},
+                        json_dumps_params={"ensure_ascii": False})
+
+
 def api_hot_trace(request):
     """초HOT 판정 과정. /api/hot-trace/?lot=1EA006.1"""
     lot = request.GET.get("lot") or ""
@@ -2687,15 +2725,22 @@ def fab_status(request):
     # 처음 열 때 걸어 둘 제품군. 실제로 그 값이 있을 때만 건다.
     #   화면에서 뒤늦게 걸면 첫 조회가 조건 없이 나가 빈 화면이 스친다.
     d1 = []
-    if _table_exists("f3_live") and DEFAULT_PROD1:
+    if _table_exists("f3_live") and DEFAULT_PROD1 \
+            and "prod1" in _columns_of("f3_live"):
         snap = _latest_snapshot()
         if snap:
             with connection.cursor() as cur:
-                cur.execute("SELECT 1 FROM f3_live "
-                            "WHERE snapshot_at=%s AND prod1=%s LIMIT 1",
-                            [snap, DEFAULT_PROD1])
-                if cur.fetchone():
-                    d1 = [DEFAULT_PROD1]
+                cur.execute("SELECT DISTINCT prod1 FROM f3_live "
+                            "WHERE snapshot_at=%s AND prod1 IS NOT NULL "
+                            "AND prod1 <> ''", [snap])
+                opts = [r[0] for r in cur.fetchall()]
+            # 표기가 조금 달라도 걸리게 한다(대소문자·공백).
+            want = DEFAULT_PROD1.strip().upper()
+            hit = [o for o in opts if str(o).strip().upper() == want]
+            d1 = [hit[0]] if hit else []
+            if not d1:
+                print(f"[MAIN] 기본 제품군 '{DEFAULT_PROD1}' 없음. "
+                      f"있는 값 {sorted(opts)[:10]}", flush=True)
 
     return render(request, "flowmonitor/fab_status.html",
                   base_ctx(lines=lines, default_line=DEFAULT_LINE,
