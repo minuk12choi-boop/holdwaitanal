@@ -430,6 +430,10 @@ WHERE  line_id     IN ('KFR7', 'PFR1')
                                       'YYYYMMDD HH24MISS')
 
 
+9) PFR1_CATEGORY
+SELECT SYSDATE AS QUERY_TIME, req_date, lot_id, reason_code FROM  SMICDC_P3NRD.LOT_GRADE_REQ where req_status_type = 'EXECUTE' and reason_code <> '-' order by lot_id, req_date desc
+
+
 ================================================================================
 3. 참고 (매칭표 확인 완료 사항)
 ================================================================================
