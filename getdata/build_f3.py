@@ -971,6 +971,8 @@ S3_MAP = {
     "fab_sel": "PFR1_FABPLAN_SELECTCONNECTSPEC",
     "fab_skiprule": "PFR1_FABPLAN_SKIPRULE",
     "fab_engr": "PFR1_ENGR_LOT_PPID",
+    # CATEGORY 이력. lot 마다 최신 요청 한 건만 쓴다.
+    "category": "PFR1_CATEGORY",
 }
 
 # FabPlan 을 처리할지. 원천이 아직 안 올라왔으면 자동으로 건너뛴다.
@@ -1584,6 +1586,48 @@ def save_ssps_rules(df_prod):
         return 0
     print(f"[STD] f3_std_ssps {len(rows):,}건 저장", flush=True)
     return len(rows)
+
+
+def attach_category(df_lot, df_cat):
+    """lot 마다 **가장 최근 요청**의 reason_code 를 붙인다.
+
+    PFR1_CATEGORY 는 요청 이력이라 한 lot 에 여러 행이 있다.
+    req_date 가 가장 늦은 행 하나만 남긴다. 같은 날짜가 겹치면
+    뒤에 온 행을 쓴다(원천 순서를 안정 정렬로 유지).
+    """
+    out = _lower_cols(df_lot).copy()
+    out["category"] = pd.NA
+    if df_cat is None or not len(df_cat):
+        return out
+
+    c = _lower_cols(df_cat)
+    need = ("lot_id", "req_date", "reason_code")
+    if any(x not in c.columns for x in need):
+        print(f"[CATEGORY] 컬럼 부족 {list(c.columns)[:6]} - 건너뜀", flush=True)
+        return out
+
+    c = c[list(need)].copy()
+    c["lot_id"] = c["lot_id"].astype("string").str.strip()
+    c["reason_code"] = c["reason_code"].astype("string").str.strip()
+    c = c.dropna(subset=["lot_id"])
+    c = c[c["reason_code"].notna() & c["reason_code"].ne("")]
+    c["_d"] = _to_datetime(c["req_date"])
+
+    before = len(c)
+    # 최신 한 건만. NaT 는 맨 뒤로 밀어 유효한 날짜가 이기게 한다.
+    c = (c.sort_values(["lot_id", "_d"], kind="mergesort",
+                       na_position="first")
+           .drop_duplicates(subset=["lot_id"], keep="last"))
+    out = out.merge(c[["lot_id", "reason_code"]]
+                    .rename(columns={"reason_code": "_cat"}),
+                    on="lot_id", how="left")
+    out["category"] = out["_cat"]
+    out = out.drop(columns=["_cat"])
+
+    got = int(out["category"].notna().sum())
+    print(f"[CATEGORY] 이력 {before:,}행 -> lot {len(c):,}개 · "
+          f"재공 {got:,}/{len(out):,} 매칭", flush=True)
+    return out
 
 
 def attach_prod(df_lot, df_prod):
@@ -2856,7 +2900,7 @@ def build_f3(con):
             f.lot_inform, f.line,
             f.cur_line_id AS "현재위치", f.sys_line_id AS "전산라인",
             f.origin_line_id AS "투입라인",
-            f.lot_id, f.carr_id, f.grade, f.lot_type, f.lot_level,
+            f.lot_id, f.carr_id, f.grade, f.category, f.lot_type, f.lot_level,
             f.cur_qty AS qty, f.bay_name AS bay, f.sendfab,
             f."투입경과_일", f."마지막이벤트경과_일", f."스텝도착경과_일",
             f."마지막작업경과_일", f.fa_object4, f.prod1, f.prod2, f.dept,
@@ -3269,6 +3313,16 @@ def main():
                 df_lot = attach_prod(df_lot, df_prod)
                 # 기준정보가 우선이다. SSPS 로 채운 뒤 덮어쓴다.
                 df_lot = attach_std_product(df_lot)
+
+            # CATEGORY 이력. 없는 환경도 있어 실패해도 넘어간다.
+            with stage("CATEGORY 결합"):
+                try:
+                    df_cat = fetch("category", None)
+                except Exception as e:
+                    print(f"[CATEGORY] 원천 없음({type(e).__name__}) - 건너뜀",
+                          flush=True)
+                    df_cat = None
+                df_lot = attach_category(df_lot, df_cat)
 
         df_eqp = fetch("equipment", eqp_query)
         # 설비그룹은 하루에 한 번만 바뀌면 충분하다. 업무일(22시 기준) 단위로

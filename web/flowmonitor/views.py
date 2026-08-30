@@ -1944,7 +1944,7 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
     #   cause_detail 이 없으면 제약원인이 'User Hold' 까지만 나오고
     #   괄호 안 사유가 빠진다.
     for c in ("recipe_id", "step_seq", "step_desc", "lot_type", "cause_detail",
-              "grade", "lot_inform"):
+              "grade", "lot_inform", "category"):
         if c not in want:
             want.append(c)
 
@@ -4028,8 +4028,9 @@ def api_lots_live(request):
         cause = " / ".join(x for x in (head, m2) if x)
         detail = r.get("cause_detail") or holdtype_of(r, ht)
         rec["cause"] = f"{cause}({detail})" if (cause and detail) else cause
-        # 초HOT 은 기준정보로 그 자리에서 낸다(적재 컬럼이 아니다).
-        rec["hot"] = hot_of(r, hot)
+        # 초HOT. /master/ 기준정보가 **최우선**이고, 거기서 안 잡히면
+        #   CATEGORY 이력(가장 최근 요청의 reason_code)을 쓴다.
+        rec["hot"] = hot_of(r, hot) or (r.get("category") or None)
         row = {c: rec.get(c) for c in send_keys}
         row["_steps"] = int(r.get("_steps") or 1)
         out.append(row)

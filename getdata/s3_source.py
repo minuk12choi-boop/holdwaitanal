@@ -64,6 +64,12 @@ FAB_TABLES = [
     "PFR1_ENGR_LOT_PPID",
 ]
 
+# CATEGORY 이력. 아직 안 올라온 환경도 있어 선택 목록에 둔다.
+#   없으면 초HOT 은 /master/ 기준정보만으로 정한다.
+OPT_TABLES = [
+    "PFR1_CATEGORY",
+]
+
 # Spotfire 쪽 FMT 와 맞춘다. parquet 권장(pkl 대비 약 6% 크기).
 EXT = "parquet"
 # Oracle 이 대문자로 주는 컬럼명을 소문자로 통일한다(기존 전처리가 소문자 기준).
