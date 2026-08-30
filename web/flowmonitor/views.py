@@ -48,6 +48,9 @@ def base_ctx(**kw):
     ctx = {"menu": MENU, "snapshot_at": _fmt_snap(snap)}
     ctx.update(kw)
     return ctx
+# 처음 열 때 걸어 둘 제품군. 비우면 전체로 연다.
+DEFAULT_PROD1 = "NRD"
+
 DEFAULT_LINE = "KFR4"          # NRD
 
 # 상단 현황 카드. 좌측부터 고정 순서.
@@ -2680,8 +2683,23 @@ def fab_status(request):
                 ready = {r[0] for r in cur.fetchall()}
     for x in lines:
         x["ready"] = x["line"] in ready
+
+    # 처음 열 때 걸어 둘 제품군. 실제로 그 값이 있을 때만 건다.
+    #   화면에서 뒤늦게 걸면 첫 조회가 조건 없이 나가 빈 화면이 스친다.
+    d1 = []
+    if _table_exists("f3_live") and DEFAULT_PROD1:
+        snap = _latest_snapshot()
+        if snap:
+            with connection.cursor() as cur:
+                cur.execute("SELECT 1 FROM f3_live "
+                            "WHERE snapshot_at=%s AND prod1=%s LIMIT 1",
+                            [snap, DEFAULT_PROD1])
+                if cur.fetchone():
+                    d1 = [DEFAULT_PROD1]
+
     return render(request, "flowmonitor/fab_status.html",
-                  base_ctx(lines=lines, default_line=DEFAULT_LINE))
+                  base_ctx(lines=lines, default_line=DEFAULT_LINE,
+                           default_prod1=json.dumps(d1, ensure_ascii=False)))
 
 
 def fab_metrics(request):

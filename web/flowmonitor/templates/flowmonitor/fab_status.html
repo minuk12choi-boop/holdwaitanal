@@ -330,10 +330,10 @@ function onTypeCheck() {
   loadSummary();
 }
 
-let PROD1 = [], PROD2 = [], AREAS = [], PLANS = [], LOTS = [], LAYERS = [];
-// 처음 열 때 걸어 둘 제품군. 목록에 있을 때만 적용한다.
-const DEFAULT_PROD1 = "NRD";
-let PROD1_INIT = false;
+// 처음 열 때 걸어 둘 제품군. 서버가 목록에 있을 때만 채워 준다.
+//   화면에서 뒤늦게 걸면 첫 조회가 조건 없이 나가 빈 화면이 스쳐 보인다.
+let PROD1 = {{ default_prod1|safe }};
+let PROD2 = [], AREAS = [], PLANS = [], LOTS = [], LAYERS = [];
 const HAVE_DATES = new Set();      // 스냅샷이 있는 날짜
 let SNAP_DATE = "", SNAP_SHIFT = "";     // 빈 값이면 현재(f3_live)
 
@@ -590,24 +590,6 @@ function renderProd(d) {
     btn.title = isAll ? `${PROD_LABEL[which]} 전체` : cur.join(", ");
     btn.classList.toggle("on", !isAll);      // 필터가 걸려 있으면 라인처럼 강조
   };
-  // 처음 열 때 제품군 기본값(NRD)을 걸어 둔다.
-  //   한 번만 한다. 사용자가 직접 해제한 뒤 다시 걸리면 안 된다.
-  if (!PROD1_INIT) {
-    PROD1_INIT = true;
-    const opts = d.prod1_options || [];
-    if (!PROD1.length && opts.indexOf(DEFAULT_PROD1) >= 0) {
-      PROD1 = [DEFAULT_PROD1];
-      fill(1, opts, PROD1);
-      fill(2, d.prod2_options, PROD2);
-      fill(3, d.area_options, AREAS);
-      fill(4, d.plan_options, PLANS);
-      fill(5, d.lot_options, LOTS);
-      fill(6, d.layer_options, LAYERS);
-      syncClearBtn();
-      loadSummary();          // 그 조건으로 다시 받는다
-      return;
-    }
-  }
   fill(1, d.prod1_options, PROD1);
   fill(2, d.prod2_options, PROD2);
   fill(3, d.area_options, AREAS);
