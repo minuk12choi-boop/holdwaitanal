@@ -1871,6 +1871,59 @@ def hot_trace(lot_id, line=None):
                    "훑은_규칙 의 '어긋남' 을 보세요.")}
 
 
+def api_heat_diag(request):
+    """히트맵이 왜 비는지 본다. /api/heat-diag/?line=KFR4&days=14
+
+    날짜마다 원천에 행이 있는지, 축(layer_id/step_seq)이 채워졌는지 센다.
+    값은 내보내지 않는다.
+    """
+    line = request.GET.get("line") or DEFAULT_LINE
+    axis = request.GET.get("axis") or "layer"
+    col = "layer_id" if axis == "layer" else "step_seq"
+    try:
+        days = max(1, min(60, int(request.GET.get("days", "14") or 14)))
+    except ValueError:
+        days = 14
+    today = _biz_today()
+    since = today - dt.timedelta(days=days - 1)
+
+    from . import trend as TR
+    out = {}
+    for kind, tbl, lcol, lval, val in (
+            ("move", "f3_move_step", "sys_line_id", TR.move_line(line),
+             "move_qty"),
+            ("wip", "f3_wip_step", "`line`", line, "wip_qty")):
+        if not _table_exists(tbl):
+            out[kind] = {"있음": False}
+            continue
+        with connection.cursor() as cur:
+            cur.execute(
+                f"SELECT biz_date, COUNT(*) n,"
+                f" SUM(CASE WHEN `{col}` IS NULL OR TRIM(`{col}`)=''"
+                f"          OR `{col}`='-' THEN 1 ELSE 0 END) blank,"
+                f" COUNT(DISTINCT `{col}`) keys, SUM({val}) q"
+                f" FROM {tbl} WHERE {lcol}=%s AND biz_date>=%s"
+                f" AND biz_date<=%s GROUP BY biz_date ORDER BY biz_date",
+                [lval, since, today])
+            per = [{"날짜": str(r[0]), "행": int(r[1]),
+                    "축_빈값": int(r[2] or 0), "축_종류": int(r[3] or 0),
+                    "합계": int(r[4] or 0)} for r in cur.fetchall()]
+            # 그 라인 값이 아예 없는지도 본다
+            cur.execute(f"SELECT DISTINCT {lcol} FROM {tbl}"
+                        f" WHERE biz_date>=%s AND biz_date<=%s",
+                        [since, today])
+            lines = sorted(str(r[0]) for r in cur.fetchall())
+        have = {x["날짜"] for x in per}
+        miss = [str(since + dt.timedelta(days=i)) for i in range(days)
+                if str(since + dt.timedelta(days=i)) not in have]
+        out[kind] = {"있음": True, "찾는_라인값": lval,
+                     "그_기간_라인값": lines, "빈_날짜": miss, "날짜별": per}
+
+    return JsonResponse({"ok": True, "line": line, "axis": axis,
+                         "기간": [str(since), str(today)], "표": out},
+                        json_dumps_params={"ensure_ascii": False})
+
+
 def api_col_diag(request):
     """컬럼 실태 진단. /api/col-diag/?cols=prod1,category,grade
 
