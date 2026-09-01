@@ -51,6 +51,9 @@ def base_ctx(**kw):
 # 처음 열 때 걸어 둘 제품군. 비우면 전체로 연다.
 DEFAULT_PROD1 = "NRD"
 
+# GRADE 표에 늘 보일 칸. 값이 없는 lot 은 Nor 로 묶는다.
+GRADE_ORDER = ["G1", "G2", "G3", "G4", "G5", "Nor"]
+
 DEFAULT_LINE = "KFR4"          # NRD
 
 # 상단 현황 카드. 좌측부터 고정 순서.
@@ -2378,6 +2381,7 @@ def api_summary(request):
     tot = {"lots": 0, "qty": 0}
     by_type, by_status, by_wt, by_wt0 = {}, {}, {}, {}
     wt0_st, wt0_tot = {}, {}      # W/T 0 재공의 status 분해
+    by_grade, grade_prod = {}, {}  # GRADE 분포 · 제품별 GRADE
     tree = {}
 
     xf = _xfilters(request)
@@ -2485,6 +2489,11 @@ def api_summary(request):
         # 제품별 비율은 **자기 조건(제품·lot_type)** 을 빼고 센다.
         if base and ok_st and ok_wt and ok_w0 and ok_ar:
             _bucket(type_prod.setdefault(pr, {}), ty, q)
+        # GRADE 분포. 값이 없으면 Nor(일반)로 묶는다.
+        if base and ok_st and ok_ty and ok_wt and ok_w0 and ok_ar and ok_pr:
+            gr = str(r.get("grade") or "").strip().upper() or "Nor"
+            _bucket(by_grade, gr, q)
+            _bucket(grade_prod.setdefault(pr, {}), gr, q)
         if base and ok_st and ok_ty and ok_w0 and ok_ar and ok_pr:
             _bucket(by_wt, wk, q)
             _bucket(wt_line.setdefault(wk, {}),
@@ -2653,6 +2662,20 @@ def api_summary(request):
         "by_lot_type": [{"name": k, **by_type[k]}
                         for k in sorted(by_type, key=lot_type_key)],
         # 재공막대 '제품별 비율 보기'. 재공이 많은 제품이 위로 온다.
+        # GRADE 표. 정해진 순서로 두고, 그 밖의 값은 뒤에 붙인다.
+        "grades": GRADE_ORDER + [g for g in sorted(by_grade)
+                                 if g not in GRADE_ORDER],
+        "by_grade": {g: {"lots": int(v["lots"]), "qty": int(v["qty"])}
+                     for g, v in by_grade.items()},
+        "grade_by_prod": [
+            {"name": p,
+             "lots": int(sum(c["lots"] for c in v.values())),
+             "qty": int(sum(c["qty"] for c in v.values())),
+             "grades": {g: {"lots": int(c["lots"]), "qty": int(c["qty"])}
+                        for g, c in v.items()}}
+            for p, v in sorted(
+                grade_prod.items(),
+                key=lambda kv: -sum(c["qty"] for c in kv[1].values()))],
         "type_by_prod": [
             {"name": p,
              "lots": int(sum(c["lots"] for c in v.values())),

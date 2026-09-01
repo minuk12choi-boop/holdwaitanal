@@ -76,6 +76,19 @@
         <div class="stack" id="ws"></div>
         <div class="stleg" id="wg"></div>
         <div id="wprod"></div>
+
+        <div class="gradebox">
+          <div class="cellttl"><span>GRADE</span>
+            <span class="seg">
+              <button id="gu_lots" onclick="setGradeUnit('lots')">LOT</button>
+              <button class="on" id="gu_qty"
+                      onclick="setGradeUnit('qty')">매</button>
+            </span>
+            <button class="rankbtn" id="gpbtn" onclick="toggleGradeProd()"
+                    title="제품마다 GRADE 구성을 나눠 본다">제품별</button>
+          </div>
+          <div id="gradetbl"></div>
+        </div>
       </div>
     </div>
 
@@ -649,6 +662,55 @@ function setWt0Unit(u) {
 
 /* --- 재공 --- */
 let WIP_PROD = false;        // 재공막대를 제품별로 펼쳤나
+let GRADE_UNIT = "qty";      // GRADE 표 기준. 기본은 매수
+let GRADE_PROD = false;      // GRADE 표를 제품별로 펼쳤나
+
+function setGradeUnit(u) {
+  GRADE_UNIT = u;
+  document.getElementById("gu_lots").className = (u === "lots") ? "on" : "";
+  document.getElementById("gu_qty").className = (u === "qty") ? "on" : "";
+  renderGrade();
+}
+
+function toggleGradeProd() {
+  GRADE_PROD = !GRADE_PROD;
+  const b = document.getElementById("gpbtn");
+  if (b) { b.classList.toggle("on", GRADE_PROD); }
+  renderGrade();
+}
+
+// GRADE 표. 한 줄은 값, 그 아래 줄은 비율이다.
+function renderGrade() {
+  const d = DATA, u = GRADE_UNIT;
+  const box = document.getElementById("gradetbl");
+  if (!box) { return; }
+  const gs = d.grades || [];
+  if (!gs.length) { box.innerHTML = ""; return; }
+
+  const val = (o) => (o ? (u === "lots" ? o.lots : o.qty) : 0) || 0;
+  const row = (name, map, bold) => {
+    const cells = gs.map(g => val(map[g]));
+    const tot = cells.reduce((a, b) => a + b, 0);
+    const pct = (v) => (tot ? (v / tot * 100) : 0).toFixed(1);
+    return `<tr class="gv${bold ? " gtop" : ""}">`
+      + `<th>${q(name)}</th>`
+      + cells.map(v => `<td>${v ? nf(v) : "-"}</td>`).join("")
+      + `<td class="gsum">${nf(tot)}</td></tr>`
+      + `<tr class="gp"><th></th>`
+      + cells.map(v => `<td>${tot ? pct(v) + "%" : "-"}</td>`).join("")
+      + `<td class="gsum">${tot ? "100%" : "-"}</td></tr>`;
+  };
+
+  let body = row(u === "lots" ? "LOT" : "매", d.by_grade || {}, true);
+  if (GRADE_PROD) {
+    (d.grade_by_prod || []).forEach(p => {
+      body += row(p.name, p.grades || {}, false);
+    });
+  }
+  box.innerHTML = `<table class="gradet"><thead><tr><th></th>`
+    + gs.map(g => `<th>${q(g)}</th>`).join("")
+    + `<th class="gsum">합계</th></tr></thead><tbody>${body}</tbody></table>`;
+}
 
 function toggleWipProd() {
   WIP_PROD = !WIP_PROD;
@@ -2039,7 +2101,8 @@ function syncFromDF() {
     : { i: -1, node: null, list: [] };
 
   if (DATA) {
-    renderWip(); renderStatus(); renderWt(); renderWt0(); renderCause();
+    renderWip(); renderGrade(); renderStatus(); renderWt(); renderWt0();
+    renderCause();
     }
   const any = Object.keys(DF).length || DF_CAUSE || Object.keys(DF_X).length;
   markActiveCards();      // 표가 없어도 카드 강조는 항상 맞춘다
@@ -4735,7 +4798,8 @@ function loadSummary(keepFocus) {
       document.getElementById("snapAt").textContent = d.snapshot_at || "-";
       renderSnap(d);
       renderProd(d);
-      renderWip(); renderStatus(); renderWt(); renderWt0(); renderArea();
+      renderWip(); renderGrade(); renderStatus(); renderWt(); renderWt0();
+      renderArea();
       renderCause();
       renderInsight();
       dbgMark("요약 갱신");
