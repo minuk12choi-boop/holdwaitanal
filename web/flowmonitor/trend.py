@@ -558,11 +558,36 @@ def summarize(line, today=None, prod=None, plan=None, seed=0, top=3):
 #   가로 일자 · 세로 LAYER 또는 STEP · 값 MOVE 또는 재공
 #   제품 / PLAN 을 여러 개 고르면 세로축을 합친다.
 # ---------------------------------------------------------------------------
+def _axis_where(axis):
+    """축에서 뺄 행의 조건.
+
+    LAYER 는 숫자만 쓴다. 'EIN' 처럼 글자가 섞인 값은 공정 순서가 아니라
+    별도 표시라, 축에 두면 순서가 흐트러지고 칸만 늘어난다.
+    """
+    if axis != "layer":
+        return []
+    # 숫자 아닌 글자가 하나라도 있으면 뺀다.
+    #   REGEXP 는 DB 마다 달라서 문자별 LIKE 로 가른다(어디서나 된다).
+    #   [주의] LIKE 에서 '_' 는 '아무 글자 하나' 다. 그대로 쓰면 모든 값이
+    #   걸린다. 그런 글자는 ESCAPE 로 막는다.
+    out = ["layer_id IS NOT NULL", "TRIM(layer_id) <> ''"]
+    for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ-./ ":
+        out.append("layer_id NOT LIKE '%%{}%%'".format(ch))
+    out.append(r"layer_id NOT LIKE '%!_%' ESCAPE '!'")
+    return out
+
+
 def heatmap(line, today=None, days=7, axis="layer", metric="move",
             prod=None, plan=None):
     today = today or biz_today()
     since = today - dt.timedelta(days=days - 1)
-    col = "layer_id" if axis == "layer" else "step_seq"
+    if axis == "layer":
+        # LAYER 는 숫자만 쓴다. 글자가 섞인 것은 EIN 성 스텝이라 축에서 뺀다.
+        col = "layer_id"
+    else:
+        # STEP 은 앞 8자리로 끊는다. 뒤가 다른 것은 같은 스텝으로 본다.
+        #   6N341123 · 6N3411235 -> 둘 다 6N341123
+        col = "LEFT(step_seq, 8)"
 
     if metric == "wip":
         tbl, lcol, val = "f3_wip_step", "`line`", "wip_qty"
@@ -571,6 +596,7 @@ def heatmap(line, today=None, days=7, axis="layer", metric="move",
         w = [f"{lcol} = %s", "biz_date >= %s", "biz_date <= %s"]
         a = [line, since, today]
         lwhere, lval = f"{lcol} = %s", line
+        w += _axis_where(axis)
         if prod:
             w.append("prod2 IN (%s)" % ",".join(["%s"] * len(prod)))
             a += list(prod)
@@ -591,6 +617,7 @@ def heatmap(line, today=None, days=7, axis="layer", metric="move",
         w = ["sys_line_id = %s", "biz_date >= %s", "biz_date <= %s"]
         a = [move_line(line), since, today]
         lwhere, lval = "sys_line_id = %s", move_line(line)
+        w += _axis_where(axis)
         if prod:
             w.append("prod2 IN (%s)" % ",".join(["%s"] * len(prod)))
             a += list(prod)

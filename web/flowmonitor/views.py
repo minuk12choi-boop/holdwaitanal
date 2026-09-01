@@ -79,6 +79,18 @@ def _axis_key(v):
     return (1, t.upper(), 0.0)
 
 
+def _step_hit(v, want):
+    """히트맵 STEP 축(앞 8자리)으로 고른 값에 이 스텝이 드는가."""
+    t = str(v or "").strip().upper()
+    for w in want:
+        w = str(w or "").strip().upper()
+        if not w:
+            continue
+        if t == w or (len(w) == 8 and t.startswith(w)):
+            return True
+    return False
+
+
 def _grade_of(r):
     """그 lot 의 GRADE. 없으면 Nor."""
     g = str(r.get("grade") or "").strip().upper()
@@ -3746,7 +3758,9 @@ def api_balance(request):
             continue
         # 히트맵을 STEP 축으로 보다가 칸을 누른 경우. 좌측에는 이 필터가
         # 없으므로 표에서만 받는다.
-        if f_step and str(r.get("step_seq") or "").strip() not in f_step:
+        # 히트맵 STEP 축은 앞 8자리로 묶는다. 그 값으로 눌렀을 때
+        # 뒤가 더 긴 실제 스텝도 함께 잡혀야 한다.
+        if f_step and not _step_hit(r.get("step_seq"), f_step):
             continue
         st = r.get("lot_status") or "-"
         if f_type and (r.get("lot_type") or "-") not in f_type:
@@ -4310,7 +4324,9 @@ def api_lots_live(request):
             continue
         # 히트맵을 STEP 축으로 보다가 칸을 누른 경우. 좌측에는 이 필터가
         # 없으므로 표에서만 받는다.
-        if f_step and str(r.get("step_seq") or "").strip() not in f_step:
+        # 히트맵 STEP 축은 앞 8자리로 묶는다. 그 값으로 눌렀을 때
+        # 뒤가 더 긴 실제 스텝도 함께 잡혀야 한다.
+        if f_step and not _step_hit(r.get("step_seq"), f_step):
             continue
         if or_causes:
             ids = set(_eqp_ids(r))
