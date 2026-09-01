@@ -2904,8 +2904,9 @@ STD_CARDS = [
          {"k": "module2", "t": "MODULE2", "w": "md"},
      ]},
     {"key": "product", "table": "f3_std_product", "title": "제품구분",
-     "desc": "lot_id 의 각 글자와 PLAN 이 모두 맞으면 그 PRODUCT_NAME 으로 "
-             "본다. 비운 칸은 따지지 않는다. 대소문자는 구분하지 않는다. "
+     "desc": "lot_id 의 각 글자와 TYPE · PLAN 이 모두 맞으면 그 "
+             "PRODUCT_NAME 으로 본다. 비운 칸은 따지지 않는다. "
+             "대소문자는 구분하지 않는다. "
              "여기서 정해지지 않은 것만 SSPS 제품명을 쓴다.",
      "cols": [
          {"k": "lot_char1", "t": "1번째", "w": "xs"},
@@ -2913,6 +2914,7 @@ STD_CARDS = [
          {"k": "lot_char3", "t": "3번째", "w": "xs"},
          {"k": "lot_char4", "t": "4번째", "w": "xs"},
          {"k": "lot_char5", "t": "5번째", "w": "xs"},
+         {"k": "lot_type", "t": "TYPE", "w": "sm"},
          {"k": "proc_id", "t": "PLAN", "w": "md"},
          {"k": "product_name", "t": "PRODUCT_NAME", "req": True, "w": "md"},
      ]},
@@ -2988,7 +2990,8 @@ STD_DDL = {
     "f3_std_product": [
         ("lot_char1", "VARCHAR(4) NULL"), ("lot_char2", "VARCHAR(4) NULL"),
         ("lot_char3", "VARCHAR(4) NULL"), ("lot_char4", "VARCHAR(4) NULL"),
-        ("lot_char5", "VARCHAR(4) NULL"), ("proc_id", "VARCHAR(32) NULL"),
+        ("lot_char5", "VARCHAR(4) NULL"), ("lot_type", "VARCHAR(8) NULL"),
+        ("proc_id", "VARCHAR(32) NULL"),
         ("product_name", "VARCHAR(64) NULL"),
         ("updated_at", "DATETIME NULL"),
     ],
@@ -2996,7 +2999,10 @@ STD_DDL = {
 
 
 def _ensure_std(table):
-    """없으면 만든다. 있으면 아무 일도 하지 않는다.
+    """없으면 만들고, 있으면 **빠진 컬럼만 더한다.**
+
+    기준정보에 칸을 새로 붙일 때마다 기존 테이블이 옛 모양이라 저장이
+    깨졌다. 새 컬럼은 NULL 로 들어가므로 기존 값은 그대로다.
 
     DB 방언을 타지 않게 최소한의 문법만 쓴다(MySQL · SQLite 공통).
     """
@@ -3004,6 +3010,16 @@ def _ensure_std(table):
     if not spec:
         return
     if _table_exists(table):
+        have = {c.lower() for c in _columns_of(table)}
+        add = [(k, t) for k, t in spec if k.lower() not in have]
+        for k, t in add:
+            try:
+                with connection.cursor() as cur:
+                    cur.execute(f"ALTER TABLE `{table}` ADD COLUMN `{k}` {t}")
+                print(f"[STD] {table} 에 {k} 추가", flush=True)
+            except Exception as e:
+                print(f"[STD] {table}.{k} 추가 실패: {type(e).__name__}: {e}",
+                      flush=True)
         return
     # id 는 조회·정렬에 쓰이므로 반드시 둔다. 자동 증가 문법은 DB 마다
     # 다르므로 지금 연결에 맞춰 고른다.
@@ -3341,7 +3357,7 @@ def _product_rules():
     if not _table_exists("f3_std_product"):
         return []
     cols = ["lot_char1", "lot_char2", "lot_char3", "lot_char4",
-            "lot_char5", "proc_id", "product_name"]
+            "lot_char5", "lot_type", "proc_id", "product_name"]
     with connection.cursor() as cur:
         cur.execute(f"SELECT {', '.join(cols)} FROM f3_std_product")
         rules = [dict(zip(cols, r)) for r in cur.fetchall()]
@@ -3360,6 +3376,7 @@ def product_of(row, rules):
     """
     lot = str(row.get("lot_id") or "").upper()
     plan = str(row.get("proc_id") or "").strip().upper()
+    ltype = str(row.get("lot_type") or "").strip().upper()
     got = None
     for r in rules:                       # 적은 것부터라 마지막이 가장 구체적
         ok = True
@@ -3369,6 +3386,9 @@ def product_of(row, rules):
                 ok = False
                 break
         if not ok:
+            continue
+        wt = str(r.get("lot_type") or "").strip().upper()
+        if wt and ltype != wt:
             continue
         wp = str(r.get("proc_id") or "").strip().upper()
         if wp and plan != wp:

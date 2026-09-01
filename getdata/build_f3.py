@@ -1481,21 +1481,28 @@ def attach_std_product(lot):
     비운 칸은 따지지 않는다. 조건이 많이 맞는(구체적인) 규칙이 이긴다.
     여기서 정해진 lot 은 SSPS 제품명을 덮어쓰지 않는다.
     """
-    rules = _std_table("f3_std_product",
-                       ["lot_char1", "lot_char2", "lot_char3", "lot_char4",
-                        "lot_char5", "proc_id", "product_name"])
+    _cols = ["lot_char1", "lot_char2", "lot_char3", "lot_char4",
+             "lot_char5", "lot_type", "proc_id", "product_name"]
+    # lot_type 은 나중에 생긴 컬럼이다. 없으면 그것만 빼고 읽는다.
+    rules = _std_table("f3_std_product", _cols)
+    if not rules:
+        rules = _std_table("f3_std_product",
+                           [c for c in _cols if c != "lot_type"])
     if not rules:
         return lot
 
     up = lot["lot_id"].astype("string").str.upper()
     plan = lot.get("proc_id", pd.Series("", index=lot.index))
     plan = plan.astype("string").str.strip().str.upper().fillna("")
+    ltype = lot.get("lot_type", pd.Series("", index=lot.index))
+    ltype = ltype.astype("string").str.strip().str.upper().fillna("")
     ch = {i: up.str.slice(i - 1, i) for i in range(1, 6)}
 
     # 조건 수가 많은 규칙이 이긴다. 적은 것부터 덮어써 마지막에 큰 것이 남는다.
     def _n(r):
         return sum(1 for k in ("lot_char1", "lot_char2", "lot_char3",
-                               "lot_char4", "lot_char5", "proc_id")
+                               "lot_char4", "lot_char5", "lot_type",
+                               "proc_id")
                    if str(r.get(k) or "").strip())
 
     hit_n = pd.Series(-1, index=lot.index)
@@ -1509,6 +1516,9 @@ def attach_std_product(lot):
             want = str(r.get(f"lot_char{i}") or "").strip().upper()
             if want:
                 m &= ch[i].eq(want)
+        wt = str(r.get("lot_type") or "").strip().upper()
+        if wt:
+            m &= ltype.eq(wt)
         wp = str(r.get("proc_id") or "").strip().upper()
         if wp:
             m &= plan.eq(wp)
