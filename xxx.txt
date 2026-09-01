@@ -1,1 +1,52 @@
-{"ok": true, "snapshot_at": "2026-08-30 11:45", "기본_제품군_설정": "NRD", "컬럼": {"prod1": {"있음": true, "채움": 17124, "전체": 20462, "상위값": [{"값": "DRAM", "행": 8110}, {"값": "(NULL)", "행": 3338}, {"값": "FLASH", "행": 2367}, {"값": "PG", "행": 1902}, {"값": "G_TEST", "행": 1676}, {"값": "EG", "행": 1461}, {"값": "EG_TEST", "행": 1002}, {"값": "NRD", "행": 606}]}, "category": {"있음": false}, "grade": {"있음": true, "채움": 9046, "전체": 20462, "상위값": [{"값": "(NULL)", "행": 11416}, {"값": "G3", "행": 5102}, {"값": "G4", "행": 1432}, {"값": "G2", "행": 1352}, {"값": "G1", "행": 1159}, {"값": "G99", "행": 1}]}, "lot_inform": {"있음": true, "채움": 8077, "전체": 20462, "상위값": [{"값": "(NULL)", "행": 12385}, {"값": "마스킹", "행": 216}, {"값": "마스킹", "행": 83}, {"값": "마스킹", "행": 81}, {"값": "마스킹", "행": 80}, {"값": "마스킹", "행": 80}, {"값": "마스킹", "행": 72}, {"값": "마스킹", "행": 49}, {"값": "마스킹", "행": 47}, {"값": "마스킹", "행": 35}, {"값": "마스킹", "행": 33}, {"값": "마스킹", "행": 33}]}}}
+Could not execute function call 's3drive_path'
+
+
+Error executing Python script:
+
+MemoryError: 
+
+Traceback (most recent call last):
+  File "data_function.py", line 289, in evaluate
+    self._read_inputs(result)
+  File "data_function.py", line 343, in _read_inputs
+    input_.read(self.globals, self.debug)
+  File "data_function.py", line 97, in read
+    dataframe = sbdf.import_data(self.file)
+  File "sbdf.py", line 79, in import_data
+    _import_table_slices(file, column_names, pd_data, tmeta)
+  File "sbdf.py", line 157, in _import_table_slices
+    pd_data[column_names[i]].append(None if invalid else value)
+
+
+
+   at Spotfire.Dxp.Data.DataFunctions.Executors.LocalPythonFunctionClient.<RunFunction>d__8.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.Executors.PythonScriptExecutor.<ExecuteFunction>d__11.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
+
+
+
+Could not execute function call 's3drive_path'
+
+
+Error executing Python script:
+
+MemoryError: 
+
+Traceback (most recent call last):
+  File "data_function.py", line 289, in evaluate
+    self._read_inputs(result)
+  File "data_function.py", line 343, in _read_inputs
+    input_.read(self.globals, self.debug)
+  File "data_function.py", line 97, in read
+    dataframe = sbdf.import_data(self.file)
+  File "sbdf.py", line 79, in import_data
+    _import_table_slices(file, column_names, pd_data, tmeta)
+  File "sbdf.py", line 157, in _import_table_slices
+    pd_data[column_names[i]].append(None if invalid else value)
+
+
+
+   at Spotfire.Dxp.Data.DataFunctions.Executors.LocalPythonFunctionClient.<RunFunction>d__8.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.Executors.PythonScriptExecutor.<ExecuteFunction>d__11.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
+
