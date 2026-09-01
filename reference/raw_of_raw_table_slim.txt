@@ -1,0 +1,110 @@
+--------------------------------------------------------------------------------
+-- raw_of_raw_table_slim.txt
+--   메모리 부족(MemoryError)을 피하려고 **행을 원천에서 줄인** 쿼리다.
+--   기존 raw_of_raw_table.txt 는 그대로 두고, 이 두 개만 갈아 끼운다.
+--
+--   [왜]
+--     Spotfire 는 스크립트를 돌리기 전에 표 전체를 메모리로 읽는다.
+--     그런데 build_f3 는 그중 1~2% 만 쓰고 버린다.
+--
+--       STEP_PATH  6,805,950 행  ->  scope   14,215 (0.2%)
+--       TIP        7,044,431 행  ->  선필터 112,564 (1.6%)
+--
+--     그 99% 를 안 가져오면 읽는 단계에서 죽지 않는다.
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+-- 3) PFR1_KFR7_STEP_PATH  (기존과 동작 동일. 참고용으로 함께 둔다)
+--
+--    이미 재공(Active/Hold) lot 만 가져오고 있다. 더 줄일 여지가 없다.
+--    order_seq 로 자르지 않는 것은 의도다(조회 시점 차이로 현스텝이 잘린다).
+--
+--    이 표가 여전히 크면 줄일 수 있는 것은 lot 수뿐이다. 재공이 13,000 개면
+--    lot 당 평균 520 스텝이라는 뜻이므로, 공정 경로 자체가 긴 것이다.
+--    그때는 데이터 함수를 order_seq 구간으로 나눈다(아래 3-A 참고).
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+-- 3-A) STEP_PATH 를 셋으로 나눠 받는 경우
+--      Spotfire 표 세 개를 만들고 데이터 함수도 셋으로 나눈다.
+--      MOD 값만 0 / 1 / 2 로 바꿔 세 벌을 만든다.
+--
+--      표 이름 : PFR1_KFR7_STEP_PATH_0 · _1 · _2
+--      읽는 쪽(build_f3)은 셋을 이어 붙인다.
+--------------------------------------------------------------------------------
+-- (아래 WHERE 절만 기존 3) 쿼리의 양쪽 SELECT 에 각각 덧붙인다)
+--   AND MOD(p.order_seq, 3) = 0        <- _0 표
+--   AND MOD(p.order_seq, 3) = 1        <- _1 표
+--   AND MOD(p.order_seq, 3) = 2        <- _2 표
+
+
+--------------------------------------------------------------------------------
+-- 4) PFR1_KFR7_TIP  (행을 줄인 판)
+--
+--    재공 lot 이 실제로 지나는 공정(proc_id)의 규칙만 가져온다.
+--    **와일드카드 '-' 는 반드시 남긴다.** 그것이 없으면 특정 공정을
+--    지정하지 않은 전역 규칙이 통째로 사라진다.
+--
+--    lot_type 컬럼은 없다. python 이 '-'(와일드카드)로 채운다.
+--------------------------------------------------------------------------------
+SELECT sysdate as query_time,
+'PFR1' as line_id,
+       process,
+       step,
+       ppid,
+       eqpid,
+       chamberid,
+       type,
+       checkcount,
+       tkin_count,
+       updated,
+       eventtime
+FROM   smicdc_p3nrd.trackinprevent t
+WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
+  AND (t.process IS NULL
+       OR t.process = '-'
+       OR t.process IN (SELECT DISTINCT proc_id
+                        FROM   smicdc_p3nrd.mc_lot
+                        WHERE  lot_status_seg IN ('Active', 'Hold')))
+
+union all
+
+SELECT sysdate as query_time,
+'KFR7' as line_id,
+       process,
+       step,
+       ppid,
+       eqpid,
+       chamberid,
+       type,
+       checkcount,
+       tkin_count,
+       updated,
+       eventtime
+FROM   smicdc_nrdk.trackinprevent t
+WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
+  AND (t.process IS NULL
+       OR t.process = '-'
+       OR t.process IN (SELECT DISTINCT proc_id
+                        FROM   smicdc_nrdk.mc_lot
+                        WHERE  lot_status_seg IN ('Active', 'Hold')))
+;
+
+
+--------------------------------------------------------------------------------
+-- 4-A) 더 줄여야 하면 step 까지 좁힌다
+--
+--      위로 부족하면 (process, step) 짝으로 건다. 다만 재공이 앞으로 갈
+--      스텝의 규칙까지 필요하므로, step 은 좁히지 않는 편이 안전하다.
+--      꼭 필요할 때만 쓴다.
+--------------------------------------------------------------------------------
+--   AND (t.step IS NULL OR t.step = '-'
+--        OR (t.process, t.step) IN (SELECT proc_id, step_seq
+--                                   FROM   smicdc_p3nrd.mc_lot_step_path p,
+--                                          (SELECT DISTINCT lot_id
+--                                           FROM   smicdc_p3nrd.mc_lot
+--                                           WHERE  lot_status_seg
+--                                                  IN ('Active','Hold')) c
+--                                   WHERE  p.lot_id = c.lot_id))
