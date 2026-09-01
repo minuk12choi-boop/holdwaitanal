@@ -8,6 +8,7 @@
 import datetime as dt
 
 import json
+import re
 
 from django.db import connection, transaction, ProgrammingError, OperationalError
 from django.http import JsonResponse
@@ -56,6 +57,26 @@ GRADE_ORDER = ["G1", "G2", "G3", "G4", "G5", "Nor"]
 
 # 등급이 없다고 보는 값. NULL · 빈칸 · '-' 를 같게 본다.
 GRADE_NONE = ("", "-", "N/A", "NA", "NONE")
+
+
+def _axis_key(v):
+    """LAYER · STEP 축 정렬 키.
+
+    문자열로 세우면 '10.0' 이 '2.0' 보다 앞선다. 숫자 부분은 숫자로 견준다.
+    '010' 같은 앞자리 0 도, 'A12' 같은 섞인 값도 함께 다룬다.
+    """
+    t = str(v if v is not None else "").strip()
+    if not t:
+        return (2, "", 0.0)          # 빈 값은 맨 뒤
+    try:
+        return (0, "", float(t))     # 순수 숫자
+    except ValueError:
+        pass
+    # 앞의 글자와 뒤의 숫자를 나눠 본다(A12 · L-3 ...)
+    m = re.match(r"^([^0-9]*)(\d+(?:\.\d+)?)", t)
+    if m:
+        return (1, m.group(1).upper(), float(m.group(2)))
+    return (1, t.upper(), 0.0)
 
 
 def _grade_of(r):
@@ -1919,6 +1940,26 @@ def api_heat_diag(request):
         out[kind] = {"있음": True, "찾는_라인값": lval,
                      "그_기간_라인값": lines, "빈_날짜": miss, "날짜별": per}
 
+    # 재공은 f3_history 에서 만들어진다. 그 원천이 비면 히트맵도 빈다.
+    if _table_exists("f3_history"):
+        with connection.cursor() as cur:
+            cur.execute(
+                "SELECT biz_date, shift, COUNT(*) FROM f3_history "
+                "WHERE biz_date>=%s AND biz_date<=%s "
+                "GROUP BY biz_date, shift ORDER BY biz_date, shift",
+                [since, today])
+            hist = {}
+            for bd_, sh_, n_ in cur.fetchall():
+                hist.setdefault(str(bd_), {})[sh_] = int(n_)
+        hmiss = [str(since + dt.timedelta(days=i)) for i in range(days)
+                 if str(since + dt.timedelta(days=i)) not in hist]
+        out["history"] = {"있음": True, "빈_날짜": hmiss,
+                          "날짜별_shift": hist,
+                          "안내": ("여기 없는 날짜는 재공 히트맵도 빈다. "
+                                 "backfill_wip.py 는 f3_history 를 읽는다.")}
+    else:
+        out["history"] = {"있음": False}
+
     return JsonResponse({"ok": True, "line": line, "axis": axis,
                          "기간": [str(since), str(today)], "표": out},
                         json_dumps_params={"ensure_ascii": False})
@@ -3761,7 +3802,7 @@ def api_balance(request):
     def rank(p):
         return (0 if p in main else 1, main.get(p, 0), p)
 
-    xs = sorted(layers)
+    xs = sorted(layers, key=_axis_key)
     sts = [x for x in STATUS_ORDER
            if any(x in total.get(l, {}) for l in xs)]
 

@@ -533,16 +533,12 @@ def main():
             keep = (t >= ts_from) & (t < ts_to)
             df = df[keep.fillna(False)]
     t_fetched = dt.datetime.now()
-    # 원천이 담고 있는 lot_type. f3 가 쓰는 것과 다르면 MOVE 가 모자란다.
+    # MOVE 는 PP · PG · PB 만 센다. EG · EE 는 의도적으로 제외한다
+    # (설비 평가·엔지니어링 작업은 생산 MOVE 가 아니다).
     try:
         _lt = sorted(set(_s(df.get("lot_type", pd.Series(dtype=str)))
                          .str.upper()) - {""})
-        _want = {"PP", "PG", "EG", "EE"}
-        _miss = sorted(_want - set(_lt))
         print(f"[MOVE] 원천 lot_type {_lt}", flush=True)
-        if _miss:
-            print(f"[MOVE]   f3 가 쓰는 {sorted(_want)} 중 {_miss} 가 없다."
-                  f" MOVE 쿼리의 lot_type 조건을 확인하세요.", flush=True)
     except Exception:
         pass
 
