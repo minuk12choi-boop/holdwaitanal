@@ -50,3 +50,66 @@ Traceback (most recent call last):
    at Spotfire.Dxp.Data.DataFunctions.Executors.PythonScriptExecutor.<ExecuteFunction>d__11.MoveNext()
    at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
 
+
+
+Could not execute function call 's3drive_path' (2)
+
+
+Error executing Python script:
+
+MemoryError: 
+
+Traceback (most recent call last):
+  File "data_function.py", line 289, in evaluate
+    self._read_inputs(result)
+  File "data_function.py", line 343, in _read_inputs
+    input_.read(self.globals, self.debug)
+  File "data_function.py", line 97, in read
+    dataframe = sbdf.import_data(self.file)
+  File "sbdf.py", line 79, in import_data
+    _import_table_slices(file, column_names, pd_data, tmeta)
+  File "sbdf.py", line 145, in _import_table_slices
+    tslice = _TableSlice.read(file, tmeta, None)
+  File "sbdf.py", line 481, in read
+    tslice.add(_ColumnSlice.read(file))
+  File "sbdf.py", line 417, in read
+    values = _ValueArray.read(file)
+  File "sbdf.py", line 911, in read
+    handle.obj1 = _SbdfObject.read_array(file, valtype)
+  File "sbdf.py", line 761, in read_array
+    return cls._read_n(file, count, valuetype, True)
+  File "sbdf.py", line 790, in _read_n
+    data.append(valuetype.to_python(dest))
+
+
+
+   at Spotfire.Dxp.Data.DataFunctions.Executors.LocalPythonFunctionClient.<RunFunction>d__8.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.Executors.PythonScriptExecutor.<ExecuteFunction>d__11.MoveNext()
+   at Spotfire.Dxp.Data.DataFunctions.DataFunctionExecutorService.<ExecuteFunction>d__8.MoveNext()
+
+
+
+Load report for table 'PFR1_KFR7_LOT_GRADE'
+
+Linked data table 'PFR1_KFR7_LOT_GRADE': 
+There were no matching columns.
+The following columns were added: QUERY_TIME, LINE, CUR_LINE_ID, SYS_LINE_ID, ORIGIN_LINE_ID, LOT_ID, CARR_ID, LOT_TYPE, GRADE, LOT_LEVEL, CUR_QTY, BAY_NAME, STATUS, PROC_ID, ORDER_SEQ, STEP_SEQ, START_DATE, LAST_TKOUT_DATE, STEP_ARRIVE_DATE, LAST_EVENT_DATE, SENDFAB, LOT_INFORM, DEST_LINE_ID
+Missing columns: Error Occurred: Fail to load department info
+
+
+Load report for table 'PFR1_KFR7_LOT_GRADE'
+
+Linked data table 'PFR1_KFR7_LOT_GRADE': 
+There were no matching columns.
+The following columns were added: Error Occurred: Fail to load department info
+Missing columns: QUERY_TIME, LINE, CUR_LINE_ID, SYS_LINE_ID, ORIGIN_LINE_ID, LOT_ID, CARR_ID, LOT_TYPE, GRADE, LOT_LEVEL, CUR_QTY, BAY_NAME, STATUS, PROC_ID, ORDER_SEQ, STEP_SEQ, START_DATE, LAST_TKOUT_DATE, STEP_ARRIVE_DATE, LAST_EVENT_DATE, SENDFAB, LOT_INFORM, DEST_LINE_ID
+
+
+Load report for table 'PFR1_KFR7_LOT_GRADE'
+
+Linked data table 'PFR1_KFR7_LOT_GRADE': 
+There were no matching columns.
+The following columns were added: Error Occurred: Fail to load department info
+Missing columns: QUERY_TIME, LINE, CUR_LINE_ID, SYS_LINE_ID, ORIGIN_LINE_ID, LOT_ID, CARR_ID, LOT_TYPE, GRADE, LOT_LEVEL, CUR_QTY, BAY_NAME, STATUS, PROC_ID, ORDER_SEQ, STEP_SEQ, START_DATE, LAST_TKOUT_DATE, STEP_ARRIVE_DATE, LAST_EVENT_DATE, SENDFAB, LOT_INFORM, DEST_LINE_ID
+
+
