@@ -56,6 +56,7 @@
 
     <!-- 재공 뷰 -->
     <div class="cell" id="wipcard">
+      <div class="cellttl"><span>재공</span></div>
       <div class="wip">
         <div class="top">
           <div class="nums">
@@ -78,15 +79,13 @@
         <div id="wprod"></div>
 
         <div class="gradebox">
-          <div class="cellttl"><span>GRADE</span>
-            <span class="gradebtns">
-              <span class="seg">
-                <button id="gu_lots" onclick="setGradeUnit('lots')">LOT</button>
-                <button class="on" id="gu_qty"
-                        onclick="setGradeUnit('qty')">매</button>
-              </span>
-              <button class="rankbtn" id="gpbtn" onclick="toggleGradeProd()"
-                      title="제품마다 GRADE 구성을 나눠 본다">제품별</button>
+          <div class="gradebtns">
+            <button class="rankbtn" id="gpbtn" onclick="toggleGradeProd()"
+                    title="제품마다 GRADE 구성을 나눠 본다">제품별</button>
+            <span class="seg">
+              <button id="gu_lots" onclick="setGradeUnit('lots')">LOT</button>
+              <button class="on" id="gu_qty"
+                      onclick="setGradeUnit('qty')">매</button>
             </span>
           </div>
           <div id="gradetbl"></div>
