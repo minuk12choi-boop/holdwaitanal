@@ -570,10 +570,12 @@ def _axis_where(axis):
     #   REGEXP 는 DB 마다 달라서 문자별 LIKE 로 가른다(어디서나 된다).
     #   [주의] LIKE 에서 '_' 는 '아무 글자 하나' 다. 그대로 쓰면 모든 값이
     #   걸린다. 그런 글자는 ESCAPE 로 막는다.
+    #   [주의] 이 문자열은 파라미터가 있는 execute 로 넘어간다. 드라이버가
+    #   '%' 를 자리표시자로 읽으므로 SQL 안의 % 는 모두 '%%' 로 적는다.
     out = ["layer_id IS NOT NULL", "TRIM(layer_id) <> ''"]
     for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ-./ ":
         out.append("layer_id NOT LIKE '%%{}%%'".format(ch))
-    out.append(r"layer_id NOT LIKE '%!_%' ESCAPE '!'")
+    out.append("layer_id NOT LIKE '%%!_%%' ESCAPE '!'")
     return out
 
 
@@ -587,7 +589,8 @@ def heatmap(line, today=None, days=7, axis="layer", metric="move",
     else:
         # STEP 은 앞 8자리로 끊는다. 뒤가 다른 것은 같은 스텝으로 본다.
         #   6N341123 · 6N3411235 -> 둘 다 6N341123
-        col = "LEFT(step_seq, 8)"
+        #   SUBSTR 은 MySQL · SQLite 어디서나 된다(LEFT 는 MySQL 전용).
+        col = "SUBSTR(step_seq, 1, 8)"
 
     if metric == "wip":
         tbl, lcol, val = "f3_wip_step", "`line`", "wip_qty"
