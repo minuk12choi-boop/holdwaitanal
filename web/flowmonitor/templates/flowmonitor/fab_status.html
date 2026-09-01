@@ -286,6 +286,13 @@ const BRAND = "#2F4B7C";
 const TYPE_COLORS = ["#2F4B7C", "#4C7DD1", "#7FB3E8", "#B9D4F2", "#D8E5F5"];
 const nf = (n) => Number(n || 0).toLocaleString("ko-KR");
 
+// DB 값을 화면에 넣을 때 쓴다. 정규식 안에 따옴표를 두면 도구가
+// 문자열로 오인하므로 표로 바꾼다.
+const ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;",
+                  "\u0022": "&quot;", "\u0027": "&#39;" };
+const esc = (v) => String(v == null ? "" : v)
+  .replace(/[&<>\u0022\u0027]/g, (c) => ESC_MAP[c]);
+
 let LINE = "{{ default_line }}";
 let DATA = null;
 let WT_UNIT = "qty";
@@ -693,7 +700,7 @@ function renderGrade() {
     const tot = cells.reduce((a, b) => a + b, 0);
     const pct = (v) => (tot ? (v / tot * 100) : 0).toFixed(1);
     return `<tr class="gv${bold ? " gtop" : ""}">`
-      + `<th>${q(name)}</th>`
+      + `<th>${esc(name)}</th>`
       + cells.map(v => `<td>${v ? nf(v) : "-"}</td>`).join("")
       + `<td class="gsum">${nf(tot)}</td></tr>`
       + `<tr class="gp"><th></th>`
@@ -708,7 +715,7 @@ function renderGrade() {
     });
   }
   box.innerHTML = `<table class="gradet"><thead><tr><th></th>`
-    + gs.map(g => `<th>${q(g)}</th>`).join("")
+    + gs.map(g => `<th>${esc(g)}</th>`).join("")
     + `<th class="gsum">합계</th></tr></thead><tbody>${body}</tbody></table>`;
 }
 
