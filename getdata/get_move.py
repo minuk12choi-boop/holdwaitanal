@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import os
 from time import perf_counter
 
 import pandas as pd
@@ -441,6 +442,32 @@ def aggregate(df, ts_from, ts_to):
                                            "move_qty", "lot_cnt"])
     df_lot = pd.DataFrame(lot_rows, columns=["biz_date", "shift", "sys_line_id",
                                              "lot_id", "move_qty", "tkout_cnt"])
+    # 한 스텝의 매수가 원천과 맞는지 본다. 값은 내보내지 않는다.
+    #   TRACE_STEP=3F335160 처럼 주면 그 스텝만 단계별로 찍는다.
+    _ts = os.environ.get("TRACE_STEP", "").strip().upper()
+    if _ts:
+        try:
+            src = df[_s(df["step_seq"]).str.upper().eq(_ts)]
+            print(f"[TRACE] {_ts} 원천 {len(src):,}행 · "
+                  f"{int(src['move'].sum()):,}매 · "
+                  f"lot {src['lot_id'].nunique():,}", flush=True)
+            if len(src):
+                by = (src.groupby([_s(src.get("lot_type", pd.Series("", index=src.index))),
+                                   src["shift"] if "shift" in src.columns
+                                   else pd.Series("-", index=src.index)])
+                        ["move"].agg(["sum", "count"]))
+                print(f"[TRACE]   lot_type/shift 별: {by.to_dict()}", flush=True)
+            got = [r for r in step_rows
+                   if str(r.get("step_seq") or "").upper() == _ts]
+            print(f"[TRACE] {_ts} 집계 {len(got):,}행 · "
+                  f"{sum(int(r['move_qty']) for r in got):,}매", flush=True)
+            for r in got[:10]:
+                print(f"[TRACE]   {r['biz_date']} {r['shift']} "
+                      f"prod2={r.get('prod2')} plan={r.get('proc_id')} "
+                      f"{r['move_qty']}매 {r['lot_cnt']}lot", flush=True)
+        except Exception as e:
+            print(f"[TRACE] 실패 {type(e).__name__}: {e}", flush=True)
+
     df_step = pd.DataFrame(step_rows, columns=[
         "biz_date", "shift", "sys_line_id", "prod2", "proc_id", "step_seq",
         "layer_id", "module1", "area",
@@ -506,6 +533,19 @@ def main():
             keep = (t >= ts_from) & (t < ts_to)
             df = df[keep.fillna(False)]
     t_fetched = dt.datetime.now()
+    # 원천이 담고 있는 lot_type. f3 가 쓰는 것과 다르면 MOVE 가 모자란다.
+    try:
+        _lt = sorted(set(_s(df.get("lot_type", pd.Series(dtype=str)))
+                         .str.upper()) - {""})
+        _want = {"PP", "PG", "EG", "EE"}
+        _miss = sorted(_want - set(_lt))
+        print(f"[MOVE] 원천 lot_type {_lt}", flush=True)
+        if _miss:
+            print(f"[MOVE]   f3 가 쓰는 {sorted(_want)} 중 {_miss} 가 없다."
+                  f" MOVE 쿼리의 lot_type 조건을 확인하세요.", flush=True)
+    except Exception:
+        pass
+
     print(f"[MOVE] 원천 {len(df):,}행 {perf_counter() - t0:.1f}s", flush=True)
 
     df_shift, df_daily, df_lot, df_step = aggregate(df, ts_from, ts_to)
