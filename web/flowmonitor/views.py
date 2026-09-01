@@ -54,6 +54,15 @@ DEFAULT_PROD1 = "NRD"
 # GRADE 표에 늘 보일 칸. 값이 없는 lot 은 Nor 로 묶는다.
 GRADE_ORDER = ["G1", "G2", "G3", "G4", "G5", "Nor"]
 
+# 등급이 없다고 보는 값. NULL · 빈칸 · '-' 를 같게 본다.
+GRADE_NONE = ("", "-", "N/A", "NA", "NONE")
+
+
+def _grade_of(r):
+    """그 lot 의 GRADE. 없으면 Nor."""
+    g = str(r.get("grade") or "").strip().upper()
+    return "Nor" if g in GRADE_NONE else g
+
 DEFAULT_LINE = "KFR4"          # NRD
 
 # 상단 현황 카드. 좌측부터 고정 순서.
@@ -2308,6 +2317,7 @@ def api_summary(request):
     f_type = flist("f_type")
     f_area = flist("f_area")          # AREA 별 재공 차트에서
     f_prod = flist("f_prod")          # 재공막대 제품별 비율에서
+    f_grade = flist("f_grade")        # GRADE 표에서
     bdate = request.GET.get("biz_date", "")
     bshift = request.GET.get("shift", "")
 
@@ -2463,12 +2473,14 @@ def api_summary(request):
         ok_ar = (not f_area) or (ar in f_area)
         pr = str(r.get("prod2") or "").strip() or UNCLASSIFIED
         ok_pr = (not f_prod) or (pr in f_prod)
+        gr = _grade_of(r)
+        ok_gr = (not f_grade) or (gr in f_grade)
 
 
 
         # 요약카드는 카드에서 고른 조건(x_*)만 무시한다.
         if (ok_layer and ok_cause and ok_st and ok_ty and ok_wt and ok_w0
-                and ok_ar and ok_pr):
+                and ok_ar and ok_pr and ok_gr):
             ins_rows.append(r)
 
         # 원인 분석과 LOT BALANCE 도 '자기 조건' 은 빼고 센다.
@@ -2481,34 +2493,35 @@ def api_summary(request):
         # 각 차트는 **자기 축을 뺀** 조건으로 센다.
         #   그래야 축 요소가 사라지지 않아 Ctrl 로 더 고를 수 있다.
         #   고른 것은 화면에서 테두리로, 나머지는 흐리게 나타낸다.
-        if base and ok_ty and ok_wt and ok_w0 and ok_ar and ok_pr:
+        if base and ok_ty and ok_wt and ok_w0 and ok_ar and ok_pr and ok_gr:
             _bucket(by_status, st, q)
             _bucket(st_ln.setdefault(st, {}), str(r.get("line") or "-"), q)
-        if base and ok_st and ok_wt and ok_w0 and ok_ar and ok_pr:
+        if base and ok_st and ok_wt and ok_w0 and ok_ar and ok_pr and ok_gr:
             _bucket(by_type, ty, q)
         # 제품별 비율은 **자기 조건(제품·lot_type)** 을 빼고 센다.
         if base and ok_st and ok_wt and ok_w0 and ok_ar:
             _bucket(type_prod.setdefault(pr, {}), ty, q)
         # GRADE 분포. 값이 없으면 Nor(일반)로 묶는다.
+        # GRADE 표는 **자기 축(grade)을 조건에서 뺀다.**
+        #   걸면 고른 칸만 남아 표가 무너진다. 선택은 강조로만 보인다.
         if base and ok_st and ok_ty and ok_wt and ok_w0 and ok_ar and ok_pr:
-            gr = str(r.get("grade") or "").strip().upper() or "Nor"
             _bucket(by_grade, gr, q)
             _bucket(grade_prod.setdefault(pr, {}), gr, q)
-        if base and ok_st and ok_ty and ok_w0 and ok_ar and ok_pr:
+        if base and ok_st and ok_ty and ok_w0 and ok_ar and ok_pr and ok_gr:
             _bucket(by_wt, wk, q)
             _bucket(wt_line.setdefault(wk, {}),
                     str(r.get("line") or "-"), q)
         # 누적막대는 **자기 축(status)을 조건에서 뺀다.**
         #   ok_st 를 걸면 status 를 고르는 순간 그 조각만 남아 막대가
         #   사라진다. 선택은 테두리로만 보이고 그래프는 유지돼야 한다.
-        if base and ok_ty and ok_wt and ok_w0 and ok_pr:
+        if base and ok_ty and ok_wt and ok_w0 and ok_pr and ok_gr:
             _bucket(by_area.setdefault(ar, {}), st, q)
             _bucket(area_ln.setdefault(ar, {}).setdefault(st, {}),
                     str(r.get("line") or "-"), q)
             if ok_ar:
                 _bucket(by_line.setdefault(
                     str(r.get("line") or "-"), {}), st, q)
-        if base and ok_ty and ok_wt and ok_ar and ok_pr and wt <= 0:
+        if base and ok_ty and ok_wt and ok_ar and ok_pr and ok_gr and wt <= 0:
             _bucket(by_wt0, b0, q)
             if b0:
                 _bucket(wt0_st.setdefault(b0, {}), st, q)
@@ -2517,7 +2530,7 @@ def api_summary(request):
             _bucket(wt0_tot, st, q)
 
         # 총계는 모든 조건을 반영한다.
-        if base and ok_st and ok_ty and ok_wt and ok_w0 and ok_ar and ok_pr:
+        if base and ok_st and ok_ty and ok_wt and ok_w0 and ok_ar and ok_pr and ok_gr:
             tot["lots"] += 1
             tot["qty"] += q
 
@@ -2525,7 +2538,7 @@ def api_summary(request):
         #   요약카드나 다른 곳에서 건 원인 조건은 그대로 반영해야 한다
         #   (B/N 행을 눌렀는데 예약제외가 남으면 안 된다).
         if not (ok_layer and ok_st and ok_ty and ok_wt and ok_w0
-                and ok_ar and ok_pr):
+                and ok_ar and ok_pr and ok_gr):
             continue
         if cause_src != "cause" and not ok_cause:
             continue
@@ -3554,6 +3567,7 @@ def api_balance(request):
     bshift = request.GET.get("shift", "")
     # 표와 같은 조건
     f_type, f_status = multi("lot_type"), multi("status")
+    f_grade = multi("grade")
     wt_range, wt0 = multi("wt_range"), multi("wt0")
     big = request.GET.get("big", "")
     mid = request.GET.get("mid", "")
@@ -3624,6 +3638,8 @@ def api_balance(request):
         if f_type and (r.get("lot_type") or "-") not in f_type:
             continue
         if f_status and st not in f_status:
+            continue
+        if f_grade and _grade_of(r) not in f_grade:
             continue
         q = num(r.get("qty"))
         wt = calc_wt(mv, r["lot_id"], q, st)
@@ -4098,6 +4114,7 @@ def api_lots_live(request):
     bshift = request.GET.get("shift", "")
     lot_type = multi("lot_type")     # 재공 구성 막대에서
     status = multi("status")         # status 원차트에서
+    f_grade = multi("grade")         # GRADE 표에서
     # LOT BALANCE 막대에서. layer_id 는 현스텝 행의 값이라 SQL WHERE 로
     # 거르면 연속블록 행까지 걸려 필터가 무력해진다. 집계 뒤에 판별한다.
     layer_id = multi("layer_id")
@@ -4196,6 +4213,9 @@ def api_lots_live(request):
                 continue
             if subs_want and not any(x in s2 for x in subs_want):
                 continue
+        # GRADE 는 NULL 과 '-' 를 Nor 로 묶으므로 SQL 로는 못 거른다.
+        if f_grade and _grade_of(r) not in f_grade:
+            continue
         rec = dict(r)
         rec["wt"] = round(wt, 2)
         # HOLD 는 누가 걸었는지까지 밝힌다. User Hold(사유) / SYS Hold(사유)

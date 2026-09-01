@@ -374,8 +374,15 @@
   .htip b { color:#FFD700; }
   /* GRADE 표. 재공막대 아래에 붙는다. */
   .gradebox { margin-top:10px; border-top:1px solid var(--bd); padding-top:8px; }
+  /* 제목 왼쪽, 버튼은 오른쪽 끝에 붙인다(STATUS 카드와 같은 배치). */
   .gradebox .cellttl { margin-bottom:6px; }
-  .gradebox .rankbtn { margin-left:auto; }
+  .gradebox .gradebtns { margin-left:auto; display:inline-flex;
+                         align-items:center; gap:6px; }
+  /* 누를 수 있는 칸. 고른 칸은 진하게 남는다. */
+  .gradet td.gcell { cursor:pointer; }
+  .gradet td.gcell:hover { background:var(--hover, #F3F4F6); }
+  .gradet td.gcell.sel { background:#E8EEF8; font-weight:700;
+                         color:var(--brand); }
   .gradet { width:100%; border-collapse:collapse; font-size:11px;
             table-layout:fixed; }
   .gradet th, .gradet td { padding:2px 4px; text-align:right;

@@ -79,13 +79,15 @@
 
         <div class="gradebox">
           <div class="cellttl"><span>GRADE</span>
-            <span class="seg">
-              <button id="gu_lots" onclick="setGradeUnit('lots')">LOT</button>
-              <button class="on" id="gu_qty"
-                      onclick="setGradeUnit('qty')">매</button>
+            <span class="gradebtns">
+              <span class="seg">
+                <button id="gu_lots" onclick="setGradeUnit('lots')">LOT</button>
+                <button class="on" id="gu_qty"
+                        onclick="setGradeUnit('qty')">매</button>
+              </span>
+              <button class="rankbtn" id="gpbtn" onclick="toggleGradeProd()"
+                      title="제품마다 GRADE 구성을 나눠 본다">제품별</button>
             </span>
-            <button class="rankbtn" id="gpbtn" onclick="toggleGradeProd()"
-                    title="제품마다 GRADE 구성을 나눠 본다">제품별</button>
           </div>
           <div id="gradetbl"></div>
         </div>
@@ -679,6 +681,12 @@ function setGradeUnit(u) {
   renderGrade();
 }
 
+// GRADE 칸 클릭. Ctrl 로 여러 등급을 함께 고를 수 있다.
+function pickGrade(g, ev) {
+  setCond("grade", g, ev || null, null, false, "grade");
+  syncFromDF();
+}
+
 function toggleGradeProd() {
   GRADE_PROD = !GRADE_PROD;
   const b = document.getElementById("gpbtn");
@@ -695,16 +703,23 @@ function renderGrade() {
   if (!gs.length) { box.innerHTML = ""; return; }
 
   const val = (o) => (o ? (u === "lots" ? o.lots : o.qty) : 0) || 0;
+  const on = new Set(DF.grade || []);
   const row = (name, map, bold) => {
     const cells = gs.map(g => val(map[g]));
     const tot = cells.reduce((a, b) => a + b, 0);
     const pct = (v) => (tot ? (v / tot * 100) : 0).toFixed(1);
+    // 칸을 누르면 그 GRADE 로 좁힌다. 다른 차트와 같은 조건 저장소를 쓴다.
+    const cell = (g, v, txt) =>
+      `<td class="gcell${on.has(g) ? " sel" : ""}" data-g="${esc(g)}"`
+      + ` onclick="pickGrade(this.dataset.g, event)">${txt}</td>`;
     return `<tr class="gv${bold ? " gtop" : ""}">`
       + `<th>${esc(name)}</th>`
-      + cells.map(v => `<td>${v ? nf(v) : "-"}</td>`).join("")
+      + gs.map((g, i) => cell(g, cells[i], cells[i] ? nf(cells[i]) : "-"))
+          .join("")
       + `<td class="gsum">${nf(tot)}</td></tr>`
       + `<tr class="gp"><th></th>`
-      + cells.map(v => `<td>${tot ? pct(v) + "%" : "-"}</td>`).join("")
+      + gs.map((g, i) => cell(g, cells[i], tot ? pct(cells[i]) + "%" : "-"))
+          .join("")
       + `<td class="gsum">${tot ? "100%" : "-"}</td></tr>`;
   };
 
@@ -1824,6 +1839,7 @@ const DF_DEF = [
   { k: "wt0",    t: "W/T 0",  param: "wt0",      lv: 2, one: true },
   { k: "iarea",  t: "AREA",   param: "f_area",   lv: 2, one: true },
   { k: "iprod",  t: "제품",    param: "f_prod",   lv: 2, one: true },
+  { k: "grade",  t: "GRADE",  param: "grade",    lv: 2, one: true },
   { k: "layer",  t: "LAYER",  param: "layer_id", lv: 5, one: true },
 ];
 const DF_LV = {};
@@ -4273,7 +4289,7 @@ function renderConds() {
 --------------------------------------------------------------------- */
 // 카드마다 그 카드가 거는 조건. 여럿이면 함께 해제한다.
 const CARD_COND = {
-  wipcard: ["type", "iprod"], stcard: ["status"], wtcard: ["wt"],
+  wipcard: ["type", "iprod", "grade"], stcard: ["status"], wtcard: ["wt"],
   wt0card: ["wt0"], areacard: ["iarea"], balpanel: ["layer"],
   czcard: ["cause"],
 };
@@ -4776,6 +4792,7 @@ function loadSummary(keepFocus) {
         + "&f_type=" + encodeURIComponent((DF.type || []).join(","))
         + "&f_area=" + encodeURIComponent((DF.iarea || []).join(","))
         + "&f_prod=" + encodeURIComponent((DF.iprod || []).join(","))
+        + "&f_grade=" + encodeURIComponent((DF.grade || []).join(","))
         + "&solo=" + encodeURIComponent(soloSrc())
         // 원인 / LAYER 도 좌측 차트에 그대로 반영한다.
         + "&layer_id=" + encodeURIComponent((DF.layer || []).join(","))
