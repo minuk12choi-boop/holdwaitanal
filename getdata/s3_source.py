@@ -219,17 +219,24 @@ def split_parts(name):
                      % (re.escape(name), re.escape(EXT)))
     nums = []
     try:
-        for o in list_objects():
-            key = o["key"]
+        # list_objects() 는 DataFrame 을 돌려준다. 그냥 순회하면 컬럼명이
+        # 나와서 TypeError 가 난다. key 열만 꺼내 쓴다.
+        df = list_objects()
+        keys = list(df["key"]) if len(df) else []
+        for key in keys:
+            key = str(key)
             if prefix and key.startswith(prefix):
                 key = key[len(prefix):]
             m = pat.match(key)
             if m:
                 nums.append(int(m.group(1)))
+        if not nums:
+            raise RuntimeError("조각을 하나도 못 찾았다")
     except Exception as e:
-        print(f"[S3] 조각 목록 조회 실패({type(e).__name__}) - 0~9 로 찾는다",
-              flush=True)
-        nums = list(range(10))
+        # 못 찾으면 넉넉히 훑는다. 여기서 10 에서 끊으면 _10 이 빠진다.
+        print(f"[S3] 조각 목록 조회 실패({type(e).__name__}: {e}) "
+              f"- 0~63 으로 찾는다", flush=True)
+        nums = list(range(64))
     _PARTS_CACHE[name] = sorted(set(nums))
     return _PARTS_CACHE[name]
 
@@ -266,6 +273,9 @@ def read_table(name, bucket=None, prefix=None):
                         lc = "  " + " · ".join(f"{k} {v:,}"
                                                for k, v in sorted(vc.items()))
                         break
+                else:
+                    # line_id 가 없으면 뒤에서 라인 분리가 안 돼 통째로 빠진다.
+                    lc = "  <-- line_id 컬럼이 없다. 그 조각 쿼리를 보세요"
                 print(f"[S3]   {name}_{i} {len(part):,}행{lc}", flush=True)
             print(f"[S3] {name} 조각 {len(parts)}개 이어붙임 {len(df):,}행",
                   flush=True)
