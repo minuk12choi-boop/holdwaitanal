@@ -2,8 +2,16 @@
 SELECT COUNT(*) FROM smicdc_p3nrd.trackinprevent
 WHERE owner IN ('LEVEL1','PHOTO_LEVEL1') AND eqpid IS NULL;
 
+count(*)=0
+
+
 -- 세 조각 합이 전체와 같은지
 SELECT ORA_HASH(eqpid,2) part, COUNT(*)
 FROM smicdc_p3nrd.trackinprevent
 WHERE owner IN ('LEVEL1','PHOTO_LEVEL1')
 GROUP BY ORA_HASH(eqpid,2);
+
+PART	COUNT(*)
+0	723302
+1	1114743
+2	1194275
