@@ -1,8 +1,20 @@
-새로운 기능 및 개선 사항에 대 한 최신 PowerShell을 설치 하세요! https://aka.ms/PSWindows
+$roots = @("C:\Program Files\TIBCO", "C:\Program Files (x86)\TIBCO",
+           "$env:LOCALAPPDATA\TIBCO", "$env:APPDATA\TIBCO")
+foreach ($r in $roots) {
+  if (Test-Path $r) {
+    Write-Host "=== $r" -ForegroundColor Cyan
+    Get-ChildItem $r -Recurse -Filter python.exe -ErrorAction SilentlyContinue |
+      Select-Object -ExpandProperty FullName
+  } else {
+    Write-Host "없음: $r" -ForegroundColor DarkGray
+  }
+}
 
-PS C:\Users\minuk12.choi> Get-ChildItem "C:\Program Files (x86)\TIBCO" -Recurse -Filter python.exe -ErrorAction SilentlyContinue |
->>   Select-Object FullName
-PS C:\Users\minuk12.choi> Get-ChildItem "C:\Program Files (x86)\TIBCO" -Recurse -Filter python.exe -ErrorAction SilentlyContinue
-PS C:\Users\minuk12.choi> Get-ChildItem "C:\Program Files (x86)\TIBCO" -Recurse -Filter python.exe -ErrorAction SilentlyContinue |
->>   Select-Object FullName
-PS C:\Users\minuk12.choi>
+
+
+
+Get-ChildItem C:\ -Directory -ErrorAction SilentlyContinue |
+  Where-Object { $_.Name -match "TIBCO|Spotfire" } | Select-Object FullName
+Get-ChildItem "$env:LOCALAPPDATA","$env:APPDATA" -Directory -ErrorAction SilentlyContinue |
+  Where-Object { $_.Name -match "TIBCO|Spotfire" } | Select-Object FullName
+
