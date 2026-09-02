@@ -160,7 +160,17 @@ def manifest_age(m=None, max_min=90):
         return {"ok": False, "reason": "매니페스트가 없습니다"}
     now = dt.datetime.now()
     stale, unknown = [], []
+
+    # 조각으로 나눈 뒤에는 옛 이름(PFR1_KFR7_TIP)이 매니페스트에 남아 있다.
+    #   그것은 더 이상 갱신되지 않으므로 낡았다고 나오는 게 당연하다.
+    #   조각(_0 · _1 · _2)이 하나라도 있으면 옛 이름은 보지 않는다.
+    names = set((m.get("tables") or {}).keys())
+    skip = {t for t in SPLIT_TABLES
+            if any(f"{t}_{i}" in names for i in range(SPLIT_PARTS))}
+
     for name, v in (m.get("tables") or {}).items():
+        if name in skip:
+            continue
         at = str((v or {}).get("uploaded_at") or "")
         if not at:
             unknown.append(name)            # 옛 형식(시각 없음)
