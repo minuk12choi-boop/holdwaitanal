@@ -1,20 +1,29 @@
-$roots = @("C:\Program Files\TIBCO", "C:\Program Files (x86)\TIBCO",
-           "$env:LOCALAPPDATA\TIBCO", "$env:APPDATA\TIBCO")
-foreach ($r in $roots) {
-  if (Test-Path $r) {
-    Write-Host "=== $r" -ForegroundColor Cyan
-    Get-ChildItem $r -Recurse -Filter python.exe -ErrorAction SilentlyContinue |
-      Select-Object -ExpandProperty FullName
-  } else {
-    Write-Host "없음: $r" -ForegroundColor DarkGray
-  }
-}
 
+PS C:\Users\minuk12.choi> Get-ChildItem "C:\Program Files (x86)\TIBCO" -Recurse -Filter python.exe -ErrorAction SilentlyContinue |
+>>   Select-Object FullName
+PS C:\Users\minuk12.choi> Get-ChildItem "C:\Program Files (x86)\TIBCO" -Recurse -Filter python.exe -ErrorAction SilentlyContinue
+PS C:\Users\minuk12.choi> Get-ChildItem "C:\Program Files (x86)\TIBCO" -Recurse -Filter python.exe -ErrorAction SilentlyContinue |
+>>   Select-Object FullName
+PS C:\Users\minuk12.choi> $roots = @("C:\Program Files\TIBCO", "C:\Program Files (x86)\TIBCO",
+>>            "$env:LOCALAPPDATA\TIBCO", "$env:APPDATA\TIBCO")
+>> foreach ($r in $roots) {
+>>   if (Test-Path $r) {
+>>     Write-Host "=== $r" -ForegroundColor Cyan
+>>     Get-ChildItem $r -Recurse -Filter python.exe -ErrorAction SilentlyContinue |
+>>       Select-Object -ExpandProperty FullName
+>>   } else {
+>>     Write-Host "없음: $r" -ForegroundColor DarkGray
+>>   }
+>> }
+없음: C:\Program Files\TIBCO
+=== C:\Program Files (x86)\TIBCO
+=== C:\Users\minuk12.choi\AppData\Local\TIBCO
+없음: C:\Users\minuk12.choi\AppData\Roaming\TIBCO
+PS C:\Users\minuk12.choi> Get-ChildItem C:\ -Directory -ErrorAction SilentlyContinue |
+>>   Where-Object { $_.Name -match "TIBCO|Spotfire" } | Select-Object FullName
+>> Get-ChildItem "$env:LOCALAPPDATA","$env:APPDATA" -Directory -ErrorAction SilentlyContinue |
+>>   Where-Object { $_.Name -match "TIBCO|Spotfire" } | Select-Object FullName
 
-
-
-Get-ChildItem C:\ -Directory -ErrorAction SilentlyContinue |
-  Where-Object { $_.Name -match "TIBCO|Spotfire" } | Select-Object FullName
-Get-ChildItem "$env:LOCALAPPDATA","$env:APPDATA" -Directory -ErrorAction SilentlyContinue |
-  Where-Object { $_.Name -match "TIBCO|Spotfire" } | Select-Object FullName
-
+FullName
+--------
+C:\Users\minuk12.choi\AppData\Local\TIBCO
