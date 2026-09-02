@@ -1,2 +1,2 @@
-C:\Users\minuk12.choi>"C:\Program Files (x86)\TIBCO\Spotfire\10.10.0\Modules\Python Interpreter_3.1006.10804.23\python\python.exe" -m pip install boto3
-지정된 경로를 찾을 수 없습니다.
+Get-ChildItem "C:\Program Files (x86)\TIBCO" -Recurse -Filter python.exe -ErrorAction SilentlyContinue |
+  Select-Object FullName
