@@ -29,7 +29,9 @@ spotfire_uploadonly.py — Spotfire IronPython 스크립트 (UploadOnly)
 from System import DateTime
 
 # 실행 순서. 큰 것 먼저, 매니페스트를 완결시키는 rest 를 마지막에.
-ORDER = ["s3drive_path", "s3drive_tip", "s3drive_rest"]
+ORDER = ["s3drive_path_0", "s3drive_path_1", "s3drive_path_2",
+         "s3drive_tip_0", "s3drive_tip_1", "s3drive_tip_2",
+         "s3drive_rest"]
 
 
 def log(msg):

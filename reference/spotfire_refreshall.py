@@ -16,9 +16,9 @@ spotfire_refreshall.py — Spotfire IronPython 스크립트 (RefreshAll)
   한 함수에 14개 표를 다 물리면 Spotfire 가 스크립트를 돌리기 전에
   전부 메모리로 읽다가 죽는다(TIP 1,000만행 + STEP_PATH 700만행).
 
-    s3drive_rest   작은 표 12개
-    s3drive_path   PFR1_KFR7_STEP_PATH
-    s3drive_tip    PFR1_KFR7_TIP
+    s3drive_path_0/1/2   STEP_PATH 를 셋으로 나눈 조각
+    s3drive_tip_0/1/2    TIP 를 셋으로 나눈 조각
+    s3drive_rest         작은 표 13개
 
   큰 것을 먼저 돌리고 rest 를 마지막에 둔다. rest 가 매니페스트를
   완결시키므로 순서가 그래야 읽는 쪽이 중간 상태를 보지 않는다.
@@ -32,10 +32,14 @@ from System import DateTime
 
 # 데이터 함수의 출력 테이블. 이것들은 원천이 아니므로 재조회하지 않는다.
 #   출력 이름을 바꿨다면 여기도 바꾼다.
-SKIP = ["upload_log", "upload_log_tip", "upload_log_path", "upload_log_rest"]
+SKIP = ["upload_log", "upload_log_rest",
+        "upload_log_path_0", "upload_log_path_1", "upload_log_path_2",
+        "upload_log_tip_0", "upload_log_tip_1", "upload_log_tip_2"]
 
 # 실행 순서. 큰 것 먼저, 매니페스트를 완결시키는 rest 를 마지막에.
-ORDER = ["s3drive_path", "s3drive_tip", "s3drive_rest"]
+ORDER = ["s3drive_path_0", "s3drive_path_1", "s3drive_path_2",
+         "s3drive_tip_0", "s3drive_tip_1", "s3drive_tip_2",
+         "s3drive_rest"]
 
 
 def log(msg):

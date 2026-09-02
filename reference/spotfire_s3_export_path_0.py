@@ -1,27 +1,15 @@
 """
-spotfire_s3_export_rest.py — S3 적재 (s3drive_rest)
+spotfire_s3_export_path_0.py — S3 적재 (s3drive_path_0)
 
-  작은 표 13개. 이 함수가 마지막에 돌면 매니페스트가 완결된다.
+  STEP_PATH 1/3 조각
 
 [등록]
   Tools > Register Data Functions
-    Name              : s3drive_rest
+    Name              : s3drive_path_0
     Type              : Python script
-    Input Parameters  : 아래 13개만 Table 로 등록
-                        PFR1_KFR7_LOT
-                        PFR1_KFR7_MATERIALWORKSTATUS
-                        PFR1_KFR7_EQUIPMENT
-                        PFR1_KFR7_EQP_GROUP
-                        PFR1_KFR7_HOLD
-                        PFR1_KFR7_MOVE
-                        PFR1_KFR7_SSPS_PROD_NAME
-                        PFR1_FABPLAN_STEP
-                        PFR1_FABPLAN_NEWEINECNSPEC
-                        PFR1_FABPLAN_SELECTCONNECTSPEC
-                        PFR1_FABPLAN_SKIPRULE
-                        PFR1_ENGR_LOT_PPID
-                        PFR1_CATEGORY
-    Output Parameters : upload_log_rest (Table)
+    Input Parameters  : 아래 1개만 Table 로 등록
+                        PFR1_KFR7_STEP_PATH_0
+    Output Parameters : upload_log_path_0 (Table)
                         Output handler = Data table
                         Replace existing data table 체크
 
@@ -58,7 +46,7 @@ S3_ENDPOINT_URL      = "http://s3.dataplatform.samsungds.net:9020"
 S3_BUCKET            = "RND_FABMODELING"
 S3_PREFIX            = "multi_report/"          # 예) "multi_report/"  (끝 '/' 는 자동 보정)
 
-# boto3 설치 전 점검용. False 로 두면 업로드하지 않고 환경 정보만 upload_log_rest 에
+# boto3 설치 전 점검용. False 로 두면 업로드하지 않고 환경 정보만 upload_log_path_0 에
 # 남긴다(파이썬 경로 / 설치 명령).
 USE_BOTO3 = True
 # ────────────────────────────────────────────────────────────────────────────
@@ -94,19 +82,7 @@ USE_BOTO3 = True
 #   마지막 함수가 14개 전부를 담은 완결 표시를 남긴다.
 #   ALL_TABLES 는 그대로 14 로 둔다.
 TABLE_NAMES = [
-    "PFR1_KFR7_LOT",
-    "PFR1_KFR7_MATERIALWORKSTATUS",
-    "PFR1_KFR7_EQUIPMENT",
-    "PFR1_KFR7_EQP_GROUP",
-    "PFR1_KFR7_HOLD",
-    "PFR1_KFR7_MOVE",
-    "PFR1_KFR7_SSPS_PROD_NAME",
-    "PFR1_FABPLAN_STEP",
-    "PFR1_FABPLAN_NEWEINECNSPEC",
-    "PFR1_FABPLAN_SELECTCONNECTSPEC",
-    "PFR1_FABPLAN_SKIPRULE",
-    "PFR1_ENGR_LOT_PPID",
-    "PFR1_CATEGORY",
+    "PFR1_KFR7_STEP_PATH_0",
 ]
 
 
@@ -364,15 +340,15 @@ except Exception as e:
     rows.append(["(전체)", "FAIL", 0, 0, "", 0.0, 0.0,
                  "%s: %s" % (type(e).__name__, e), started, dt.datetime.now()])
 
-upload_log_rest = pd.DataFrame(
+upload_log_path_0 = pd.DataFrame(
     rows, columns=["table", "status", "rows", "cols", "query_time",
                    "serialize_sec", "upload_sec", "detail", "start", "end"])
-upload_log_rest["elapsed_sec"] = (
-    upload_log_rest["end"] - upload_log_rest["start"]).dt.total_seconds().round(2)
+upload_log_path_0["elapsed_sec"] = (
+    upload_log_path_0["end"] - upload_log_path_0["start"]).dt.total_seconds().round(2)
 
 # 스크립트 전체 소요. 이 값이 작은데 Spotfire 체감이 길면, 병목은 이 스크립트가
 # 아니라 Spotfire -> python 데이터 전달(입력 마샬링) 이다.
-upload_log_rest["script_total_sec"] = round(
+upload_log_path_0["script_total_sec"] = round(
     (dt.datetime.now() - started).total_seconds(), 2)
 trace("script end  rows=%d  total=%.1fs"
-      % (len(upload_log_rest), (dt.datetime.now() - started).total_seconds()))
+      % (len(upload_log_path_0), (dt.datetime.now() - started).total_seconds()))

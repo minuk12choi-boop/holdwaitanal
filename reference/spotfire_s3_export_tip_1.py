@@ -1,19 +1,23 @@
 """
-spotfire_s3_export_tip.py — S3 적재 (분할 tip)
+spotfire_s3_export_tip_1.py — S3 적재 (s3drive_tip_1)
 
-  TIP (1,000만행). 혼자 두어야 메모리가 버틴다.
+  TIP 2/3 조각
 
 [등록]
   Tools > Register Data Functions
-    Name              : s3drive_tip
+    Name              : s3drive_tip_1
     Type              : Python script
     Input Parameters  : 아래 1개만 Table 로 등록
-                        PFR1_KFR7_TIP
-    Output Parameters : upload_log_tip (Table)
+                        PFR1_KFR7_TIP_1
+    Output Parameters : upload_log_tip_1 (Table)
                         Output handler = Data table
                         Replace existing data table 체크
 
-  세 함수(tip · path · rest)를 모두 등록해야 14개가 다 올라간다.
+  [중요] 한 함수에 표를 여러 개 물리면 나눈 뜻이 없다.
+  Spotfire 는 스크립트를 돌리기 전에 등록된 입력을 전부
+  메모리로 읽는다. 함수마다 제 표 하나씩만 등록한다.
+
+  일곱 함수를 모두 등록해야 19개가 다 올라간다.
   매니페스트는 서로 병합되므로 순서는 상관없다.
 """
 import io
@@ -42,7 +46,7 @@ S3_ENDPOINT_URL      = "http://s3.dataplatform.samsungds.net:9020"
 S3_BUCKET            = "RND_FABMODELING"
 S3_PREFIX            = "multi_report/"          # 예) "multi_report/"  (끝 '/' 는 자동 보정)
 
-# boto3 설치 전 점검용. False 로 두면 업로드하지 않고 환경 정보만 upload_log_tip 에
+# boto3 설치 전 점검용. False 로 두면 업로드하지 않고 환경 정보만 upload_log_tip_1 에
 # 남긴다(파이썬 경로 / 설치 명령).
 USE_BOTO3 = True
 # ────────────────────────────────────────────────────────────────────────────
@@ -78,8 +82,9 @@ USE_BOTO3 = True
 #   마지막 함수가 14개 전부를 담은 완결 표시를 남긴다.
 #   ALL_TABLES 는 그대로 14 로 둔다.
 TABLE_NAMES = [
-    "PFR1_KFR7_TIP",
+    "PFR1_KFR7_TIP_1",
 ]
+
 
 # 저장 형식.
 #   "parquet" 권장. 컬럼형 + snappy 압축이라 pkl 대비 약 6% 크기.
@@ -97,7 +102,7 @@ FMT = "parquet"
 # 파이프라인 전체가 기대하는 테이블 수. 함수를 나눠 등록해도 이 값은
 # **전체 개수**로 둔다(각 함수의 TABLE_NAMES 길이가 아니다).
 #   기존 9 + FabPlan 5 = 14
-ALL_TABLES = 14
+ALL_TABLES = 19
 
 
 # ---------------------------------------------------------------------------
@@ -335,15 +340,15 @@ except Exception as e:
     rows.append(["(전체)", "FAIL", 0, 0, "", 0.0, 0.0,
                  "%s: %s" % (type(e).__name__, e), started, dt.datetime.now()])
 
-upload_log_tip = pd.DataFrame(
+upload_log_tip_1 = pd.DataFrame(
     rows, columns=["table", "status", "rows", "cols", "query_time",
                    "serialize_sec", "upload_sec", "detail", "start", "end"])
-upload_log_tip["elapsed_sec"] = (
-    upload_log_tip["end"] - upload_log_tip["start"]).dt.total_seconds().round(2)
+upload_log_tip_1["elapsed_sec"] = (
+    upload_log_tip_1["end"] - upload_log_tip_1["start"]).dt.total_seconds().round(2)
 
 # 스크립트 전체 소요. 이 값이 작은데 Spotfire 체감이 길면, 병목은 이 스크립트가
 # 아니라 Spotfire -> python 데이터 전달(입력 마샬링) 이다.
-upload_log_tip["script_total_sec"] = round(
+upload_log_tip_1["script_total_sec"] = round(
     (dt.datetime.now() - started).total_seconds(), 2)
 trace("script end  rows=%d  total=%.1fs"
-      % (len(upload_log_tip), (dt.datetime.now() - started).total_seconds()))
+      % (len(upload_log_tip_1), (dt.datetime.now() - started).total_seconds()))
