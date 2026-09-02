@@ -1762,8 +1762,21 @@ def narrow_step_to_scope(df_path, df_lot, line):
     de_rank 는 lot 전체 경로의 S 누적개수이므로 현재 위치 이전 S/Y 행도 계산에
     필요하다. 그 행들은 계산에만 쓰고 결과에서는 버린다.
     """
+    # 단계별 소요시간. 어디가 느린지 추측하지 않고 잰다.
+    _t = [__import__("time").perf_counter()]
+
+    def _lap(what):
+        import time
+        now = time.perf_counter()
+        d = now - _t[0]
+        _t[0] = now
+        if d >= 0.5:                     # 0.5초 넘는 것만
+            print(f"[SLOW] {line} {what} {d:.1f}s", flush=True)
+
     path = _lower_cols(df_path)
+    _lap("컬럼 소문자화")
     path["order_seq"] = pd.to_numeric(path["order_seq"], errors="coerce")
+    _lap("order_seq 숫자화")
 
     m = _lower_cols(df_lot)
     m = m[m["line"].eq(line)][["lot_id", "order_seq"]].copy()
@@ -1772,6 +1785,7 @@ def narrow_step_to_scope(df_path, df_lot, line):
 
     lot_ids = set(m["lot_id"].dropna())
     path = path[path["lot_id"].isin(lot_ids)]
+    _lap("재공 lot 만 남기기")
 
     # --- de_rank : S/Y 행만으로 계산 (경로 전체 기준) ---
     sy = path[path["delay_step_type"].isin(["S", "Y"])][
@@ -1781,6 +1795,7 @@ def narrow_step_to_scope(df_path, df_lot, line):
     sy["_s"] = sy["delay_step_type"].eq("S").astype(int)
     sy["de_rank"] = sy.groupby("lot_id", dropna=False)["_s"].cumsum()
     sy["de_rank"] = sy.groupby(["lot_id", "order_seq"], dropna=False)["de_rank"].transform("max")
+    _lap("de_rank 계산")
     de = sy[["lot_id", "order_seq", "de_rank"]].drop_duplicates()
 
     # --- step_skip_yn 필터 ---
@@ -1833,6 +1848,7 @@ def narrow_step_to_scope(df_path, df_lot, line):
         exact = pd.concat([exact, nxt], ignore_index=True)
     cur = exact.drop(columns=["_cur"])
     cur = cur.merge(de, on=["lot_id", "order_seq"], how="left")
+    _lap("현스텝 확정 + de 결합")
 
     cur_rank = cur.loc[cur["de_rank"].notna(), ["lot_id", "de_rank"]].drop_duplicates()
     cur_rank = cur_rank.rename(columns={"de_rank": "_cur_rank"})
