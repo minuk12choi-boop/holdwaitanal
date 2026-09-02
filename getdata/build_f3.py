@@ -3172,9 +3172,10 @@ def main():
         have = set((man.get("tables") or {}).keys())
         # 조각으로 나눈 표는 이름이 _0 · _1 · _2 다. 하나라도 있으면
         # 그 표는 올라온 것으로 본다(조각 누락은 read_table 이 알린다).
+        import re as _re
         for t in getattr(s3_source, "SPLIT_TABLES", ()):
-            if any(f"{t}_{i}" in have
-                   for i in range(getattr(s3_source, "SPLIT_PARTS", 3))):
+            _p = _re.compile(r"^%s_\d+$" % _re.escape(t))
+            if any(_p.match(n) for n in have):
                 have.add(t)
         missing = [t for t in s3_source.TABLES if t not in have]
         if missing and "--force" not in sys.argv:

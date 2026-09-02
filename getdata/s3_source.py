@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import re
 import json
 import datetime as dt
 import os
@@ -165,8 +166,13 @@ def manifest_age(m=None, max_min=90):
     #   그것은 더 이상 갱신되지 않으므로 낡았다고 나오는 게 당연하다.
     #   조각(_0 · _1 · _2)이 하나라도 있으면 옛 이름은 보지 않는다.
     names = set((m.get("tables") or {}).keys())
-    skip = {t for t in SPLIT_TABLES
-            if any(f"{t}_{i}" in names for i in range(SPLIT_PARTS))}
+    # 조각 이름(<표>_숫자)이 하나라도 있으면 옛 이름은 보지 않는다.
+    #   몇 등분인지 모르므로 이름 모양으로 가린다.
+    skip = set()
+    for t in SPLIT_TABLES:
+        pat = re.compile(r"^%s_\d+$" % re.escape(t))
+        if any(pat.match(n) for n in names):
+            skip.add(t)
 
     for name, v in (m.get("tables") or {}).items():
         if name in skip:
@@ -192,8 +198,40 @@ def manifest_age(m=None, max_min=90):
 # 조각으로 나눠 올리는 표. Spotfire 가 한 번에 읽다 죽어서 셋으로 갈랐다.
 #   PFR1_KFR7_TIP -> PFR1_KFR7_TIP_0 · _1 · _2
 #   원본 이름으로 읽으면 조각을 찾아 이어 붙인다.
-SPLIT_PARTS = 3
+# 몇 조각인지는 **S3 를 보고 알아낸다.** 나중에 6등분 · 12등분으로 바꿔도
+#   여기를 고칠 필요가 없다. 이름이 <표>_<숫자> 인 것을 전부 모은다.
 SPLIT_TABLES = ("PFR1_KFR7_TIP", "PFR1_KFR7_STEP_PATH")
+
+# S3 목록 조회는 회차마다 한 번만 한다(조각 표가 여럿이라 매번 부르면 느리다).
+_PARTS_CACHE = {}
+
+
+def split_parts(name):
+    """그 표의 조각 번호 목록. S3 에 실제로 있는 것만 돌려준다.
+
+    <표>_0 · <표>_1 · ... 을 찾는다. 번호가 비어 있어도(0 · 2 만 있어도)
+    있는 것만 쓴다. 몇 등분인지 코드에 박지 않는다.
+    """
+    if name in _PARTS_CACHE:
+        return _PARTS_CACHE[name]
+    _, prefix = _bucket_prefix()
+    pat = re.compile(r"^%s_(\d+)\.%s$"
+                     % (re.escape(name), re.escape(EXT)))
+    nums = []
+    try:
+        for o in list_objects():
+            key = o["key"]
+            if prefix and key.startswith(prefix):
+                key = key[len(prefix):]
+            m = pat.match(key)
+            if m:
+                nums.append(int(m.group(1)))
+    except Exception as e:
+        print(f"[S3] 조각 목록 조회 실패({type(e).__name__}) - 0~9 로 찾는다",
+              flush=True)
+        nums = list(range(10))
+    _PARTS_CACHE[name] = sorted(set(nums))
+    return _PARTS_CACHE[name]
 
 
 def read_table(name, bucket=None, prefix=None):
@@ -203,8 +241,9 @@ def read_table(name, bucket=None, prefix=None):
     실시간 전환의 의미가 없다. 전송량은 압축(FMT)으로 줄인다.
     """
     if name in SPLIT_TABLES:
+        nums = split_parts(name)
         parts, missing = [], []
-        for i in range(SPLIT_PARTS):
+        for i in nums:
             try:
                 parts.append(_read_one(f"{name}_{i}", bucket, prefix))
             except Exception:
@@ -218,7 +257,8 @@ def read_table(name, bucket=None, prefix=None):
             df = pd.concat(parts, ignore_index=True)
             # 조각마다 라인별 행 수를 찍는다. 한 조각의 쿼리가 잘못되면
             # 여기서 드러난다(예: 한쪽 라인 조건만 다른 숫자로 남음).
-            for i, part in enumerate(parts):
+            got = [i for i in nums if i not in missing]
+            for i, part in zip(got, parts):
                 lc = ""
                 for col in ("line_id", "LINE_ID"):
                     if col in part.columns:
