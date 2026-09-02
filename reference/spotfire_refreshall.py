@@ -60,11 +60,23 @@ def run_functions():
         if f.Name not in ORDER:
             todo.append(f)
 
+    # ORDER 에 적힌 함수가 문서에 없으면 미리 알린다.
+    #   이름을 잘못 등록하면 조용히 빠져 그 표만 옛 데이터가 남는다.
+    absent = []
+    for nm in ORDER:
+        if nm not in byname:
+            absent.append(nm)
+    if absent:
+        log("주의: 없는 함수 %s - 나머지 %d개만 실행합니다"
+            % (", ".join(absent), len(todo)))
+
+    total = len(todo)
     done = 0
     bad = []
     for f in todo:
         try:
-            log("실행 중 %s" % f.Name)
+            # 몇 번째인지 함께 남긴다. 어디서 멈췄는지 바로 보인다.
+            log("실행 중 %d/%d %s" % (done + len(bad) + 1, total, f.Name))
             f.Execute()
             done += 1
         except Exception, e:          # noqa: E999  (IronPython 2.7 문법)
