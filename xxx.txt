@@ -1,2 +1,8 @@
-Get-ChildItem "C:\Program Files (x86)\TIBCO" -Recurse -Filter python.exe -ErrorAction SilentlyContinue |
-  Select-Object FullName
+새로운 기능 및 개선 사항에 대 한 최신 PowerShell을 설치 하세요! https://aka.ms/PSWindows
+
+PS C:\Users\minuk12.choi> Get-ChildItem "C:\Program Files (x86)\TIBCO" -Recurse -Filter python.exe -ErrorAction SilentlyContinue |
+>>   Select-Object FullName
+PS C:\Users\minuk12.choi> Get-ChildItem "C:\Program Files (x86)\TIBCO" -Recurse -Filter python.exe -ErrorAction SilentlyContinue
+PS C:\Users\minuk12.choi> Get-ChildItem "C:\Program Files (x86)\TIBCO" -Recurse -Filter python.exe -ErrorAction SilentlyContinue |
+>>   Select-Object FullName
+PS C:\Users\minuk12.choi>
