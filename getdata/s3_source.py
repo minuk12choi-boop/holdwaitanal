@@ -179,12 +179,43 @@ def manifest_age(m=None, max_min=90):
             "expected": m.get("total")}
 
 
+# 조각으로 나눠 올리는 표. Spotfire 가 한 번에 읽다 죽어서 셋으로 갈랐다.
+#   PFR1_KFR7_TIP -> PFR1_KFR7_TIP_0 · _1 · _2
+#   원본 이름으로 읽으면 조각을 찾아 이어 붙인다.
+SPLIT_PARTS = 3
+SPLIT_TABLES = ("PFR1_KFR7_TIP", "PFR1_KFR7_STEP_PATH")
+
+
 def read_table(name, bucket=None, prefix=None):
-    """S3 의 pkl 을 매번 새로 읽어 DataFrame 으로.
+    """S3 의 표를 읽어 DataFrame 으로. 조각으로 나뉜 표는 이어 붙인다.
 
     캐시하지 않는다. 라인 데이터는 매 순간 바뀌므로 낡은 값을 재사용하면
     실시간 전환의 의미가 없다. 전송량은 압축(FMT)으로 줄인다.
     """
+    if name in SPLIT_TABLES:
+        parts, missing = [], []
+        for i in range(SPLIT_PARTS):
+            try:
+                parts.append(_read_one(f"{name}_{i}", bucket, prefix))
+            except Exception:
+                missing.append(i)
+        if parts:
+            if missing:
+                # 한 조각이라도 빠지면 그만큼 재공이 사라진다. 조용히 넘기면
+                # 설비를 못 찾거나 스텝이 비는 것으로만 보여 원인을 못 찾는다.
+                print(f"[S3] {name} 조각 {missing} 없음 - 그만큼 빠진다",
+                      flush=True)
+            df = pd.concat(parts, ignore_index=True)
+            print(f"[S3] {name} 조각 {len(parts)}개 이어붙임 {len(df):,}행",
+                  flush=True)
+            return df
+        # 조각이 하나도 없으면 옛 방식(한 덩어리)으로 읽는다.
+
+    return _read_one(name, bucket, prefix)
+
+
+def _read_one(name, bucket=None, prefix=None):
+    """조각 하나(또는 나누지 않은 표)를 읽는다."""
     b, p = _bucket_prefix()
     bucket = bucket or b
     prefix = prefix if prefix is not None else p
