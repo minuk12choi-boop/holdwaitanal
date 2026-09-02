@@ -206,6 +206,17 @@ def read_table(name, bucket=None, prefix=None):
                 print(f"[S3] {name} 조각 {missing} 없음 - 그만큼 빠진다",
                       flush=True)
             df = pd.concat(parts, ignore_index=True)
+            # 조각마다 라인별 행 수를 찍는다. 한 조각의 쿼리가 잘못되면
+            # 여기서 드러난다(예: 한쪽 라인 조건만 다른 숫자로 남음).
+            for i, part in enumerate(parts):
+                lc = ""
+                for col in ("line_id", "LINE_ID"):
+                    if col in part.columns:
+                        vc = part[col].value_counts().to_dict()
+                        lc = "  " + " · ".join(f"{k} {v:,}"
+                                               for k, v in sorted(vc.items()))
+                        break
+                print(f"[S3]   {name}_{i} {len(part):,}행{lc}", flush=True)
             print(f"[S3] {name} 조각 {len(parts)}개 이어붙임 {len(df):,}행",
                   flush=True)
             return df
