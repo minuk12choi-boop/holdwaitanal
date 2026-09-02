@@ -1,1 +1,22 @@
-RuntimeError: boto3 가 없습니다 (No module named 'boto3'). Spotfire python = C:\Program Files (x86)\TIBCO\Spotfire\10.10.0\Modules\Python Interpreter_3.1006.10804.23\python\python.exe  |  설치 명령: "C:\Program Files (x86)\TIBCO\Spotfire\10.10.0\Modules\Python Interpreter_3.1006.10804.23\python\python.exe" -m pip install boto3
+PS C:\Users\minuk12.choi> "C:\Program Files (x86)\TIBCO\Spotfire\10.10.0\Modules\Python Interpreter_3.1006.10804.23\python\python.exe" -m pip install boto3
+위치 줄:1 문자:110
++ ... ules\Python Interpreter_3.1006.10804.23\python\python.exe" -m pip ins ...
++                                                                ~~
+식 또는 문에서 예기치 않은 '-m' 토큰입니다.
+위치 줄:1 문자:113
++ ... \Python Interpreter_3.1006.10804.23\python\python.exe" -m pip install ...
++                                                               ~~~
+식 또는 문에서 예기치 않은 'pip' 토큰입니다.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : UnexpectedToken
+
+PS C:\Users\minuk12.choi> "C:\Program Files (x86)\TIBCO\Spotfire\10.10.0\Modules\Python Interpreter_3.1006.10804.23\python\python.exe"
+C:\Program Files (x86)\TIBCO\Spotfire\10.10.0\Modules\Python Interpreter_3.1006.10804.23\python\python.exe
+PS C:\Users\minuk12.choi> -m pip install boto3
+-m : '-m' 용어가 cmdlet, 함수, 스크립트 파일 또는 실행할 수 있는 프로그램 이름으로 인식되지 않습니다. 이름이 정확한지
+확인하고 경로가 포함된 경우 경로가 올바른지 검증한 다음 다시 시도하십시오.
+위치 줄:1 문자:1
++ -m pip install boto3
++ ~~
+    + CategoryInfo          : ObjectNotFound: (-m:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
