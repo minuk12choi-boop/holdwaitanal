@@ -660,6 +660,39 @@ for _i, _a in enumerate(sys.argv):
 # 원천에는 있는데 최종 f3 에 없는 lot 을 전부 뽑아 엑셀로 남긴다.
 #   실행:  set TRACE_DROP=1   또는  python getdata/build_f3.py --trace-drop
 #   결과:  getdata/out/dropped_lots_YYYYmmdd_HHMM.xlsx
+# lot 하나가 어느 단계에서 사라지는지 따라간다.
+#   실행:  set TRACE_LOT=QTDEJ02.1   또는  --trace-lot QTDEJ02.1
+def _trace_lot_arg():
+    v = os.environ.get("TRACE_LOT", "").strip()
+    if not v and "--trace-lot" in sys.argv:
+        i = sys.argv.index("--trace-lot")
+        if i + 1 < len(sys.argv):
+            v = sys.argv[i + 1].strip()
+    return v.upper()
+
+
+TRACE_LOT = _trace_lot_arg()
+
+
+def tlot(stage, df, col="lot_id"):
+    """TRACE_LOT 이 그 단계에 남아 있는지 찍는다. 값은 내지 않는다."""
+    if not TRACE_LOT or df is None:
+        return
+    try:
+        d = df
+        cols = {str(c).lower(): c for c in d.columns}
+        if col not in cols:
+            print(f"[TLOT] {stage:28s} {col} 컬럼 없음", flush=True)
+            return
+        v = d[cols[col]].astype("string").str.strip().str.upper()
+        n = int(v.eq(TRACE_LOT).sum())
+        mark = "" if n else "   <-- 여기서 사라졌다"
+        print(f"[TLOT] {stage:28s} {n:>6,}행 / 전체 {len(d):,}{mark}",
+              flush=True)
+    except Exception as e:
+        print(f"[TLOT] {stage:28s} 확인 실패 {type(e).__name__}", flush=True)
+
+
 TRACE_DROP = (os.environ.get("TRACE_DROP", "").strip() not in ("", "0")
               or "--trace-drop" in sys.argv)
 
@@ -3318,6 +3351,7 @@ def main():
         if TRACE_DROP and SOURCE == "bdq":
             df_lot_raw = fetch("lot_raw", lot_query_raw, keep_sample=False)
         df_lot = fetch("lot", lot_query)
+        tlot("1 원천 lot", df_lot)
 
         # 재공 원천이 비면 그 뒤 조인이 KeyError 로 터져 원인을 못 찾는다.
         #   여기서 멈추고 무엇이 잘못됐는지 밝힌다.
@@ -3387,6 +3421,7 @@ def main():
                           flush=True)
                     df_cat = None
                 df_lot = attach_category(df_lot, df_cat)
+                tlot("2 CATEGORY 결합 후", df_lot)
 
         df_eqp = fetch("equipment", eqp_query)
         # 설비그룹은 하루에 한 번만 바뀌면 충분하다. 업무일(22시 기준) 단위로
@@ -3563,6 +3598,7 @@ def main():
         # 비어 있더라도 자리를 만들어 둔다.
         _m = _m.copy()
         _m["category"] = pd.NA
+    tlot("3 duckdb 등록 직전", _m)
     con.register("m", _m)
     con.register("s", s)
     con.register("t", t)
@@ -3590,6 +3626,30 @@ def main():
     n_tip = int(df_f3["tip"].notna().sum())
     print(f"[TIP] f3 tip 값 있는 행 = {n_tip:,} / {len(df_f3):,}", flush=True)
     print(f"[ROWS] f3 = {len(df_f3):,}  (lot {df_f3['lot_id'].nunique():,}개)", flush=True)
+    tlot("9 최종 f3", df_f3)
+
+    # 중간 SQL 단계도 훑는다. 어느 조인에서 빠졌는지 좁힌다.
+    if TRACE_LOT:
+        for t in ("m", "ms_joined", "f1_base", "f1_status_base", "f1",
+                  "f1_current", "f3_calc"):
+            try:
+                n = con.execute(
+                    "SELECT COUNT(*) FROM %s WHERE UPPER(TRIM(lot_id))=?" % t,
+                    [TRACE_LOT]).fetchone()[0]
+                mark = "" if n else "   <-- 여기서 사라졌다"
+                print(f"[TLOT] (sql) {t:22s} {n:>6,}행{mark}", flush=True)
+            except Exception as e:
+                print(f"[TLOT] (sql) {t:22s} 조회 실패 "
+                      f"{type(e).__name__}", flush=True)
+        # 스텝 범위(s)와 TIP(t) 에도 있는지
+        try:
+            n = con.execute(
+                "SELECT COUNT(*) FROM s WHERE UPPER(TRIM(lot_id))=?",
+                [TRACE_LOT]).fetchone()[0]
+            print(f"[TLOT] (sql) {'s (스텝범위)':22s} {n:>6,}행"
+                  + ("" if n else "   <-- 스텝 경로가 없다"), flush=True)
+        except Exception:
+            pass
     _check_status(df_lot, df_f3)
     if FABPLAN:
         _check_fab(df_f3, df_lot)
