@@ -1,7 +1,7 @@
 """
 spotfire_s3_export_tip_3.py — S3 적재 (s3drive_tip_3)
 
-  TIP 4/6 조각
+  TIP 4/10 조각
 
 [등록]
   Tools > Register Data Functions
@@ -12,13 +12,13 @@ spotfire_s3_export_tip_3.py — S3 적재 (s3drive_tip_3)
     Output Parameters : upload_log_tip_3 (Table)
                         Output handler = Data table
                         Replace existing data table 체크
-    Run location      : 일곱(이제 열셋) 함수를 모두 같게 둔다
+    Run location      : 21개 함수를 모두 같게 둔다
 
   [중요] 한 함수에 표를 여러 개 물리면 나눈 뜻이 없다.
   Spotfire 는 스크립트를 돌리기 전에 등록된 입력을 전부
   메모리로 읽는다. 함수마다 제 표 하나씩만 등록한다.
 
-  13개 함수를 모두 등록해야 25개 표가 다 올라간다.
+  21개 함수를 모두 등록해야 33개 표가 다 올라간다.
   매니페스트는 서로 병합되므로 순서는 상관없다.
 """
 import io
@@ -103,7 +103,7 @@ FMT = "parquet"
 # 파이프라인 전체가 기대하는 테이블 수. 함수를 나눠 등록해도 이 값은
 # **전체 개수**로 둔다(각 함수의 TABLE_NAMES 길이가 아니다).
 #   기존 9 + FabPlan 5 = 14
-ALL_TABLES = 25
+ALL_TABLES = 33
 
 
 # ---------------------------------------------------------------------------

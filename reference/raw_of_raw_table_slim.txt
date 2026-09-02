@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
 -- raw_of_raw_table_slim.txt
---   메모리 부족(MemoryError)을 피하려고 **표를 여섯으로 쪼개는** 쿼리다.
+--   메모리 부족(MemoryError)을 피하려고 **표를 열로 쪼개는** 쿼리다.
 --   기존 raw_of_raw_table.txt 는 그대로 두고, 이 두 개만 갈아 끼운다.
 --
 --   [왜 조건절로 거르지 않는가]
@@ -10,12 +10,12 @@
 --
 --   [왜 셋인가]
 --     Spotfire 는 스크립트를 돌리기 전에 표 전체를 메모리로 읽는다.
---     한 함수가 700만 행을 읽다 죽으므로, 120만 행씩 여섯 번 읽게 한다.
+--     한 함수가 700만 행을 읽다 죽으므로, 70만 행씩 열 번 읽게 한다.
 --
 --   [나누는 기준]
---     ORA_HASH(eqpid, 5) 를 쓴다. 0 ~ 5 여섯 조각이 된다.
+--     ORA_HASH(eqpid, 9) 를 쓴다. 0 ~ 9 열 조각이 된다.
 --       - 같은 설비는 늘 같은 조각에 간다(회차마다 배치가 바뀌지 않는다)
---       - eqpid 분포가 고르므로 여섯 조각 크기도 비슷하다
+--       - eqpid 분포가 고르므로 열 조각 크기도 비슷하다
 --       - 인덱스와 무관해 조회가 느려지지 않는다
 --     ROWNUM 은 쓰지 않는다. 정렬 전에 붙는 값이라 회차마다 달라진다.
 --
@@ -27,10 +27,10 @@
 --------------------------------------------------------------------------------
 -- 4) PFR1_KFR7_TIP_0  /  _1  /  _2
 --
---    아래 쿼리를 여섯 벌 만든다. 맨 아래 두 줄의 숫자만 0 · 1 · 2 로 바꾼다.
+--    아래 쿼리를 열 벌 만든다. 맨 아래 두 줄의 숫자만 0 · 1 · 2 로 바꾼다.
 --
 --      표 이름 : PFR1_KFR7_TIP_0 · PFR1_KFR7_TIP_1 · PFR1_KFR7_TIP_2
---      함수    : s3drive_tip_0 ~ s3drive_tip_5
+--      함수    : s3drive_tip_0 ~ s3drive_tip_9
 --                (입력은 그 표 하나씩만 등록한다)
 --
 --    lot_type 컬럼은 없다. python 이 '-'(와일드카드)로 채운다.
@@ -49,7 +49,7 @@ SELECT sysdate as query_time,
        eventtime
 FROM   smicdc_p3nrd.trackinprevent
 WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
-  AND  ORA_HASH(eqpid, 5) = 0          -- <<< 0 ~ 5 로 바꿔 여섯 벌
+  AND  ORA_HASH(eqpid, 9) = 0          -- <<< 0 ~ 9 로 바꿔 열 벌
 
 union all
 
@@ -67,7 +67,7 @@ SELECT sysdate as query_time,
        eventtime
 FROM   smicdc_nrdk.trackinprevent
 WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
-  AND  ORA_HASH(eqpid, 5) = 0          -- <<< 위와 같은 숫자로 맞춘다
+  AND  ORA_HASH(eqpid, 9) = 0          -- <<< 위와 같은 숫자로 맞춘다
 ;
 
 
@@ -77,25 +77,25 @@ WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
 --    기존 3) 쿼리에 아래 조건 한 줄만 양쪽 SELECT 에 덧붙인다.
 --    lot 단위로 갈라야 한 lot 의 경로가 흩어지지 않는다.
 --
---      표 이름 : PFR1_KFR7_STEP_PATH_0 ~ _5
---      함수    : s3drive_path_0 ~ s3drive_path_5
+--      표 이름 : PFR1_KFR7_STEP_PATH_0 ~ _9
+--      함수    : s3drive_path_0 ~ s3drive_path_9
 --
---    ORA_HASH(c.lot_id, 5) 를 쓰는 이유
+--    ORA_HASH(c.lot_id, 9) 를 쓰는 이유
 --      - 같은 lot 의 스텝은 한 조각에 모인다(경로가 쪼개지지 않는다)
 --      - lot 수가 13,000 개라 세 조각이 고르게 나뉜다
 --------------------------------------------------------------------------------
---   AND ORA_HASH(c.lot_id, 5) = 0     -- <<< 0 ~ 5 로 바꿔 여섯 벌
+--   AND ORA_HASH(c.lot_id, 9) = 0     -- <<< 0 ~ 9 로 바꿔 열 벌
 
 
 --------------------------------------------------------------------------------
 -- [확인]
---   여섯 조각의 행 수를 더하면 원본과 같아야 한다.
+--   열 조각의 행 수를 더하면 원본과 같아야 한다.
 --
---     SELECT ORA_HASH(eqpid, 5) AS part, COUNT(*)
+--     SELECT ORA_HASH(eqpid, 9) AS part, COUNT(*)
 --     FROM   smicdc_p3nrd.trackinprevent
 --     WHERE  owner IN ('LEVEL1', 'PHOTO_LEVEL1')
---     GROUP  BY ORA_HASH(eqpid, 5);
+--     GROUP  BY ORA_HASH(eqpid, 9);
 --
---   여섯 값이 비슷하지 않으면(한쪽에 쏠리면) eqpid 대신 chamberid 나
+--   열 값이 비슷하지 않으면(한쪽에 쏠리면) eqpid 대신 chamberid 나
 --   ppid 로 바꿔 본다. 기준만 바꾸면 되고 나머지는 그대로다.
 --------------------------------------------------------------------------------

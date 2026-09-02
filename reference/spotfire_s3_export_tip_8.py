@@ -1,15 +1,15 @@
 """
-spotfire_s3_export_tip_2.py — S3 적재 (s3drive_tip_2)
+spotfire_s3_export_tip_8.py — S3 적재 (s3drive_tip_8)
 
-  TIP 3/10 조각
+  TIP 9/10 조각
 
 [등록]
   Tools > Register Data Functions
-    Name              : s3drive_tip_2
+    Name              : s3drive_tip_8
     Type              : Python script
     Input Parameters  : 아래 1개만 Table 로 등록
-                        PFR1_KFR7_TIP_2
-    Output Parameters : upload_log_tip_2 (Table)
+                        PFR1_KFR7_TIP_8
+    Output Parameters : upload_log_tip_8 (Table)
                         Output handler = Data table
                         Replace existing data table 체크
     Run location      : 21개 함수를 모두 같게 둔다
@@ -47,7 +47,7 @@ S3_ENDPOINT_URL      = "http://s3.dataplatform.samsungds.net:9020"
 S3_BUCKET            = "RND_FABMODELING"
 S3_PREFIX            = "multi_report/"          # 예) "multi_report/"  (끝 '/' 는 자동 보정)
 
-# boto3 설치 전 점검용. False 로 두면 업로드하지 않고 환경 정보만 upload_log_tip_2 에
+# boto3 설치 전 점검용. False 로 두면 업로드하지 않고 환경 정보만 upload_log_tip_8 에
 # 남긴다(파이썬 경로 / 설치 명령).
 USE_BOTO3 = True
 # ────────────────────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ USE_BOTO3 = True
 #   마지막 함수가 14개 전부를 담은 완결 표시를 남긴다.
 #   ALL_TABLES 는 그대로 14 로 둔다.
 TABLE_NAMES = [
-    "PFR1_KFR7_TIP_2",
+    "PFR1_KFR7_TIP_8",
 ]
 
 
@@ -341,15 +341,15 @@ except Exception as e:
     rows.append(["(전체)", "FAIL", 0, 0, "", 0.0, 0.0,
                  "%s: %s" % (type(e).__name__, e), started, dt.datetime.now()])
 
-upload_log_tip_2 = pd.DataFrame(
+upload_log_tip_8 = pd.DataFrame(
     rows, columns=["table", "status", "rows", "cols", "query_time",
                    "serialize_sec", "upload_sec", "detail", "start", "end"])
-upload_log_tip_2["elapsed_sec"] = (
-    upload_log_tip_2["end"] - upload_log_tip_2["start"]).dt.total_seconds().round(2)
+upload_log_tip_8["elapsed_sec"] = (
+    upload_log_tip_8["end"] - upload_log_tip_8["start"]).dt.total_seconds().round(2)
 
 # 스크립트 전체 소요. 이 값이 작은데 Spotfire 체감이 길면, 병목은 이 스크립트가
 # 아니라 Spotfire -> python 데이터 전달(입력 마샬링) 이다.
-upload_log_tip_2["script_total_sec"] = round(
+upload_log_tip_8["script_total_sec"] = round(
     (dt.datetime.now() - started).total_seconds(), 2)
 trace("script end  rows=%d  total=%.1fs"
-      % (len(upload_log_tip_2), (dt.datetime.now() - started).total_seconds()))
+      % (len(upload_log_tip_8), (dt.datetime.now() - started).total_seconds()))
