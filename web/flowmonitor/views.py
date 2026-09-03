@@ -2235,6 +2235,22 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
             continue
         if c == "qty":
             sel.append("MIN(CAST(`qty` AS SIGNED)) AS `qty`")
+        elif c in ("down", "tip"):
+            # 설비상태 · TIP 은 연속 구간을 함께 본다.
+            #   현스텝 것은 진행불가가 아니어도 전부 보여준다(그 스텝 설명).
+            #   후속 스텝은 **실제 진행불가인 것만** 가져온다.
+            #   진행불가 설비를 앞에 두고, 화면에서 빨간 글자로 칠한다.
+            #
+            #   [이전 문제] COALESCE(현스텝, MIN(전체)) 였다. 현스텝 값이
+            #   비면 전체에서 사전순 최솟값을 집어, 진행불가와 무관한
+            #   설비(MCD406)가 대표로 뜨는 일이 있었다.
+            blk = (f"GROUP_CONCAT(DISTINCT CASE WHEN `현스텝`<>'현스텝'"
+                   f" AND `step_status`='WAIT(진행불가)'"
+                   f" AND `{c}` IS NOT NULL AND `{c}`<>''"
+                   f" THEN `{c}` END SEPARATOR ' / ')")
+            own = f"MIN(CASE WHEN `현스텝`='현스텝' THEN `{c}` END)"
+            sel.append(f"NULLIF({blk}, '') AS `{c}_blk`")
+            sel.append(f"CONCAT_WS(' / ', NULLIF({blk}, ''), {own}) AS `{c}`")
         elif c in STEP_SCOPED:
             # 현스텝 행이 없는 lot 도 있어 전체 MIN 으로 보완한다.
             sel.append(f"COALESCE(MIN(CASE WHEN `현스텝`='현스텝' THEN `{c}` END),"

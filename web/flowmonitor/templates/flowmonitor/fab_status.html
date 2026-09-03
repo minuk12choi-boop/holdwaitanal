@@ -599,10 +599,17 @@ function ddApply(which) {
 function prodSearch(which) {
   const q = (document.getElementById("p" + which + "q").value || "")
     .trim().toLowerCase();
+  // 검색은 보이기만 바꾸는 게 아니라 **체크까지 그 범위로 맞춘다.**
+  //   보이는 것만 좁혀 놓고 체크는 ALL 이면, 조회를 눌러도 전체가 나와
+  //   사용자가 기대한 것과 다르다.
   document.querySelectorAll("#p" + which + "m label[data-opt]").forEach(el => {
     const v = (el.getAttribute("data-opt") || "").toLowerCase();
-    el.style.display = (!q || v.indexOf(q) >= 0) ? "" : "none";
+    const on = (!q || v.indexOf(q) >= 0);
+    el.style.display = on ? "" : "none";
+    const cb = el.querySelector("input");
+    if (cb) { cb.checked = on; }        // 보이는 것만 켠다
   });
+  prodPicked(which, false);             // ALL 표시와 버튼 상태를 맞춘다
 }
 
 function renderProd(d) {
@@ -612,8 +619,12 @@ function renderProd(d) {
     const isAll = (cur.length === 0);          // 선택 없음 = 전체
     const set = new Set(cur);
     box.innerHTML =
-      `<input class="ddq" id="p${which}q" type="text" placeholder="검색"`
+      `<div class="ddhead">`
+      + `<input class="ddq" id="p${which}q" type="text" placeholder="검색"`
       + ` oninput="prodSearch(${which})" onclick="event.stopPropagation()">`
+      + `<button class="ddgo" id="p${which}go"`
+      + ` onclick="event.stopPropagation();ddApply(${which})">조회</button>`
+      + `</div>`
       + `<label style="border-bottom:1px solid var(--bd);font-weight:600">`
       + `<input type="checkbox" data-all ${isAll ? "checked" : ""}`
       + ` onchange="prodPicked(${which}, true)">ALL</label>`
@@ -622,9 +633,7 @@ function renderProd(d) {
           + ` ${isAll || set.has(o) ? "checked" : ""}`
           + ` onchange="prodPicked(${which}, false)">${o}</label>`).join("")
          || `<label style="color:var(--mut)">값 없음</label>`)
-      // 고른 뒤 이 버튼을 눌러야 조회한다. 누르기 전에는 화면이 안 바뀐다.
-      + `<div class="ddgo"><button id="p${which}go"`
-      + ` onclick="event.stopPropagation();ddApply(${which})">조회</button></div>`;
+      ;
     const btn = document.getElementById("p" + which + "b");
     // 고른 값을 그대로 적으면 글자가 끊긴다. 개수만 적고 전체는 툴팁으로.
     btn.innerHTML = `<span>${PROD_LABEL[which]} `
@@ -4571,6 +4580,16 @@ function renderDrillSorts() {
 
 function sortClearAll() { SORT_KEYS = []; renderDrillTable(); }
 
+// 진행불가를 만든 부분(blk)을 빨간 글자로. 나머지는 그대로 둔다.
+//   값은 ' / ' 로 이어 붙여 오므로 그 단위로 가른다.
+function blockHtml(v, blk) {
+  const bad = new Set(String(blk).split(" / ").map(x => x.trim()));
+  return String(v).split(" / ").map(x => {
+    const t = x.trim();
+    return bad.has(t) ? '<span class="blk">' + t + "</span>" : t;
+  }).join(" / ");
+}
+
 function renderDrillTable() {
   const d = DRILL_DATA;
   if (!d) { return; }
@@ -4655,6 +4674,16 @@ function renderDrillTable() {
         let v = (raw === null || raw === undefined) ? ""
           : (isWt[j] ? Number(raw).toFixed(1) : String(raw));
         const bg = isSt[j] && SC[v] ? ' style="background:' + SC[v] + '33"' : "";
+        // 설비상태 · TIP 은 진행불가를 만든 부분만 빨갛게 칠한다.
+        //   서버가 그 부분을 <컬럼>_blk 로 따로 준다.
+        const blk = r[keys[j] + "_blk"];
+        if (blk && v) {
+          out.push(isNum[j] ? '<td class="num"' + bg + '><span class="c">'
+                            : "<td" + bg + '><span class="c">');
+          out.push(blockHtml(v, String(blk)));
+          out.push("</span></td>");
+          continue;
+        }
         if (v.length > LONG) {
           out.push(isNum[j] ? '<td class="num"' + bg + '><span class="c">'
                             : "<td" + bg + '><span class="c">');
