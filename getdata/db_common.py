@@ -195,6 +195,7 @@ def connect():
 # 두 한계에 모두 걸린다.
 TEXT_COLUMNS = {
     "lot_inform", "eqpgroup", "eqpgroup_cham", "tip", "down", "category",
+    "childeqp",
     "hold_reason", "exception_reason", "ftp_reason", "step_desc", "eqpline", "prod1", "prod2", "dept", "dest_line_id", "module1", "module2", "cause_detail",
 }
 SHORT_LEN = 128          # 그 외 컬럼 (128 x 4 = 512 bytes)

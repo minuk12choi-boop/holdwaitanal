@@ -1059,7 +1059,8 @@ HOLD_ITEM_TYPES = {
 
 SUMMARY_OUTPUT_COLUMNS = [
     "lot_inform", "line", "현재위치", "전산라인", "투입라인", "lot_id", "carr_id",
-    "grade", "category", "lot_type", "lot_level", "qty", "bay", "sendfab",
+    "grade", "category", "childeqp",
+    "lot_type", "lot_level", "qty", "bay", "sendfab",
     "투입경과_일", "마지막이벤트경과_일", "스텝도착경과_일", "마지막작업경과_일",
     "lot_status", "step_status", "proc_id", "de_rank", "연속", "AREA", "layer_id",
     "현스텝", "order_seq", "step_seq", "step_desc", "recipe_id", "eqp_type",
@@ -1703,6 +1704,8 @@ def _apply_childeqp(con, df_cap=None):
         "WHERE table_name='f1_base'").fetchall()}
     if "cap_ok" not in have:
         con.execute("ALTER TABLE f1_base ADD COLUMN cap_ok INTEGER")
+    if "childeqp" not in have:
+        con.execute("ALTER TABLE f1_base ADD COLUMN childeqp VARCHAR")
     if df_cap is None or not len(df_cap):
         print("[CAP] EQPCAPABILITY 원천이 없다 - 경로 판정 건너뜀", flush=True)
         return
@@ -1748,7 +1751,8 @@ def _apply_childeqp(con, df_cap=None):
         if st not in ("LOCAL", "DOWN", "PM") and pv != "PREVENT":
             alive_map.setdefault(key, set()).add(ch)
 
-    caps, stat = [], {"가능": 0, "불가": 0, "판단못함": 0, "대상아님": 0}
+    caps, paths = [], []
+    stat = {"가능": 0, "불가": 0, "판단못함": 0, "대상아님": 0}
     st_cnt, tok_cnt = [], []
     for r in base.itertuples(index=False):
         eq = str(r.eqpid or "").strip().upper()
@@ -1756,8 +1760,10 @@ def _apply_childeqp(con, df_cap=None):
         expr = exact.get((eq, rp)) or wild.get(eq)
         if not expr:
             caps.append(None)
+            paths.append(None)
             stat["대상아님"] += 1
             continue
+        paths.append(str(expr))
         stages = parse_childeqp(expr)
         if stages:
             st_cnt.append(len(stages))
@@ -1770,15 +1776,23 @@ def _apply_childeqp(con, df_cap=None):
              ("불가" if got is False else "판단못함")] += 1
 
     base["cap_ok"] = caps
+    base["cap_path"] = paths
     con.register("cap_upd", base[["line", "lot_id", "order_seq", "eqpid",
-                                  "eqpcham_final", "cap_ok"]])
+                                  "eqpcham_final", "cap_ok", "cap_path"]])
     con.execute("""
-        UPDATE f1_base SET cap_ok = (
-            SELECT MAX(u.cap_ok) FROM cap_upd u
-            WHERE u.line = f1_base.line AND u.lot_id = f1_base.lot_id
-              AND u.order_seq = f1_base.order_seq
-              AND u.eqpid IS NOT DISTINCT FROM f1_base.eqpid
-              AND u.eqpcham_final IS NOT DISTINCT FROM f1_base.eqpcham_final)
+        UPDATE f1_base SET
+            cap_ok = (
+                SELECT MAX(u.cap_ok) FROM cap_upd u
+                WHERE u.line = f1_base.line AND u.lot_id = f1_base.lot_id
+                  AND u.order_seq = f1_base.order_seq
+                  AND u.eqpid IS NOT DISTINCT FROM f1_base.eqpid
+                  AND u.eqpcham_final IS NOT DISTINCT FROM f1_base.eqpcham_final),
+            childeqp = (
+                SELECT MAX(u.cap_path) FROM cap_upd u
+                WHERE u.line = f1_base.line AND u.lot_id = f1_base.lot_id
+                  AND u.order_seq = f1_base.order_seq
+                  AND u.eqpid IS NOT DISTINCT FROM f1_base.eqpid
+                  AND u.eqpcham_final IS NOT DISTINCT FROM f1_base.eqpcham_final)
     """)
     con.unregister("cap_upd")
 
@@ -2896,7 +2910,9 @@ def build_f3(con):
                -- CHILDEQP 가 붙은 설비 중 경로가 살아 있는 것이 하나라도
                -- 있으면 그 스텝은 진행 가능하다(설비 간 OR).
                MAX(CASE WHEN cap_ok = 1 THEN 1 ELSE 0 END) AS cap_alive,
-               MAX(CASE WHEN cap_ok IS NOT NULL THEN 1 ELSE 0 END) AS cap_known
+               MAX(CASE WHEN cap_ok IS NOT NULL THEN 1 ELSE 0 END) AS cap_known,
+               -- 화면에 보여줄 경로 문자열. 설비가 여럿이면 이어 붙인다.
+               STRING_AGG(DISTINCT childeqp, ', ' ORDER BY childeqp) AS childeqp
         FROM f1_base GROUP BY line, lot_id, order_seq
     """)
 
@@ -3080,7 +3096,7 @@ def build_f3(con):
             {elapsed_days_num('fsb.step_arrive_date')} AS "스텝도착경과_일",
             {elapsed_days_num('fsb.last_tkout_date')}   AS "마지막작업경과_일",
             fc.current_de_rank, fc.current_continuous,
-            fg.eqpgroup, fg.batch_kind_agg,
+            fg.eqpgroup, fg.batch_kind_agg, fc.childeqp,
             -- AREA 는 설비마다 다를 수 있다(한 스텝에 설비 여럿).
             --   대표 하나로 묶어야 (lot, order_seq) 가 한 행이 된다.
             COALESCE(fg.area_one, fsb.AREA) AS AREA,
@@ -3165,6 +3181,7 @@ def build_f3(con):
             f.lot_inform, f.line,
             f.cur_line_id AS "현재위치", f.sys_line_id AS "전산라인",
             f.origin_line_id AS "투입라인",
+            f.childeqp,
             f.lot_id, f.carr_id, f.grade, f.category, f.lot_type, f.lot_level,
             f.cur_qty AS qty, f.bay_name AS bay, f.sendfab,
             f."투입경과_일", f."마지막이벤트경과_일", f."스텝도착경과_일",

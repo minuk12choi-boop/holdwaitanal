@@ -1197,6 +1197,8 @@ LOT_DETAIL_COLS = [
     ("마지막이벤트경과_일", "마지막이벤트경과_일"),
     ("스텝도착경과_일", "스텝도착경과_일"),
     ("마지막작업경과_일", "마지막TKOUT경과_일"),
+    # 설비 내부 경로(CHILDEQP). 맨 오른쪽에 둔다.
+    ("childeqp", "CHILDEQP"),
 ]
 
 # 드릴다운 종류별 기본 컬럼과 순서.
@@ -1206,7 +1208,8 @@ _BASE = ["prod1", "prod2", "lot_id", "hot", "grade",
          "lot_type", "qty", "wt", "proc_id",
          "module1", "module2", "layer_id", "AREA", "step_seq", "step_desc",
          "eqpgroup", "eqpgroup_cham", "recipe_id"]
-_ELAPSED = ["마지막이벤트경과_일", "스텝도착경과_일", "마지막작업경과_일"]
+_ELAPSED = ["마지막이벤트경과_일", "스텝도착경과_일", "마지막작업경과_일",
+            "childeqp"]          # 경로는 맨 오른쪽에 붙는다
 
 DRILL_PRESETS = {
     # 재공 구성 막대
@@ -2126,6 +2129,7 @@ def _eqp_status_of(down):
 # lot 단위로 접을 때 **현스텝 행의 값**을 써야 하는 컬럼.
 # 여기 없으면 전 행의 MIN() 이 되어 연속블록 값이 섞인다.
 STEP_SCOPED = ("eqpgroup", "eqpgroup_cham", "down", "tip", "recipe_id",
+               "childeqp",
                "step_seq", "step_desc", "eqp_type", "batch_kind", "eqpline",
                "order_seq", "layer_id", "AREA", "de_rank", "연속", "현스텝",
                "module1", "module2",
@@ -2247,11 +2251,18 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
             #   [주의] 후속 스텝은 `현스텝` 이 NULL 이다. NULL <> '현스텝'
             #   은 참이 아니라 NULL 이라 그 행이 통째로 빠진다.
             #   COALESCE 로 빈 문자열로 바꿔 비교한다.
-            blk = (f"GROUP_CONCAT(DISTINCT CASE WHEN"
-                   f" COALESCE(`현스텝`,'')<>'현스텝'"
-                   f" AND `step_status`='WAIT(진행불가)'"
-                   f" AND `{c}` IS NOT NULL AND `{c}`<>''"
-                   f" THEN `{c}` END SEPARATOR ' / ')")
+            #   [주의] GROUP_CONCAT 의 구분자 문법이 DB 마다 다르다.
+            #     MySQL   GROUP_CONCAT(x SEPARATOR ' / ')
+            #     SQLite  GROUP_CONCAT(x, ' / ')   (DISTINCT 와 함께 못 씀)
+            #   테스트(sqlite)에서도 돌아야 회귀를 잡을 수 있어 갈라 쓴다.
+            _expr = (f"CASE WHEN COALESCE(`현스텝`,'')<>'현스텝'"
+                     f" AND `step_status`='WAIT(진행불가)'"
+                     f" AND `{c}` IS NOT NULL AND `{c}`<>''"
+                     f" THEN `{c}` END")
+            if connection.vendor == "mysql":
+                blk = f"GROUP_CONCAT(DISTINCT {_expr} SEPARATOR ' / ')"
+            else:
+                blk = f"GROUP_CONCAT({_expr}, ' / ')"
             own = f"MIN(CASE WHEN `현스텝`='현스텝' THEN `{c}` END)"
             sel.append(f"NULLIF({blk}, '') AS `{c}_blk`")
             sel.append(f"CONCAT_WS(' / ', NULLIF({blk}, ''), {own}) AS `{c}`")
@@ -4419,6 +4430,11 @@ def api_lots_live(request):
         _std = hot_of(r, hot)
         rec["hot"] = _std or _hot
         row = {c: rec.get(c) for c in send_keys}
+        # 진행불가를 만든 부분은 화면에서 빨갛게 칠한다. 표시 컬럼이 아니라
+        # 여기서 함께 실어 보낸다(설비상태 · TIP).
+        for _c in ("down", "tip"):
+            if _c in row and rec.get(_c + "_blk"):
+                row[_c + "_blk"] = rec.get(_c + "_blk")
         row["_steps"] = int(r.get("_steps") or 1)
         out.append(row)
         tot_qty += q
