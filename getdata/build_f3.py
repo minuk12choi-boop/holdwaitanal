@@ -673,10 +673,6 @@ def _trace_lot_arg():
 
 TRACE_LOT = _trace_lot_arg()
 
-# lot 수준 > 경로 수준 스텝을 SKIP 할지. 기본은 끔(위 주석 참고).
-STEP_LEVEL_SKIP = (os.environ.get("STEP_LEVEL_SKIP", "").strip()
-                   not in ("", "0")) or "--step-level-skip" in sys.argv
-
 # EQPCAPABILITY(CHILDEQP) 원천. main 에서 채우고 build_f3 가 쓴다.
 EQPCAP_DF = None
 
@@ -1998,12 +1994,9 @@ def narrow_step_to_scope(df_path, df_lot, line):
     skip = path["step_skip_yn"]
     keep = skip.ne("Y") & (skip.notna() if EXCLUDE_NULL_STEP_SKIP_YN else True)
 
-    # 2) lot 수준(s) > 경로 수준(l) 인 스텝은 SKIP.
-    #
-    #    [주의] 기본으로 끈다. 켜서 돌렸더니 KFR7 경로의 59% 가 지워지고
-    #    현스텝까지 사라져 lot 8,411 개가 통째로 없어졌다. 두 컬럼의
-    #    의미가 맞는지 먼저 확인해야 한다(아래 분포를 보고 판단).
-    #      실행:  set STEP_LEVEL_SKIP=1
+    # 2) lot 수준(LOT_LEVEL) < 경로 수준(STEP_LEVEL) 인 스텝은 SKIP.
+    #      예) LOT_LEVEL=4 · STEP_LEVEL=5  ->  그 스텝은 건너뛴다
+    #    그 lot 이 감당할 수 있는 수준보다 높은 스텝은 밟지 않는다.
     lvl_skip = None
     _pl = _ml = None
     if "step_level" in path.columns and "_lot_level" in m.columns:
@@ -2011,20 +2004,16 @@ def narrow_step_to_scope(df_path, df_lot, line):
         _ml = path["lot_id"].map(
             dict(zip(m["lot_id"], pd.to_numeric(m["_lot_level"],
                                                 errors="coerce"))))
-        cand = _ml.notna() & _pl.notna() & (_ml > _pl)
+        cand = _ml.notna() & _pl.notna() & (_ml < _pl)
         # 값이 어떻게 생겼는지 먼저 보여 준다. 켜기 전에 이걸로 판단한다.
         print(f"[LVL] {line} lot 수준 {_ml.min()}~{_ml.max()} · "
               f"경로 수준 {_pl.min()}~{_pl.max()} · "
-              f"s>l 인 행 {int(cand.sum()):,}/{len(path):,} "
+              f"s<l 인 행 {int(cand.sum()):,}/{len(path):,} "
               f"({int(cand.sum()) * 100 // max(len(path), 1)}%)", flush=True)
-        if STEP_LEVEL_SKIP:
-            lvl_skip = cand
-            keep = keep & (~lvl_skip)
-            print(f"[SKIP] {line} step_level 로 건너뛴 스텝 "
-                  f"{int(cand.sum()):,}행", flush=True)
-        else:
-            print(f"[LVL]   지금은 적용하지 않는다(STEP_LEVEL_SKIP=1 로 켠다)",
-                  flush=True)
+        lvl_skip = cand
+        keep = keep & (~lvl_skip)
+        print(f"[SKIP] {line} step_level 로 건너뛴 스텝 "
+              f"{int(cand.sum()):,}행 (lot 수준 < 경로 수준)", flush=True)
         if TRACE_LOT:
             _sel = path["lot_id"].astype("string").str.strip().str.upper() \
                 .eq(TRACE_LOT)
@@ -2034,7 +2023,7 @@ def narrow_step_to_scope(df_path, df_lot, line):
                         path.loc[_sel, "step_seq"], _pl[_sel], _ml[_sel],
                         cand[_sel]))[:15]:
                     print(f"[TLOT]   {str(st):12s} 경로={pv} lot={mv} "
-                          f"s>l={sk}", flush=True)
+                          f"s<l={sk}", flush=True)
 
     _raw_path = path                     # SKIP 필터 이전(진단용)
     path = path[keep]
