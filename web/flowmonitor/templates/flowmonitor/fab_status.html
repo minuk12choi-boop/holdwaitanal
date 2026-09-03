@@ -4737,6 +4737,9 @@ function renderDrillTable() {
         // 설비상태 · TIP 은 진행불가를 만든 부분만 빨갛게 칠한다.
         //   서버가 그 부분을 <컬럼>_blk 로 따로 준다.
         const blk = r[keys[j] + "_blk"];
+        if (DBG_PICK && (keys[j] === "down" || keys[j] === "tip")) {
+          console.log("[blk]", keys[j], "값=", v, "빨강=", blk);
+        }
         if (blk && v) {
           out.push(isNum[j] ? '<td class="num"' + bg + '><span class="c">'
                             : "<td" + bg + '><span class="c">');

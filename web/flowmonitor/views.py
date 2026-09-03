@@ -2012,10 +2012,26 @@ def api_block_diag(request):
     if not rows:
         return JsonResponse({"ok": False,
                              "reason": f"{lot} 을 찾지 못했습니다"})
+    # 드릴다운이 실제로 받는 값도 함께 낸다. 빨간 글자가 안 나올 때
+    # 서버가 안 보내는지, 화면이 안 칠하는지 여기서 갈린다.
+    shown = {}
+    try:
+        got, _ = _summary_rows(rows[0].get("line") or line or DEFAULT_LINE,
+                               None)
+        for r in got:
+            if str(r.get("lot_id") or "") == lot:
+                shown = {k: r.get(k) for k in
+                         ("down", "down_blk", "tip", "tip_blk",
+                          "step_status", "childeqp")}
+                break
+    except Exception as e:
+        shown = {"오류": f"{type(e).__name__}: {e}"}
+
     return JsonResponse({"ok": True, "lot": lot, "행수": len(rows),
                          "스텝": rows,
-                         "안내": ("현스텝 행의 down · tip 에 후속 스텝 설비가 "
-                                "섞여 있는지 보세요.")},
+                         "드릴다운이_받는_값": shown,
+                         "안내": ("down_blk 이 비면 후속 스텝의 진행불가를 "
+                                "못 가린 것이다. step_status 를 보세요.")},
                         json_dumps_params={"ensure_ascii": False})
 
 
@@ -2264,6 +2280,13 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
             else:
                 blk = f"GROUP_CONCAT({_expr}, ' / ')"
             own = f"MIN(CASE WHEN `현스텝`='현스텝' THEN `{c}` END)"
+            if "step_status" not in have:
+                # 이 컬럼이 없으면 후속 스텝의 진행불가를 가릴 수 없다.
+                #   빨간 글자도 안 나온다. 적재가 옛 모양이라는 뜻이다.
+                print("[WARN] f3 에 step_status 가 없다 - 진행불가 설비를 "
+                      "가릴 수 없다(build_f3 를 다시 돌리세요)", flush=True)
+                sel.append(f"COALESCE({own}, MIN(`{c}`)) AS `{c}`")
+                continue
             sel.append(f"NULLIF({blk}, '') AS `{c}_blk`")
             sel.append(f"CONCAT_WS(' / ', NULLIF({blk}, ''), {own}) AS `{c}`")
         elif c in STEP_SCOPED:

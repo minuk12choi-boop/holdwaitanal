@@ -2002,6 +2002,26 @@ def narrow_step_to_scope(df_path, df_lot, line):
         if n:
             print(f"[SKIP] {line} step_level 로 건너뛴 스텝 {n:,}행 "
                   f"(lot 수준 > 경로 수준)", flush=True)
+        else:
+            # 하나도 안 걸리면 값이 비었거나 형이 안 맞는 것이다.
+            print(f"[SKIP] {line} step_level 로 걸러진 스텝 없음 "
+                  f"(lot 값 {int(_ml.notna().sum()):,} · "
+                  f"경로 값 {int(_pl.notna().sum()):,} / {len(path):,})",
+                  flush=True)
+        if TRACE_LOT:
+            _sel = path["lot_id"].astype("string").str.strip().str.upper() \
+                .eq(TRACE_LOT)
+            if int(_sel.sum()):
+                _d = pd.DataFrame({
+                    "step": path.loc[_sel, "step_seq"],
+                    "경로수준": _pl[_sel], "lot수준": _ml[_sel],
+                    "레벨SKIP": lvl_skip[_sel],
+                    "skip_yn": path.loc[_sel, "step_skip_yn"]})
+                print(f"[TLOT] step_level 판정 ({line})", flush=True)
+                for r in _d.head(15).itertuples(index=False):
+                    print(f"[TLOT]   {str(r.step):12s} 경로={r.경로수준} "
+                          f"lot={r.lot수준} SKIP={r.레벨SKIP} "
+                          f"skip_yn={r.skip_yn}", flush=True)
     if TRACE_DROP:
         vc = skip.fillna("(비어있음)").value_counts().to_dict()
         print(f"[SKIP] {line} step_skip_yn 분포 {vc} · "
