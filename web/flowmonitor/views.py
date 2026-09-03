@@ -2244,7 +2244,11 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
             #   [이전 문제] COALESCE(현스텝, MIN(전체)) 였다. 현스텝 값이
             #   비면 전체에서 사전순 최솟값을 집어, 진행불가와 무관한
             #   설비(MCD406)가 대표로 뜨는 일이 있었다.
-            blk = (f"GROUP_CONCAT(DISTINCT CASE WHEN `현스텝`<>'현스텝'"
+            #   [주의] 후속 스텝은 `현스텝` 이 NULL 이다. NULL <> '현스텝'
+            #   은 참이 아니라 NULL 이라 그 행이 통째로 빠진다.
+            #   COALESCE 로 빈 문자열로 바꿔 비교한다.
+            blk = (f"GROUP_CONCAT(DISTINCT CASE WHEN"
+                   f" COALESCE(`현스텝`,'')<>'현스텝'"
                    f" AND `step_status`='WAIT(진행불가)'"
                    f" AND `{c}` IS NOT NULL AND `{c}`<>''"
                    f" THEN `{c}` END SEPARATOR ' / ')")
