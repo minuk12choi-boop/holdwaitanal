@@ -1950,7 +1950,15 @@ def narrow_step_to_scope(df_path, df_lot, line):
     _lap("order_seq 숫자화")
 
     m = _lower_cols(df_lot)
-    m = m[m["line"].eq(line)][["lot_id", "order_seq"]].copy()
+    # step_level 은 SKIP 판정에 쓴다(lot 수준 > 경로 수준이면 건너뛴다).
+    _mc = ["lot_id", "order_seq"]
+    _has_lvl = "step_level" in m.columns
+    if _has_lvl:
+        _mc.append("step_level")
+    m = m[m["line"].eq(line)][_mc].copy()
+    if _has_lvl:
+        # 경로에도 step_level 이 있어 이름이 겹친다. lot 쪽은 따로 둔다.
+        m = m.rename(columns={"step_level": "_lot_level"})
     m["order_seq"] = pd.to_numeric(m["order_seq"], errors="coerce")
     m = m.dropna(subset=["order_seq"]).drop_duplicates()
 
@@ -1969,10 +1977,31 @@ def narrow_step_to_scope(df_path, df_lot, line):
     _lap("de_rank 계산")
     de = sy[["lot_id", "order_seq", "de_rank"]].drop_duplicates()
 
-    # --- step_skip_yn 필터 ---
-    #   'Y' 만 건너뛴다. NULL 은 남긴다(RUN 중인 현스텝이 여기 해당한다).
+    # --- SKIP 필터 ---
+    #   여기가 가장 이른 자리다. 뒤 단계(설비 전개 · TIP 매칭 · 경로 판정)가
+    #   모두 이 결과 위에서 돌므로, 먼저 걸러야 낭비가 없고 판정도 맞는다.
+    #
+    #   1) step_skip_yn = 'Y'
+    #        NULL 은 남긴다(RUN 중인 현스텝이 여기 해당한다).
+    #   2) lot 의 step_level(s) > 경로의 step_level(l)
+    #        그 스텝은 이미 지나간 수준이라 SKIP 이다.
+    #        FabPlan lot 은 step_path 를 쓰지 않으므로 이 규칙과 무관하다.
     skip = path["step_skip_yn"]
     keep = skip.ne("Y") & (skip.notna() if EXCLUDE_NULL_STEP_SKIP_YN else True)
+
+    lvl_skip = None
+    if "step_level" in path.columns and "_lot_level" in m.columns:
+        _pl = pd.to_numeric(path["step_level"], errors="coerce")
+        _ml = path["lot_id"].map(
+            dict(zip(m["lot_id"], pd.to_numeric(m["_lot_level"],
+                                                errors="coerce"))))
+        # 둘 다 숫자일 때만 본다. 하나라도 비면 판단하지 않는다.
+        lvl_skip = _ml.notna() & _pl.notna() & (_ml > _pl)
+        keep = keep & (~lvl_skip)
+        n = int(lvl_skip.sum())
+        if n:
+            print(f"[SKIP] {line} step_level 로 건너뛴 스텝 {n:,}행 "
+                  f"(lot 수준 > 경로 수준)", flush=True)
     if TRACE_DROP:
         vc = skip.fillna("(비어있음)").value_counts().to_dict()
         print(f"[SKIP] {line} step_skip_yn 분포 {vc} · "
@@ -1984,7 +2013,10 @@ def narrow_step_to_scope(df_path, df_lot, line):
     #   현스텝이 SKIP 이면 위에서 이미 걸러져 여기 없다. 그때는 그 뒤
     #   첫 비SKIP 스텝을 현스텝으로 삼는다(FabPlan 과 같은 규칙).
     #   그러지 않으면 그 lot 이 화면에서 통째로 사라진다.
-    cur = path.merge(m.rename(columns={"order_seq": "_cur"}), on="lot_id", how="inner")
+    # 병합에는 order_seq 만 필요하다. _lot_level 이 딸려가면 뒤에서 컬럼이
+    # 늘어 결과가 흔들린다.
+    _mm = m[["lot_id", "order_seq"]].rename(columns={"order_seq": "_cur"})
+    cur = path.merge(_mm, on="lot_id", how="inner")
     exact = cur[cur["order_seq"].eq(cur["_cur"])]
     miss = set(m["lot_id"]) - set(exact["lot_id"])
 
@@ -2028,7 +2060,7 @@ def narrow_step_to_scope(df_path, df_lot, line):
     cur_rank = cur_rank.rename(columns={"de_rank": "_cur_rank"})
 
     # --- 현 연속블록 : 현스텝 이후이면서 de_rank 가 같은 S/Y 행 ---
-    blk = path.merge(m.rename(columns={"order_seq": "_cur"}), on="lot_id", how="inner")
+    blk = path.merge(_mm, on="lot_id", how="inner")
     blk = blk[blk["order_seq"] > blk["_cur"]].drop(columns=["_cur"])
     blk = blk.merge(de, on=["lot_id", "order_seq"], how="inner")
     blk = blk.merge(cur_rank, on="lot_id", how="inner")
