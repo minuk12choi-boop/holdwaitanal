@@ -540,6 +540,9 @@ function toggleProd(id) {
   if (!open) { el.classList.add("open"); }
 }
 
+// 이 글자 수를 넘으면 셀 안에서 가로 스크롤한다(현스텝 · 후속스텝 공통).
+const LONG = 14;
+
 const PROD_LABEL = { 1: "제품군", 2: "제품", 3: "AREA", 4: "PLAN", 5: "LOT",
                      6: "LAYER" };
 
@@ -568,11 +571,27 @@ function prodPicked(which, isAll) {
   else if (which === 5) { LOTS = eff; }
   else { LAYERS = eff; }
   syncClearBtn();                 // 해제 버튼 표시를 지금 상태에 맞춘다
-  if (sel.length === 0) {
-    document.getElementById("p" + which + "b").innerHTML =
-      `<span>${PROD_LABEL[which]} 선택 없음</span><span>&#9662;</span>`;
-    return;                       // 항목을 고르면 그때 조회한다
-  }
+  // [바뀜] 체크할 때마다 조회하지 않는다. 여러 개를 고르는 동안 화면이
+  //   계속 바뀌어 무엇이 적용됐는지 알 수 없었다. [조회] 를 눌러야 나간다.
+  ddMarkDirty(which, true);
+}
+
+// 고른 뒤 아직 조회하지 않은 필터를 표시한다.
+const DD_DIRTY = {};
+
+function ddMarkDirty(which, on) {
+  DD_DIRTY[which] = !!on;
+  const b = document.getElementById("p" + which + "go");
+  if (b) { b.classList.toggle("on", !!on); }
+  const btn = document.getElementById("p" + which + "b");
+  if (btn) { btn.classList.toggle("dirty", !!on); }
+}
+
+// 드롭다운의 [조회]. 여기서만 서버로 나간다.
+function ddApply(which) {
+  ddMarkDirty(which, false);
+  const box = document.getElementById("p" + which + "m");
+  if (box) { box.classList.remove("open"); }
   loadSummary();
 }
 
@@ -602,7 +621,10 @@ function renderProd(d) {
           `<label data-opt="${o}"><input type="checkbox" value="${o}"`
           + ` ${isAll || set.has(o) ? "checked" : ""}`
           + ` onchange="prodPicked(${which}, false)">${o}</label>`).join("")
-         || `<label style="color:var(--mut)">값 없음</label>`);
+         || `<label style="color:var(--mut)">값 없음</label>`)
+      // 고른 뒤 이 버튼을 눌러야 조회한다. 누르기 전에는 화면이 안 바뀐다.
+      + `<div class="ddgo"><button id="p${which}go"`
+      + ` onclick="event.stopPropagation();ddApply(${which})">조회</button></div>`;
     const btn = document.getElementById("p" + which + "b");
     // 고른 값을 그대로 적으면 글자가 끊긴다. 개수만 적고 전체는 툴팁으로.
     btn.innerHTML = `<span>${PROD_LABEL[which]} `
@@ -4447,10 +4469,19 @@ function toggleSteps(ev, lot) {
       frag.push('<tr class="steprow"><td class="expcol"></td>');
       for (let j = 0; j < keys.length; j++) {
         const raw = r[keys[j]];
-        frag.push("<td>");
-        frag.push((raw === null || raw === undefined || keys[j] === "wt")
-                  ? "" : raw);
-        frag.push("</td>");
+        const v = (raw === null || raw === undefined || keys[j] === "wt")
+          ? "" : String(raw);
+        // 현스텝 행과 같게, 긴 값은 셀 안에서 가로 스크롤한다.
+        //   EQP그룹 · CHAM그룹처럼 설비가 여럿이면 여기서도 다 봐야 한다.
+        if (v.length > LONG) {
+          frag.push('<td><span class="c">');
+          frag.push(v);
+          frag.push("</span></td>");
+        } else {
+          frag.push("<td>");
+          frag.push(v);
+          frag.push("</td>");
+        }
       }
       frag.push("</tr>");
     }
@@ -4560,7 +4591,6 @@ function renderDrillTable() {
 
   // 셀마다 <span class="c"> 를 넣으면 DOM 노드가 두 배가 되어 느려진다.
   // 가로 스크롤이 필요한 긴 값에만 span 을 쓴다.
-  const LONG = 14;
   const keys = cols.map(c => c.k);
   const isNum = cols.map(c => NUM_COLS.has(c.k));
   const isWt = cols.map(c => c.k === "wt");

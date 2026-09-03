@@ -1821,7 +1821,10 @@ def narrow_step_to_scope(df_path, df_lot, line):
     #   raw     : SKIP 필터 이전의 경로(그 lot 이 원천에 아예 있었는가)
     #   in_path : 경로는 있는데 그 order_seq 만 없는가
     if miss and TRACE_STATUS:
-        no_path = {x for x in miss if x not in set(cur["lot_id"])}
+        # [주의] set(cur["lot_id"]) 를 조건 안에 두면 lot 마다 다시 만든다.
+        #   836 개면 836 번 만들어 2분 넘게 걸렸다. 한 번만 만든다.
+        _cur_lots = set(cur["lot_id"])
+        no_path = {x for x in miss if x not in _cur_lots}
         raw_has = set(_raw_path["lot_id"]) if _raw_path is not None else set()
         cut_by_skip = {x for x in (miss - no_path)}
         gone = {x for x in no_path if x in raw_has}

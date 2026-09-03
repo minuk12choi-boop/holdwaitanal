@@ -396,6 +396,20 @@
                      border-bottom:1px solid var(--bd-l, #F1F2F4); }
   .gradet .gsum { border-left:1px solid var(--bd); }
 
+  /* 드롭다운 필터의 [조회]. 고른 뒤 눌러야 서버로 나간다. */
+  .ddgo { position:sticky; bottom:0; background:var(--bg,#fff);
+          border-top:1px solid var(--bd); padding:6px; text-align:right; }
+  .ddgo button { padding:4px 14px; font-size:12px; cursor:pointer;
+                 border:1px solid var(--bd); border-radius:4px;
+                 background:var(--bg,#fff); color:var(--fg); }
+  .ddgo button.on { background:var(--brand,#3D5791); color:#fff;
+                    border-color:var(--brand,#3D5791); font-weight:600; }
+  .ddgo button:hover { background:var(--hover,#F3F4F6); }
+  .ddgo button.on:hover { background:var(--brand,#3D5791); }
+  /* 아직 조회하지 않은 필터는 점으로 표시한다. */
+  .dirty::after { content:"\2022"; color:var(--brand,#3D5791);
+                  margin-left:3px; font-weight:700; }
+
   .donut { display:flex; align-items:center; gap:10px; }
   .donut .cv { width:112px; height:112px; flex:0 0 112px; }
   .legend { display:flex; flex-direction:column; gap:6px; flex:0 0 auto; }
