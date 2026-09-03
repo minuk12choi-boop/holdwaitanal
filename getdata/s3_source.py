@@ -69,6 +69,8 @@ FAB_TABLES = [
 #   없으면 초HOT 은 /master/ 기준정보만으로 정한다.
 OPT_TABLES = [
     "PFR1_CATEGORY",
+    # 설비 내부 경로(CHILDEQP). 진행불가 판정에 쓴다.
+    "PFR1_KFR7_EQPCAPABILITY",
 ]
 
 # Spotfire 쪽 FMT 와 맞춘다. parquet 권장(pkl 대비 약 6% 크기).

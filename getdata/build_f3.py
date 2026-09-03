@@ -673,6 +673,9 @@ def _trace_lot_arg():
 
 TRACE_LOT = _trace_lot_arg()
 
+# EQPCAPABILITY(CHILDEQP) 원천. main 에서 채우고 build_f3 가 쓴다.
+EQPCAP_DF = None
+
 
 def tlot(stage, df, col="lot_id"):
     """TRACE_LOT 이 그 단계에 남아 있는지 찍는다. 값은 내지 않는다."""
@@ -1006,6 +1009,8 @@ S3_MAP = {
     "fab_engr": "PFR1_ENGR_LOT_PPID",
     # CATEGORY 이력. lot 마다 최신 요청 한 건만 쓴다.
     "category": "PFR1_CATEGORY",
+    # 설비 내부 경로(CHILDEQP). (eqpid, ppid) 로 붙인다.
+    "eqpcap": "PFR1_KFR7_EQPCAPABILITY",
 }
 
 # FabPlan 을 처리할지. 원천이 아직 안 올라왔으면 자동으로 건너뛴다.
@@ -1629,6 +1634,158 @@ def save_ssps_rules(df_prod):
         return 0
     print(f"[STD] f3_std_ssps {len(rows):,}건 저장", flush=True)
     return len(rows)
+
+
+# ---------------------------------------------------------------------------
+# CHILDEQP — 설비 내부 경로
+#   "a;b : c;d : e"
+#     ':' stage 구분 · AND   (모든 stage 를 통과해야 그 설비로 진행 가능)
+#     ';' stage 안 챔버 · OR (하나만 살아 있으면 그 stage 통과)
+#
+#   [함정] ':' 를 **먼저** 자른다. 순서를 바꾸면 의미가 정반대가 된다.
+#     a;b:c;d:e;f:g;h  ->  (a;b):(c;d):(e;f):(g;h)   맞음
+#                      ->  a;(b:c);(d:e);(f:g);h     틀림
+#
+#   [단순화] 참조 문서는 가능한 경로 조합을 모두 펼친다(부분집합 곱집합).
+#     우리는 "진행 가능한가" 만 필요하므로 펼치지 않는다.
+#     stage 마다 살아 있는 챔버가 하나라도 있으면 통과다. 결과는 같고
+#     조합 폭발(6토큰 3stage = 25만 경로)이 없다.
+# ---------------------------------------------------------------------------
+def parse_childeqp(expr):
+    """CHILDEQP 를 stage 목록으로. [[챔버...], [챔버...]] 모양."""
+    t = str(expr or "").strip()
+    if not t:
+        return []
+    out = []
+    for stage in t.split(":"):              # ① ':' 를 먼저
+        toks = [x.strip().upper() for x in stage.split(";") if x.strip()]
+        if toks:                            # ② 그 다음 ';'
+            out.append(toks)
+    return out
+
+
+def childeqp_ok(expr, alive, known):
+    """이 설비로 진행 가능한가.
+
+        alive  지금 쓸 수 있는 챔버 이름 집합(대문자)
+        known  그 설비군에 실제로 존재하는 챔버 집합(대문자)
+
+    돌려주는 값
+        True   모든 stage 에 살아 있는 챔버가 있다  -> 진행 가능
+        False  어느 stage 가 통째로 막혔다          -> 진행 불가
+        None   판단할 수 없다(경로 없음·챔버 미등록) -> 기존 방식에 맡긴다
+    """
+    stages = parse_childeqp(expr)
+    if not stages:
+        return None
+    for st in stages:
+        here = [c for c in st if c in known]
+        if not here:
+            # 그 stage 의 챔버가 하나도 등록돼 있지 않다. 경로가 성립 안 한다.
+            return None
+        if not any(c in alive for c in here):
+            return False                    # 이 stage 가 전멸 -> 전체 막힘
+    return True
+
+
+def _apply_childeqp(con, df_cap=None):
+    """f1_base 에 cap_ok 를 더한다. CHILDEQP 가 붙는 행만 값이 있다.
+
+        cap_ok = 1     그 설비로 진행 가능
+                 0     경로가 막혔다
+                 NULL  판정 대상이 아님(childeqp 없음) -> 기존 방식대로
+
+    원천은 이미 INSTR(childeqp,':')>0 인 것만 담고 있어, 이 개념이 필요 없는
+    설비는 조인 자체가 안 된다.
+    """
+    have = {r[0].lower() for r in con.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name='f1_base'").fetchall()}
+    if "cap_ok" not in have:
+        con.execute("ALTER TABLE f1_base ADD COLUMN cap_ok INTEGER")
+    if df_cap is None or not len(df_cap):
+        print("[CAP] EQPCAPABILITY 원천이 없다 - 경로 판정 건너뜀", flush=True)
+        return
+
+    cap = _lower_cols(df_cap)
+    need = ("eqpid", "ppid", "childeqp")
+    if any(c not in cap.columns for c in need):
+        print(f"[CAP] 컬럼 부족 {list(cap.columns)[:6]} - 건너뜀", flush=True)
+        return
+    cap = cap[list(need)].copy()
+    for c in need:
+        cap[c] = cap[c].astype("string").str.strip()
+    cap["eqpid"] = cap["eqpid"].str.upper()
+    cap["ppid"] = cap["ppid"].str.upper()
+    cap = cap.dropna(subset=["eqpid", "childeqp"])
+
+    # (eqpid, ppid) -> childeqp. ppid '-' 는 와일드카드라 따로 둔다.
+    exact, wild = {}, {}
+    for r in cap.itertuples(index=False):
+        if r.ppid == "-":
+            wild.setdefault(r.eqpid, r.childeqp)
+        else:
+            exact.setdefault((r.eqpid, r.ppid), r.childeqp)
+
+    base = con.execute("""
+        SELECT line, lot_id, order_seq, eqpid, eqpcham_final,
+               cham_eqp_status, prevent, recipe_id
+        FROM f1_base
+    """).df()
+    if not len(base):
+        return
+
+    # 스텝마다 살아 있는 챔버 · 존재하는 챔버를 모은다.
+    alive_map, known_map = {}, {}
+    for r in base.itertuples(index=False):
+        ch = str(r.eqpcham_final or "").strip().upper()
+        if not ch:
+            continue
+        key = (r.line, r.lot_id, r.order_seq)
+        known_map.setdefault(key, set()).add(ch)
+        st = str(r.cham_eqp_status or "").strip().upper()
+        pv = str(r.prevent or "").strip().upper()
+        if st not in ("LOCAL", "DOWN", "PM") and pv != "PREVENT":
+            alive_map.setdefault(key, set()).add(ch)
+
+    caps, stat = [], {"가능": 0, "불가": 0, "판단못함": 0, "대상아님": 0}
+    st_cnt, tok_cnt = [], []
+    for r in base.itertuples(index=False):
+        eq = str(r.eqpid or "").strip().upper()
+        rp = str(r.recipe_id or "").strip().upper()
+        expr = exact.get((eq, rp)) or wild.get(eq)
+        if not expr:
+            caps.append(None)
+            stat["대상아님"] += 1
+            continue
+        stages = parse_childeqp(expr)
+        if stages:
+            st_cnt.append(len(stages))
+            tok_cnt.append(max(len(x) for x in stages))
+        key = (r.line, r.lot_id, r.order_seq)
+        got = childeqp_ok(expr, alive_map.get(key, set()),
+                          known_map.get(key, set()))
+        caps.append(None if got is None else int(got))
+        stat["가능" if got is True else
+             ("불가" if got is False else "판단못함")] += 1
+
+    base["cap_ok"] = caps
+    con.register("cap_upd", base[["line", "lot_id", "order_seq", "eqpid",
+                                  "eqpcham_final", "cap_ok"]])
+    con.execute("""
+        UPDATE f1_base SET cap_ok = (
+            SELECT MAX(u.cap_ok) FROM cap_upd u
+            WHERE u.line = f1_base.line AND u.lot_id = f1_base.lot_id
+              AND u.order_seq = f1_base.order_seq
+              AND u.eqpid IS NOT DISTINCT FROM f1_base.eqpid
+              AND u.eqpcham_final IS NOT DISTINCT FROM f1_base.eqpcham_final)
+    """)
+    con.unregister("cap_upd")
+
+    print(f"[CAP] CHILDEQP 판정 {len(base):,}행 -> {stat}", flush=True)
+    if st_cnt:
+        print(f"[CAP]   stage 수 {min(st_cnt)}~{max(st_cnt)} · "
+              f"stage 당 챔버 최대 {max(tok_cnt)}", flush=True)
 
 
 def attach_category(df_lot, df_cat):
@@ -2720,11 +2877,26 @@ def build_f3(con):
     """)
     con.execute('ALTER TABLE f1_base RENAME COLUMN eqpcham2 TO eqpcham_final')
 
+    # ---- CHILDEQP(설비 내부 경로) 판정 ----
+    #   원천이 INSTR(childeqp,':')>0 인 것만 담으므로, 붙는 설비만 이 판정을
+    #   쓴다. 안 붙는 설비는 예전처럼 챔버 수로 센다.
+    #
+    #   판정은 설비(eqpid) 단위다.
+    #     stage(':')  모두 통과해야 그 설비로 진행 가능  · AND
+    #     챔버(';')   하나만 살아 있으면 그 stage 통과   · OR
+    #   살아 있음 = cham_eqp_status 가 LOCAL·DOWN·PM 이 아니고
+    #               prevent 가 PREVENT 도 아님
+    _apply_childeqp(con, EQPCAP_DF)
+
     con.execute("""
         CREATE OR REPLACE TABLE f1_counts AS
         SELECT line, lot_id, order_seq,
                COUNT(DISTINCT eqpcham_final) AS path_count,
-               COUNT(DISTINCT CASE WHEN issue_step IS NOT NULL THEN eqpcham_final END) AS issue_count
+               COUNT(DISTINCT CASE WHEN issue_step IS NOT NULL THEN eqpcham_final END) AS issue_count,
+               -- CHILDEQP 가 붙은 설비 중 경로가 살아 있는 것이 하나라도
+               -- 있으면 그 스텝은 진행 가능하다(설비 간 OR).
+               MAX(CASE WHEN cap_ok = 1 THEN 1 ELSE 0 END) AS cap_alive,
+               MAX(CASE WHEN cap_ok IS NOT NULL THEN 1 ELSE 0 END) AS cap_known
         FROM f1_base GROUP BY line, lot_id, order_seq
     """)
 
@@ -2804,6 +2976,12 @@ def build_f3(con):
                    WHEN fb."현스텝" = '현스텝'
                     AND (fb.hold IS NOT NULL OR fb.exception IS NOT NULL OR fb.ftp IS NOT NULL)
                         THEN 'WAIT(진행불가)'
+                   -- CHILDEQP 가 붙는 설비가 있으면 그 경로 판정이 우선이다.
+                   --   경로가 하나라도 살아 있으면 진행 가능으로 본다.
+                   WHEN COALESCE(fc.cap_known,0) > 0
+                    AND COALESCE(fc.cap_alive,0) > 0 THEN fb.status
+                   WHEN fb.status = 'WAIT' AND COALESCE(fc.cap_known,0) > 0
+                    AND COALESCE(fc.cap_alive,0) = 0 THEN 'WAIT(진행불가)'
                    WHEN fb.status = 'WAIT' AND COALESCE(fc.path_count,0) > 0
                     AND COALESCE(fc.issue_count,0) > 0
                     AND COALESCE(fc.issue_count,0) >= COALESCE(fc.path_count,0)
@@ -3430,6 +3608,16 @@ def main():
                 df_lot = attach_prod(df_lot, df_prod)
                 # 기준정보가 우선이다. SSPS 로 채운 뒤 덮어쓴다.
                 df_lot = attach_std_product(df_lot)
+
+            # 설비 내부 경로(CHILDEQP). 없는 환경도 있어 실패해도 넘어간다.
+            global EQPCAP_DF
+            try:
+                EQPCAP_DF = fetch("eqpcap", None)
+                print(f"[CAP] EQPCAPABILITY {len(EQPCAP_DF):,}행", flush=True)
+            except Exception as e:
+                print(f"[CAP] 원천 없음({type(e).__name__}) - 경로 판정 없이 "
+                      f"진행", flush=True)
+                EQPCAP_DF = None
 
             # CATEGORY 이력. 없는 환경도 있어 실패해도 넘어간다.
             with stage("CATEGORY 결합"):
