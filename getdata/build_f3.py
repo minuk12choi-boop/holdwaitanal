@@ -3096,7 +3096,7 @@ def build_f3(con):
             {elapsed_days_num('fsb.step_arrive_date')} AS "스텝도착경과_일",
             {elapsed_days_num('fsb.last_tkout_date')}   AS "마지막작업경과_일",
             fc.current_de_rank, fc.current_continuous,
-            fg.eqpgroup, fg.batch_kind_agg, fc.childeqp,
+            fg.eqpgroup, fg.batch_kind_agg, fcnt.childeqp,
             -- AREA 는 설비마다 다를 수 있다(한 스텝에 설비 여럿).
             --   대표 하나로 묶어야 (lot, order_seq) 가 한 행이 된다.
             COALESCE(fg.area_one, fsb.AREA) AS AREA,
@@ -3113,6 +3113,11 @@ def build_f3(con):
             END AS lot_status
         FROM f1_status_base fsb
         LEFT JOIN f1_current fc ON fsb.line = fc.line AND fsb.lot_id = fc.lot_id
+        -- 설비 내부 경로는 스텝 단위다(f1_counts). fc(f1_current)는 lot 단위라
+        -- 여기서 따로 잇는다.
+        LEFT JOIN f1_counts fcnt ON fsb.line = fcnt.line
+                               AND fsb.lot_id = fcnt.lot_id
+                               AND fsb.order_seq = fcnt.order_seq
         LEFT JOIN f1_groups  fg ON fsb.line = fg.line AND fsb.lot_id = fg.lot_id
                                AND fsb.order_seq = fg.order_seq
         LEFT JOIN f1_blocked_rank fbr ON fsb.line = fbr.line AND fsb.lot_id = fbr.lot_id
