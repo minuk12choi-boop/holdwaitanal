@@ -1977,6 +1977,45 @@ def api_heat_diag(request):
                         json_dumps_params={"ensure_ascii": False})
 
 
+def api_block_diag(request):
+    """연속 구간의 제약이 어떻게 보이는지 본다.
+
+    /api/block-diag/?lot=7BC026.1&line=PFR1
+    현스텝과 후속 스텝의 설비·제약을 스텝별로 그대로 낸다.
+    """
+    lot = request.GET.get("lot") or ""
+    line = request.GET.get("line") or None
+    if not lot:
+        return JsonResponse({"ok": False, "reason": "lot 을 주세요"})
+    snap = _latest_snapshot()
+    if not snap:
+        return JsonResponse({"ok": False, "reason": "f3_live 가 비어 있습니다"})
+
+    have = set(_columns_of("f3_live"))
+    want = [c for c in ("order_seq", "step_seq", "현스텝", "de_rank", "연속",
+                        "eqpgroup", "eqpgroup_cham", "down", "tip",
+                        "step_status", "lot_status", "eqpline")
+            if c in have]
+    w = ["snapshot_at=%s", "lot_id=%s"]
+    a = [snap, lot]
+    if line:
+        w.append("`line`=%s")
+        a.append(line)
+    with connection.cursor() as cur:
+        cur.execute(f"SELECT {', '.join('`%s`' % c for c in want)}"
+                    f" FROM f3_live WHERE {' AND '.join(w)}"
+                    f" ORDER BY CAST(order_seq AS DECIMAL(20,4))", a)
+        rows = [dict(zip(want, r)) for r in cur.fetchall()]
+    if not rows:
+        return JsonResponse({"ok": False,
+                             "reason": f"{lot} 을 찾지 못했습니다"})
+    return JsonResponse({"ok": True, "lot": lot, "행수": len(rows),
+                         "스텝": rows,
+                         "안내": ("현스텝 행의 down · tip 에 후속 스텝 설비가 "
+                                "섞여 있는지 보세요.")},
+                        json_dumps_params={"ensure_ascii": False})
+
+
 def api_col_diag(request):
     """컬럼 실태 진단. /api/col-diag/?cols=prod1,category,grade
 

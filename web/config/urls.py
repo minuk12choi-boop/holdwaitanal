@@ -29,6 +29,7 @@ urlpatterns = [
          name="api_holdtype_trace"),
     path("api/hot-trace/", views.api_hot_trace, name="api_hot_trace"),
     path("api/col-diag/", views.api_col_diag, name="api_col_diag"),
+    path("api/block-diag/", views.api_block_diag, name="api_block_diag"),
     path("api/heat-diag/", views.api_heat_diag, name="api_heat_diag"),
     path("api/balance/", views.api_balance, name="api_balance"),
     path("api/eqp-wait/", views.api_eqp_wait, name="api_eqp_wait"),
