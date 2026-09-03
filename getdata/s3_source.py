@@ -275,7 +275,12 @@ def read_table(name, bucket=None, prefix=None):
                         break
                 else:
                     # line_id 가 없으면 뒤에서 라인 분리가 안 돼 통째로 빠진다.
-                    lc = "  <-- line_id 컬럼이 없다. 그 조각 쿼리를 보세요"
+                    #   쿼리에는 있는데 파일에 없으면 **이름이 다른 것**이다.
+                    #   대소문자 · 공백 · 다른 표기를 가리려면 실제 이름을 봐야 한다.
+                    cand = [c for c in part.columns
+                            if "line" in str(c).lower()]
+                    lc = ("  <-- line_id 없음. 비슷한 컬럼 %s · 전체 %s"
+                          % (cand, [str(c) for c in part.columns][:14]))
                 print(f"[S3]   {name}_{i} {len(part):,}행{lc}", flush=True)
             print(f"[S3] {name} 조각 {len(parts)}개 이어붙임 {len(df):,}행",
                   flush=True)
