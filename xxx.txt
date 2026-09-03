@@ -1,211 +1,199 @@
-PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python getdata/build_f3.py --force --trace-lot QTDEJ02.1
+PS D:\PERSONAL_SPACE\SW\python\7_holdwaitanal> python getdata/build_f3.py --force
 [TIMER] 소형 원천 조회 start
-[QUERY] lot 조회 시작 2026-09-02 20:00:19
-[QUERY] lot rows=12,825 cols=23 0.2s
-[TLOT] 1 원천 lot                          1행 / 전체 12,825
-[QUERY] materialworkstatus 조회 시작 2026-09-02 20:00:19
-[QUERY] materialworkstatus rows=160,910 cols=4 0.1s
+[QUERY] lot 조회 시작 2026-09-03 07:45:08
+[QUERY] lot rows=12,728 cols=23 0.2s
+[QUERY] materialworkstatus 조회 시작 2026-09-03 07:45:08
+[QUERY] materialworkstatus rows=160,972 cols=4 0.1s
 [STAGE] fa_object4 결합 시작
-[JOIN] fa_object4 12,739/12,825 lot 매칭
+[JOIN] fa_object4 12,643/12,728 lot 매칭
 [STAGE] fa_object4 결합 0.1s
-[QUERY] ssps_prod_name 조회 시작 2026-09-02 20:00:19
+[QUERY] ssps_prod_name 조회 시작 2026-09-03 07:45:08
 [QUERY] ssps_prod_name rows=1,098 cols=7 0.0s
 [STD] f3_std_ssps 1,098건 저장
 [STAGE] 제품구분 결합 시작
-[JOIN] 제품구분 10,527/12,825 lot 매칭
-[JOIN] 기준정보 제품구분 적용 2,909행
+[JOIN] 제품구분 10,435/12,728 lot 매칭
+[JOIN] 기준정보 제품구분 적용 2,921행
 [STAGE] 제품구분 결합 0.1s
 [STAGE] CATEGORY 결합 시작
-[QUERY] category 조회 시작 2026-09-02 20:00:19
+[QUERY] category 조회 시작 2026-09-03 07:45:08
 [QUERY] category rows=3,601 cols=4 0.0s
-[CATEGORY] 이력 3,601행 -> lot 2,414개 · 재공 772/12,825 매칭
-[CATEGORY]   미매칭 12,053 중 대소문자만 다름 0 · 공백만 다름 0 · 점 앞부분은 같음 763
+[CATEGORY] 이력 3,601행 -> lot 2,414개 · 재공 769/12,728 매칭
+[CATEGORY]   미매칭 11,959 중 대소문자만 다름 0 · 공백만 다름 0 · 점 앞부분은 같음 762
 [CATEGORY]   lot_id 길이 재공 7~14 · 이력 8~12
-[TLOT] 2 CATEGORY 결합 후                   1행 / 전체 12,825
-[STAGE] CATEGORY 결합 5.9s
-[QUERY] equipment 조회 시작 2026-09-02 20:00:25
+[STAGE] CATEGORY 결합 6.0s
+[QUERY] equipment 조회 시작 2026-09-03 07:45:14
 [QUERY] equipment rows=19,551 cols=8 0.1s
-[CACHE] eqp_group 재사용 (eqp_group_20260902.csv) rows=12,920
-[QUERY] hold 조회 시작 2026-09-02 20:00:25
-[QUERY] hold rows=6,491 cols=10 0.1s
-[TIMER] 소형 원천 조회 elapsed=6.654s
-[TRACE] 원천 lot 조건 점검  line=KFR7 sys=KFR7 cur=KFR7 dest=KFR7A type=PP status=WAIT order_seq=49000000.0 step=9L369265
-[TRACE] 원천 lot                      1 행   line=KFR7 | sys_line_id=KFR7 | cur_line_id=KFR7 | dest_line_id=KFR7A | lot_type=PP | status=WAIT
-[QUERY] KFR7_step_path 조회 시작 2026-09-02 20:00:25
-[S3] 조각 목록 조회 실패(TypeError) - 0~9 로 찾는다
-[S3] PFR1_KFR7_STEP_PATH 조각 [3] 없음 - 그만큼 빠진다
-[S3]   PFR1_KFR7_STEP_PATH_0 612,226행  KFR7 572,490 · PFR1 39,736
-[S3]   PFR1_KFR7_STEP_PATH_1 666,036행  KFR7 613,588 · PFR1 52,448
-[S3]   PFR1_KFR7_STEP_PATH_2 662,583행  KFR7 621,079 · PFR1 41,504
-[S3]   PFR1_KFR7_STEP_PATH_4 632,290행  KFR7 593,266 · PFR1 39,024
-[S3]   PFR1_KFR7_STEP_PATH_5 616,142행  KFR7 575,436 · PFR1 40,706
-[S3]   PFR1_KFR7_STEP_PATH_6 657,337행  KFR7 621,952 · PFR1 35,385
-[S3]   PFR1_KFR7_STEP_PATH_7 665,153행  KFR7 630,924 · PFR1 34,229
-[S3]   PFR1_KFR7_STEP_PATH_8 739,414행
-[S3]   PFR1_KFR7_STEP_PATH_9 599,867행  KFR7 556,170 · PFR1 43,697
-[S3] PFR1_KFR7_STEP_PATH 조각 9개 이어붙임 5,851,048행
-[QUERY] KFR7_step_path 라인분리(line_id) 5,851,048 -> 4,784,905
-[QUERY] KFR7_step_path rows=4,784,905 cols=17 7.9s
+[CACHE] eqp_group 재사용 (eqp_group_20260903.csv) rows=12,925
+[QUERY] hold 조회 시작 2026-09-03 07:45:14
+[QUERY] hold rows=7,262 cols=10 0.0s
+[TIMER] 소형 원천 조회 elapsed=6.685s
+[QUERY] KFR7_step_path 조회 시작 2026-09-03 07:45:14
+[S3]   PFR1_KFR7_STEP_PATH_0 609,248행  KFR7 570,226 · PFR1 39,022
+[S3]   PFR1_KFR7_STEP_PATH_1 666,895행  KFR7 614,627 · PFR1 52,268
+[S3]   PFR1_KFR7_STEP_PATH_2 660,710행  KFR7 618,994 · PFR1 41,716
+[S3]   PFR1_KFR7_STEP_PATH_3 717,036행  KFR7 680,115 · PFR1 36,921
+[S3]   PFR1_KFR7_STEP_PATH_4 627,589행  KFR7 590,105 · PFR1 37,484
+[S3]   PFR1_KFR7_STEP_PATH_5 682,697행  KFR7 641,042 · PFR1 41,655
+[S3]   PFR1_KFR7_STEP_PATH_6 659,098행  KFR7 624,041 · PFR1 35,057
+[S3]   PFR1_KFR7_STEP_PATH_7 664,473행  KFR7 630,134 · PFR1 34,339
+[S3]   PFR1_KFR7_STEP_PATH_8 739,414행  <-- line_id 컬럼이 없다. 그 조각 쿼리를 보세요
+[S3]   PFR1_KFR7_STEP_PATH_9 597,420행  KFR7 554,751 · PFR1 42,669
+[S3]   PFR1_KFR7_STEP_PATH_10 644,997행  KFR7 605,420 · PFR1 39,577
+[S3] PFR1_KFR7_STEP_PATH 조각 11개 이어붙임 7,269,577행
+[QUERY] KFR7_step_path 라인분리(line_id) 7,269,577 -> 6,129,455
+[QUERY] KFR7_step_path rows=6,129,455 cols=17 9.6s
 [STAGE] KFR7 범위축약 시작
-[STEP] KFR7 현스텝 못 찾음 3,184 lot
-[STEP]   경로 자체가 없음 3,183 (그중 SKIP 이전에는 있었던 것 0)
+[SLOW] KFR7 컬럼 소문자화 0.9s
+[SLOW] KFR7 재공 lot 만 남기기 0.7s
+[STEP] KFR7 현스텝 못 찾음 837 lot
+[STEP]   경로 자체가 없음 836 (그중 SKIP 이전에는 있었던 것 1)
 [STEP]   경로는 있는데 그 order_seq 가 없음 1
-[STEP]   예: lot 의 order_seq [['QGAX021.1', 3000000.0]]
-[STEP]       경로의 order_seq 범위 [['QGAX021.1', -27875000.0, 33000000.0, 57]]
+[STEP]   예: lot 의 order_seq [['BVQ011.12', 4830999999.995791]]
+[STEP]       경로의 order_seq 범위 [['BVQ011.12', 4830999999.090909, 5821000000.0, 1012]]
 [STEP] KFR7 현스텝이 SKIP 이라 다음 스텝으로 옮긴 lot 1
-[STAGE] KFR7 범위축약 477.4s
-[ROWS] KFR7 scope(step) = 8,066
-[TRACE] KFR7 scope                 12 행   line=KFR7 | order_seq=49000000.0 | step_seq=9L369265 | proc_id=416GIGA3L_D0APVS
+[SLOW] KFR7 현스텝 확정 + de 결합 157.7s
+[STAGE] KFR7 범위축약 162.3s
+[ROWS] KFR7 scope(step) = 11,960
 [STAGE] KFR7 설비그룹전개 시작
 [STAGE] KFR7 설비그룹전개 0.1s
-[QUERY] PFR1_step_path 조회 시작 2026-09-02 20:08:31
+[QUERY] PFR1_step_path 조회 시작 2026-09-03 07:48:07
 [QUERY] PFR1_step_path <- 캐시(PFR1_KFR7_STEP_PATH)
-[QUERY] PFR1_step_path 라인분리(line_id) 5,851,048 -> 326,729
-[QUERY] PFR1_step_path rows=326,729 cols=17 0.8s
+[QUERY] PFR1_step_path 라인분리(line_id) 7,269,577 -> 400,708
+[QUERY] PFR1_step_path rows=400,708 cols=17 1.0s
 [STAGE] PFR1 범위축약 시작
-[STEP] PFR1 현스텝 못 찾음 605 lot
-[STEP]   경로 자체가 없음 605 (그중 SKIP 이전에는 있었던 것 0)
-[STEP]   경로는 있는데 그 order_seq 가 없음 0
-[STAGE] PFR1 범위축약 5.8s
-[ROWS] PFR1 scope(step) = 2,073
-[TRACE] PFR1 scope                  0 행
+[STEP] PFR1 현스텝 못 찾음 147 lot
+[STEP]   경로 자체가 없음 146 (그중 SKIP 이전에는 있었던 것 0)
+[STEP]   경로는 있는데 그 order_seq 가 없음 1
+[STEP]   예: lot 의 order_seq [['1DHBG05.1', 126875000.0]]
+[STEP]       경로의 order_seq 범위 [['1DHBG05.1', 1000000.0, 511000000.0, 520]]
+[STEP] PFR1 현스텝이 SKIP 이라 다음 스텝으로 옮긴 lot 1
+[SLOW] PFR1 현스텝 확정 + de 결합 1.8s
+[STAGE] PFR1 범위축약 2.1s
+[ROWS] PFR1 scope(step) = 2,866
 [STAGE] PFR1 설비그룹전개 시작
 [STAGE] PFR1 설비그룹전개 0.0s
-[QUERY] fab_step 조회 시작 2026-09-02 20:08:37
-[QUERY] fab_step rows=189,331 cols=12 0.2s
-[QUERY] fab_pems 조회 시작 2026-09-02 20:08:38
-[QUERY] fab_pems rows=35,971 cols=15 0.1s
-[QUERY] fab_sel 조회 시작 2026-09-02 20:08:38
-[QUERY] fab_sel rows=679 cols=4 0.1s
-[QUERY] fab_skiprule 조회 시작 2026-09-02 20:08:38
+[QUERY] fab_step 조회 시작 2026-09-03 07:48:10
+[QUERY] fab_step rows=189,336 cols=12 0.4s
+[QUERY] fab_pems 조회 시작 2026-09-03 07:48:10
+[QUERY] fab_pems rows=35,916 cols=15 0.1s
+[QUERY] fab_sel 조회 시작 2026-09-03 07:48:10
+[QUERY] fab_sel rows=679 cols=4 0.0s
+[QUERY] fab_skiprule 조회 시작 2026-09-03 07:48:10
 [QUERY] fab_skiprule rows=86 cols=4 0.1s
-[QUERY] fab_engr 조회 시작 2026-09-02 20:08:38
-[QUERY] fab_engr rows=157,393 cols=8 0.2s
-[FABPLAN] fab_step        189,331행  ['query_time', 'processid', 'stepseq', 'stepseq_type', 'areaname', 'eqptype']
-[FABPLAN] fab_pems         35,971행  ['query_time', 'pems_type', 'einecnno', 'processid', 'connecttype', 'stepseq']
+[QUERY] fab_engr 조회 시작 2026-09-03 07:48:10
+[QUERY] fab_engr rows=158,080 cols=8 0.2s
+[FABPLAN] fab_step        189,336행  ['query_time', 'processid', 'stepseq', 'stepseq_type', 'areaname', 'eqptype']
+[FABPLAN] fab_pems         35,916행  ['query_time', 'pems_type', 'einecnno', 'processid', 'connecttype', 'stepseq']
 [FABPLAN] fab_sel             679행  ['query_time', 'firsteinecnno', 'nexteinecnno', 'selecteinecnno']
 [FABPLAN] fab_skiprule         86행  ['query_time', 'skiprule', 'lotid_ld', 'descript']
-[FABPLAN] fab_engr        157,393행  ['query_time', 'lotid', 'processid', 'stepseq', 'eqpid', 'newppid']
-[FABPLAN] PFR1 lot 4,388 중 order_seq 없음 2,663
+[FABPLAN] fab_engr        158,080행  ['query_time', 'lotid', 'processid', 'stepseq', 'eqpid', 'newppid']
+[FABPLAN] PFR1 lot 4,359 중 order_seq 없음 2,656
 [STAGE] FabPlan 범위축약 시작
-[FABPLAN] 대상 lot 2,663
-[FABPLAN] STEP 에서 현스텝 찾음 2,663 / 대상 2,663 (STEP 원천 189,331행)
-[STAGE] FabPlan 범위축약 16.8s
-[ROWS] FabPlan scope(step) = 3,154
+[FABPLAN] 대상 lot 2,656
+[FABPLAN] STEP 에서 현스텝 찾음 2,656 / 대상 2,656 (STEP 원천 189,336행)
+[STAGE] FabPlan 범위축약 17.1s
+[ROWS] FabPlan scope(step) = 3,176
 [STAGE] FabPlan 설비그룹전개 시작
 [STAGE] FabPlan 설비그룹전개 0.0s
-D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py:3554: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py:3570: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
   s = pd.concat(s_parts, ignore_index=True)
-[ROWS] s = 29,743
-[TRACE] s(스텝 전체)                   23 행   line=KFR7 | order_seq=49000000.0 | step_seq=9L369265 | proc_id=416GIGA3L_D0APVS
-[QUERY] KFR7_tip 조회 시작 2026-09-02 20:08:55
-[S3] 조각 목록 조회 실패(TypeError) - 0~9 로 찾는다
-[S3]   PFR1_KFR7_TIP_0 873,063행  KFR7 640,887 · PFR1 232,176
-[S3]   PFR1_KFR7_TIP_1 669,033행  KFR7 338,438 · PFR1 330,595
-[S3]   PFR1_KFR7_TIP_2 823,743행  KFR7 432,697 · PFR1 391,046
-[S3]   PFR1_KFR7_TIP_3 518,761행  KFR7 232,514 · PFR1 286,247
+[ROWS] s = 43,007
+[QUERY] KFR7_tip 조회 시작 2026-09-03 07:48:28
+[S3]   PFR1_KFR7_TIP_0 873,041행  KFR7 640,865 · PFR1 232,176
+[S3]   PFR1_KFR7_TIP_1 669,070행  KFR7 338,452 · PFR1 330,618
+[S3]   PFR1_KFR7_TIP_2 823,779행  KFR7 432,723 · PFR1 391,056
+[S3]   PFR1_KFR7_TIP_3 518,825행  KFR7 232,546 · PFR1 286,279
 [S3]   PFR1_KFR7_TIP_4 1,679,111행  KFR7 1,355,909 · PFR1 323,202
-[S3]   PFR1_KFR7_TIP_5 601,128행  KFR7 428,328 · PFR1 172,800
-[S3]   PFR1_KFR7_TIP_6 733,331행  KFR7 553,500 · PFR1 179,831
-[S3]   PFR1_KFR7_TIP_7 1,007,679행  KFR7 634,708 · PFR1 372,971
-[S3]   PFR1_KFR7_TIP_8 1,487,506행
-[S3]   PFR1_KFR7_TIP_9 802,371행  KFR7 657,234 · PFR1 145,137
-[S3] PFR1_KFR7_TIP 조각 10개 이어붙임 9,195,726행
-[QUERY] KFR7_tip 라인분리(line_id) 9,195,726 -> 5,274,215
-[QUERY] KFR7_tip rows=5,274,215 cols=12 8.4s
+[S3]   PFR1_KFR7_TIP_5 601,158행  KFR7 428,348 · PFR1 172,810
+[S3]   PFR1_KFR7_TIP_6 733,356행  KFR7 553,519 · PFR1 179,837
+[S3]   PFR1_KFR7_TIP_7 1,007,724행  KFR7 634,753 · PFR1 372,971
+[S3]   PFR1_KFR7_TIP_8 1,487,506행  <-- line_id 컬럼이 없다. 그 조각 쿼리를 보세요
+[S3]   PFR1_KFR7_TIP_9 802,415행  KFR7 657,278 · PFR1 145,137
+[S3]   PFR1_KFR7_TIP_10 908,313행  KFR7 765,255 · PFR1 143,058
+[S3] PFR1_KFR7_TIP 조각 11개 이어붙임 10,104,298행
+[QUERY] KFR7_tip 라인분리(line_id) 10,104,298 -> 6,039,648
+[QUERY] KFR7_tip rows=6,039,648 cols=12 8.8s
 [STAGE] KFR7 tip 선필터 시작
-[STAGE] KFR7 tip 선필터 1.6s
-[FILTER] KFR7 tip 5,274,215 -> 60,999
+[STAGE] KFR7 tip 선필터 1.9s
+[FILTER] KFR7 tip 6,039,648 -> 94,738
 [STAGE] KFR7 tip 전처리 시작
-[STAGE] KFR7 tip 전처리 0.4s
-[QUERY] PFR1_tip 조회 시작 2026-09-02 20:09:05
+[STAGE] KFR7 tip 전처리 0.6s
+[QUERY] PFR1_tip 조회 시작 2026-09-03 07:48:39
 [QUERY] PFR1_tip <- 캐시(PFR1_KFR7_TIP)
-[QUERY] PFR1_tip 라인분리(line_id) 9,195,726 -> 2,434,005
-[QUERY] PFR1_tip rows=2,434,005 cols=12 1.4s
+[QUERY] PFR1_tip 라인분리(line_id) 10,104,298 -> 2,577,144
+[QUERY] PFR1_tip rows=2,577,144 cols=12 1.6s
 [STAGE] PFR1 tip 선필터 시작
 [FILTER] FabPlan 이 있어 eqpid 조건은 걸지 않는다 (설비를 TIP 에서 찾아야 한다)
-[STAGE] PFR1 tip 선필터 0.6s
-[FILTER] PFR1 tip 2,434,005 -> 33,048
+[STAGE] PFR1 tip 선필터 0.7s
+[FILTER] PFR1 tip 2,577,144 -> 35,744
 [STAGE] PFR1 tip 전처리 시작
 [STAGE] PFR1 tip 전처리 0.2s
-[ROWS] t = 74,153
+[ROWS] t = 102,612
 [STAGE] FabPlan 설비그룹 시작
-[FABPLAN] TIP 매칭 17,661행 (대상 3,154 · TIP 73,460)
-[FABPLAN] 설비 전개 3,154 -> 17,661행 (설비 못 찾은 스텝 247 - 그래도 남긴다)
-[FABPLAN]   스텝당 설비 수 분포 {1: 560, 2: 882, 3: 383, 4: 259, 5: 165} ... · 평균 6.0대 · 자기라인 15,762 · 호환 1,652
-[FABPLAN]   설비 속성 매칭 17,414/17,661 · AREA 17,411
-D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py:2196: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+[FABPLAN] TIP 매칭 18,605행 (대상 3,176 · TIP 101,781)
+[FABPLAN] 설비 전개 3,176 -> 18,605행 (설비 못 찾은 스텝 127 - 그래도 남긴다)
+[FABPLAN]   스텝당 설비 수 분포 {1: 525, 2: 980, 3: 428, 4: 313, 5: 28} ... · 평균 6.1대 · 자기라인 16,739 · 호환 1,739
+[FABPLAN]   설비 속성 매칭 18,478/18,605 · AREA 18,475
+D:\PERSONAL_SPACE\SW\python\7_holdwaitanal\getdata\build_f3.py:2212: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
   out = pd.concat([s[~fab], grown], ignore_index=True)
-[FABPLAN] 현스텝 표시 2,663 -> 13,922  <-- 늘었다(설비마다 복제됨)
-[STAGE] FabPlan 설비그룹 0.3s
+[FABPLAN] 현스텝 표시 2,656 -> 14,195  <-- 늘었다(설비마다 복제됨)
+[STAGE] FabPlan 설비그룹 0.4s
 [STAGE] hold 전처리 시작
-[HOLD] 최신 version_desc=20260902-140000 적용: 6,491 -> 6,491행
-[HOLD] 재공 lot 한정: 6,491 -> 6,153행
+[HOLD] 최신 version_desc=20260903-060000 적용: 7,262 -> 7,262행
+[HOLD] 재공 lot 한정: 7,262 -> 6,907행
 [STAGE] hold 전처리 0.0s
-[ROWS] h1 = 4,494
-[ROWS] h2 = 889
-[ROWS] h3 = 320
-[TLOT] 3 duckdb 등록 직전                    1행 / 전체 12,825
+[ROWS] h1 = 4,996
+[ROWS] h2 = 1,008
+[ROWS] h3 = 338
 [STAGE] f3 생성 시작
-[TIP] wc_mask=01 rules=73,487 wildcard=['lot_type']
-[TIP] wc_mask=03 rules=1 wildcard=['lot_type', 'process']
-[TIP] wc_mask=05 rules=92 wildcard=['lot_type', 'step']
-[TIP] wc_mask=07 rules=395 wildcard=['lot_type', 'process', 'step']
+[TIP] wc_mask=01 rules=101,814 wildcard=['lot_type']
+[TIP] wc_mask=03 rules=2 wildcard=['lot_type', 'process']
+[TIP] wc_mask=05 rules=117 wildcard=['lot_type', 'step']
+[TIP] wc_mask=07 rules=478 wildcard=['lot_type', 'process', 'step']
 [TIP] wc_mask=09 rules=2 wildcard=['lot_type', 'ppid']
-[TIP] wc_mask=13 rules=176 wildcard=['lot_type', 'step', 'ppid']
-[TIP] 매칭 후보 = 98,461행
-[STATUS] 1. 원천 m.status (lot): {'WAIT': 7410, 'HOLD': 4340, 'RUN': 1075}
-[STATUS] 2. 현스텝 행의 status: {'WAIT': 5175, 'HOLD': 3014, 'RUN': 837}
-[STATUS] 3. step_status(현스텝): {'HOLD': 3014, 'RUN': 837, 'WAIT': 3160, 'WAIT(진행불가)': 2015}
-[STATUS] 4. current_step_status: {'RUN': 837, 'HOLD': 3014, 'None': 3799, 'WAIT': 3160, 'WAIT(진행불가)': 2015}
-[STATUS] 현스텝 행이 없는 lot 3,799 -> 이 lot 은 상태를 못 정한다
-[STAGE] f3 생성 3.5s
-[TRACE] f3 생성 직후                   12 행   line=KFR7 | dest_line_id=KFR7A | lot_type=PP | order_seq=49000000.0 | step_seq=9L369265 | proc_id=416GIGA3L_D0APVS
+[TIP] wc_mask=13 rules=199 wildcard=['lot_type', 'step', 'ppid']
+[TIP] 매칭 후보 = 119,766행
+[STATUS] 1. 원천 m.status (lot): {'RUN': 825, 'HOLD': 4832, 'WAIT': 7071}
+[STATUS] 2. 현스텝 행의 status: {'HOLD': 4429, 'RUN': 783, 'WAIT': 6522}
+[STATUS] 3. step_status(현스텝): {'WAIT': 3651, 'HOLD': 4429, 'RUN': 779, 'WAIT(진행불가)': 2875}
+[STATUS] 4. current_step_status: {'WAIT': 3651, 'None': 994, 'HOLD': 4429, 'RUN': 779, 'WAIT(진행불가)': 2875}
+[STATUS] 현스텝 행이 없는 lot 994 -> 이 lot 은 상태를 못 정한다
+[STAGE] f3 생성 3.4s
 [STAGE] 라인 재분류(dest_line_id) 시작
-[TRACE] relabel 입력 f3              12 행   line=KFR7 | dest_line_id=KFR7A | lot_type=PP | order_seq=49000000.0 | step_seq=9L369265 | proc_id=416GIGA3L_D0APVS
-[LINE] dest_line_id 로 재분류 4,160행  KFR4:4,160
+[LINE] dest_line_id 로 재분류 5,977행  KFR4:5,977
 [STAGE] 라인 재분류(dest_line_id) 0.3s
 [STAGE] 모듈 결합(기준정보) 시작
-[STD] module 3,322/13,232행 매칭 (규칙 135건)
-[STAGE] 모듈 결합(기준정보) 5.8s
+[STD] module 5,273/17,893행 매칭 (규칙 135건)
+[STAGE] 모듈 결합(기준정보) 7.6s
 [STAGE] HOLD 유형 결합(기준정보) 시작
-[STD] holdtype 1,925/13,232행 매칭 (규칙 212건)
-[STAGE] HOLD 유형 결합(기준정보) 0.2s
-[TIP] f3 tip 값 있는 행 = 1,912 / 13,232
-[ROWS] f3 = 13,232  (lot 9,026개)
-[TLOT] 9 최종 f3                          12행 / 전체 13,232
-[TLOT] (sql) m                           1행
-[TLOT] (sql) ms_joined                  23행
-[TLOT] (sql) f1_base                    29행
-[TLOT] (sql) f1_status_base             29행
-[TLOT] (sql) f1                         29행
-[TLOT] (sql) f1_current                  1행
-[TLOT] (sql) f3_calc                    29행
-[TLOT] (sql) s (스텝범위)                   23행
+[STD] holdtype 2,907/17,893행 매칭 (규칙 212건)
+[STAGE] HOLD 유형 결합(기준정보) 0.3s
+[TIP] f3 tip 값 있는 행 = 2,264 / 17,893
+[ROWS] f3 = 17,893  (lot 11,734개)
 [STATUS] 원천 -> f3  (lot 수)
-[STATUS]   HOLD               4,340 ->   3,014  <-- 크게 줄었다
-[STATUS]   RUN                1,075 ->     837
-[STATUS]   WAIT               7,410 ->   3,062  <-- 크게 줄었다
-[STATUS]   WAIT(진행불가)             0 ->   2,113
-[STATUS] 원천 HOLD 인데 f3 에서 바뀐 lot 1,326 -> {'(f3 에 없음)': np.int64(1326)}
-[CHECK] FabPlan 3,094행 · lotplan(PFR1) 2,073행 채움 비율
-[CHECK]   eqpgroup         FabPlan  92.2%  lotplan 100.0%
-[CHECK]   eqpgroup_cham    FabPlan  92.2%  lotplan 100.0%
-[CHECK]   area             FabPlan  92.1%  lotplan  81.6%
+[STATUS]   HOLD               4,832 ->   4,429
+[STATUS]   RUN                  825 ->     779
+[STATUS]   WAIT               7,071 ->   3,575  <-- 크게 줄었다
+[STATUS]   WAIT(진행불가)             0 ->   2,951
+[STATUS] 원천 HOLD 인데 f3 에서 바뀐 lot 403 -> {'(f3 에 없음)': np.int64(403)}
+[CHECK] FabPlan 3,073행 · lotplan(PFR1) 2,861행 채움 비율
+[CHECK]   eqpgroup         FabPlan  96.1%  lotplan 100.0%
+[CHECK]   eqpgroup_cham    FabPlan  96.1%  lotplan 100.0%
+[CHECK]   area             FabPlan  96.0%  lotplan  80.7%
 [CHECK]   layer_id         FabPlan 100.0%  lotplan 100.0%
 [CHECK]   recipe_id        FabPlan  99.9%  lotplan 100.0%
 [CHECK]   step_desc        FabPlan 100.0%  lotplan 100.0%
 [CHECK]   eqp_type         FabPlan 100.0%  lotplan 100.0%
 [CHECK]   lot_status       FabPlan 100.0%  lotplan 100.0%
-[CHECK]   prod2            FabPlan  99.0%  lotplan  73.7%
-[CHECK]   module1          FabPlan   0.0%  lotplan   5.0%
-[CHECK]   현스텝 있는 lot 2,663 / FabPlan lot 2,663
-[CHECK]   FabPlan EQPGROUP 설비 수 평균 3.5대 · 1대뿐 42% · 최대 34대
-[CHECK]   lotplan EQPGROUP 설비 수 평균 2.4대 · 1대뿐 64% · 최대 31대
+[CHECK]   prod2            FabPlan  99.1%  lotplan  75.1%
+[CHECK]   module1          FabPlan   0.0%  lotplan   4.9%
+[CHECK]   현스텝 있는 lot 2,656 / FabPlan lot 2,656
+[CHECK]   FabPlan EQPGROUP 설비 수 평균 3.4대 · 1대뿐 40% · 최대 24대
+[CHECK]   lotplan EQPGROUP 설비 수 평균 2.4대 · 1대뿐 63% · 최대 31대
 [DUP] lot/step 중복 없음
-[MIX] f3 사용 설비그룹 1,507개 중 batch/single 혼재 1개 (equipment 미매칭 설비 1건)
+[MIX] f3 사용 설비그룹 1,540개 중 batch/single 혼재 2개 (equipment 미매칭 설비 2건)
 [TIMER] DB 적재 start
-[DB] f3_live 갱신 snapshot_at=2026-09-02 20:00:19 rows=13,232
-[DB] f3_wip_step 5,509행 (snapshot=2026-09-02 20:00:19)
+[DB] f3_live 갱신 snapshot_at=2026-09-03 07:45:08 rows=17,893
+[DB] f3_wip_step 6,927행 (snapshot=2026-09-03 07:45:08)
 [DB] f3_history 갱신 없음 (이미 더 가까운 스냅샷이 적재돼 있음)
-[TIMER] DB 적재 elapsed=2.135s
+[TIMER] DB 적재 elapsed=2.626s
