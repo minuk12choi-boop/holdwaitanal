@@ -1950,15 +1950,20 @@ def narrow_step_to_scope(df_path, df_lot, line):
     _lap("order_seq 숫자화")
 
     m = _lower_cols(df_lot)
-    # step_level 은 SKIP 판정에 쓴다(lot 수준 > 경로 수준이면 건너뛴다).
+    # SKIP 판정용 수준. lot 표는 lot_level, 경로는 step_level 이다.
+    #   (이름이 달라 step_level 로 찾으면 lot 쪽이 늘 비어 판정이 안 됐다)
     _mc = ["lot_id", "order_seq"]
-    _has_lvl = "step_level" in m.columns
-    if _has_lvl:
-        _mc.append("step_level")
+    _lvl_col = None
+    for _c in ("lot_level", "step_level"):
+        if _c in m.columns:
+            _lvl_col = _c
+            break
+    if _lvl_col:
+        _mc.append(_lvl_col)
     m = m[m["line"].eq(line)][_mc].copy()
-    if _has_lvl:
+    if _lvl_col:
         # 경로에도 step_level 이 있어 이름이 겹친다. lot 쪽은 따로 둔다.
-        m = m.rename(columns={"step_level": "_lot_level"})
+        m = m.rename(columns={_lvl_col: "_lot_level"})
     m["order_seq"] = pd.to_numeric(m["order_seq"], errors="coerce")
     m = m.dropna(subset=["order_seq"]).drop_duplicates()
 
@@ -3142,7 +3147,7 @@ def build_f3(con):
     con.execute(f"""
         CREATE OR REPLACE TABLE f1 AS
         SELECT
-            fsb.* EXCLUDE (status, AREA),
+            fsb.* EXCLUDE (status, AREA, childeqp),
             {elapsed_days_num('fsb.start_date')}       AS "투입경과_일",
             {elapsed_days_num('fsb.last_event_date')}  AS "마지막이벤트경과_일",
             {elapsed_days_num('fsb.step_arrive_date')} AS "스텝도착경과_일",
