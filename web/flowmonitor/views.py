@@ -2318,15 +2318,21 @@ def _summary_rows(line, types, extra=None, biz_date=None, shift=None):
         cond += " AND `%s` IN (%s)" % (col, ",".join(["%s"] * len(vals)))
         params += vals
 
-    with connection.cursor() as cur:
-        cur.execute(f"""
-            SELECT lot_id, {', '.join(sel)}, COUNT(*) AS `_steps`
-            FROM   {table}
-            WHERE  {where} {cond}
-            GROUP  BY lot_id, `line`
-        """, params)
-        names = [d[0] for d in cur.description]
-        rows = [dict(zip(names, r)) for r in cur.fetchall()]
+    _sql = (f"SELECT lot_id, {', '.join(sel)}, COUNT(*) AS `_steps`"
+            f" FROM {table} WHERE {where} {cond} GROUP BY lot_id, `line`")
+    try:
+        with connection.cursor() as cur:
+            cur.execute(_sql, params)
+            names = [d[0] for d in cur.description]
+            rows = [dict(zip(names, r)) for r in cur.fetchall()]
+    except Exception as e:
+        # 조용히 빈 결과가 되면 화면에 '스냅샷이 없습니다' 만 뜨고 원인을
+        # 알 수 없다. 무엇이 깨졌는지 남기고 다시 던진다.
+        print(f"[ERROR] 재공 조회 실패: {type(e).__name__}: {e}", flush=True)
+        print(f"[ERROR]   table={table} · line={line} · types={types}",
+              flush=True)
+        print(f"[ERROR]   SQL={_sql[:400]}", flush=True)
+        raise
 
     if len(_ROWS_CACHE) > 40:          # 스냅샷이 바뀌면 낡은 것은 버린다
         _ROWS_CACHE.clear()
@@ -2525,7 +2531,28 @@ def api_summary(request):
 
     rows, snap = _summary_rows(line, types, biz_date=bdate, shift=bshift)
     if not rows:
-        return JsonResponse({"ready": False, "reason": "이 라인의 스냅샷이 없습니다"})
+        # 왜 비었는지 갈라 준다. 라인 이름이 틀린 건지, 적재가 없는 건지.
+        why = "이 라인의 스냅샷이 없습니다"
+        try:
+            with connection.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM f3_live")
+                total = cur.fetchone()[0]
+                cur.execute("SELECT DISTINCT `line` FROM f3_live "
+                            "WHERE snapshot_at=(SELECT MAX(snapshot_at) "
+                            "FROM f3_live)")
+                lines = sorted(str(r[0]) for r in cur.fetchall())
+            if not total:
+                why = "f3_live 가 비었습니다. build_f3 를 돌리세요"
+            elif lines and _line_list(line) and not (
+                    set(_line_list(line)) & set(lines)):
+                why = (f"'{line}' 라인이 없습니다. 있는 라인: "
+                       f"{', '.join(lines)}")
+            else:
+                why = (f"이 조건에 해당하는 재공이 없습니다"
+                       f" (라인 {', '.join(lines)} · 전체 {total:,}행)")
+        except Exception:
+            pass
+        return JsonResponse({"ready": False, "reason": why})
 
     # lot_type 목록은 필터와 무관하게 전체에서 뽑아야 토글이 유지된다
     all_rows, _ = _summary_rows(line, [])
