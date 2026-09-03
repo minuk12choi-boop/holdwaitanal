@@ -1448,8 +1448,12 @@ function renderBalMenu(which) {
     `<label class="dfall"><input type="checkbox" checked`
     + ` onclick="balBy('${which}', this.checked)">`
     + `<b>${which === "prod" ? "제품" : "PLAN"} 으로 나누기</b></label>`
+    + `<div class="ddhead">`
     + `<input class="ddq" id="balq${mid}" type="text" placeholder="검색"`
     + ` oninput="balSearch('${mid}')" onclick="event.stopPropagation()">`
+    + `<button class="ddgo" id="balgo${mid}"`
+    + ` onclick="event.stopPropagation();balApply('${mid}')">조회</button>`
+    + `</div>`
     + `<label class="dfall"><input type="checkbox"`
     + `${cur === null ? " checked" : ""} onclick="balAll(event,'${mid}')">`
     + `<b>ALL</b></label>`
@@ -1490,6 +1494,24 @@ function balPick(mid) {
   // 하나도 안 고르면 합산 한 줄로 돌아간다. 축(BAL_BY)은 그대로 둔다.
   BAL_OPEN = (BAL_PICK === null) || BAL_PICK.length > 0;
   balSyncBtns();
+  // [바뀜] 고를 때마다 다시 그리지 않는다. [조회] 를 눌러야 반영된다.
+  balMarkDirty(mid, true);
+}
+
+const BAL_DIRTY = {};
+
+function balMarkDirty(mid, on) {
+  BAL_DIRTY[mid] = !!on;
+  const g = document.getElementById("balgo" + mid);
+  if (g) { g.classList.toggle("on", !!on); }
+}
+
+// LOT BALANCE 필터의 [조회]. 여기서만 다시 그린다.
+function balApply(mid) {
+  balMarkDirty(mid, false);
+  // 제품은 balpick, PLAN 은 balpick2 가 감싸고 있다.
+  const el = document.getElementById(mid === "Prod" ? "balpick" : "balpick2");
+  if (el) { el.classList.remove("open"); }
   drawBalance();
 }
 
@@ -4213,10 +4235,24 @@ function dfOpen(k) {
 
 function dfSearch(k) {
   const q = (document.getElementById("dfq_" + k).value || "").trim().toLowerCase();
+  // 검색은 보이기만 바꾸는 게 아니라 체크까지 그 범위로 맞춘다.
+  //   좁혀 놓고 체크는 전체이면, 조회해도 전체가 나와 기대와 다르다.
+  const boxes = [];
   document.querySelectorAll("#dfm_" + k + " label[data-opt]").forEach(el => {
     const v = (el.getAttribute("data-opt") || "").toLowerCase();
-    el.style.display = (!q || v.indexOf(q) >= 0) ? "" : "none";
+    const on = (!q || v.indexOf(q) >= 0);
+    el.style.display = on ? "" : "none";
+    const cb = el.querySelector("input");
+    if (cb) { cb.checked = on; boxes.push(cb); }
   });
+  const sel = new Set(boxes.filter(x => x.checked).map(x => x.value));
+  if (sel.size === boxes.length) {
+    if (k === "wt") { DFILT_WT = null; } else { delete DFILT[k]; }
+  } else if (k === "wt") { DFILT_WT = sel; } else { DFILT[k] = sel; }
+  const all = document.querySelector("#dfm_" + k + " input[data-all]");
+  if (all) { all.checked = (sel.size === boxes.length); }
+  dfLabel(k, sel.size, boxes.length);
+  dfMarkDirty(k, true);
 }
 
 function dfPick(ev, k, idx) {
@@ -4235,6 +4271,27 @@ function dfPick(ev, k, idx) {
   const all = document.querySelector("#dfm_" + k + " input[data-all]");
   if (all) { all.checked = (sel.size === boxes.length); }
   dfLabel(k, sel.size, boxes.length);
+  // [바뀜] 체크할 때마다 다시 그리지 않는다. [조회] 를 눌러야 반영된다.
+  //   여러 개를 고르는 동안 표가 계속 바뀌어 무엇이 걸렸는지 알 수 없었다.
+  dfMarkDirty(k, true);
+}
+
+// 아직 반영하지 않은 필터를 표시한다.
+const DF_DIRTY = {};
+
+function dfMarkDirty(k, on) {
+  DF_DIRTY[k] = !!on;
+  const g = document.getElementById("dfgo_" + k);
+  if (g) { g.classList.toggle("on", !!on); }
+  const b = document.getElementById("dfb_" + k);
+  if (b) { b.classList.toggle("dirty", !!on); }
+}
+
+// 드릴다운 필터의 [조회]. 여기서만 표를 다시 그린다.
+function dfApply(k) {
+  dfMarkDirty(k, false);
+  const el = document.getElementById("df_" + k);
+  if (el) { el.classList.remove("open"); }
   FCACHE = null;                        // 필터가 바뀌었으니 다시 거른다
   renderDrillTable();
 }
@@ -4409,8 +4466,12 @@ function renderDrillHead() {
         + `<button id="dfb_${k}" onclick="dfOpen('${k}')">`
         + `<span>${label}</span><span>&#9662;</span></button>`
         + `<div class="menu" id="dfm_${k}">`
+        + `<div class="ddhead">`
         + `<input class="ddq" id="dfq_${k}" type="text" placeholder="검색"`
         + ` oninput="dfSearch('${k}')" onclick="event.stopPropagation()">`
+        + `<button class="ddgo" id="dfgo_${k}"`
+        + ` onclick="event.stopPropagation();dfApply('${k}')">조회</button>`
+        + `</div>`
         + `<label class="dfall"><input type="checkbox" data-all checked`
         + ` onclick="dfAll(event,'${k}')"><b>ALL</b></label>`
         + opts.map((o, i) => `<label data-opt="${o}"><input type="checkbox"`
@@ -4430,8 +4491,7 @@ function dfAll(ev, k) {
   if (k === "wt") { DFILT_WT = on ? null : sel; }
   else if (on) { delete DFILT[k]; } else { DFILT[k] = sel; }
   dfLabel(k, sel.size, boxes.length);
-  FCACHE = null;
-  renderDrillTable();
+  dfMarkDirty(k, true);       // [조회] 를 눌러야 반영된다
 }
 
 function dfClearAll() {
